@@ -1,0 +1,14 @@
+{
+  "name": "lukelang",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "luke": "./luke.js"
+  },
+  "scripts": {
+    "build": "node main.js",
+    "run": "node examples/hello.js",
+    "show": "node main.js SHOW examples/hello.luke"
+  }
+}

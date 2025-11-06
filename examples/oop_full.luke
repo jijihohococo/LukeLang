@@ -1,0 +1,116 @@
+SPEAK "=== OOP Feature Showcase ==="
+
+CONTRACT Movable DO
+  MUST METHOD move WITH distance
+END CONTRACT
+
+CONTRACT Eater DO
+  MUST METHOD eat WITH food
+END CONTRACT
+
+CONTRACT Sleeper DO
+  MUST METHOD sleep WITH hours
+END CONTRACT
+
+ABSTRACT BLUEPRINT Creature IMPLEMENTS Movable AND Eater AND Sleeper DO
+  PRIVATE energy
+  HAS name SET TO "Unknown"
+  ALWAYS HAS totalCount SET TO 0
+
+  WHEN BORN WITH name DO
+    SET SELF.name TO name
+    SET SELF.energy TO 100
+    SET Creature.totalCount TO Creature.totalCount ADD 1
+  END BORN
+
+  ALWAYS METHOD count DO
+    SPEAK "Total creatures: " AND SELF.totalCount
+  END METHOD
+
+  SECRET METHOD rest WITH minutes DO
+    SET SELF.energy TO SELF.energy ADD minutes
+  END METHOD
+
+  METHOD move WITH distance DO
+    SET SELF.energy TO SELF.energy SUBTRACT distance
+    SPEAK SELF.name AND " moves " AND distance
+    GIVE BACK SELF.energy
+  END METHOD
+
+  METHOD eat WITH food DO
+    SPEAK SELF.name AND " eats " AND food
+    ASK SELF TO rest WITH 10
+  END METHOD
+
+  METHOD sleep WITH hours DO
+    SPEAK SELF.name AND " sleeps for " AND hours AND " hours"
+    ASK SELF TO rest WITH hours MULTIPLY BY 10
+  END METHOD
+END CLASS
+
+BLUEPRINT Lion FOLLOWS Creature DO
+  ALWAYS HAS species SET TO "Lion"
+
+  METHOD roar DO
+    SPEAK SELF.name AND " roars loudly!"
+  END METHOD
+
+  METHOD eat WITH food DO
+    CALL PARENT eat WITH food
+    SPEAK SELF.name AND " tears into the meat fiercely."
+  END METHOD
+END CLASS
+
+BLUEPRINT Elephant FOLLOWS Creature DO
+  ALWAYS HAS species SET TO "Elephant"
+
+  METHOD trumpet DO
+    SPEAK SELF.name AND " trumpets proudly!"
+  END METHOD
+
+  METHOD eat WITH food DO
+    SPEAK SELF.name AND " gently munches on " AND food
+  END METHOD
+END CLASS
+
+THIS IS FUNCTION feedAll WITH animals AND food DO
+  FOR EACH a IN animals DO
+    ASK a TO eat WITH food
+  END FOR
+END FUNCTION
+
+THIS IS FUNCTION march WITH animals AND distance DO
+  FOR EACH a IN animals DO
+    ASK a TO move WITH distance
+  END FOR
+END FUNCTION
+
+THIS IS FUNCTION bedTime WITH animals AND hours DO
+  FOR EACH a IN animals DO
+    ASK a TO sleep WITH hours
+  END FOR
+END FUNCTION
+
+TRY DO
+  SET simba TO NEW Lion WITH "Simba"
+  SET dumbo TO NEW Elephant WITH "Dumbo"
+  SET zoo TO LIST OF simba AND dumbo END LIST
+
+  ASK simba TO roar
+  ASK dumbo TO trumpet
+
+  ASK Creature TO count
+
+  DO march WITH zoo AND 3
+  DO feedAll WITH zoo AND "bananas"
+  DO bedTime WITH zoo AND 8
+
+  SET energyLeft TO DO move OF simba WITH 2
+  SPEAK "Simba's energy left: " AND energyLeft
+
+  SPEAK "Second animal via indexing: " AND (ITEM AT 1 OF zoo).name
+CATCH AS e DO
+  SPEAK "Error: " AND e
+FINALLY DO
+  SPEAK "=== End of OOP Feature Showcase ==="
+END TRY

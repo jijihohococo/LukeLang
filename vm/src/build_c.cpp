@@ -84,13 +84,14 @@ std::vector<std::string> splitArgs(const std::string &s) {
   return out;
 }
 
-enum class K { Num, Flag, Text, Void, Ptr };
+enum class K { Num, Flag, Text, Json, Void, Ptr };
 struct Ty {
   K k = K::Void;
   std::string klass;
   static Ty num() { return {K::Num, ""}; }
   static Ty flag() { return {K::Flag, ""}; }
   static Ty text() { return {K::Text, ""}; }
+  static Ty json() { return {K::Json, ""}; }
   static Ty vod() { return {K::Void, ""}; }
   static Ty ptr(const std::string &c) { return {K::Ptr, c}; }
 };
@@ -99,9 +100,25 @@ std::string cTy(const Ty &t) {
     case K::Num: return "double";
     case K::Flag: return "int";
     case K::Text: return "LukeText";
+    case K::Json: return "LukeJson *";
     case K::Ptr: return cIdent(t.klass) + " *";
     default: return "void";
   }
+}
+std::string tyName(const Ty &t) {
+  switch (t.k) {
+    case K::Num: return "NUMBER";
+    case K::Flag: return "FLAG";
+    case K::Text: return "TEXT";
+    case K::Json: return "JSON";
+    case K::Ptr: return t.klass.empty() ? "blueprint" : t.klass;
+    default: return "nothing";
+  }
+}
+bool typesEqual(const Ty &a, const Ty &b) {
+  if (a.k != b.k) return false;
+  if (a.k == K::Ptr) return a.klass == b.klass;
+  return true;
 }
 
 struct Param {
@@ -131,6 +148,7 @@ struct Fn {
   std::string name;
   std::vector<Param> params;
   Ty ret = Ty::num();
+  bool retDeclared = false;
   std::vector<std::string> body;
   std::vector<size_t> lines;
 };
@@ -150,6 +168,8 @@ struct BC {
   std::vector<std::pair<size_t, std::string>> top;
   std::map<std::string, Ty> locals;
   std::string curClass;
+  Ty curRet = Ty::vod();
+  bool hasCurRet = false;
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -157,11 +177,48 @@ struct BC {
     err = "Build error on line " + std::to_string(line) + ": " + m;
   }
 
+  void expectTy(size_t line, const Ty &got, const Ty &want, const std::string &what) {
+    if (want.k == K::Void || got.k == K::Void) return;
+    if (!typesEqual(got, want)) {
+      fail(line, what + " wants " + tyName(want) + " but got " + tyName(got));
+    }
+  }
+
+  std::vector<Expr> checkCallArgs(size_t line, const std::string &callee,
+                                  const std::vector<Param> &params,
+                                  const std::vector<std::string> &args) {
+    std::vector<Expr> out;
+    if (args.size() != params.size()) {
+      fail(line, "'" + callee + "' expects " + std::to_string(params.size()) + " argument" +
+                     (params.size() == 1 ? "" : "s") + " but got " + std::to_string(args.size()));
+      return out;
+    }
+    for (size_t i = 0; i < params.size(); ++i) {
+      auto e = expr(args[i], line);
+      if (bad) return out;
+      if (params[i].ty.k == K::Void) {
+        fail(line, "'" + callee + "' parameter '" + params[i].name +
+                       "' has an unknown type — use AS NUMBER/TEXT/FLAG/JSON or a blueprint name");
+        return out;
+      }
+      expectTy(line, e.ty, params[i].ty,
+               "'" + callee + "' argument '" + params[i].name + "'");
+      out.push_back(e);
+    }
+    return out;
+  }
+
+  void expectArgs(size_t line, const std::string &callee, const std::vector<Param> &params,
+                  const std::vector<std::string> &args) {
+    (void)checkCallArgs(line, callee, params, args);
+  }
+
   Ty parseTy(const std::string &t) {
     auto U = toUpper(t);
     if (U == "NUMBER" || U == "NUM") return Ty::num();
     if (U == "FLAG" || U == "BOOL") return Ty::flag();
     if (U == "TEXT" || U == "STRING") return Ty::text();
+    if (U == "JSON") return Ty::json();
     if (bps.count(t)) return Ty::ptr(t);
     return Ty::vod();
   }
@@ -173,8 +230,12 @@ struct BC {
     auto as = U.find(" AS ");
     if (as != std::string::npos) {
       p.name = trim(s.substr(0, as));
-      p.ty = parseTy(trim(s.substr(as + 4)));
-      if (p.ty.k == K::Void) p.ty = Ty::num();
+      auto tyRaw = trim(s.substr(as + 4));
+      p.ty = parseTy(tyRaw);
+      if (p.ty.k == K::Void) {
+        // Unknown annotation — keep Void so callers can fail with context.
+        p.ty = Ty::vod();
+      }
     } else {
       p.name = s;
       p.ty = Ty::num();
@@ -242,7 +303,19 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_write_file") return mapCall("luke_write_file", Ty::flag(), false);
       if (callee == "__luke_file_exists") return mapCall("luke_file_exists", Ty::flag(), false);
       if (callee == "__luke_json_string") return mapCall("luke_json_string", Ty::text(), true);
-      fail(line, "Unknown native helper '" + callee + "' — did you IMPORT std/files or std/json?");
+      if (callee == "__luke_json_parse") return mapCall("luke_json_parse", Ty::json(), true);
+      if (callee == "__luke_json_get") return mapCall("luke_json_get", Ty::json(), false);
+      if (callee == "__luke_json_index") return mapCall("luke_json_index", Ty::json(), false);
+      if (callee == "__luke_json_len") return mapCall("luke_json_len", Ty::num(), false);
+      if (callee == "__luke_json_has") return mapCall("luke_json_has", Ty::flag(), false);
+      if (callee == "__luke_json_as_text") return mapCall("luke_json_as_text", Ty::text(), true);
+      if (callee == "__luke_json_as_number") return mapCall("luke_json_as_number", Ty::num(), false);
+      if (callee == "__luke_json_as_flag") return mapCall("luke_json_as_flag", Ty::flag(), false);
+      if (callee == "__luke_json_stringify") return mapCall("luke_json_stringify", Ty::text(), true);
+      if (callee == "__luke_json_is_null") return mapCall("luke_json_is_null", Ty::flag(), false);
+      if (callee == "__luke_http_get") return mapCall("luke_http_get", Ty::text(), true);
+      fail(line, "Unknown native helper '" + callee +
+                     "' — did you IMPORT std/files, std/json, or std/http?");
       return {"0", Ty::num()};
     }
   }
@@ -261,7 +334,8 @@ Expr BC::primary(std::string e, size_t line) {
         unesc.push_back(raw[i]);
     }
     return {"luke_text(\"" + esc(unesc) + "\")", Ty::text()};
-  }  auto U = toUpper(e);
+  }
+  auto U = toUpper(e);
   if (U == "TRUE" || U == "YES") return {"1", Ty::flag()};
   if (U == "FALSE" || U == "NO") return {"0", Ty::flag()};
   if (U == "SELF") {
@@ -336,26 +410,29 @@ Expr BC::expr(std::string e, size_t line) {
       }
       auto recv = expr(obj, line);
       if (recv.ty.k != K::Ptr) {
-        fail(line, "ASK TO needs an instance");
+        fail(line, "ASK TO needs a blueprint instance — got " + tyName(recv.ty));
         return {"0", Ty::num()};
       }
       // Resolve method on klass or ancestors.
       std::string owner = recv.ty.klass;
-      bool found = false;
+      Method *meth = nullptr;
       for (std::string c = owner; !c.empty(); c = bps[c].parent) {
         for (auto &m : bps[c].methods) {
           if (!m.ctor && m.name == method) {
             owner = c;
-            found = true;
+            meth = &m;
             break;
           }
         }
-        if (found) break;
+        if (meth) break;
       }
-      if (!found) {
-        fail(line, "Unknown method '" + method + "' on " + recv.ty.klass);
+      if (!meth) {
+        fail(line, "Unknown method '" + method + "' on " + recv.ty.klass +
+                       " — add METHOD " + method + " or CALL PARENT");
         return {"0", Ty::num()};
       }
+      auto checked = checkCallArgs(line, method, meth->params, args);
+      if (bad) return {"0", Ty::num()};
       std::ostringstream call;
       if (owner == recv.ty.klass) {
         call << cIdent(owner) << "_" << cIdent(method) << "(arena, " << recv.code;
@@ -363,7 +440,7 @@ Expr BC::expr(std::string e, size_t line) {
         call << cIdent(owner) << "_" << cIdent(method) << "(arena, (" << cIdent(owner) << "*)"
              << recv.code;
       }
-      for (auto &a : args) call << ", " << expr(a, line).code;
+      for (auto &a : checked) call << ", " << a.code;
       call << ")";
       return {call.str(), Ty::vod()};
     }
@@ -376,12 +453,14 @@ Expr BC::expr(std::string e, size_t line) {
       args = splitArgs(trim(rest.substr(w + 6)));
     }
     if (!fns.count(name)) {
-      fail(line, "Unknown function '" + name + "'");
+      fail(line, "Unknown function '" + name + "' — define it with THIS IS FUNCTION, or IMPORT it");
       return {"0", Ty::num()};
     }
+    auto checked = checkCallArgs(line, name, fns[name].params, args);
+    if (bad) return {"0", Ty::num()};
     std::ostringstream call;
     call << cIdent(name) << "(arena";
-    for (auto &a : args) call << ", " << expr(a, line).code;
+    for (auto &a : checked) call << ", " << a.code;
     call << ")";
     return {call.str(), fns[name].ret};
   }
@@ -398,12 +477,28 @@ Expr BC::expr(std::string e, size_t line) {
       args = splitArgs(trim(rest.substr(w + 6)));
     }
     if (!bps.count(cls)) {
-      fail(line, "Unknown blueprint '" + cls + "'");
+      fail(line, "Unknown blueprint '" + cls + "' — declare BLUEPRINT " + cls + " or IMPORT it");
       return {"0", Ty::num()};
     }
+    std::vector<Param> ctorP;
+    for (auto &m : bps[cls].methods)
+      if (m.ctor || m.name == "born") ctorP = m.params;
+    if (ctorP.empty()) {
+      for (std::string c = bps[cls].parent; !c.empty(); c = bps[c].parent) {
+        for (auto &m : bps[c].methods) {
+          if (m.ctor || m.name == "born") {
+            ctorP = m.params;
+            break;
+          }
+        }
+        if (!ctorP.empty()) break;
+      }
+    }
+    auto checked = checkCallArgs(line, "NEW " + cls, ctorP, args);
+    if (bad) return {"0", Ty::num()};
     std::ostringstream call;
     call << cIdent(cls) << "_new(arena";
-    for (auto &a : args) call << ", " << expr(a, line).code;
+    for (auto &a : checked) call << ", " << a.code;
     call << ")";
     return {call.str(), Ty::ptr(cls)};
   }
@@ -415,7 +510,30 @@ Expr BC::expr(std::string e, size_t line) {
     if (pos == std::string::npos) return nullptr;
     auto L = expr(trim(e.substr(0, pos)), line);
     auto R = expr(trim(e.substr(pos + needle.size())), line);
-    r = {"((" + L.code + ")" + op + "(" + R.code + "))", Ty::flag()};
+    if (!typesEqual(L.ty, R.ty) && !(L.ty.k == K::Num && R.ty.k == K::Num)) {
+      // Allow num comparisons; otherwise require matching types.
+      if (L.ty.k != R.ty.k) {
+        fail(line, "Cannot compare " + tyName(L.ty) + " with " + tyName(R.ty));
+        r = {"0", Ty::flag()};
+        return &r;
+      }
+    }
+    if (L.ty.k == K::Text) {
+      // Text equality via length+memcmp
+      if (std::string(op) == "==") {
+        r = {"(luke_text_eq((" + L.code + "),(" + R.code + ")))", Ty::flag()};
+        return &r;
+      }
+      fail(line, "TEXT only supports EQUALS comparisons in Build for now");
+      r = {"0", Ty::flag()};
+      return &r;
+    }
+    if (L.ty.k != K::Num && L.ty.k != K::Flag) {
+      fail(line, "Can only compare NUMBER or FLAG values here (got " + tyName(L.ty) + ")");
+      r = {"0", Ty::flag()};
+      return &r;
+    }
+    r = {L.code + op + R.code, Ty::flag()};
     return &r;
   };
   if (auto *r = cmp(" EQUALS ", "==")) return *r;
@@ -425,21 +543,21 @@ Expr BC::expr(std::string e, size_t line) {
 
   auto arith = [&](const std::string &mid, const std::string &pref, char op) -> Expr * {
     static Expr r;
+    auto finish = [&](Expr L, Expr R) {
+      expectTy(line, L.ty, Ty::num(), "Arithmetic");
+      expectTy(line, R.ty, Ty::num(), "Arithmetic");
+      r = {"(" + L.code + op + R.code + ")", Ty::num()};
+      return &r;
+    };
     auto pos = U.find(mid);
     if (pos != std::string::npos) {
-      auto L = expr(trim(e.substr(0, pos)), line);
-      auto R = expr(trim(e.substr(pos + mid.size())), line);
-      r = {"((" + L.code + ")" + op + "(" + R.code + "))", Ty::num()};
-      return &r;
+      return finish(expr(trim(e.substr(0, pos)), line), expr(trim(e.substr(pos + mid.size())), line));
     }
     if (startsWithCI(e, pref)) {
       auto rest = trim(e.substr(pref.size()));
       auto ap = toUpper(rest).find(" AND ");
       if (ap != std::string::npos) {
-        auto L = expr(trim(rest.substr(0, ap)), line);
-        auto R = expr(trim(rest.substr(ap + 5)), line);
-        r = {"((" + L.code + ")" + op + "(" + R.code + "))", Ty::num()};
-        return &r;
+        return finish(expr(trim(rest.substr(0, ap)), line), expr(trim(rest.substr(ap + 5)), line));
       }
     }
     return nullptr;
@@ -449,7 +567,9 @@ Expr BC::expr(std::string e, size_t line) {
     if (pos != std::string::npos) {
       auto L = expr(trim(e.substr(0, pos)), line);
       auto R = expr(trim(e.substr(pos + 13)), line);
-      return {"((" + L.code + ")*(" + R.code + "))", Ty::num()};
+      expectTy(line, L.ty, Ty::num(), "Arithmetic");
+      expectTy(line, R.ty, Ty::num(), "Arithmetic");
+      return {"(" + L.code + "*" + R.code + ")", Ty::num()};
     }
   }
   if (auto *r = arith(" ADD ", "ADD ", '+')) return *r;
@@ -476,6 +596,8 @@ void speak(const Expr &e, std::ostringstream &o) {
   if (e.ty.k == K::Text) o << "  luke_speak_text(" << e.code << ");\n";
   else if (e.ty.k == K::Flag) o << "  luke_speak_flag(" << e.code << ");\n";
   else if (e.ty.k == K::Num) o << "  luke_speak_number(" << e.code << ");\n";
+  else if (e.ty.k == K::Json)
+    o << "  luke_speak_text(luke_json_stringify(arena, " << e.code << "));\n";
   else if (e.ty.k == K::Void) o << "  " << e.code << ";\n";
   else o << "  luke_speak_text(luke_text(\"<obj>\"));\n";
 }
@@ -504,13 +626,29 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     auto parent = bc.bps[bc.curClass].parent;
     if (parent.empty()) {
-      bc.fail(line, "No parent");
+      bc.fail(line, "CALL PARENT needs a parent — this blueprint doesn't FOLLOWS anyone");
       return;
     }
-    // Flattened layout: parent fields are a prefix — cast is valid if orders match.
+    Method *meth = nullptr;
+    for (std::string c = parent; !c.empty(); c = bc.bps[c].parent) {
+      for (auto &m : bc.bps[c].methods) {
+        if (!m.ctor && m.name == method) {
+          meth = &m;
+          parent = c;
+          break;
+        }
+      }
+      if (meth) break;
+    }
+    if (!meth) {
+      bc.fail(line, "Parent has no method '" + method + "'");
+      return;
+    }
+    auto checked = bc.checkCallArgs(line, "CALL PARENT " + method, meth->params, args);
+    if (bc.bad) return;
     o << "  " << cIdent(parent) << "_" << cIdent(method) << "(arena, (" << cIdent(parent)
       << "*)self";
-    for (auto &a : args) o << ", " << bc.expr(a, line).code;
+    for (auto &a : checked) o << ", " << a.code;
     o << ");\n";
     return;
   }
@@ -519,10 +657,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto U = toUpper(text);
     auto b = U.find(" BACK ");
     auto e = bc.expr(trim(text.substr(b + 6)), line);
+    if (bc.hasCurRet) bc.expectTy(line, e.ty, bc.curRet, "GIVE BACK");
     o << "  return " << e.code << ";\n";
     return;
   }
   if (toUpper(text) == "GIVE BACK") {
+    if (bc.hasCurRet && bc.curRet.k != K::Void && bc.curRet.k != K::Num)
+      bc.fail(line, "GIVE BACK with no value — this function should GIVE BACK " + tyName(bc.curRet));
     o << "  return 0;\n";
     return;
   }
@@ -538,12 +679,23 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       auto after = trim(rest.substr(asPos + 4));
       auto set2 = toUpper(after).find(" SET TO ");
       if (set2 != std::string::npos) {
-        forced = bc.parseTy(trim(after.substr(0, set2)));
+        auto tyRaw = trim(after.substr(0, set2));
+        forced = bc.parseTy(tyRaw);
+        if (forced.k == K::Void) {
+          bc.fail(line, "Unknown type '" + tyRaw +
+                            "' — use NUMBER, TEXT, FLAG, JSON, or a blueprint name");
+          return;
+        }
         rest = name + " SET TO " + trim(after.substr(set2 + 8));
         U = toUpper(rest);
         setPos = U.find(" SET TO ");
       } else {
         forced = bc.parseTy(after);
+        if (forced.k == K::Void) {
+          bc.fail(line, "Unknown type '" + after +
+                            "' — use NUMBER, TEXT, FLAG, JSON, or a blueprint name");
+          return;
+        }
         rest = name;
         setPos = std::string::npos;
       }
@@ -551,20 +703,28 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     Expr e{"0", Ty::num()};
     if (setPos == std::string::npos) {
       name = trim(rest);
-      if (forced.k == K::Text || forced.k == K::Void) e = {"luke_text(\"\")", Ty::text()};
+      if (forced.k == K::Text) e = {"luke_text(\"\")", Ty::text()};
       else if (forced.k == K::Flag) e = {"0", Ty::flag()};
+      else if (forced.k == K::Json) e = {"((LukeJson*)0)", Ty::json()};
+      else if (forced.k == K::Ptr) e = {"((" + cIdent(forced.klass) + "*)0)", forced};
+      else if (forced.k == K::Void) e = {"luke_text(\"\")", Ty::text()};
       else e = {"0.0", Ty::num()};
       if (forced.k != K::Void) e.ty = forced;
     } else {
       name = trim(rest.substr(0, setPos));
       e = bc.expr(trim(rest.substr(setPos + 8)), line);
-      if (forced.k != K::Void) e.ty = forced;
+      if (forced.k != K::Void) {
+        bc.expectTy(line, e.ty, forced, "MY NAME IS " + name + " AS " + tyName(forced));
+        e.ty = forced;
+      }
     }
     if (!bc.locals.count(name)) {
       bc.locals[name] = e.ty;
       o << "  " << cTy(e.ty) << " " << cIdent(name) << " = " << e.code << ";\n";
-    } else
+    } else {
+      bc.expectTy(line, e.ty, bc.locals[name], "MY NAME IS " + name);
       o << "  " << cIdent(name) << " = " << e.code << ";\n";
+    }
     return;
   }
   if (startsWithCI(text, "SET ")) {
@@ -572,7 +732,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto U = toUpper(rest);
     auto to = U.find(" TO ");
     if (to == std::string::npos) {
-      bc.fail(line, "Expected SET x TO v");
+      bc.fail(line, "Expected SET x TO v — tell me what to change and what to put there");
       return;
     }
     auto target = trim(rest.substr(0, to));
@@ -582,27 +742,49 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       for (auto &f : bc.flatFields(bc.curClass)) {
         if (f.name == field) {
           if (f.priv && f.owner != bc.curClass) {
-            bc.fail(line, "private field");
+            bc.fail(line, "Field '" + field + "' is PRIVATE/SECRET on " + f.owner +
+                              " — only that blueprint's methods may touch it");
             return;
           }
+          bc.expectTy(line, e.ty, f.ty, "SET SELF." + field);
           o << "  self->" << bc.fname(f) << " = " << e.code << ";\n";
           return;
         }
       }
-      bc.fail(line, "Unknown field");
+      bc.fail(line, "Unknown field '" + field + "' on " + bc.curClass + " — declare it with HAS");
       return;
+    }
+    auto dot = target.find('.');
+    if (dot != std::string::npos) {
+      auto obj = target.substr(0, dot), field = target.substr(dot + 1);
+      if (bc.locals.count(obj) && bc.locals[obj].k == K::Ptr) {
+        for (auto &f : bc.flatFields(bc.locals[obj].klass)) {
+          if (f.name == field) {
+            bc.expectTy(line, e.ty, f.ty, "SET " + target);
+            o << "  " << cIdent(obj) << "->" << bc.fname(f) << " = " << e.code << ";\n";
+            return;
+          }
+        }
+        bc.fail(line, "No field '" + field + "' on " + bc.locals[obj].klass);
+        return;
+      }
     }
     if (!bc.locals.count(target)) {
       bc.locals[target] = e.ty;
       o << "  " << cTy(e.ty) << " " << cIdent(target) << " = " << e.code << ";\n";
-    } else
+    } else {
+      bc.expectTy(line, e.ty, bc.locals[target], "SET " + target);
       o << "  " << cIdent(target) << " = " << e.code << ";\n";
+    }
     return;
   }
   if (startsWithCI(text, "IF ")) {
     auto rest = trim(text.substr(3));
     stripDo(rest);
-    o << "  if (" << bc.expr(rest, line).code << ") {\n";
+    auto cond = bc.expr(rest, line);
+    if (cond.ty.k != K::Flag && cond.ty.k != K::Num)
+      bc.fail(line, "IF needs a FLAG (or NUMBER) condition — got " + tyName(cond.ty));
+    o << "  if (" << cond.code << ") {\n";
     return;
   }
   if (toUpper(text) == "END IF" || toUpper(text) == "ENDIF") {
@@ -612,14 +794,18 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   if (startsWithCI(text, "WHILE ")) {
     auto rest = trim(text.substr(6));
     stripDo(rest);
-    o << "  while (" << bc.expr(rest, line).code << ") {\n";
+    auto cond = bc.expr(rest, line);
+    if (cond.ty.k != K::Flag && cond.ty.k != K::Num)
+      bc.fail(line, "WHILE needs a FLAG (or NUMBER) condition — got " + tyName(cond.ty));
+    o << "  while (" << cond.code << ") {\n";
     return;
   }
   if (toUpper(text) == "END WHILE" || toUpper(text) == "ENDWHILE") {
     o << "  }\n";
     return;
   }
-  bc.fail(line, "Unsupported Build statement: " + text);
+  bc.fail(line, "Unsupported Build statement: " + text +
+                    " — Build doesn't understand this yet (Play-only feature?)");
 }
 
 bool parse(BC &bc, const std::string &source) {
@@ -659,12 +845,37 @@ bool parse(BC &bc, const std::string &source) {
         stripDo(rest);
         curFn = {};
         auto U = toUpper(rest);
+        Ty declaredRet = Ty::vod();
+        auto gb = U.find(" GIVES BACK ");
+        if (gb == std::string::npos) gb = U.find(" RETURNS ");
+        if (gb != std::string::npos) {
+          size_t kwLen = (U.compare(gb, 12, " GIVES BACK ") == 0) ? 12 : 9;
+          auto tyRaw = trim(rest.substr(gb + kwLen));
+          declaredRet = bc.parseTy(tyRaw);
+          if (declaredRet.k == K::Void) {
+            bc.fail(lineNo, "Unknown return type '" + tyRaw +
+                                "' — use NUMBER, TEXT, FLAG, JSON, or a blueprint");
+            return false;
+          }
+          rest = trim(rest.substr(0, gb));
+          U = toUpper(rest);
+        }
         auto w = U.find(" WITH ");
         if (w == std::string::npos) curFn.name = rest;
         else {
           curFn.name = trim(rest.substr(0, w));
-          for (auto &a : splitArgs(trim(rest.substr(w + 6)))) curFn.params.push_back(bc.parseParam(a));
+          for (auto &a : splitArgs(trim(rest.substr(w + 6)))) {
+            auto p = bc.parseParam(a);
+            if (p.ty.k == K::Void) {
+              bc.fail(lineNo, "Unknown parameter type on '" + p.name +
+                                  "' — use AS NUMBER/TEXT/FLAG/JSON or a blueprint");
+              return false;
+            }
+            curFn.params.push_back(p);
+          }
         }
+        curFn.ret = declaredRet.k == K::Void ? Ty::num() : declaredRet;
+        curFn.retDeclared = declaredRet.k != K::Void;
         mode = InFn;
         continue;
       }
@@ -695,7 +906,6 @@ bool parse(BC &bc, const std::string &source) {
 
     if (mode == InFn) {
       if (toUpper(text) == "END FUNCTION" || toUpper(text) == "ENDFUNCTION") {
-        curFn.ret = Ty::num();
         bc.fns[curFn.name] = curFn;
         bc.fnOrder.push_back(curFn.name);
         mode = Top;
@@ -808,14 +1018,17 @@ bool parse(BC &bc, const std::string &source) {
     bc.fail(lineNo, "Unclosed block");
     return false;
   }
-  // Infer function return types from GIVE BACK expressions.
+  // Infer / validate function return types from GIVE BACK expressions.
   for (auto &name : bc.fnOrder) {
     auto &fn = bc.fns[name];
-    fn.ret = Ty::num();
     BC probe = bc;
     probe.locals.clear();
     probe.curClass.clear();
+    probe.bad = false;
+    probe.err.clear();
     for (auto &p : fn.params) probe.locals[p.name] = p.ty;
+    Ty inferred = Ty::vod();
+    bool sawReturn = false;
     for (size_t i = 0; i < fn.body.size(); ++i) {
       auto &t = fn.body[i];
       if (startsWithCI(t, "GIVE BACK ") || startsWithCI(t, "SEND BACK ") ||
@@ -823,8 +1036,31 @@ bool parse(BC &bc, const std::string &source) {
         auto U = toUpper(t);
         auto b = U.find(" BACK ");
         auto e = probe.expr(trim(t.substr(b + 6)), fn.lines[i]);
-        if (!probe.bad) fn.ret = e.ty;
+        if (probe.bad) {
+          bc.fail(fn.lines[i], probe.err);
+          return false;
+        }
+        if (!sawReturn) {
+          inferred = e.ty;
+          sawReturn = true;
+        } else if (!typesEqual(inferred, e.ty)) {
+          bc.fail(fn.lines[i], "Function '" + name + "' GIVE BACK types disagree — saw " +
+                                   tyName(inferred) + " then " + tyName(e.ty));
+          return false;
+        }
       }
+    }
+    if (fn.retDeclared) {
+      if (sawReturn && !typesEqual(inferred, fn.ret)) {
+        bc.fail(fn.lines.empty() ? 1 : fn.lines[0],
+                "Function '" + name + "' should GIVE BACK " + tyName(fn.ret) + " but returns " +
+                    tyName(inferred));
+        return false;
+      }
+    } else if (sawReturn) {
+      fn.ret = inferred;
+    } else {
+      fn.ret = Ty::num();
     }
   }
   return !bc.bad;
@@ -848,7 +1084,9 @@ std::string emit(BC &bc) {
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";
   o << "  char *p=(char*)luke_arena_alloc(arena,(size_t)k+1,1); memcpy(p,buf,(size_t)k+1);\n";
-  o << "  return luke_text_n(p,(size_t)k);\n}\n\n";
+  o << "  return luke_text_n(p,(size_t)k);\n}\n";
+  o << "static int luke_text_eq(LukeText a, LukeText b) {\n";
+  o << "  return a.len == b.len && (a.len == 0 || memcmp(a.ptr, b.ptr, a.len) == 0);\n}\n\n";
 
   for (auto &n : bc.bpOrder) o << "typedef struct " << cIdent(n) << " " << cIdent(n) << ";\n";
   o << "\n";
@@ -900,6 +1138,8 @@ std::string emit(BC &bc) {
     auto &fn = bc.fns[n];
     bc.locals.clear();
     bc.curClass.clear();
+    bc.curRet = fn.ret;
+    bc.hasCurRet = true;
     for (auto &p : fn.params) bc.locals[p.name] = p.ty;
     std::ostringstream body;
     for (size_t i = 0; i < fn.body.size(); ++i) stmt(bc, fn.body[i], fn.lines[i], body);
@@ -910,12 +1150,16 @@ std::string emit(BC &bc) {
     if (fn.ret.k == K::Num) o << "  return 0.0;\n";
     else if (fn.ret.k == K::Flag) o << "  return 0;\n";
     else if (fn.ret.k == K::Text) o << "  return luke_text(\"\");\n";
+    else if (fn.ret.k == K::Json) o << "  return (LukeJson*)0;\n";
+    else if (fn.ret.k == K::Ptr) o << "  return (" << cIdent(fn.ret.klass) << "*)0;\n";
     o << "}\n\n";
   }
 
   for (auto &n : bc.bpOrder) {
     auto &bp = bc.bps[n];
     bc.curClass = n;
+    bc.hasCurRet = false;
+    bc.curRet = Ty::vod();
     for (auto &m : bp.methods) {
       if (m.ctor) continue;
       bc.locals.clear();
@@ -980,6 +1224,8 @@ std::string emit(BC &bc) {
 
   bc.locals.clear();
   bc.curClass.clear();
+  bc.hasCurRet = false;
+  bc.curRet = Ty::vod();
   o << "int main(void) {\n";
   o << "  LukeArena arena_storage; LukeArena *arena = &arena_storage;\n";
   o << "  luke_arena_init(arena, 1u<<20);\n";

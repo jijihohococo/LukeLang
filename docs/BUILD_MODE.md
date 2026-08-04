@@ -27,6 +27,12 @@ IMPORT std/json                  # luke_json_string helper
 
 `std/*` resolves from `vm/stdlib/`. Relative paths are next to the entry file. Imported blueprints and helpers compile into one Build unit.
 
+| Module | Helpers |
+| --- | --- |
+| `std/files` | `readFile`, `writeFile`, `fileExists` |
+| `std/json` | `jsonParse`, `jsonGet`, `jsonIndex`, `jsonLen`, `jsonHas`, `jsonAsText` / `Number` / `Flag`, `jsonStringify`, `jsonString` |
+| `std/http` | `httpGet` (native via curl; empty on WASI) |
+
 ## Guarantees (Build)
 
 | Rule | Meaning |
@@ -44,16 +50,20 @@ IMPORT std/json                  # luke_json_string helper
 | `NUMBER` | `double` |
 | `FLAG` | `int` (0/1) |
 | `TEXT` | `LukeText { ptr, len }` (arena or literal) |
+| `JSON` | `LukeJson *` (arena tree — parse / get / stringify) |
 | `BLUEPRINT Foo` | `typedef struct Foo { ... } Foo` |
 
 Inference (v0):
 - `42` → `NUMBER`
 - `"hi"` / wordy strings → `TEXT`
 - `TRUE` / `FALSE` → `FLAG`
+- `ASK jsonParse WITH …` → `JSON`
 - `HAS name SET TO "..."` → field `TEXT`
 - `HAS count SET TO 0` → field `NUMBER`
-- `HAS x AS NUMBER` / `AS TEXT` / `AS FLAG` — explicit when needed
-- First assignment to a local fixes its type
+- `HAS x AS NUMBER` / `AS TEXT` / `AS FLAG` / `AS JSON` — explicit when needed
+- First assignment to a local fixes its type; later `SET` must match
+- Function args/arity and `GIVE BACK` types are checked
+- Optional: `THIS IS FUNCTION f … GIVES BACK TEXT DO`
 
 ## Memory (Luke words)
 
@@ -113,9 +123,10 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 2. ~~Clearer Luke-voice Build errors; `AS TYPE` annotations~~
 3. ~~Packages / relative `IMPORT` + `std/files` + `std/json`~~
 4. ~~`luke BUILD -target wasm` (WASI)~~
-5. Richer typechecking; HTTP + fuller JSON on Build ABI
+5. ~~Richer typechecking; fuller JSON; thin HTTP GET~~
 6. Browser-oriented WASM packaging (beyond WASI/Node)
-7. Shrink Play to a thin compatibility layer — or generate Play bytecode *from* Build IR later
+7. Package registry beyond relative `IMPORT`
+8. Shrink Play to a thin compatibility layer — or generate Play bytecode *from* Build IR later
 
 ## Philosophy
 

@@ -25,8 +25,8 @@ See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md). Needs `LUKE_WASI_SDK` or `
 | --- | --- |
 | `src/build_c.cpp` | Build compiler (Luke → C) |
 | `runtime/luke_rt.h` | Tiny no-GC arena runtime |
-| `runtime/luke_std.h` | Files / JSON C helpers for Build |
-| `stdlib/` | `std/files`, `std/json` Luke modules |
+| `runtime/luke_std.h` | Files / JSON / HTTP C helpers for Build |
+| `stdlib/` | `std/files`, `std/json`, `std/http` Luke modules |
 | `src/compiler.cpp` + `vm.cpp` | Play VM |
 | `src/main.cpp` | CLI |
 

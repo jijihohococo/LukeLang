@@ -20,9 +20,9 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, and the Path 
 
 | Layer | State |
 | --- | --- |
-| Build → native C | Core + functions + blueprints + IMPORT |
+| Build → native C | Core + functions + blueprints + IMPORT + typechecks |
 | Build → WASM | `-target wasm` via WASI SDK |
-| Build stdlib | `std/files`, `std/json` |
+| Build stdlib | `std/files`, `std/json`, `std/http` |
 | Play VM | Full feature sandbox (closures, contracts, …) |
 | Legacy `main.js` / `mimo/` | Old JS emit — reference only |
 
@@ -40,7 +40,6 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, and the Path 
 
 ## Roadmap
 
-- Richer Build typechecking + HTTP / fuller JSON
 - Browser-oriented WASM packaging (beyond WASI)
 - Package registry beyond relative `IMPORT`
 - Keep shrinking the gap so Play is optional

@@ -1,6 +1,47 @@
-// Luke standard library — tiny JSON helpers (Build mode)
+// Luke standard library — JSON (Build mode)
 // IMPORT std/json
 
-THIS IS FUNCTION jsonString WITH json AS TEXT, key AS TEXT DO
+THIS IS FUNCTION jsonParse WITH text AS TEXT GIVES BACK JSON DO
+  GIVE BACK __luke_json_parse(text)
+END FUNCTION
+
+THIS IS FUNCTION jsonGet WITH obj AS JSON, key AS TEXT GIVES BACK JSON DO
+  GIVE BACK __luke_json_get(obj, key)
+END FUNCTION
+
+THIS IS FUNCTION jsonIndex WITH arr AS JSON, index AS NUMBER GIVES BACK JSON DO
+  GIVE BACK __luke_json_index(arr, index)
+END FUNCTION
+
+THIS IS FUNCTION jsonLen WITH value AS JSON GIVES BACK NUMBER DO
+  GIVE BACK __luke_json_len(value)
+END FUNCTION
+
+THIS IS FUNCTION jsonHas WITH obj AS JSON, key AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_json_has(obj, key)
+END FUNCTION
+
+THIS IS FUNCTION jsonAsText WITH value AS JSON GIVES BACK TEXT DO
+  GIVE BACK __luke_json_as_text(value)
+END FUNCTION
+
+THIS IS FUNCTION jsonAsNumber WITH value AS JSON GIVES BACK NUMBER DO
+  GIVE BACK __luke_json_as_number(value)
+END FUNCTION
+
+THIS IS FUNCTION jsonAsFlag WITH value AS JSON GIVES BACK FLAG DO
+  GIVE BACK __luke_json_as_flag(value)
+END FUNCTION
+
+THIS IS FUNCTION jsonStringify WITH value AS JSON GIVES BACK TEXT DO
+  GIVE BACK __luke_json_stringify(value)
+END FUNCTION
+
+THIS IS FUNCTION jsonIsNull WITH value AS JSON GIVES BACK FLAG DO
+  GIVE BACK __luke_json_is_null(value)
+END FUNCTION
+
+// Convenience: extract a string field from raw JSON text (legacy helper)
+THIS IS FUNCTION jsonString WITH json AS TEXT, key AS TEXT GIVES BACK TEXT DO
   GIVE BACK __luke_json_string(json, key)
 END FUNCTION

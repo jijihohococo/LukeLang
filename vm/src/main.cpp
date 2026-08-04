@@ -24,7 +24,7 @@ void printUsage(const char *argv0) {
       << "  -o <path>              output binary / wasm path\n"
       << "  -target native|wasm    default native (host) or wasm (WASI)\n"
       << "\n"
-      << "IMPORT std/files, std/json, or relative .luke modules in Build sources.\n"
+      << "IMPORT std/files, std/json, std/http, or relative .luke modules in Build sources.\n"
       << "See docs/BUILD_MODE.md\n";
 }
 
@@ -147,7 +147,7 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
     }
     cmd = "\"" + clang + "\" -O2 -o \"" + binary + "\" -I\"" + runtimeInclude + "\" \"" + cPath + "\"";
   } else {
-    cmd = "cc -O2 -std=c11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
+    cmd = "cc -O2 -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
   }
 
   std::cerr << "Build: " << cmd << "\n";

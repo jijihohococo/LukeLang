@@ -1,0 +1,33 @@
+CXX ?= g++
+CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic -Iinclude
+LDFLAGS ?=
+
+SRCS := \
+	src/value.cpp \
+	src/heap.cpp \
+	src/bytecode.cpp \
+	src/vm.cpp \
+	src/compiler.cpp \
+	src/main.cpp
+
+OBJS := $(SRCS:src/%.cpp=build/%.o)
+
+.PHONY: all clean test
+
+all: build/luke
+
+build/luke: $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+build/%.o: src/%.cpp | build
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+build:
+	mkdir -p build
+
+test: build/luke
+	./build/luke SHOW ../examples/native/hello.luke
+	./build/luke SHOW ../examples/native/counter.luke
+
+clean:
+	rm -rf build

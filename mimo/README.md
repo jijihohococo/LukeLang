@@ -1,6 +1,9 @@
-# Mimo Compiler (C++)
+# Mimo Compiler (C++) — Legacy JS emitter
 
-Mimo is the native C++ compiler for LukeLang. It compiles `.luke` files into JavaScript with a friendly, expressive personality. When something goes wrong, Mimo explains the exact error and how to fix it — like a helpful teammate.
+> **Note:** Mimo currently compiles `.luke` → JavaScript. That is **not** the intended long-term LukeLang runtime.
+> The native VM (own bytecode, heap, GC) lives in [`../vm/`](../vm/). New work should target `vm/`.
+
+Mimo is an older C++ front-end for LukeLang that emits JavaScript. It remains here for reference while the native runtime catches up on OOP features.
 
 ## Features (v0.1)
 
@@ -37,19 +40,13 @@ g++ -std=c++17 -O2 -o mimo.exe src/main.cpp src/compiler.cpp src/diagnostics.cpp
 
 Mimo writes the compiled JS next to your input (`.luke` → `.js`). With `SHOW`, it prints a friendly status and tries to run the output using Node if available.
 
-## Personality & Errors
-
-When Mimo encounters a problem, it speaks in plain language, points to the line/column, and suggests fixes. Example:
-
-```
-💥 Oops! Mimo stumbled on line 12, column 7.
-I expected `DO` after `METHOD fly WITH height`.
-Try: `METHOD fly WITH height DO` then end with `END METHOD`.
-```
-
 ## Roadmap
 
-- Full tokenization and AST
-- Contracts and static checks
-- Rich expression parsing
-- Emit source maps
+Prefer contributing to `vm/` for:
+
+- Full tokenization and AST on the native path
+- Contracts and static checks against Luke object layouts
+- Rich expression parsing → bytecode
+- Functions, blueprints, and GC-managed instances
+
+JS emission here should shrink over time, not grow.

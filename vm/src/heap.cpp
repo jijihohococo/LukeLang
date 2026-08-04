@@ -1,0 +1,124 @@
+#include "luke/heap.hpp"
+
+#include <new>
+
+namespace luke {
+
+Heap::Heap(std::size_t gcThresholdBytes) : nextGc_(gcThresholdBytes) {}
+
+Heap::~Heap() {
+  Obj *obj = objects_;
+  while (obj) {
+    Obj *next = obj->next;
+    freeObject(obj);
+    obj = next;
+  }
+  objects_ = nullptr;
+  bytesAllocated_ = 0;
+  objectCount_ = 0;
+}
+
+void Heap::track(Obj *obj, std::size_t bytes) {
+  obj->marked = false;
+  obj->next = objects_;
+  objects_ = obj;
+  bytesAllocated_ += bytes;
+  objectCount_ += 1;
+  maybeCollect();
+}
+
+ObjString *Heap::allocateString(std::string chars) {
+  auto *obj = new ObjString();
+  obj->type = ObjType::String;
+  obj->chars = std::move(chars);
+  // Approximate payload size for GC pressure.
+  track(obj, sizeof(ObjString) + obj->chars.size());
+  return obj;
+}
+
+ObjArray *Heap::allocateArray(std::size_t capacity) {
+  auto *obj = new ObjArray();
+  obj->type = ObjType::Array;
+  obj->items.reserve(capacity);
+  track(obj, sizeof(ObjArray) + capacity * sizeof(Value));
+  return obj;
+}
+
+void Heap::maybeCollect() {
+  if (collecting_) return;
+  if (bytesAllocated_ < nextGc_) return;
+  // Without caller roots we cannot safely collect here; VM calls collect explicitly.
+  // Still grow threshold slowly if nobody collects, to avoid infinite tight loops.
+  nextGc_ = bytesAllocated_ + (bytesAllocated_ / 2) + 1024;
+}
+
+void Heap::collect(const std::vector<Value *> &roots) {
+  collect([&](std::function<void(Value &)> visit) {
+    for (Value *root : roots) {
+      if (root) visit(*root);
+    }
+  });
+}
+
+void Heap::collect(const std::function<void(std::function<void(Value &)>)> &traceRoots) {
+  if (collecting_) return;
+  collecting_ = true;
+  collections_ += 1;
+
+  traceRoots([this](Value &v) { markValue(v); });
+
+  sweep();
+  nextGc_ = bytesAllocated_ * 2;
+  if (nextGc_ < 64 * 1024) nextGc_ = 64 * 1024;
+  collecting_ = false;
+}
+
+void Heap::markValue(Value &v) {
+  if (v.isObj()) markObject(v.as.obj);
+}
+
+void Heap::markObject(Obj *obj) {
+  if (!obj || obj->marked) return;
+  obj->marked = true;
+  if (obj->type == ObjType::Array) {
+    auto *arr = static_cast<ObjArray *>(obj);
+    for (Value &item : arr->items) markValue(item);
+  }
+}
+
+void Heap::sweep() {
+  Obj **cursor = &objects_;
+  while (*cursor) {
+    Obj *obj = *cursor;
+    if (!obj->marked) {
+      *cursor = obj->next;
+      freeObject(obj);
+      objectCount_ -= 1;
+    } else {
+      obj->marked = false;
+      cursor = &obj->next;
+    }
+  }
+}
+
+void Heap::freeObject(Obj *obj) {
+  std::size_t bytes = 0;
+  switch (obj->type) {
+    case ObjType::String: {
+      auto *s = static_cast<ObjString *>(obj);
+      bytes = sizeof(ObjString) + s->chars.size();
+      delete s;
+      break;
+    }
+    case ObjType::Array: {
+      auto *a = static_cast<ObjArray *>(obj);
+      bytes = sizeof(ObjArray) + a->items.capacity() * sizeof(Value);
+      delete a;
+      break;
+    }
+  }
+  if (bytesAllocated_ >= bytes) bytesAllocated_ -= bytes;
+  else bytesAllocated_ = 0;
+}
+
+}  // namespace luke

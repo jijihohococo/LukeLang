@@ -1,0 +1,6 @@
+# Ignore build artifacts
+vm/build/
+*.o
+*.obj
+*.exe
+node_modules/

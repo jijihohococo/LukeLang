@@ -15,8 +15,9 @@ make test   # Play + Build suites
 | --- | --- | --- |
 | `SHOW` / bare `.luke` | Bytecode VM | Mark-sweep GC |
 | `BUILD [-o out]` | Luke → C → `cc -O2` | Bump arena only |
+| `BUILD -target wasm` | Luke → C → WASI clang | Bump arena only |
 
-See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md).
+See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md). Needs `LUKE_WASI_SDK` or `.tools/wasi-sdk` for WASM.
 
 ## Layout
 
@@ -24,6 +25,8 @@ See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md).
 | --- | --- |
 | `src/build_c.cpp` | Build compiler (Luke → C) |
 | `runtime/luke_rt.h` | Tiny no-GC arena runtime |
+| `runtime/luke_std.h` | Files / JSON C helpers for Build |
+| `stdlib/` | `std/files`, `std/json` Luke modules |
 | `src/compiler.cpp` + `vm.cpp` | Play VM |
 | `src/main.cpp` | CLI |
 

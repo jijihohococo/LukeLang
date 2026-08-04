@@ -47,6 +47,10 @@ test-build: build/luke
 	./build/ex_functions
 	./build/luke BUILD ../examples/build/oop.luke -o build/ex_oop
 	./build/ex_oop
+	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules
+	./build/ex_modules
+	./build/luke BUILD ../examples/build/hello_wasm.luke -target wasm -o build/ex_hello.wasm
+	node ../scripts/run_wasi.cjs build/ex_hello.wasm
 
 clean:
 	rm -rf build

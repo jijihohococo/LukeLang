@@ -4,3 +4,4 @@ vm/build/
 *.exe
 *.luke.c
 node_modules/
+.tools/

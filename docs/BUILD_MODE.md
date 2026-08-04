@@ -8,12 +8,24 @@ This is Path A: Python-shaped versatility on the surface, Zig/Rust-shaped cost u
 ## Commands
 
 ```bash
-luke SHOW  examples/build/hello.luke    # Play — interpret now
-luke BUILD examples/build/hello.luke    # Build — native binary, no GC
+luke SHOW  examples/build/hello.luke              # Play — interpret now
+luke BUILD examples/build/hello.luke              # Build — native binary, no GC
 luke BUILD examples/build/hello.luke -o hello
+luke BUILD examples/build/hello_wasm.luke -target wasm -o hello.wasm
+# run wasm (WASI): node scripts/run_wasi.cjs hello.wasm
 ```
 
-Build emits C, then compiles with the system C compiler (`cc -O2`).
+Build emits C, then compiles with the system C compiler (`cc -O2`), or the WASI SDK when `-target wasm`.
+
+## IMPORT + stdlib
+
+```luke
+IMPORT "./critter.luke"          # relative module
+IMPORT std/files                 # read/write TEXT files
+IMPORT std/json                  # luke_json_string helper
+```
+
+`std/*` resolves from `vm/stdlib/`. Relative paths are next to the entry file. Imported blueprints and helpers compile into one Build unit.
 
 ## Guarantees (Build)
 
@@ -97,12 +109,13 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 
 ## Roadmap toward “Python everywhere + Rust light”
 
-1. ~~Build → C + arena runtime~~ (this milestone)
-2. Infer more types; better errors in Luke’s voice
-3. Packages / `IMPORT`
-4. `luke build -target wasm`
-5. Concurrency model + thin stdlib (files, JSON, HTTP) on Build ABI
-6. Shrink Play to a thin compatibility layer — or generate Play bytecode *from* Build IR later
+1. ~~Build → C + arena runtime~~
+2. ~~Clearer Luke-voice Build errors; `AS TYPE` annotations~~
+3. ~~Packages / relative `IMPORT` + `std/files` + `std/json`~~
+4. ~~`luke BUILD -target wasm` (WASI)~~
+5. Richer typechecking; HTTP + fuller JSON on Build ABI
+6. Browser-oriented WASM packaging (beyond WASI/Node)
+7. Shrink Play to a thin compatibility layer — or generate Play bytecode *from* Build IR later
 
 ## Philosophy
 

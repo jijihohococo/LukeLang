@@ -2,6 +2,8 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <fstream>
+#include <functional>
 #include <map>
 #include <set>
 #include <sstream>
@@ -217,14 +219,54 @@ struct BC {
 
 Expr BC::primary(std::string e, size_t line) {
   e = trim(e);
-  if (e.size() >= 2 && ((e.front() == '"' && e.back() == '"') || (e.front() == '\'' && e.back() == '\'')))
-    return {"luke_text(\"" + esc(e.substr(1, e.size() - 2)) + "\")", Ty::text()};
-  auto U = toUpper(e);
+
+  // Native stdlib / runtime calls: __luke_read_file(path), etc.
+  if (e.size() > 2 && e[0] == '_' && e[1] == '_') {
+    auto lp = e.find('(');
+    auto rp = e.rfind(')');
+    if (lp != std::string::npos && rp != std::string::npos && rp > lp) {
+      auto callee = trim(e.substr(0, lp));
+      auto args = splitArgs(e.substr(lp + 1, rp - lp - 1));
+      auto mapCall = [&](const std::string &cName, Ty ret, bool arenaFirst) -> Expr {
+        std::ostringstream call;
+        call << cName << "(";
+        if (arenaFirst) call << "arena";
+        for (size_t i = 0; i < args.size(); ++i) {
+          if (arenaFirst || i) call << ", ";
+          call << expr(args[i], line).code;
+        }
+        call << ")";
+        return {call.str(), ret};
+      };
+      if (callee == "__luke_read_file") return mapCall("luke_read_file", Ty::text(), true);
+      if (callee == "__luke_write_file") return mapCall("luke_write_file", Ty::flag(), false);
+      if (callee == "__luke_file_exists") return mapCall("luke_file_exists", Ty::flag(), false);
+      if (callee == "__luke_json_string") return mapCall("luke_json_string", Ty::text(), true);
+      fail(line, "Unknown native helper '" + callee + "' — did you IMPORT std/files or std/json?");
+      return {"0", Ty::num()};
+    }
+  }
+
+  if (e.size() >= 2 && ((e.front() == '"' && e.back() == '"') || (e.front() == '\'' && e.back() == '\''))) {
+    auto raw = e.substr(1, e.size() - 2);
+    std::string unesc;
+    for (size_t i = 0; i < raw.size(); ++i) {
+      if (raw[i] == '\\' && i + 1 < raw.size()) {
+        char n = raw[++i];
+        if (n == 'n') unesc.push_back('\n');
+        else if (n == 't') unesc.push_back('\t');
+        else if (n == 'r') unesc.push_back('\r');
+        else unesc.push_back(n);
+      } else
+        unesc.push_back(raw[i]);
+    }
+    return {"luke_text(\"" + esc(unesc) + "\")", Ty::text()};
+  }  auto U = toUpper(e);
   if (U == "TRUE" || U == "YES") return {"1", Ty::flag()};
   if (U == "FALSE" || U == "NO") return {"0", Ty::flag()};
   if (U == "SELF") {
     if (curClass.empty()) {
-      fail(line, "SELF only in methods");
+      fail(line, "SELF only works inside a METHOD or WHEN BORN — you're not in a blueprint method here");
       return {"0", Ty::num()};
     }
     return {"self", Ty::ptr(curClass)};
@@ -234,13 +276,14 @@ Expr BC::primary(std::string e, size_t line) {
     for (auto &f : flatFields(curClass)) {
       if (f.name == field) {
         if (f.priv && f.owner != curClass) {
-          fail(line, "Field '" + field + "' is private");
+          fail(line, "Field '" + field + "' is PRIVATE/SECRET on " + f.owner +
+                          " — only that blueprint's methods may touch it");
           return {"0", Ty::num()};
         }
         return {"self->" + fname(f), f.ty};
       }
     }
-    fail(line, "Unknown field SELF." + field);
+    fail(line, "No field '" + field + "' on blueprint " + curClass + " — declare it with HAS");
     return {"0", Ty::num()};
   }
   char *end = nullptr;
@@ -261,10 +304,13 @@ Expr BC::primary(std::string e, size_t line) {
     if (locals.count(obj) && locals[obj].k == K::Ptr) {
       for (auto &f : flatFields(locals[obj].klass))
         if (f.name == field) return {cIdent(obj) + "->" + fname(f), f.ty};
+      fail(line, "No field '" + field + "' on " + locals[obj].klass);
+      return {"0", Ty::num()};
     }
   }
 
-  fail(line, "Unknown name '" + e + "'");
+  fail(line, "I don't know '" + e + "' yet — declare it with MY NAME IS … SET TO … "
+             "(or AS NUMBER/TEXT/FLAG)");
   return {"0", Ty::num()};
 }
 
@@ -483,13 +529,36 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   if (startsWithCI(text, "MY NAME IS ")) {
     auto rest = trim(text.substr(11));
     auto U = toUpper(rest);
-    auto set = U.find(" SET TO ");
+    Ty forced = Ty::vod();
+    auto asPos = U.find(" AS ");
+    auto setPos = U.find(" SET TO ");
     std::string name;
-    Expr e{"luke_text(\"\")", Ty::text()};
-    if (set == std::string::npos) name = rest;
-    else {
-      name = trim(rest.substr(0, set));
-      e = bc.expr(trim(rest.substr(set + 8)), line);
+    if (asPos != std::string::npos && (setPos == std::string::npos || asPos < setPos)) {
+      name = trim(rest.substr(0, asPos));
+      auto after = trim(rest.substr(asPos + 4));
+      auto set2 = toUpper(after).find(" SET TO ");
+      if (set2 != std::string::npos) {
+        forced = bc.parseTy(trim(after.substr(0, set2)));
+        rest = name + " SET TO " + trim(after.substr(set2 + 8));
+        U = toUpper(rest);
+        setPos = U.find(" SET TO ");
+      } else {
+        forced = bc.parseTy(after);
+        rest = name;
+        setPos = std::string::npos;
+      }
+    }
+    Expr e{"0", Ty::num()};
+    if (setPos == std::string::npos) {
+      name = trim(rest);
+      if (forced.k == K::Text || forced.k == K::Void) e = {"luke_text(\"\")", Ty::text()};
+      else if (forced.k == K::Flag) e = {"0", Ty::flag()};
+      else e = {"0.0", Ty::num()};
+      if (forced.k != K::Void) e.ty = forced;
+    } else {
+      name = trim(rest.substr(0, setPos));
+      e = bc.expr(trim(rest.substr(setPos + 8)), line);
+      if (forced.k != K::Void) e.ty = forced;
     }
     if (!bc.locals.count(name)) {
       bc.locals[name] = e.ty;
@@ -773,7 +842,9 @@ std::string defInit(BC &bc, const Field &f) {
 std::string emit(BC &bc) {
   std::ostringstream o;
   o << "/* Generated by Luke Build — native, no GC */\n";
-  o << "#include \"luke_rt.h\"\n#include <stdio.h>\n#include <string.h>\n\n";
+  o << "#include \"luke_rt.h\"\n";
+  o << "#include \"luke_std.h\"\n";
+  o << "#include <stdio.h>\n#include <string.h>\n\n";
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";
   o << "  char *p=(char*)luke_arena_alloc(arena,(size_t)k+1,1); memcpy(p,buf,(size_t)k+1);\n";
@@ -922,10 +993,76 @@ std::string emit(BC &bc) {
 
 }  // namespace
 
-BuildResult compileLukeToC(const std::string &source) {
-  BC bc;
+BuildResult compileLukeToC(const std::string &source, const BuildOptions &options) {
   BuildResult r;
-  if (!parse(bc, source)) {
+
+  auto dirname = [](std::string p) -> std::string {
+    auto slash = p.find_last_of("/\\");
+    if (slash == std::string::npos) return ".";
+    return p.substr(0, slash);
+  };
+  auto readFile = [](const std::string &path) -> std::string {
+    std::ifstream in(path);
+    if (!in) return {};
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+  };
+
+  std::string stdlib = options.stdlibPath;
+  if (stdlib.empty()) {
+    if (std::ifstream("stdlib/files.luke")) stdlib = "stdlib";
+    else if (std::ifstream("vm/stdlib/files.luke")) stdlib = "vm/stdlib";
+    else if (std::ifstream("../stdlib/files.luke")) stdlib = "../stdlib";
+  }
+
+  std::set<std::string> seen;
+  std::vector<std::string> imported;
+  std::function<std::string(const std::string &, const std::string &)> expand;
+  expand = [&](const std::string &src, const std::string &baseDir) -> std::string {
+    std::istringstream in(src);
+    std::ostringstream out;
+    std::string line;
+    while (std::getline(in, line)) {
+      auto t = trim(line);
+      if (startsWithCI(t, "IMPORT ")) {
+        auto spec = trim(t.substr(7));
+        if (spec.size() >= 2 && ((spec.front() == '"' && spec.back() == '"') ||
+                                 (spec.front() == '\'' && spec.back() == '\'')))
+          spec = spec.substr(1, spec.size() - 2);
+        std::string path;
+        if (startsWithCI(spec, "std/") || startsWithCI(spec, "STD/")) {
+          path = stdlib + "/" + spec.substr(4) + ".luke";
+        } else {
+          if (spec.size() < 5 || spec.substr(spec.size() - 5) != ".luke") spec += ".luke";
+          path = baseDir + "/" + spec;
+        }
+        if (seen.count(path)) continue;
+        seen.insert(path);
+        auto body = readFile(path);
+        if (body.empty()) {
+          r.ok = false;
+          r.error = "Build error: IMPORT could not open '" + path +
+                    "' — check the path or INSTALL stdlib next to the compiler";
+          return {};
+        }
+        imported.push_back(path);
+        out << "// begin IMPORT " << path << "\n";
+        out << expand(body, dirname(path));
+        out << "// end IMPORT " << path << "\n";
+        continue;
+      }
+      out << line << "\n";
+    }
+    return out.str();
+  };
+
+  std::string base = options.sourcePath.empty() ? "." : dirname(options.sourcePath);
+  std::string expanded = expand(source, base);
+  if (!r.error.empty()) return r;
+
+  BC bc;
+  if (!parse(bc, expanded)) {
     r.ok = false;
     r.error = bc.err.empty() ? "Build parse failed" : bc.err;
     return r;
@@ -933,7 +1070,8 @@ BuildResult compileLukeToC(const std::string &source) {
   for (auto &n : bc.bpOrder) {
     if (!bc.bps[n].parent.empty() && !bc.bps.count(bc.bps[n].parent)) {
       r.ok = false;
-      r.error = "Build error: unknown parent '" + bc.bps[n].parent + "'";
+      r.error = "Build error: unknown parent blueprint '" + bc.bps[n].parent +
+                "' — FOLLOWS a name that was never defined (IMPORT it?)";
       return r;
     }
   }
@@ -943,8 +1081,13 @@ BuildResult compileLukeToC(const std::string &source) {
     r.error = bc.err;
     return r;
   }
+  if (options.forWasm) {
+    // WASI provides main(); keep as-is. Marker comment for tooling.
+    c = "/* luke target: wasm/wasi */\n" + c;
+  }
   r.ok = true;
   r.cSource = std::move(c);
+  r.importedFiles = std::move(imported);
   return r;
 }
 

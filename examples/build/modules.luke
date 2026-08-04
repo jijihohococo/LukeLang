@@ -1,0 +1,19 @@
+IMPORT "critter.luke"
+IMPORT std/files
+IMPORT std/json
+
+SPEAK "=== Build modules + stdlib ==="
+
+SET c TO NEW Critter WITH "Pixel"
+ASK c TO greet
+
+MY NAME IS sample AS TEXT SET TO "{\"name\":\"Luke\",\"role\":\"builder\"}"
+SPEAK "json name = " AND ASK jsonString WITH sample, "name"
+
+MY NAME IS path AS TEXT SET TO "build/luke_stdio_demo.txt"
+ASK writeFile WITH path, "Hello from Luke Build stdlib\n"
+IF ASK fileExists WITH path DO
+  SPEAK "file says: " AND ASK readFile WITH path
+END IF
+
+SPEAK "IMPORT + std/files + std/json — all no-GC Build."

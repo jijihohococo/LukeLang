@@ -15,13 +15,17 @@ namespace {
 
 void printUsage(const char *argv0) {
   std::cerr
-      << "LukeLang\n"
+      << "LukeLang — Build is real; Play is convenience\n"
       << "\n"
-      << "  " << argv0 << " SHOW  <file.luke>          Play mode  (VM + GC, instant)\n"
-      << "  " << argv0 << " BUILD <file.luke> [-o out] Build mode (native, no GC)\n"
+      << "  " << argv0 << " SHOW  <file.luke>              Play (VM + GC)\n"
+      << "  " << argv0 << " BUILD <file.luke> [options]    Build (native / wasm, no GC)\n"
       << "\n"
-      << "Build is the real language: conversational Luke → C → native binary.\n"
-      << "Play is for exploration. See docs/BUILD_MODE.md.\n";
+      << "Build options:\n"
+      << "  -o <path>              output binary / wasm path\n"
+      << "  -target native|wasm    default native (host) or wasm (WASI)\n"
+      << "\n"
+      << "IMPORT std/files, std/json, or relative .luke modules in Build sources.\n"
+      << "See docs/BUILD_MODE.md\n";
 }
 
 std::string readFile(const std::string &path) {
@@ -37,21 +41,44 @@ std::string upper(std::string s) {
   return s;
 }
 
-std::string replaceExt(std::string path, const std::string &newExt) {
-  auto slash = path.find_last_of("/\\");
-  auto dot = path.find_last_of('.');
-  if (dot != std::string::npos && (slash == std::string::npos || dot > slash)) {
-    path = path.substr(0, dot);
-  }
-  return path + newExt;
-}
-
 std::string basenameNoExt(std::string path) {
   auto slash = path.find_last_of("/\\");
   if (slash != std::string::npos) path = path.substr(slash + 1);
   auto dot = path.find_last_of('.');
   if (dot != std::string::npos) path = path.substr(0, dot);
   return path;
+}
+
+std::string findRuntimeInclude() {
+  if (std::ifstream("runtime/luke_rt.h")) return "runtime";
+  if (std::ifstream("vm/runtime/luke_rt.h")) return "vm/runtime";
+  if (std::ifstream("../runtime/luke_rt.h")) return "../runtime";
+  return "runtime";
+}
+
+std::string findStdlib() {
+  if (std::ifstream("stdlib/files.luke")) return "stdlib";
+  if (std::ifstream("vm/stdlib/files.luke")) return "vm/stdlib";
+  if (std::ifstream("../stdlib/files.luke")) return "../stdlib";
+  return "stdlib";
+}
+
+std::string findWasiClang() {
+  const char *env = std::getenv("LUKE_WASI_SDK");
+  if (env && *env) {
+    std::string p = std::string(env) + "/bin/clang";
+    if (std::ifstream(p)) return p;
+  }
+  const char *candidates[] = {
+      "/workspace/.tools/wasi-sdk/bin/clang",
+      ".tools/wasi-sdk/bin/clang",
+      "../.tools/wasi-sdk/bin/clang",
+      nullptr,
+  };
+  for (int i = 0; candidates[i]; ++i) {
+    if (std::ifstream(candidates[i])) return candidates[i];
+  }
+  return {};
 }
 
 int runPlay(const std::string &path) {
@@ -71,26 +98,33 @@ int runPlay(const std::string &path) {
   return 0;
 }
 
-int runBuild(const std::string &path, const std::string &outBin, const std::string &runtimeInclude) {
+int runBuild(const std::string &path, const std::string &outBin, const std::string &target) {
   std::string source = readFile(path);
   if (source.empty() && !std::ifstream(path)) {
     std::cerr << "Error: could not open " << path << "\n";
     return 1;
   }
 
-  auto built = luke::compileLukeToC(source);
+  luke::BuildOptions opt;
+  opt.sourcePath = path;
+  opt.stdlibPath = findStdlib();
+  opt.forWasm = (target == "wasm");
+
+  auto built = luke::compileLukeToC(source, opt);
   if (!built.ok) {
     std::cerr << built.error << "\n";
     return 2;
   }
-
-  std::string cPath = replaceExt(outBin.empty() ? basenameNoExt(path) : outBin, ".luke.c");
-  if (!outBin.empty()) {
-    // place .c next to output name
-    cPath = outBin + ".luke.c";
-  } else {
-    cPath = basenameNoExt(path) + ".luke.c";
+  for (auto &imp : built.importedFiles) {
+    std::cerr << "  imported " << imp << "\n";
   }
+
+  std::string binary = outBin.empty() ? basenameNoExt(path) : outBin;
+  if (opt.forWasm && binary.size() >= 5 && binary.substr(binary.size() - 5) != ".wasm") {
+    // leave as-is if user gave full name; if no extension, add .wasm
+    if (binary.find('.') == std::string::npos) binary += ".wasm";
+  }
+  std::string cPath = binary + ".luke.c";
 
   {
     std::ofstream out(cPath);
@@ -101,15 +135,28 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
     out << built.cSource;
   }
 
-  std::string binary = outBin.empty() ? basenameNoExt(path) : outBin;
-  std::string cmd = "cc -O2 -std=c11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
+  std::string runtimeInclude = findRuntimeInclude();
+  std::string cmd;
+  if (opt.forWasm) {
+    std::string clang = findWasiClang();
+    if (clang.empty()) {
+      std::cerr << "Error: WASM target needs WASI SDK.\n"
+                << "  Set LUKE_WASI_SDK to your wasi-sdk root, or install under .tools/wasi-sdk\n"
+                << "  Example: https://github.com/WebAssembly/wasi-sdk/releases\n";
+      return 5;
+    }
+    cmd = "\"" + clang + "\" -O2 -o \"" + binary + "\" -I\"" + runtimeInclude + "\" \"" + cPath + "\"";
+  } else {
+    cmd = "cc -O2 -std=c11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
+  }
+
   std::cerr << "Build: " << cmd << "\n";
   int rc = std::system(cmd.c_str());
   if (rc != 0) {
-    std::cerr << "Error: C compile failed (" << rc << ")\n";
+    std::cerr << "Error: compile failed (" << rc << ")\n";
     return 4;
   }
-  std::cerr << "Build ok → " << binary << " (native, no GC)\n";
+  std::cerr << "Build ok → " << binary << (opt.forWasm ? " (wasm/wasi, no GC)\n" : " (native, no GC)\n");
   return 0;
 }
 
@@ -121,18 +168,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Resolve runtime include path relative to executable when possible.
-  std::string runtimeInclude = "runtime";
-  {
-    // Prefer sibling runtime/ next to binary, else vm/runtime from cwd patterns.
-    if (std::ifstream("runtime/luke_rt.h")) runtimeInclude = "runtime";
-    else if (std::ifstream("vm/runtime/luke_rt.h")) runtimeInclude = "vm/runtime";
-    else if (std::ifstream("../runtime/luke_rt.h")) runtimeInclude = "../runtime";
-  }
-
   std::string cmd = upper(argv[1]);
 
-  // luke SHOW file / luke BUILD file
   if (cmd == "SHOW" || cmd == "PLAY") {
     if (argc < 3) {
       printUsage(argv[0]);
@@ -153,10 +190,18 @@ int main(int argc, char **argv) {
     }
     std::string path = argv[2];
     std::string out;
+    std::string target = "native";
     for (int i = 3; i < argc; ++i) {
       std::string a = argv[i];
       if (a == "-o" && i + 1 < argc) {
         out = argv[++i];
+      } else if (a == "-target" && i + 1 < argc) {
+        target = argv[++i];
+        for (char &c : target) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (target != "native" && target != "wasm") {
+          std::cerr << "Error: -target must be native or wasm\n";
+          return 1;
+        }
       } else {
         std::cerr << "Unknown BUILD option: " << a << "\n";
         return 1;
@@ -166,10 +211,9 @@ int main(int argc, char **argv) {
       std::cerr << "Error: input must be a .luke file\n";
       return 1;
     }
-    return runBuild(path, out, runtimeInclude);
+    return runBuild(path, out, target);
   }
 
-  // Bare file path → Play (compat)
   std::string path = argv[1];
   if (path.size() >= 5 && path.substr(path.size() - 5) == ".luke") {
     return runPlay(path);

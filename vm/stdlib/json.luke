@@ -1,0 +1,6 @@
+// Luke standard library — tiny JSON helpers (Build mode)
+// IMPORT std/json
+
+THIS IS FUNCTION jsonString WITH json AS TEXT, key AS TEXT DO
+  GIVE BACK __luke_json_string(json, key)
+END FUNCTION

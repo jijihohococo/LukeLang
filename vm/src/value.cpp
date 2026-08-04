@@ -1,3 +1,4 @@
+#include "luke/function.hpp"
 #include "luke/value.hpp"
 
 #include <sstream>
@@ -44,6 +45,10 @@ std::string Value::toString() const {
         }
         oss << "]";
         return oss.str();
+      }
+      if (as.obj->type == ObjType::Function) {
+        auto *fn = static_cast<ObjFunction *>(as.obj);
+        return "<fn " + (fn->name.empty() ? "?" : fn->name) + ">";
       }
       return "<object>";
     }

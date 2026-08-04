@@ -1,5 +1,6 @@
 #pragma once
 
+#include "luke/function.hpp"
 #include "luke/value.hpp"
 
 #include <cstddef>
@@ -18,6 +19,7 @@ class Heap {
 
   ObjString *allocateString(std::string chars);
   ObjArray *allocateArray(std::size_t capacity = 0);
+  ObjFunction *allocateFunction(std::string name, int arity);
 
   // Mark-sweep GC. Roots are supplied by the caller (VM stack, globals, etc.).
   void collect(const std::vector<Value *> &roots);

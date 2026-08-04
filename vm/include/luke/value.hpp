@@ -16,6 +16,7 @@ enum class ValueType : uint8_t {
 enum class ObjType : uint8_t {
   String = 1,
   Array,
+  Function,
 };
 
 struct Obj;

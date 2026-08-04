@@ -31,7 +31,6 @@ ObjString *Heap::allocateString(std::string chars) {
   auto *obj = new ObjString();
   obj->type = ObjType::String;
   obj->chars = std::move(chars);
-  // Approximate payload size for GC pressure.
   track(obj, sizeof(ObjString) + obj->chars.size());
   return obj;
 }
@@ -44,11 +43,18 @@ ObjArray *Heap::allocateArray(std::size_t capacity) {
   return obj;
 }
 
+ObjFunction *Heap::allocateFunction(std::string name, int arity) {
+  auto *obj = new ObjFunction();
+  obj->type = ObjType::Function;
+  obj->name = std::move(name);
+  obj->arity = arity;
+  track(obj, sizeof(ObjFunction) + obj->name.size());
+  return obj;
+}
+
 void Heap::maybeCollect() {
   if (collecting_) return;
   if (bytesAllocated_ < nextGc_) return;
-  // Without caller roots we cannot safely collect here; VM calls collect explicitly.
-  // Still grow threshold slowly if nobody collects, to avoid infinite tight loops.
   nextGc_ = bytesAllocated_ + (bytesAllocated_ / 2) + 1024;
 }
 
@@ -83,6 +89,9 @@ void Heap::markObject(Obj *obj) {
   if (obj->type == ObjType::Array) {
     auto *arr = static_cast<ObjArray *>(obj);
     for (Value &item : arr->items) markValue(item);
+  } else if (obj->type == ObjType::Function) {
+    auto *fn = static_cast<ObjFunction *>(obj);
+    for (Value &c : fn->chunk.constants) markValue(c);
   }
 }
 
@@ -114,6 +123,13 @@ void Heap::freeObject(Obj *obj) {
       auto *a = static_cast<ObjArray *>(obj);
       bytes = sizeof(ObjArray) + a->items.capacity() * sizeof(Value);
       delete a;
+      break;
+    }
+    case ObjType::Function: {
+      auto *f = static_cast<ObjFunction *>(obj);
+      bytes = sizeof(ObjFunction) + f->name.size() + f->chunk.code.size() +
+              f->chunk.constants.size() * sizeof(Value);
+      delete f;
       break;
     }
   }

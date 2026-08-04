@@ -1,6 +1,7 @@
 #pragma once
 
 #include "luke/bytecode.hpp"
+#include "luke/function.hpp"
 #include "luke/heap.hpp"
 #include "luke/value.hpp"
 
@@ -16,8 +17,17 @@ enum class InterpretResult {
   RuntimeError,
 };
 
+struct CallFrame {
+  ObjFunction *function = nullptr;  // nullptr = top-level script chunk
+  Chunk *chunk = nullptr;
+  std::size_t ip = 0;
+  std::size_t slots = 0;  // stack index of this frame's slot 0
+};
+
 class VM {
  public:
+  static constexpr int kFramesMax = 64;
+
   explicit VM(Heap &heap);
 
   InterpretResult interpret(Chunk &chunk);
@@ -26,7 +36,6 @@ class VM {
   Heap &heap() { return heap_; }
   const std::unordered_map<std::string, Value> &globals() const { return globals_; }
 
-  // For GC root tracing and tests.
   void push(Value value);
   Value pop();
   Value peek(int distance = 0) const;
@@ -34,13 +43,16 @@ class VM {
  private:
   void runtimeError(const std::string &message);
   bool binaryArith(Op op);
+  bool callValue(Value callee, int argCount);
+  bool call(ObjFunction *function, int argCount);
   uint8_t readByte();
   uint16_t readShort();
   Value readConstant();
+  CallFrame &frame();
 
   Heap &heap_;
-  Chunk *chunk_ = nullptr;
-  std::size_t ip_ = 0;
+  Chunk *scriptChunk_ = nullptr;
+  std::vector<CallFrame> frames_;
   std::vector<Value> stack_;
   std::unordered_map<std::string, Value> globals_;
   bool hadError_ = false;

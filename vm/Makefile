@@ -28,6 +28,7 @@ build:
 test: build/luke
 	./build/luke SHOW ../examples/native/hello.luke
 	./build/luke SHOW ../examples/native/counter.luke
+	./build/luke SHOW ../examples/native/functions.luke
 
 clean:
 	rm -rf build

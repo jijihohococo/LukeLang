@@ -1,12 +1,12 @@
 #include "luke/vm.hpp"
 
-#include <cmath>
 #include <iostream>
 
 namespace luke {
 
 VM::VM(Heap &heap) : heap_(heap) {
   stack_.reserve(256);
+  frames_.reserve(kFramesMax);
 }
 
 void VM::push(Value value) { stack_.push_back(value); }
@@ -21,35 +21,93 @@ Value VM::peek(int distance) const {
   return stack_[stack_.size() - 1 - static_cast<std::size_t>(distance)];
 }
 
+CallFrame &VM::frame() { return frames_.back(); }
+
 void VM::runtimeError(const std::string &message) {
   std::size_t line = 0;
-  if (chunk_ && ip_ > 0 && ip_ - 1 < chunk_->lines.size()) {
-    line = chunk_->lines[ip_ - 1];
+  if (!frames_.empty()) {
+    CallFrame &f = frame();
+    if (f.chunk && f.ip > 0 && f.ip - 1 < f.chunk->lines.size()) {
+      line = f.chunk->lines[f.ip - 1];
+    }
   }
   std::cerr << "Runtime error";
   if (line) std::cerr << " on line " << line;
   std::cerr << ": " << message << "\n";
+
+  for (int i = static_cast<int>(frames_.size()) - 1; i >= 0; --i) {
+    CallFrame &f = frames_[static_cast<std::size_t>(i)];
+    std::string name = f.function ? f.function->name : "<script>";
+    std::size_t lineNo = 0;
+    if (f.chunk && f.ip > 0 && f.ip - 1 < f.chunk->lines.size()) {
+      lineNo = f.chunk->lines[f.ip - 1];
+    }
+    std::cerr << "  in " << name;
+    if (lineNo) std::cerr << " at line " << lineNo;
+    std::cerr << "\n";
+  }
+
   hadError_ = true;
   stack_.clear();
+  frames_.clear();
 }
 
-uint8_t VM::readByte() { return chunk_->code[ip_++]; }
+uint8_t VM::readByte() { return frame().chunk->code[frame().ip++]; }
 
 uint16_t VM::readShort() {
-  ip_ += 2;
-  return static_cast<uint16_t>((chunk_->code[ip_ - 2] << 8) | chunk_->code[ip_ - 1]);
+  frame().ip += 2;
+  auto &code = frame().chunk->code;
+  auto ip = frame().ip;
+  return static_cast<uint16_t>((code[ip - 2] << 8) | code[ip - 1]);
 }
 
-Value VM::readConstant() {
-  return chunk_->constants[readByte()];
-}
+Value VM::readConstant() { return frame().chunk->constants[readByte()]; }
 
 InterpretResult VM::interpret(Chunk &chunk) {
-  chunk_ = &chunk;
-  ip_ = 0;
+  scriptChunk_ = &chunk;
   hadError_ = false;
   stack_.clear();
+  frames_.clear();
+
+  CallFrame script;
+  script.function = nullptr;
+  script.chunk = &chunk;
+  script.ip = 0;
+  script.slots = 0;
+  frames_.push_back(script);
+
+  // Slot 0 reserved for script "function" placeholder (nil).
+  push(Value::nil());
   return run();
+}
+
+bool VM::call(ObjFunction *function, int argCount) {
+  if (argCount != function->arity) {
+    runtimeError("Expected " + std::to_string(function->arity) + " arguments but got " +
+                 std::to_string(argCount) + ".");
+    return false;
+  }
+  if (static_cast<int>(frames_.size()) >= kFramesMax) {
+    runtimeError("Stack overflow.");
+    return false;
+  }
+
+  CallFrame f;
+  f.function = function;
+  f.chunk = &function->chunk;
+  f.ip = 0;
+  // Callee is at stack_[size - argCount - 1]; args follow.
+  f.slots = stack_.size() - static_cast<std::size_t>(argCount) - 1;
+  frames_.push_back(f);
+  return true;
+}
+
+bool VM::callValue(Value callee, int argCount) {
+  if (!isFunction(callee)) {
+    runtimeError("Can only call functions.");
+    return false;
+  }
+  return call(asFunction(callee), argCount);
 }
 
 bool VM::binaryArith(Op op) {
@@ -98,8 +156,13 @@ InterpretResult VM::run() {
     heap_.collect([this](std::function<void(Value &)> visit) {
       for (Value &v : stack_) visit(v);
       for (auto &kv : globals_) visit(kv.second);
-      if (chunk_) {
-        for (Value &c : chunk_->constants) visit(c);
+      if (scriptChunk_) {
+        for (Value &c : scriptChunk_->constants) visit(c);
+      }
+      for (CallFrame &f : frames_) {
+        if (f.function) {
+          for (Value &c : f.function->chunk.constants) visit(c);
+        }
       }
     });
   };
@@ -107,6 +170,25 @@ InterpretResult VM::run() {
   while (!hadError_) {
     if (heap_.bytesAllocated() > 512 * 1024) {
       collectRoots();
+    }
+
+    if (frames_.empty()) {
+      collectRoots();
+      return InterpretResult::Ok;
+    }
+
+    if (frame().ip >= frame().chunk->code.size()) {
+      // Implicit return nil from function / end of script.
+      if (frames_.size() == 1) {
+        collectRoots();
+        return InterpretResult::Ok;
+      }
+      Value result = Value::nil();
+      std::size_t slots = frame().slots;
+      frames_.pop_back();
+      stack_.resize(slots);
+      push(result);
+      continue;
     }
 
     Op instruction = static_cast<Op>(readByte());
@@ -151,20 +233,12 @@ InterpretResult VM::run() {
       }
       case Op::GetLocal: {
         uint8_t slot = readByte();
-        if (slot >= stack_.size()) {
-          runtimeError("Invalid local slot.");
-          break;
-        }
-        push(stack_[slot]);
+        push(stack_[frame().slots + slot]);
         break;
       }
       case Op::SetLocal: {
         uint8_t slot = readByte();
-        if (slot >= stack_.size()) {
-          runtimeError("Invalid local slot.");
-          break;
-        }
-        stack_[slot] = peek();
+        stack_[frame().slots + slot] = peek();
         break;
       }
       case Op::Add:
@@ -232,17 +306,36 @@ InterpretResult VM::run() {
         break;
       case Op::Jump: {
         uint16_t offset = readShort();
-        ip_ += offset;
+        frame().ip += offset;
         break;
       }
       case Op::JumpIfFalse: {
         uint16_t offset = readShort();
-        if (!peek().isTruthy()) ip_ += offset;
+        if (!peek().isTruthy()) frame().ip += offset;
         break;
       }
       case Op::Loop: {
         uint16_t offset = readShort();
-        ip_ -= offset;
+        frame().ip -= offset;
+        break;
+      }
+      case Op::Call: {
+        int argCount = readByte();
+        if (!callValue(peek(argCount), argCount)) {
+          return InterpretResult::RuntimeError;
+        }
+        break;
+      }
+      case Op::Return: {
+        Value result = pop();
+        std::size_t slots = frame().slots;
+        frames_.pop_back();
+        if (frames_.empty()) {
+          collectRoots();
+          return InterpretResult::Ok;
+        }
+        stack_.resize(slots);
+        push(result);
         break;
       }
       case Op::MakeArray: {
@@ -275,20 +368,12 @@ InterpretResult VM::run() {
         push(arr->items[i]);
         break;
       }
-      case Op::Call:
-      case Op::Return:
-        runtimeError("Functions are not fully wired in this native build yet.");
-        break;
       case Op::Halt:
         collectRoots();
         return InterpretResult::Ok;
     }
 
     if (hadError_) return InterpretResult::RuntimeError;
-    if (ip_ >= chunk_->code.size()) {
-      collectRoots();
-      return InterpretResult::Ok;
-    }
   }
   return InterpretResult::RuntimeError;
 }

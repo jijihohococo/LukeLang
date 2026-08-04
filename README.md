@@ -66,15 +66,16 @@ Method-style `ASK obj TO method` still waits on blueprints.
 
 ## Classes (Blueprints)
 
-Native VM supports these now (`examples/native/oop.luke`):
+Native VM supports these now:
 
-- `BLUEPRINT Dog FOLLOWS Animal DO` … `END CLASS`
-- `WHEN BORN WITH name DO` … `END BORN`
-- `METHOD speak DO` … `END METHOD`
-- `NEW Dog WITH "Rex"` / `ASK buddy TO speak`
-- `CALL PARENT speak`
+- `BLUEPRINT Dog FOLLOWS Animal IMPLEMENTS Eater DO` … `END CLASS`
+- `CONTRACT Eater DO` / `MUST METHOD eat WITH food`
+- `HAS` / `PRIVATE` / `SECRET` fields; `ALWAYS HAS` statics
+- `WHEN BORN` / `METHOD` / `ALWAYS METHOD` / `SECRET METHOD`
+- `NEW`, `ASK obj TO method`, `SELF`, `CALL PARENT`
+- Closures: nested `THIS IS FUNCTION` capturing outer locals
 
-`CONTRACT` / `ALWAYS` statics still pending.
+See `examples/native/oop.luke`, `advanced_oop.luke`, `closures.luke`, `privacy.luke`.
 
 ## Output
 
@@ -83,15 +84,13 @@ Native VM supports these now (`examples/native/oop.luke`):
 ## Native examples
 
 ```bash
-./vm/build/luke SHOW examples/native/hello.luke
-./vm/build/luke SHOW examples/native/counter.luke
-./vm/build/luke SHOW examples/native/functions.luke
-./vm/build/luke SHOW examples/native/oop.luke
+cd vm && make test
 ```
 
 ## Roadmap (true language, not a wrapper)
 
 - ~~Native functions with call frames~~
 - ~~Blueprints / objects on Luke-owned layouts~~
-- Contracts, statics, closures, modules
+- ~~Contracts, statics, privacy, closures~~
+- Modules and a richer standard library
 - Keep JS emit only as an optional interop backend

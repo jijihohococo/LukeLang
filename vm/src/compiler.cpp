@@ -69,6 +69,23 @@ std::vector<std::string> splitArgs(const std::string &s) {
   return out;
 }
 
+// Split "A AND B, C" style lists into identifiers.
+std::vector<std::string> splitNameList(const std::string &s) {
+  std::string normalized;
+  normalized.reserve(s.size());
+  std::string upper = toUpper(s);
+  for (std::size_t i = 0; i < s.size();) {
+    if (i + 5 <= s.size() && upper.compare(i, 5, " AND ") == 0) {
+      normalized.push_back(',');
+      i += 5;
+      continue;
+    }
+    normalized.push_back(s[i]);
+    ++i;
+  }
+  return splitArgs(normalized);
+}
+
 bool stripTrailingDo(std::string &s) {
   auto U = toUpper(s);
   auto doPos = U.rfind(" DO");
@@ -81,20 +98,34 @@ bool stripTrailingDo(std::string &s) {
 
 struct Local {
   std::string name;
+  bool isCaptured = false;
+};
+
+struct Upvalue {
+  uint8_t index = 0;
+  bool isLocal = true;
 };
 
 struct Compiler {
+  Compiler *enclosing = nullptr;
   Heap &heap;
   Chunk *chunk = nullptr;
   Chunk scriptChunk;
   std::string error;
   bool hadError = false;
+
   bool inFunction = false;
   bool inMethod = false;
   bool inClass = false;
-  bool skippingContract = false;
   std::string className;
+  std::vector<std::string> implementsContracts;
+
+  ObjContract *currentContract = nullptr;
+  std::string contractName;
+
   std::vector<Local> locals;
+  std::vector<Upvalue> upvalues;
+
   struct Block {
     std::string type;
     int jump = 0;
@@ -102,16 +133,16 @@ struct Compiler {
   };
   std::vector<Block> blockStack;
 
-  ObjFunction *compilingFunction = nullptr;
-  Chunk *enclosingChunk = nullptr;
-  std::vector<Local> enclosingLocals;
-  bool enclosingInFunction = false;
-  bool enclosingInMethod = false;
+  ObjFunction *function = nullptr;
   std::string functionGlobalName;
   bool functionIsMethod = false;
   std::string methodBindName;
+  uint8_t methodFlags = 0;
+  bool functionIsNested = false;
 
-  explicit Compiler(Heap &h) : heap(h) { chunk = &scriptChunk; }
+  explicit Compiler(Heap &h, Compiler *enc = nullptr) : enclosing(enc), heap(h) {
+    if (!enc) chunk = &scriptChunk;
+  }
 
   void fail(std::size_t line, const std::string &msg) {
     if (hadError) return;
@@ -119,6 +150,13 @@ struct Compiler {
     std::ostringstream oss;
     oss << "Compile error on line " << line << ": " << msg;
     error = oss.str();
+    // Propagate to root so compileLuke sees it.
+    for (Compiler *c = enclosing; c; c = c->enclosing) {
+      if (!c->hadError) {
+        c->hadError = true;
+        c->error = error;
+      }
+    }
   }
 
   uint8_t makeConstant(Value v, std::size_t line) {
@@ -143,7 +181,7 @@ struct Compiler {
   }
 
   int resolveLocal(const std::string &name) {
-    // Slot 0 is SELF in methods / fn cell in functions — allow SELF lookup.
+    // Include slot 0 (SELF in methods / function cell for recursion).
     for (int i = static_cast<int>(locals.size()) - 1; i >= 0; --i) {
       if (locals[static_cast<std::size_t>(i)].name == name) return i;
     }
@@ -155,8 +193,38 @@ struct Compiler {
       fail(line, "Too many local variables in function.");
       return -1;
     }
-    locals.push_back({name});
+    locals.push_back({name, false});
     return static_cast<int>(locals.size()) - 1;
+  }
+
+  int addUpvalue(uint8_t index, bool isLocal, std::size_t line) {
+    for (std::size_t i = 0; i < upvalues.size(); ++i) {
+      if (upvalues[i].index == index && upvalues[i].isLocal == isLocal) {
+        return static_cast<int>(i);
+      }
+    }
+    if (upvalues.size() >= 256) {
+      fail(line, "Too many closure variables in function.");
+      return -1;
+    }
+    upvalues.push_back({index, isLocal});
+    return static_cast<int>(upvalues.size()) - 1;
+  }
+
+  int resolveUpvalue(const std::string &name, std::size_t line) {
+    if (!enclosing) return -1;
+
+    int local = enclosing->resolveLocal(name);
+    if (local != -1) {
+      enclosing->locals[static_cast<std::size_t>(local)].isCaptured = true;
+      return addUpvalue(static_cast<uint8_t>(local), true, line);
+    }
+
+    int upvalue = enclosing->resolveUpvalue(name, line);
+    if (upvalue != -1) {
+      return addUpvalue(static_cast<uint8_t>(upvalue), false, line);
+    }
+    return -1;
   }
 
   void emitGetVariable(const std::string &name, std::size_t line) {
@@ -165,6 +233,12 @@ struct Compiler {
       if (slot >= 0) {
         emit(Op::GetLocal, line);
         emitByte(static_cast<uint8_t>(slot), line);
+        return;
+      }
+      int up = resolveUpvalue(name, line);
+      if (up >= 0) {
+        emit(Op::GetUpvalue, line);
+        emitByte(static_cast<uint8_t>(up), line);
         return;
       }
     }
@@ -181,6 +255,12 @@ struct Compiler {
         emitByte(static_cast<uint8_t>(slot), line);
         return;
       }
+      int up = resolveUpvalue(name, line);
+      if (up >= 0) {
+        emit(Op::SetUpvalue, line);
+        emitByte(static_cast<uint8_t>(up), line);
+        return;
+      }
     }
     emit(Op::SetGlobal, line);
     emitByte(identifierConstant(name, line), line);
@@ -192,10 +272,11 @@ struct Compiler {
   void compileNewExpr(const std::string &expr, std::size_t line);
   bool compileBinaryPhrase(const std::string &expr, std::size_t line, const std::string &opWord,
                            Op op);
-  void compileLine(const std::string &raw, std::size_t line);
-  void startFunctionLike(const std::string &name, const std::vector<std::string> &params,
-                         bool method, const std::string &bindName, std::size_t line);
-  void endFunctionLike(std::size_t line);
+  void compileLine(const std::string &raw, std::size_t line, Compiler *&current);
+  Compiler *startFunctionLike(const std::string &name, const std::vector<std::string> &params,
+                              bool method, const std::string &bindName, uint8_t flags,
+                              std::size_t line);
+  Compiler *endFunctionLike(std::size_t line);
 };
 
 void Compiler::compileExpression(std::string expr, std::size_t line) {
@@ -243,9 +324,11 @@ void Compiler::compileExpression(std::string expr, std::size_t line) {
       return;
     }
   }
+  if (compileBinaryPhrase(expr, line, " MULTIPLY BY ", Op::Multiply)) return;
   if (compileBinaryPhrase(expr, line, " MULTIPLY ", Op::Multiply)) return;
   if (startsWithCI(expr, "MULTIPLY ")) {
     auto rest = trim(expr.substr(9));
+    if (startsWithCI(rest, "BY ")) rest = trim(rest.substr(3));
     auto andPos = toUpper(rest).find(" AND ");
     if (andPos != std::string::npos) {
       compileExpression(trim(rest.substr(0, andPos)), line);
@@ -516,40 +599,47 @@ void Compiler::compilePrimary(std::string expr, std::size_t line) {
   fail(line, "Cannot parse expression: " + expr);
 }
 
-void Compiler::startFunctionLike(const std::string &name, const std::vector<std::string> &params,
-                                 bool method, const std::string &bindName, std::size_t line) {
-  if (compilingFunction) {
-    fail(line, "Nested functions/methods are not supported yet.");
-    return;
-  }
+Compiler *Compiler::startFunctionLike(const std::string &name,
+                                      const std::vector<std::string> &params, bool method,
+                                      const std::string &bindName, uint8_t flags,
+                                      std::size_t /*line*/) {
   auto *fn = heap.allocateFunction(name, static_cast<int>(params.size()));
   fn->isMethod = method;
-  compilingFunction = fn;
-  functionGlobalName = name;
-  functionIsMethod = method;
-  methodBindName = bindName.empty() ? name : bindName;
+  fn->isStatic = (flags & kFlagStatic) != 0;
+  fn->isPrivate = (flags & kFlagPrivate) != 0;
 
-  enclosingChunk = chunk;
-  enclosingLocals = locals;
-  enclosingInFunction = inFunction;
-  enclosingInMethod = inMethod;
-
-  chunk = &fn->chunk;
-  inFunction = true;
-  inMethod = method;
-  locals.clear();
-  if (method) {
-    locals.push_back({"SELF"});
-  } else {
-    locals.push_back({name});
+  auto *inner = new Compiler(heap, this);
+  inner->function = fn;
+  inner->chunk = &fn->chunk;
+  inner->inFunction = true;
+  inner->inMethod = method;
+  inner->inClass = inClass;
+  inner->className = className;
+  inner->functionGlobalName = name;
+  inner->functionIsMethod = method;
+  inner->methodBindName = bindName.empty() ? name : bindName;
+  inner->methodFlags = flags;
+  inner->functionIsNested = (function != nullptr);
+  // Share error state via fail() propagation; keep hadError linked.
+  if (hadError) {
+    inner->hadError = true;
+    inner->error = error;
   }
-  for (const auto &p : params) locals.push_back({p});
+
+  if (method) {
+    inner->locals.push_back({"SELF", false});
+  } else {
+    inner->locals.push_back({name, false});
+  }
+  for (const auto &p : params) inner->locals.push_back({p, false});
+
+  return inner;
 }
 
-void Compiler::endFunctionLike(std::size_t line) {
-  if (!compilingFunction) {
+Compiler *Compiler::endFunctionLike(std::size_t line) {
+  if (!function) {
     fail(line, "END without matching function/method.");
-    return;
+    return this;
   }
 
   if (functionIsMethod && methodBindName == "born") {
@@ -562,45 +652,149 @@ void Compiler::endFunctionLike(std::size_t line) {
     emit(Op::Return, line);
   }
 
-  ObjFunction *fn = compilingFunction;
-  compilingFunction = nullptr;
-  bool wasMethod = functionIsMethod;
-  std::string bind = methodBindName;
-
-  chunk = enclosingChunk;
-  locals = enclosingLocals;
-  inFunction = enclosingInFunction;
-  inMethod = enclosingInMethod;
-  enclosingChunk = nullptr;
-
-  emitConstant(Value::object(fn), line);
-  if (wasMethod) {
-    if (!inClass) {
-      fail(line, "Method compiled outside a blueprint.");
-      return;
-    }
-    emit(Op::Method, line);
-    emitByte(identifierConstant(bind, line), line);
-  } else {
-    emit(Op::SetGlobal, line);
-    emitByte(identifierConstant(functionGlobalName, line), line);
-    emit(Op::Pop, line);
+  // Copy upvalue descriptors onto the function object.
+  function->upvalueDescs.clear();
+  function->upvalueDescs.reserve(upvalues.size());
+  for (const auto &uv : upvalues) {
+    UpvalueDesc desc;
+    desc.isLocal = uv.isLocal;
+    desc.index = uv.index;
+    function->upvalueDescs.push_back(desc);
   }
+
+  ObjFunction *fn = function;
+  bool wasMethod = functionIsMethod;
+  bool wasNested = functionIsNested;
+  std::string bind = methodBindName;
+  std::string globalName = functionGlobalName;
+  uint8_t flags = methodFlags;
+  bool useClosure = wasNested || !upvalues.empty();
+
+  Compiler *parent = enclosing;
+  if (!parent) {
+    fail(line, "Internal: function with no enclosing compiler.");
+    return this;
+  }
+
+  // Emit function value into enclosing chunk.
+  if (useClosure) {
+    parent->emit(Op::Closure, line);
+    parent->emitByte(parent->makeConstant(Value::object(fn), line), line);
+    for (const auto &uv : upvalues) {
+      parent->emitByte(uv.isLocal ? 1 : 0, line);
+      parent->emitByte(uv.index, line);
+    }
+  } else {
+    parent->emitConstant(Value::object(fn), line);
+  }
+
+  if (wasMethod) {
+    if (!parent->inClass) {
+      parent->fail(line, "Method compiled outside a blueprint.");
+      delete this;
+      return parent;
+    }
+    parent->emit(Op::Method, line);
+    parent->emitByte(parent->identifierConstant(bind, line), line);
+    parent->emitByte(flags, line);
+    // Class remains on stack (Method peeks class).
+  } else if (wasNested) {
+    // Bind nested function to a local (or overwrite existing).
+    int slot = parent->resolveLocal(globalName);
+    if (slot < 0) {
+      parent->addLocal(globalName, line);
+      // Value stays on stack as the new local slot — no Pop.
+    } else {
+      parent->emit(Op::SetLocal, line);
+      parent->emitByte(static_cast<uint8_t>(slot), line);
+      parent->emit(Op::Pop, line);
+    }
+  } else {
+    parent->emit(Op::SetGlobal, line);
+    parent->emitByte(parent->identifierConstant(globalName, line), line);
+    parent->emit(Op::Pop, line);
+  }
+
+  if (hadError && !parent->hadError) {
+    parent->hadError = true;
+    parent->error = error;
+  }
+
+  delete this;
+  return parent;
 }
 
-void Compiler::compileLine(const std::string &raw, std::size_t line) {
+void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&current) {
   std::string text = trim(raw);
   if (text.empty()) return;
   if (startsWithCI(text, "//")) return;
 
-  if (skippingContract) {
-    if (toUpper(text) == "END CONTRACT" || toUpper(text) == "ENDCONTRACT") {
-      skippingContract = false;
+  // ---- CONTRACT --------------------------------------------------
+  if (currentContract) {
+    auto U = toUpper(text);
+    if (U == "END CONTRACT" || U == "ENDCONTRACT" || U == "END PACT" ||
+        U == "END AGREEMENT") {
+      emitConstant(Value::object(currentContract), line);
+      emit(Op::SetGlobal, line);
+      emitByte(identifierConstant(contractName, line), line);
+      emit(Op::Pop, line);
+      currentContract = nullptr;
+      contractName.clear();
+      return;
     }
+
+    // MUST METHOD / MUST ACTION / MUST TRICK / MUST ABILITY name [WITH args]
+    std::string rest = text;
+    bool isMust = false;
+    if (startsWithCI(rest, "MUST ")) {
+      rest = trim(rest.substr(5));
+      isMust = true;
+    } else if (startsWithCI(rest, "REQUIRES ")) {
+      rest = trim(rest.substr(9));
+      isMust = true;
+    }
+    if (isMust) {
+      if (startsWithCI(rest, "METHOD ")) rest = trim(rest.substr(7));
+      else if (startsWithCI(rest, "ACTION ")) rest = trim(rest.substr(7));
+      else if (startsWithCI(rest, "TRICK ")) rest = trim(rest.substr(6));
+      else if (startsWithCI(rest, "ABILITY ")) rest = trim(rest.substr(8));
+      stripTrailingDo(rest);
+      auto ru = toUpper(rest);
+      auto withPos = ru.find(" WITH ");
+      std::string reqName;
+      int arity = -1;
+      if (withPos == std::string::npos) {
+        reqName = rest;
+        arity = -1;
+      } else {
+        reqName = trim(rest.substr(0, withPos));
+        auto args = splitArgs(trim(rest.substr(withPos + 6)));
+        arity = static_cast<int>(args.size());
+      }
+      if (reqName.empty()) {
+        fail(line, "MUST METHOD needs a name.");
+        return;
+      }
+      currentContract->requirements[reqName] = arity;
+      return;
+    }
+    // Ignore other lines inside CONTRACT.
     return;
   }
-  if (startsWithCI(text, "CONTRACT ")) {
-    skippingContract = true;
+
+  if (startsWithCI(text, "CONTRACT ") || startsWithCI(text, "PACT ") ||
+      startsWithCI(text, "AGREEMENT ")) {
+    std::string rest;
+    if (startsWithCI(text, "CONTRACT ")) rest = trim(text.substr(9));
+    else if (startsWithCI(text, "PACT ")) rest = trim(text.substr(5));
+    else rest = trim(text.substr(10));
+    stripTrailingDo(rest);
+    if (rest.empty()) {
+      fail(line, "CONTRACT needs a name.");
+      return;
+    }
+    contractName = rest;
+    currentContract = heap.allocateContract(contractName);
     return;
   }
 
@@ -610,23 +804,38 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
   }
 
   // ---- Blueprint -------------------------------------------------
-  if (startsWithCI(text, "BLUEPRINT ") || startsWithCI(text, "THIS IS CLASS ") ||
-      startsWithCI(text, "MAKE CLASS ") || startsWithCI(text, "CLASS ")) {
+  if (startsWithCI(text, "ABSTRACT ") || startsWithCI(text, "BLUEPRINT ") ||
+      startsWithCI(text, "THIS IS CLASS ") || startsWithCI(text, "MAKE CLASS ") ||
+      startsWithCI(text, "CLASS ")) {
     if (inClass) {
       fail(line, "Nested blueprints are not supported.");
       return;
     }
-    std::string rest;
-    if (startsWithCI(text, "BLUEPRINT ")) rest = trim(text.substr(10));
-    else if (startsWithCI(text, "THIS IS CLASS ")) rest = trim(text.substr(14));
-    else if (startsWithCI(text, "MAKE CLASS ")) rest = trim(text.substr(11));
-    else rest = trim(text.substr(6));
+    std::string rest = text;
+    if (startsWithCI(rest, "ABSTRACT ")) rest = trim(rest.substr(9));
+    if (startsWithCI(rest, "BLUEPRINT ")) rest = trim(rest.substr(10));
+    else if (startsWithCI(rest, "THIS IS CLASS ")) rest = trim(rest.substr(14));
+    else if (startsWithCI(rest, "MAKE CLASS ")) rest = trim(rest.substr(11));
+    else if (startsWithCI(rest, "CLASS ")) rest = trim(rest.substr(6));
+    else {
+      fail(line, "Expected BLUEPRINT after ABSTRACT.");
+      return;
+    }
     stripTrailingDo(rest);
 
-    // Drop IMPLEMENTS ... for now
-    auto implPos = toUpper(rest).find(" IMPLEMENTS ");
-    if (implPos == std::string::npos) implPos = toUpper(rest).find(" COMPLIES WITH ");
-    if (implPos != std::string::npos) rest = trim(rest.substr(0, implPos));
+    // IMPLEMENTS / COMPLIES WITH contracts
+    implementsContracts.clear();
+    {
+      auto U = toUpper(rest);
+      auto implPos = U.find(" IMPLEMENTS ");
+      if (implPos == std::string::npos) implPos = U.find(" COMPLIES WITH ");
+      if (implPos != std::string::npos) {
+        std::size_t skip = (U.compare(implPos, 12, " IMPLEMENTS ") == 0) ? 12 : 15;
+        std::string contractsPart = trim(rest.substr(implPos + skip));
+        rest = trim(rest.substr(0, implPos));
+        implementsContracts = splitNameList(contractsPart);
+      }
+    }
 
     std::string parent;
     auto U = toUpper(rest);
@@ -639,11 +848,14 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
     } else {
       name = trim(rest.substr(0, folPos));
       parent = trim(rest.substr(folPos));
-      // strip keyword
-      auto pu = toUpper(parent);
       if (startsWithCI(parent, "FOLLOWS ")) parent = trim(parent.substr(8));
       else if (startsWithCI(parent, "EXTENDS ")) parent = trim(parent.substr(8));
       else if (startsWithCI(parent, "FROM ")) parent = trim(parent.substr(5));
+      // Single inheritance only — take first name if AND-list given.
+      auto andPos = toUpper(parent).find(" AND ");
+      if (andPos != std::string::npos) parent = trim(parent.substr(0, andPos));
+      auto commaPos = parent.find(',');
+      if (commaPos != std::string::npos) parent = trim(parent.substr(0, commaPos));
     }
     if (name.empty()) {
       fail(line, "Blueprint needs a name.");
@@ -657,6 +869,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
       emitGetVariable(parent, line);
       emit(Op::Inherit, line);
     }
+    // Contract Implement is deferred until END CLASS so methods exist.
     return;
   }
 
@@ -666,6 +879,13 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
       fail(line, "END CLASS without matching BLUEPRINT.");
       return;
     }
+    // Emit Implement for each contract now that methods/fields are bound.
+    for (const auto &cname : implementsContracts) {
+      emit(Op::GetGlobal, line);
+      emitByte(identifierConstant(cname, line), line);
+      emit(Op::Implement, line);
+    }
+    implementsContracts.clear();
     emit(Op::SetGlobal, line);
     emitByte(identifierConstant(className, line), line);
     emit(Op::Pop, line);
@@ -675,28 +895,90 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
   }
 
   if (toUpper(text) == "END BORN" || toUpper(text) == "ENDBORN") {
-    endFunctionLike(line);
+    current = endFunctionLike(line);
     return;
   }
 
   if (toUpper(text) == "END METHOD" || toUpper(text) == "ENDMETHOD" ||
       toUpper(text) == "END ACTION" || toUpper(text) == "END TRICK" ||
       toUpper(text) == "END ABILITY") {
-    endFunctionLike(line);
+    current = endFunctionLike(line);
     return;
   }
 
-  if (inClass && !compilingFunction) {
-    // HAS / PRIVATE / SECRET fields
+  if (inClass && !function) {
+    // ALWAYS / ETERNAL / FOREVER statics
+    if (startsWithCI(text, "ALWAYS ") || startsWithCI(text, "ETERNAL ") ||
+        startsWithCI(text, "FOREVER ")) {
+      std::string rest = text;
+      if (startsWithCI(rest, "ALWAYS ")) rest = trim(rest.substr(7));
+      else if (startsWithCI(rest, "ETERNAL ")) rest = trim(rest.substr(8));
+      else rest = trim(rest.substr(8));  // FOREVER
+
+      if (startsWithCI(rest, "HAS ")) {
+        rest = trim(rest.substr(4));
+        auto U = toUpper(rest);
+        auto setPos = U.find(" SET TO ");
+        std::string field;
+        if (setPos == std::string::npos) {
+          field = rest;
+          emit(Op::Nil, line);
+        } else {
+          field = trim(rest.substr(0, setPos));
+          compileExpression(trim(rest.substr(setPos + 8)), line);
+        }
+        emit(Op::StaticField, line);
+        emitByte(identifierConstant(field, line), line);
+        return;
+      }
+
+      // ALWAYS METHOD / ACTION / ...
+      uint8_t flags = kFlagStatic;
+      if (startsWithCI(rest, "METHOD ") || startsWithCI(rest, "ACTION ") ||
+          startsWithCI(rest, "TRICK ") || startsWithCI(rest, "ABILITY ")) {
+        std::string methodRest;
+        if (startsWithCI(rest, "METHOD ")) methodRest = trim(rest.substr(7));
+        else if (startsWithCI(rest, "ACTION ")) methodRest = trim(rest.substr(7));
+        else if (startsWithCI(rest, "TRICK ")) methodRest = trim(rest.substr(6));
+        else methodRest = trim(rest.substr(8));
+        stripTrailingDo(methodRest);
+        auto U = toUpper(methodRest);
+        auto withPos = U.find(" WITH ");
+        std::string mname;
+        std::vector<std::string> params;
+        if (withPos == std::string::npos) {
+          mname = methodRest;
+        } else {
+          mname = trim(methodRest.substr(0, withPos));
+          params = splitArgs(trim(methodRest.substr(withPos + 6)));
+        }
+        current = startFunctionLike(mname, params, true, mname, flags, line);
+        return;
+      }
+
+      fail(line, "Expected ALWAYS HAS or ALWAYS METHOD.");
+      return;
+    }
+
+    // HAS / PRIVATE / SECRET fields (and PRIVATE METHOD rewrite)
     if (startsWithCI(text, "HAS ") || startsWithCI(text, "PRIVATE ") ||
         startsWithCI(text, "SECRET ")) {
+      uint8_t flags = 0;
       std::string rest = text;
-      if (startsWithCI(rest, "PRIVATE ")) rest = trim(rest.substr(8));
-      else if (startsWithCI(rest, "SECRET ")) rest = trim(rest.substr(7));
+      if (startsWithCI(rest, "PRIVATE ")) {
+        flags = kFlagPrivate;
+        rest = trim(rest.substr(8));
+      } else if (startsWithCI(rest, "SECRET ")) {
+        flags = kFlagPrivate;
+        rest = trim(rest.substr(7));
+      }
       if (startsWithCI(rest, "HAS ")) rest = trim(rest.substr(4));
+
       // Skip method forms: PRIVATE METHOD ...
-      if (startsWithCI(rest, "METHOD ")) {
-        text = rest;
+      if (startsWithCI(rest, "METHOD ") || startsWithCI(rest, "ACTION ") ||
+          startsWithCI(rest, "TRICK ") || startsWithCI(rest, "ABILITY ")) {
+        // Fall through to method handling below with flags retained via rewrite.
+        text = (flags & kFlagPrivate) ? ("PRIVATE " + rest) : rest;
       } else {
         auto U = toUpper(rest);
         auto setPos = U.find(" SET TO ");
@@ -710,14 +992,9 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
         }
         emit(Op::Field, line);
         emitByte(identifierConstant(field, line), line);
+        emitByte(flags, line);
         return;
       }
-    }
-
-    if (startsWithCI(text, "ALWAYS ") || startsWithCI(text, "ETERNAL ") ||
-        startsWithCI(text, "FOREVER ")) {
-      fail(line, "Static ALWAYS members are not on the native VM yet.");
-      return;
     }
 
     // WHEN BORN / BORN / CONSTRUCTOR
@@ -738,35 +1015,42 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
         fail(line, "Expected WHEN BORN WITH args DO");
         return;
       }
-      startFunctionLike("born", params, true, "born", line);
+      current = startFunctionLike("born", params, true, "born", 0, line);
       return;
     }
 
-    // METHOD / ACTION / TRICK / ABILITY / PRIVATE METHOD
-    std::string methodLine = text;
-    if (startsWithCI(methodLine, "PRIVATE METHOD ") || startsWithCI(methodLine, "SECRET METHOD ")) {
-      methodLine = trim(methodLine.substr(methodLine.find("METHOD")));
-    }
-    if (startsWithCI(methodLine, "METHOD ") || startsWithCI(methodLine, "ACTION ") ||
-        startsWithCI(methodLine, "TRICK ") || startsWithCI(methodLine, "ABILITY ")) {
-      std::string rest;
-      if (startsWithCI(methodLine, "METHOD ")) rest = trim(methodLine.substr(7));
-      else if (startsWithCI(methodLine, "ACTION ")) rest = trim(methodLine.substr(7));
-      else if (startsWithCI(methodLine, "TRICK ")) rest = trim(methodLine.substr(6));
-      else rest = trim(methodLine.substr(8));
-      stripTrailingDo(rest);
-      auto U = toUpper(rest);
-      auto withPos = U.find(" WITH ");
-      std::string name;
-      std::vector<std::string> params;
-      if (withPos == std::string::npos) {
-        name = rest;
-      } else {
-        name = trim(rest.substr(0, withPos));
-        params = splitArgs(trim(rest.substr(withPos + 6)));
+    // METHOD / ACTION / TRICK / ABILITY / PRIVATE|SECRET METHOD
+    {
+      uint8_t flags = 0;
+      std::string methodLine = text;
+      if (startsWithCI(methodLine, "PRIVATE ")) {
+        flags |= kFlagPrivate;
+        methodLine = trim(methodLine.substr(8));
+      } else if (startsWithCI(methodLine, "SECRET ")) {
+        flags |= kFlagPrivate;
+        methodLine = trim(methodLine.substr(7));
       }
-      startFunctionLike(name, params, true, name, line);
-      return;
+      if (startsWithCI(methodLine, "METHOD ") || startsWithCI(methodLine, "ACTION ") ||
+          startsWithCI(methodLine, "TRICK ") || startsWithCI(methodLine, "ABILITY ")) {
+        std::string rest;
+        if (startsWithCI(methodLine, "METHOD ")) rest = trim(methodLine.substr(7));
+        else if (startsWithCI(methodLine, "ACTION ")) rest = trim(methodLine.substr(7));
+        else if (startsWithCI(methodLine, "TRICK ")) rest = trim(methodLine.substr(6));
+        else rest = trim(methodLine.substr(8));
+        stripTrailingDo(rest);
+        auto U = toUpper(rest);
+        auto withPos = U.find(" WITH ");
+        std::string mname;
+        std::vector<std::string> params;
+        if (withPos == std::string::npos) {
+          mname = rest;
+        } else {
+          mname = trim(rest.substr(0, withPos));
+          params = splitArgs(trim(rest.substr(withPos + 6)));
+        }
+        current = startFunctionLike(mname, params, true, mname, flags, line);
+        return;
+      }
     }
   }
 
@@ -796,13 +1080,13 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
         name = trim(rest.substr(0, withPos));
         params = splitArgs(trim(rest.substr(withPos + 6)));
       }
-      startFunctionLike(name, params, false, name, line);
+      current = startFunctionLike(name, params, false, name, 0, line);
       return;
     }
   }
 
   if (toUpper(text) == "END FUNCTION" || toUpper(text) == "ENDFUNCTION") {
-    endFunctionLike(line);
+    current = endFunctionLike(line);
     return;
   }
 
@@ -932,8 +1216,23 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
     }
 
     compileExpression(valueExpr, line);
-    if (inFunction && resolveLocal(target) < 0) {
-      addLocal(target, line);
+    if (inFunction) {
+      int slot = resolveLocal(target);
+      if (slot >= 0) {
+        emit(Op::SetLocal, line);
+        emitByte(static_cast<uint8_t>(slot), line);
+        emit(Op::Pop, line);
+      } else {
+        int up = resolveUpvalue(target, line);
+        if (up >= 0) {
+          emit(Op::SetUpvalue, line);
+          emitByte(static_cast<uint8_t>(up), line);
+          emit(Op::Pop, line);
+        } else {
+          // New local: value already on stack becomes the slot.
+          addLocal(target, line);
+        }
+      }
     } else {
       emitSetVariable(target, line, /*declare=*/false);
       emit(Op::Pop, line);
@@ -954,10 +1253,20 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
       compileExpression(trim(rest.substr(setPos + 8)), line);
     }
     if (inFunction) {
-      if (resolveLocal(name) < 0) addLocal(name, line);
-      else {
-        emitSetVariable(name, line, /*declare=*/false);
+      int slot = resolveLocal(name);
+      if (slot >= 0) {
+        emit(Op::SetLocal, line);
+        emitByte(static_cast<uint8_t>(slot), line);
         emit(Op::Pop, line);
+      } else {
+        int up = resolveUpvalue(name, line);
+        if (up >= 0) {
+          emit(Op::SetUpvalue, line);
+          emitByte(static_cast<uint8_t>(up), line);
+          emit(Op::Pop, line);
+        } else {
+          addLocal(name, line);
+        }
       }
     } else {
       emitSetVariable(name, line, /*declare=*/false);
@@ -1024,44 +1333,57 @@ void Compiler::compileLine(const std::string &raw, std::size_t line) {
 }  // namespace
 
 CompileResult compileLuke(const std::string &source, Heap &heap) {
-  Compiler c(heap);
+  Compiler root(heap);
+  Compiler *current = &root;
   std::istringstream in(source);
   std::string line;
   std::size_t lineNo = 0;
   while (std::getline(in, line)) {
     ++lineNo;
-    c.compileLine(line, lineNo);
-    if (c.hadError) break;
+    current->compileLine(line, lineNo, current);
+    if (root.hadError || current->hadError) break;
   }
+
   CompileResult result;
-  if (c.hadError) {
+  if (root.hadError || (current && current->hadError)) {
     result.ok = false;
-    result.error = c.error;
+    result.error = root.hadError ? root.error : current->error;
+    // Free any nested compilers still on the chain.
+    while (current && current != &root) {
+      Compiler *p = current->enclosing;
+      delete current;
+      current = p;
+    }
     return result;
   }
-  if (c.compilingFunction) {
+  if (current != &root || current->function) {
     result.ok = false;
     result.error = "Compile error: unclosed function/method";
+    while (current && current != &root) {
+      Compiler *p = current->enclosing;
+      delete current;
+      current = p;
+    }
     return result;
   }
-  if (c.inClass) {
+  if (root.inClass) {
     result.ok = false;
     result.error = "Compile error: unclosed BLUEPRINT";
     return result;
   }
-  if (c.skippingContract) {
+  if (root.currentContract) {
     result.ok = false;
     result.error = "Compile error: unclosed CONTRACT";
     return result;
   }
-  if (!c.blockStack.empty()) {
+  if (!root.blockStack.empty()) {
     result.ok = false;
-    result.error = "Compile error: unclosed " + c.blockStack.back().type + " block";
+    result.error = "Compile error: unclosed " + root.blockStack.back().type + " block";
     return result;
   }
-  c.emit(Op::Halt, lineNo ? lineNo : 1);
+  root.emit(Op::Halt, lineNo ? lineNo : 1);
   result.ok = true;
-  result.chunk = std::move(c.scriptChunk);
+  result.chunk = std::move(root.scriptChunk);
   return result;
 }
 

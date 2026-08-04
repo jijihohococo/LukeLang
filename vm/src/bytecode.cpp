@@ -47,6 +47,8 @@ std::string opName(Op op) {
     case Op::SetGlobal: return "SET_GLOBAL";
     case Op::GetLocal: return "GET_LOCAL";
     case Op::SetLocal: return "SET_LOCAL";
+    case Op::GetUpvalue: return "GET_UPVALUE";
+    case Op::SetUpvalue: return "SET_UPVALUE";
     case Op::Add: return "ADD";
     case Op::Subtract: return "SUBTRACT";
     case Op::Multiply: return "MULTIPLY";
@@ -61,6 +63,8 @@ std::string opName(Op op) {
     case Op::JumpIfFalse: return "JUMP_IF_FALSE";
     case Op::Loop: return "LOOP";
     case Op::Call: return "CALL";
+    case Op::Closure: return "CLOSURE";
+    case Op::CloseUpvalue: return "CLOSE_UPVALUE";
     case Op::Return: return "RETURN";
     case Op::MakeArray: return "MAKE_ARRAY";
     case Op::GetIndex: return "GET_INDEX";
@@ -68,6 +72,8 @@ std::string opName(Op op) {
     case Op::Inherit: return "INHERIT";
     case Op::Method: return "METHOD";
     case Op::Field: return "FIELD";
+    case Op::StaticField: return "STATIC_FIELD";
+    case Op::Implement: return "IMPLEMENT";
     case Op::GetProp: return "GET_PROP";
     case Op::SetProp: return "SET_PROP";
     case Op::Invoke: return "INVOKE";

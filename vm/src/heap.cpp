@@ -77,6 +77,31 @@ ObjBoundMethod *Heap::allocateBoundMethod(Value receiver, ObjFunction *method) {
   return obj;
 }
 
+ObjContract *Heap::allocateContract(std::string name) {
+  auto *obj = new ObjContract();
+  obj->type = ObjType::Contract;
+  obj->name = std::move(name);
+  track(obj, sizeof(ObjContract) + obj->name.size());
+  return obj;
+}
+
+ObjClosure *Heap::allocateClosure(ObjFunction *function) {
+  auto *obj = new ObjClosure();
+  obj->type = ObjType::Closure;
+  obj->function = function;
+  obj->upvalues.resize(function ? function->upvalueDescs.size() : 0, nullptr);
+  track(obj, sizeof(ObjClosure) + obj->upvalues.size() * sizeof(ObjUpvalue *));
+  return obj;
+}
+
+ObjUpvalue *Heap::allocateUpvalue(Value *slot) {
+  auto *obj = new ObjUpvalue();
+  obj->type = ObjType::Upvalue;
+  obj->location = slot;
+  track(obj, sizeof(ObjUpvalue));
+  return obj;
+}
+
 void Heap::maybeCollect() {
   if (collecting_) return;
   if (bytesAllocated_ < nextGc_) return;
@@ -95,9 +120,7 @@ void Heap::collect(const std::function<void(std::function<void(Value &)>)> &trac
   if (collecting_) return;
   collecting_ = true;
   collections_ += 1;
-
   traceRoots([this](Value &v) { markValue(v); });
-
   sweep();
   nextGc_ = bytesAllocated_ * 2;
   if (nextGc_ < 64 * 1024) nextGc_ = 64 * 1024;
@@ -129,7 +152,9 @@ void Heap::markObject(Obj *obj) {
       auto *klass = static_cast<ObjClass *>(obj);
       if (klass->superclass) markObject(klass->superclass);
       for (auto &kv : klass->methods) markObject(kv.second);
-      for (auto &field : klass->fields) markValue(field.second);
+      for (auto &field : klass->fields) markValue(field.defaultValue);
+      for (auto &kv : klass->statics) markValue(kv.second);
+      for (auto *c : klass->contracts) markObject(c);
       break;
     }
     case ObjType::Instance: {
@@ -142,6 +167,21 @@ void Heap::markObject(Obj *obj) {
       auto *bound = static_cast<ObjBoundMethod *>(obj);
       markValue(bound->receiver);
       if (bound->method) markObject(bound->method);
+      break;
+    }
+    case ObjType::Contract:
+      break;
+    case ObjType::Closure: {
+      auto *cl = static_cast<ObjClosure *>(obj);
+      if (cl->function) markObject(cl->function);
+      for (auto *uv : cl->upvalues) {
+        if (uv) markObject(uv);
+      }
+      break;
+    }
+    case ObjType::Upvalue: {
+      auto *uv = static_cast<ObjUpvalue *>(obj);
+      markValue(uv->closed);
       break;
     }
   }
@@ -179,8 +219,7 @@ void Heap::freeObject(Obj *obj) {
     }
     case ObjType::Function: {
       auto *f = static_cast<ObjFunction *>(obj);
-      bytes = sizeof(ObjFunction) + f->name.size() + f->chunk.code.size() +
-              f->chunk.constants.size() * sizeof(Value);
+      bytes = sizeof(ObjFunction) + f->name.size();
       delete f;
       break;
     }
@@ -190,17 +229,30 @@ void Heap::freeObject(Obj *obj) {
       delete c;
       break;
     }
-    case ObjType::Instance: {
-      auto *i = static_cast<ObjInstance *>(obj);
+    case ObjType::Instance:
       bytes = sizeof(ObjInstance);
-      delete i;
+      delete static_cast<ObjInstance *>(obj);
       break;
-    }
-    case ObjType::BoundMethod: {
+    case ObjType::BoundMethod:
       bytes = sizeof(ObjBoundMethod);
       delete static_cast<ObjBoundMethod *>(obj);
       break;
+    case ObjType::Contract: {
+      auto *c = static_cast<ObjContract *>(obj);
+      bytes = sizeof(ObjContract) + c->name.size();
+      delete c;
+      break;
     }
+    case ObjType::Closure: {
+      auto *c = static_cast<ObjClosure *>(obj);
+      bytes = sizeof(ObjClosure) + c->upvalues.size() * sizeof(ObjUpvalue *);
+      delete c;
+      break;
+    }
+    case ObjType::Upvalue:
+      bytes = sizeof(ObjUpvalue);
+      delete static_cast<ObjUpvalue *>(obj);
+      break;
   }
   if (bytesAllocated_ >= bytes) bytesAllocated_ -= bytes;
   else bytesAllocated_ = 0;

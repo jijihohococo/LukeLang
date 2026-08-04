@@ -61,6 +61,18 @@ std::string Value::toString() const {
         }
         case ObjType::BoundMethod:
           return "<bound method>";
+        case ObjType::Contract: {
+          auto *c = static_cast<ObjContract *>(as.obj);
+          return "<contract " + c->name + ">";
+        }
+        case ObjType::Closure: {
+          auto *cl = static_cast<ObjClosure *>(as.obj);
+          std::string n =
+              cl->function && !cl->function->name.empty() ? cl->function->name : "?";
+          return "<closure " + n + ">";
+        }
+        case ObjType::Upvalue:
+          return "<upvalue>";
       }
       return "<object>";
     }

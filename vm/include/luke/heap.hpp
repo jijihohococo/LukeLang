@@ -15,6 +15,9 @@ struct ObjFunction;
 struct ObjClass;
 struct ObjInstance;
 struct ObjBoundMethod;
+struct ObjContract;
+struct ObjClosure;
+struct ObjUpvalue;
 
 class Heap {
  public:
@@ -30,8 +33,10 @@ class Heap {
   ObjClass *allocateClass(std::string name);
   ObjInstance *allocateInstance(ObjClass *klass);
   ObjBoundMethod *allocateBoundMethod(Value receiver, ObjFunction *method);
+  ObjContract *allocateContract(std::string name);
+  ObjClosure *allocateClosure(ObjFunction *function);
+  ObjUpvalue *allocateUpvalue(Value *slot);
 
-  // Mark-sweep GC. Roots are supplied by the caller (VM stack, globals, etc.).
   void collect(const std::vector<Value *> &roots);
   void collect(const std::function<void(std::function<void(Value &)>)> &traceRoots);
 

@@ -7,10 +7,7 @@ This is the **real** LukeLang execution path: a C++ bytecode VM with its own hea
 ```bash
 cd vm
 make
-./build/luke SHOW ../examples/native/hello.luke
-./build/luke SHOW ../examples/native/counter.luke
-./build/luke SHOW ../examples/native/functions.luke
-./build/luke SHOW ../examples/native/oop.luke
+make test
 ```
 
 ## Architecture
@@ -20,41 +17,33 @@ make
 | `compiler.cpp` | Luke source → bytecode |
 | `vm.cpp` | Stack bytecode interpreter |
 | `heap.cpp` | Object allocator + mark-sweep GC |
-| `value.hpp` / `object.hpp` | Tagged values + class/instance layouts |
+| `object.hpp` | Classes, instances, contracts, closures, upvalues |
 
-Objects (strings, arrays, functions, **classes**, **instances**) live on the Luke heap. Numbers and bools are unboxed. The GC traces the VM stack, globals, and constant pools as roots.
+## Supported (native)
 
-## Supported subset (native)
+- Core: `SPEAK`, variables, arithmetic, lists, `IF` / `WHILE`
+- **Functions** with call frames + recursion
+- **Closures** — nested functions capture enclosing locals via upvalues
+- **Blueprints:** `FOLLOWS`, `HAS`, `WHEN BORN`, `METHOD`, `NEW`, `ASK TO`, `SELF`, `CALL PARENT`
+- **CONTRACT** / `IMPLEMENTS` with arity-aware compliance checks
+- **ALWAYS** static fields and methods (`Creature.totalCount`, `ASK Creature TO count`)
+- **PRIVATE** / **SECRET** fields and methods (enforced at runtime)
 
-- `SPEAK` / `SAY` / `YELL` / `SHOUT`
-- `MY NAME IS x SET TO expr` / `SET x TO expr`
-- Numbers, booleans, quoted strings, `AND` concatenation
-- `ADD` / `SUBTRACT` / `MULTIPLY` / `DIVIDE`
-- Comparisons: `EQUALS`, `IS LESS THAN`, `IS GREATER THAN`
-- `IF ... DO` / `END IF`
-- `WHILE ... DO` / `END WHILE`
-- `MAKE LIST WITH ...` and `ITEM AT i OF list`
-- **Functions:** `THIS IS FUNCTION` / `GIVE BACK` / `ASK name WITH args`
-- **Blueprints (Luke-owned OOP):**
-  - `BLUEPRINT Name [FOLLOWS Parent] DO` … `END CLASS`
-  - `HAS field [SET TO value]`
-  - `WHEN BORN WITH args DO` … `END BORN`
-  - `METHOD name WITH args DO` … `END METHOD`
-  - `NEW Class WITH args`
-  - `ASK obj TO method WITH args`
-  - `SELF` / `SELF.field` / `SET SELF.field TO …`
-  - `CALL PARENT method WITH args`
+## Examples
 
-## Not yet on the native path
-
-- `CONTRACT` / `IMPLEMENTS` (skipped for now)
-- `ALWAYS` static fields/methods
-- True private field enforcement
-- Closures over outer locals
+| File | Covers |
+| --- | --- |
+| `examples/native/hello.luke` | Basics |
+| `examples/native/functions.luke` | Functions / recursion |
+| `examples/native/oop.luke` | Inheritance |
+| `examples/native/advanced_oop.luke` | Contracts, statics, privacy |
+| `examples/native/closures.luke` | Closures |
+| `examples/native/privacy.luke` | Secret methods via public API |
 
 ## Roadmap
 
-1. ~~Functions (`THIS IS FUNCTION` / `GIVE BACK`) as first-class VM call frames~~
-2. ~~Objects / blueprints with Luke-owned layouts (not JS classes)~~
-3. Contracts, statics, privacy; better allocator
-4. Retire JS as the default execution engine; keep optional JS emit only for interop
+1. ~~Functions~~
+2. ~~Blueprints~~
+3. ~~Contracts / ALWAYS / privacy / closures~~
+4. Modules, richer standard library
+5. Retire JS as the default execution engine

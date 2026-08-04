@@ -20,6 +20,9 @@ enum class ObjType : uint8_t {
   Class,
   Instance,
   BoundMethod,
+  Contract,
+  Closure,
+  Upvalue,
 };
 
 struct Obj;

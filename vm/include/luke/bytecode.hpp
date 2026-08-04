@@ -16,6 +16,8 @@ enum class Op : uint8_t {
   SetGlobal,   // operand: name const index
   GetLocal,    // operand: slot
   SetLocal,    // operand: slot
+  GetUpvalue,  // operand: upvalue slot
+  SetUpvalue,  // operand: upvalue slot
   Add,
   Subtract,
   Multiply,
@@ -30,20 +32,29 @@ enum class Op : uint8_t {
   JumpIfFalse, // operand: offset (uint16)
   Loop,        // operand: back offset (uint16)
   Call,        // operand: arg count
+  Closure,     // operand: function const index, then (isLocal,index)*upvalueCount
+  CloseUpvalue,
   Return,
   MakeArray,   // operand: element count
   GetIndex,
   Class,       // operand: name const — push new class
   Inherit,     // stack: [class, superclass] → class
-  Method,      // operand: name const — stack: [class, fn] → class
-  Field,       // operand: name const — stack: [class, default] → class
-  GetProp,     // operand: name const — pop instance, push field/bound method
-  SetProp,     // operand: name const — stack: [instance, value] → value
+  Method,      // operand: name const, flags — stack: [class, fn] → class
+  Field,       // operand: name const, flags — stack: [class, default] → class
+  StaticField, // operand: name const — stack: [class, value] → class
+  Implement,   // stack: [class, contract] → class (check + record)
+  GetProp,     // operand: name const — pop receiver, push field/bound method/static
+  SetProp,     // operand: name const — stack: [receiver, value] → value
   Invoke,      // operand: name const, arg count — stack: [receiver, args...]
   SuperInvoke, // operand: name const, arg count — CALL PARENT
   Construct,   // operand: arg count — stack: [class, args...] → instance
   Halt,
 };
+
+// Method/Field flags
+constexpr uint8_t kFlagPrivate = 1;
+constexpr uint8_t kFlagStatic = 2;
+
 
 struct Chunk {
   std::vector<uint8_t> code;

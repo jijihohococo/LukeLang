@@ -19,10 +19,11 @@ enum class InterpretResult {
 };
 
 struct CallFrame {
-  ObjFunction *function = nullptr;  // nullptr = top-level script chunk
+  ObjClosure *closure = nullptr;  // null for top-level script
+  ObjFunction *function = nullptr;
   Chunk *chunk = nullptr;
   std::size_t ip = 0;
-  std::size_t slots = 0;  // stack index of this frame's slot 0
+  std::size_t slots = 0;
 };
 
 class VM {
@@ -45,10 +46,13 @@ class VM {
   void runtimeError(const std::string &message);
   bool binaryArith(Op op);
   bool callValue(Value callee, int argCount);
-  bool call(ObjFunction *function, int argCount);
-  bool invokeFromClass(ObjClass *klass, const std::string &name, int argCount);
-  bool bindMethod(ObjClass *klass, const std::string &name);
+  bool call(ObjFunction *function, ObjClosure *closure, int argCount);
+  bool invokeFromClass(ObjClass *klass, const std::string &name, int argCount, bool allowPrivate);
+  bool canAccessPrivate(ObjClass *owner) const;
+  bool bindMethod(ObjClass *klass, const std::string &name, bool allowPrivate);
   void applyFieldDefaults(ObjInstance *instance, ObjClass *klass);
+  ObjUpvalue *captureUpvalue(Value *local);
+  void closeUpvalues(Value *last);
   uint8_t readByte();
   uint16_t readShort();
   Value readConstant();
@@ -59,6 +63,7 @@ class VM {
   std::vector<CallFrame> frames_;
   std::vector<Value> stack_;
   std::unordered_map<std::string, Value> globals_;
+  ObjUpvalue *openUpvalues_ = nullptr;
   bool hadError_ = false;
 };
 

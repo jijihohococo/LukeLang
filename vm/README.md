@@ -13,11 +13,13 @@ make test   # Play + Build suites
 
 | Command | Engine | Memory |
 | --- | --- | --- |
-| `SHOW` / bare `.luke` | Bytecode VM | Mark-sweep GC |
+| `SHOW` / bare `.luke` | Build-first (temp native), else VM | Arena or GC |
+| `SHOW --vm` | Bytecode VM | Mark-sweep GC |
 | `BUILD [-o out]` | Luke → C → `cc -O2` | Bump arena only |
 | `BUILD -target wasm` | Luke → C → WASI clang | Bump arena only |
+| `BUILD -target browser` | wasm + `.html` + loader JS | Bump arena only |
 
-See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md). Needs `LUKE_WASI_SDK` or `.tools/wasi-sdk` for WASM.
+See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md). Needs `LUKE_WASI_SDK` or `.tools/wasi-sdk` for WASM/browser.
 
 ## Layout
 
@@ -27,7 +29,8 @@ See [`../docs/BUILD_MODE.md`](../docs/BUILD_MODE.md). Needs `LUKE_WASI_SDK` or `
 | `runtime/luke_rt.h` | Tiny no-GC arena runtime |
 | `runtime/luke_std.h` | Files / JSON / HTTP C helpers for Build |
 | `stdlib/` | `std/files`, `std/json`, `std/http` Luke modules |
-| `src/compiler.cpp` + `vm.cpp` | Play VM |
+| `../luke_modules/` | Package registry (`IMPORT luke/<name>`) |
+| `src/compiler.cpp` + `vm.cpp` | Play VM (compatibility) |
 | `src/main.cpp` | CLI |
 
 ## Examples

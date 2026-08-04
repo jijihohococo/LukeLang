@@ -8,30 +8,53 @@ This is Path A: Python-shaped versatility on the surface, Zig/Rust-shaped cost u
 ## Commands
 
 ```bash
-luke SHOW  examples/build/hello.luke              # Play — interpret now
+luke SHOW  examples/build/hello.luke              # prefers Build (native temp); --vm forces Play
 luke BUILD examples/build/hello.luke              # Build — native binary, no GC
 luke BUILD examples/build/hello.luke -o hello
 luke BUILD examples/build/hello_wasm.luke -target wasm -o hello.wasm
+luke BUILD examples/build/hello_browser.luke -target browser -o hello_web
 # run wasm (WASI): node scripts/run_wasi.cjs hello.wasm
+# run browser wasm headless: node scripts/luke_browser_loader.cjs hello_web.wasm
+# or open hello_web.html in a browser
 ```
 
-Build emits C, then compiles with the system C compiler (`cc -O2`), or the WASI SDK when `-target wasm`.
+Build emits C, then compiles with the system C compiler (`cc -O2`), or the WASI SDK when `-target wasm|browser`.
+Browser also writes `*.html` + `luke_browser_loader.js` (copied beside the wasm) for `<script>` tags.
 
-## IMPORT + stdlib
+## IMPORT + stdlib + packages
 
 ```luke
 IMPORT "./critter.luke"          # relative module
 IMPORT std/files                 # read/write TEXT files
-IMPORT std/json                  # luke_json_string helper
+IMPORT std/json                  # JSON tree helpers
+IMPORT std/http                  # httpGet (native)
+IMPORT luke/greeter              # package from luke_modules/greeter
 ```
 
-`std/*` resolves from `vm/stdlib/`. Relative paths are next to the entry file. Imported blueprints and helpers compile into one Build unit.
+`std/*` resolves from `vm/stdlib/`. Relative paths are next to the entry file.
+
+### Packages (`luke/<name>`)
+
+Look up order:
+1. `luke_modules/` next to the source file
+2. `./luke_modules`, `LUKE_PACKAGES` (colon-separated roots)
+3. Package dir must contain `luke.pkg` (with `entry=…`), or `main.luke`, or `<name>.luke`
+
+```
+luke_modules/greeter/luke.pkg    # entry=main.luke
+luke_modules/greeter/main.luke
+```
+
+`IMPORT package:greeter` is an alias for `IMPORT luke/greeter`.
+
+Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPORT numpy` — parked for later; C wrappers will come first.
 
 | Module | Helpers |
 | --- | --- |
 | `std/files` | `readFile`, `writeFile`, `fileExists` |
 | `std/json` | `jsonParse`, `jsonGet`, `jsonIndex`, `jsonLen`, `jsonHas`, `jsonAsText` / `Number` / `Flag`, `jsonStringify`, `jsonString` |
 | `std/http` | `httpGet` (native via curl; empty on WASI) |
+| `luke/…` | Your packages under `luke_modules/` |
 
 ## Guarantees (Build)
 
@@ -124,9 +147,12 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 3. ~~Packages / relative `IMPORT` + `std/files` + `std/json`~~
 4. ~~`luke BUILD -target wasm` (WASI)~~
 5. ~~Richer typechecking; fuller JSON; thin HTTP GET~~
-6. Browser-oriented WASM packaging (beyond WASI/Node)
-7. Package registry beyond relative `IMPORT`
-8. Shrink Play to a thin compatibility layer — or generate Play bytecode *from* Build IR later
+6. ~~Browser-oriented WASM packaging (`-target browser`)~~
+7. ~~Package registry (`IMPORT luke/<name>` + `luke_modules/`)~~
+8. ~~SHOW prefers Build; Play VM is the compatibility layer (`--vm`)~~
+9. Richer package tooling / remote registry
+10. Foreign imports (C FFI first; JS bridge for browser; Python only via explicit bridge)
+11. Optional: generate Play bytecode directly from the Build IR (deeper unify)
 
 ## Philosophy
 

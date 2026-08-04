@@ -161,6 +161,7 @@ struct Expr {
 struct BC {
   std::string err;
   bool bad = false;
+  bool unsupportedHint = false;
   std::map<std::string, BP> bps;
   std::vector<std::string> bpOrder;
   std::map<std::string, Fn> fns;
@@ -806,6 +807,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   }
   bc.fail(line, "Unsupported Build statement: " + text +
                     " — Build doesn't understand this yet (Play-only feature?)");
+  bc.unsupportedHint = true;
 }
 
 bool parse(BC &bc, const std::string &source) {
@@ -1262,6 +1264,66 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
     else if (std::ifstream("../stdlib/files.luke")) stdlib = "../stdlib";
   }
 
+  std::vector<std::string> pkgRoots = options.packagePaths;
+  auto addRoot = [&](const std::string &p) {
+    if (p.empty()) return;
+    for (auto &e : pkgRoots)
+      if (e == p) return;
+    pkgRoots.push_back(p);
+  };
+  addRoot("luke_modules");
+  addRoot("../luke_modules");
+  addRoot("vm/luke_modules");
+  if (const char *env = std::getenv("LUKE_PACKAGES")) {
+    std::string e = env;
+    size_t start = 0;
+    while (start <= e.size()) {
+      auto colon = e.find(':', start);
+      if (colon == std::string::npos) {
+        addRoot(e.substr(start));
+        break;
+      }
+      addRoot(e.substr(start, colon - start));
+      start = colon + 1;
+    }
+  }
+
+  auto resolvePackage = [&](const std::string &name) -> std::string {
+    // luke/foo or package:foo → look for luke_modules/foo/{luke.pkg,main.luke,foo.luke}
+    for (auto &root : pkgRoots) {
+      std::string dir = root + "/" + name;
+      auto readPkgEntry = [&](const std::string &pkgFile) -> std::string {
+        auto body = readFile(pkgFile);
+        if (body.empty()) return {};
+        // tiny format: entry=main.luke   or JSON-ish "entry":"main.luke"
+        std::istringstream in(body);
+        std::string line;
+        while (std::getline(in, line)) {
+          auto t = trim(line);
+          if (startsWithCI(t, "entry=")) return trim(t.substr(6));
+          auto key = t.find("\"entry\"");
+          if (key != std::string::npos) {
+            auto colon = t.find(':', key);
+            auto q1 = t.find('"', colon + 1);
+            auto q2 = t.find('"', q1 + 1);
+            if (q1 != std::string::npos && q2 != std::string::npos)
+              return t.substr(q1 + 1, q2 - q1 - 1);
+          }
+        }
+        return {};
+      };
+      if (std::ifstream(dir + "/luke.pkg")) {
+        auto entry = readPkgEntry(dir + "/luke.pkg");
+        if (entry.empty()) entry = "main.luke";
+        std::string path = dir + "/" + entry;
+        if (std::ifstream(path)) return path;
+      }
+      if (std::ifstream(dir + "/main.luke")) return dir + "/main.luke";
+      if (std::ifstream(dir + "/" + name + ".luke")) return dir + "/" + name + ".luke";
+    }
+    return {};
+  };
+
   std::set<std::string> seen;
   std::vector<std::string> imported;
   std::function<std::string(const std::string &, const std::string &)> expand;
@@ -1279,6 +1341,23 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
         std::string path;
         if (startsWithCI(spec, "std/") || startsWithCI(spec, "STD/")) {
           path = stdlib + "/" + spec.substr(4) + ".luke";
+        } else if (startsWithCI(spec, "luke/") || startsWithCI(spec, "LUKE/") ||
+                   startsWithCI(spec, "package:") || startsWithCI(spec, "PACKAGE:")) {
+          std::string name;
+          if (startsWithCI(spec, "luke/") || startsWithCI(spec, "LUKE/"))
+            name = spec.substr(5);
+          else
+            name = spec.substr(8);
+          // allow luke/foo/bar → nested path under package root as foo/bar
+          while (!name.empty() && (name.back() == '/' || name.back() == ' ')) name.pop_back();
+          path = resolvePackage(name);
+          if (path.empty()) {
+            r.ok = false;
+            r.error = "Build error: package '" + name +
+                      "' not found — put it in luke_modules/" + name +
+                      " (main.luke or luke.pkg), or set LUKE_PACKAGES";
+            return {};
+          }
         } else {
           if (spec.size() < 5 || spec.substr(spec.size() - 5) != ".luke") spec += ".luke";
           path = baseDir + "/" + spec;
@@ -1304,6 +1383,8 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   };
 
   std::string base = options.sourcePath.empty() ? "." : dirname(options.sourcePath);
+  // Also search luke_modules next to the source file.
+  addRoot(base + "/luke_modules");
   std::string expanded = expand(source, base);
   if (!r.error.empty()) return r;
 
@@ -1311,6 +1392,7 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   if (!parse(bc, expanded)) {
     r.ok = false;
     r.error = bc.err.empty() ? "Build parse failed" : bc.err;
+    r.unsupportedForBuild = bc.unsupportedHint;
     return r;
   }
   for (auto &n : bc.bpOrder) {
@@ -1325,11 +1407,12 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   if (bc.bad) {
     r.ok = false;
     r.error = bc.err;
+    r.unsupportedForBuild = bc.unsupportedHint;
     return r;
   }
-  if (options.forWasm) {
-    // WASI provides main(); keep as-is. Marker comment for tooling.
-    c = "/* luke target: wasm/wasi */\n" + c;
+  if (options.forWasm || options.forBrowser) {
+    c = std::string("/* luke target: ") + (options.forBrowser ? "browser" : "wasm/wasi") +
+        " */\n" + c;
   }
   r.ok = true;
   r.cSource = std::move(c);

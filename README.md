@@ -5,44 +5,49 @@ write like Python, ship like Rust.
 
 | Mode | Command | What it is |
 | --- | --- | --- |
-| **Build** (real language) | `luke BUILD file.luke` | Native binary via C — **no GC**, arena memory |
-| **Play** (convenience) | `luke SHOW file.luke` | Bytecode VM + GC for instant demos |
+| **Build** (real language) | `luke BUILD file.luke` | Native / WASM / browser — **no GC**, arena memory |
+| **Show** (Build-first) | `luke SHOW file.luke` | Runs via Build when possible; Play VM fallback |
+| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer) |
 
 ```bash
 cd vm && make
 ./build/luke BUILD ../examples/build/hello.luke -o hello && ./hello
-./build/luke SHOW  ../examples/native/hello.luke
+./build/luke BUILD ../examples/build/hello_browser.luke -target browser -o web/hello
+./build/luke SHOW  ../examples/build/hello.luke
+./build/luke SHOW  ../examples/native/closures.luke --vm
 ```
 
-Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, and the Path A architecture.
+Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and browser packaging.
 
 ## Status
 
 | Layer | State |
 | --- | --- |
 | Build → native C | Core + functions + blueprints + IMPORT + typechecks |
-| Build → WASM | `-target wasm` via WASI SDK |
+| Build → WASM | `-target wasm` (WASI) and `-target browser` (html/js glue) |
 | Build stdlib | `std/files`, `std/json`, `std/http` |
-| Play VM | Full feature sandbox (closures, contracts, …) |
+| Packages | `IMPORT luke/<name>` via `luke_modules/` |
+| Show | Prefers Build; Play VM is `--vm` / fallback |
 | Legacy `main.js` / `mimo/` | Old JS emit — reference only |
 
 ## Quick examples
 
-**Build (native/WASM):** `examples/build/` — hello, modules, hello_wasm, …  
-**Play (VM):** `examples/native/` — includes closures, contracts, privacy
+**Build (native/WASM/browser):** `examples/build/`  
+**Play-only demos:** `examples/native/` (closures, contracts, …) — use `--vm` or SHOW fallback  
+**Sample package:** `luke_modules/greeter`
 
 ## Design Principles
 
 - Conversational keywords; words over symbols
 - **Build** is the language of record (layouts, types, arenas)
-- **Play** is the skateboard; Build is the car
+- **Play VM** is the skateboard / compatibility layer
 - Optional JS emit only as interop later — never the identity
 
 ## Roadmap
 
-- Browser-oriented WASM packaging (beyond WASI)
-- Package registry beyond relative `IMPORT`
-- Keep shrinking the gap so Play is optional
+- Richer package tooling / remote registry
+- Foreign imports (C FFI → JS bridge; Python only via explicit bridge)
+- Deeper IR unify (Play bytecode from Build IR)
 
 ## Legacy JS path
 

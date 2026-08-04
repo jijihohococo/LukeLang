@@ -30,13 +30,17 @@ build:
 test: test-play test-build
 
 test-play: build/luke
-	./build/luke SHOW ../examples/native/hello.luke
-	./build/luke SHOW ../examples/native/counter.luke
-	./build/luke SHOW ../examples/native/functions.luke
-	./build/luke SHOW ../examples/native/oop.luke
-	./build/luke SHOW ../examples/native/advanced_oop.luke
+	./build/luke SHOW ../examples/native/hello.luke --vm
+	./build/luke SHOW ../examples/native/counter.luke --vm
+	./build/luke SHOW ../examples/native/functions.luke --vm
+	./build/luke SHOW ../examples/native/oop.luke --vm
+	./build/luke SHOW ../examples/native/advanced_oop.luke --vm
+	./build/luke SHOW ../examples/native/closures.luke --vm
+	./build/luke SHOW ../examples/native/privacy.luke --vm
+	@# Build-first SHOW (no --vm) for a Build program
+	./build/luke SHOW ../examples/build/hello.luke
+	@# Play-only feature falls back to VM
 	./build/luke SHOW ../examples/native/closures.luke
-	./build/luke SHOW ../examples/native/privacy.luke
 
 test-build: build/luke
 	./build/luke BUILD ../examples/build/hello.luke -o build/ex_hello
@@ -49,6 +53,8 @@ test-build: build/luke
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules
 	./build/ex_modules
+	./build/luke BUILD ../examples/build/packages.luke -o build/ex_packages
+	./build/ex_packages
 	./build/luke BUILD ../examples/build/json_demo.luke -o build/ex_json
 	./build/ex_json
 	./build/luke BUILD ../examples/build/http_demo.luke -o build/ex_http
@@ -65,6 +71,11 @@ test-build: build/luke
 	@grep -q "expects 2 arguments" /tmp/luke_bad_arity.txt
 	./build/luke BUILD ../examples/build/hello_wasm.luke -target wasm -o build/ex_hello.wasm
 	node ../scripts/run_wasi.cjs build/ex_hello.wasm
-
+	./build/luke BUILD ../examples/build/hello_browser.luke -target browser -o build/ex_browser
+	node ../scripts/luke_browser_loader.cjs build/ex_browser.wasm
+	@test -f build/ex_browser.html
+	@test -f build/luke_browser_loader.js
+	@# also verify loader prints Luke output
+	@node ../scripts/luke_browser_loader.cjs build/ex_browser.wasm | grep -q "Hello from Luke in the browser"
 clean:
 	rm -rf build

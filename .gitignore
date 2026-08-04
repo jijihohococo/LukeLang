@@ -1,6 +1,6 @@
-# Ignore build artifacts
 vm/build/
 *.o
 *.obj
 *.exe
+*.luke.c
 node_modules/

@@ -1,0 +1,36 @@
+BLUEPRINT Animal DO
+  HAS name AS TEXT
+  HAS sound SET TO "..."
+
+  WHEN BORN WITH name AS TEXT DO
+    SET SELF.name TO name
+  END BORN
+
+  METHOD speak DO
+    SPEAK SELF.name AND " says " AND SELF.sound
+  END METHOD
+
+  METHOD eat WITH food AS TEXT DO
+    SPEAK SELF.name AND " eats " AND food
+  END METHOD
+END CLASS
+
+BLUEPRINT Dog FOLLOWS Animal DO
+  HAS sound SET TO "Woof!"
+
+  METHOD speak DO
+    CALL PARENT speak
+    SPEAK SELF.name AND " wags happily."
+  END METHOD
+
+  METHOD fetch WITH toy AS TEXT DO
+    SPEAK SELF.name AND " fetches the " AND toy
+  END METHOD
+END CLASS
+
+SET buddy TO NEW Dog WITH "Rex"
+ASK buddy TO speak
+ASK buddy TO eat WITH "kibble"
+ASK buddy TO fetch WITH "ball"
+
+SPEAK "buddy lives in the Build arena — no GC."

@@ -54,7 +54,23 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 | `std/files` | `readFile`, `writeFile`, `fileExists` |
 | `std/json` | `jsonParse`, `jsonGet`, `jsonIndex`, `jsonLen`, `jsonHas`, `jsonAsText` / `Number` / `Flag`, `jsonStringify`, `jsonString` |
 | `std/http` | `httpGet` (native via curl; empty on WASI) |
-| `luke/…` | Your packages under `luke_modules/` |
+| `std/args` | `argCount`, `getArg` |
+| `std/env` | `getEnv`, `setEnv` |
+| `std/paths` | `cwd`, `pathJoin`, `pathBasename`, `pathDirname` |
+| `std/process` | `shell`, `exitWith` |
+| `std/js` | `jsSetText`, `jsSetHtml`, `jsGetValue` (browser DOM bridge) |
+| `luke/…` | Your packages under `luke_modules/` (`luke PKG init <name>`) |
+
+### Arena scopes
+
+```luke
+IN ARENA DO
+  MY NAME IS tmp AS TEXT SET TO "ephemeral"
+  SPEAK tmp
+END ARENA
+```
+
+Bump pointer is restored at `END ARENA` — request/frame-scoped memory without GC.
 
 ## Guarantees (Build)
 
@@ -95,8 +111,8 @@ Inference (v0):
 | *(default locals)* | Stack / registers |
 | `NEW` instances | Allocated in the **thread arena** (bump); live until arena reset/program end |
 | `TEXT` concat / dynamic strings | Arena-backed |
-| `IN ARENA` *(roadmap)* | Explicit arena scope |
-| `DROP` *(roadmap)* | Early release / end scope |
+| `IN ARENA` … `END ARENA` | Checkpoint + reset bump pointer (scoped bulk free) |
+| `DROP` *(roadmap)* | Early release of a single value |
 
 There is **no** mark-sweep collector in Build binaries. Peak memory is predictable: stack + arena high-water mark.
 
@@ -150,9 +166,12 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 6. ~~Browser-oriented WASM packaging (`-target browser`)~~
 7. ~~Package registry (`IMPORT luke/<name>` + `luke_modules/`)~~
 8. ~~SHOW prefers Build; Play VM is the compatibility layer (`--vm`)~~
-9. Richer package tooling / remote registry
-10. Foreign imports (C FFI first; JS bridge for browser; Python only via explicit bridge)
-11. Optional: generate Play bytecode directly from the Build IR (deeper unify)
+9. ~~Tooling stdlib (args/env/paths/process) + `luke PKG init`~~
+10. ~~Browser JS bridge (`std/js`)~~
+11. ~~`IN ARENA` / `END ARENA` scopes~~
+12. Richer package tooling / remote registry
+13. Foreign imports (C FFI first; fuller JS; Python only via explicit bridge)
+14. Optional: generate Play bytecode directly from the Build IR (deeper unify)
 
 ## Philosophy
 

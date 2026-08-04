@@ -55,6 +55,10 @@ test-build: build/luke
 	./build/ex_modules
 	./build/luke BUILD ../examples/build/packages.luke -o build/ex_packages
 	./build/ex_packages
+	./build/luke BUILD ../examples/build/tooling.luke -o build/ex_tooling
+	./build/ex_tooling
+	./build/luke BUILD ../examples/build/arena_scope.luke -o build/ex_arena
+	./build/ex_arena
 	./build/luke BUILD ../examples/build/json_demo.luke -o build/ex_json
 	./build/ex_json
 	./build/luke BUILD ../examples/build/http_demo.luke -o build/ex_http
@@ -75,7 +79,10 @@ test-build: build/luke
 	node ../scripts/luke_browser_loader.cjs build/ex_browser.wasm
 	@test -f build/ex_browser.html
 	@test -f build/luke_browser_loader.js
-	@# also verify loader prints Luke output
 	@node ../scripts/luke_browser_loader.cjs build/ex_browser.wasm | grep -q "Hello from Luke in the browser"
+	./build/luke BUILD ../examples/build/hello_js.luke -target browser -o build/ex_js
+	@node ../scripts/luke_browser_loader.cjs build/ex_js.wasm | grep -q "jsSetText"
+	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
+
 clean:
 	rm -rf build

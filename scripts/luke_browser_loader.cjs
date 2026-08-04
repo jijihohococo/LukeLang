@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * Minimal browser / Node loader for Luke Build WASM (WASI preview1 subset).
+ * Minimal browser / Node loader for Luke Build WASM (WASI + optional lukejs).
  * Usage:
  *   node scripts/luke_browser_loader.cjs path/to/app.wasm
- *   — or open the generated .html which includes this file (as .js).
  */
 "use strict";
 
@@ -46,6 +45,26 @@ function createLukeWasi(getMemory, opts) {
   }
 
   return {
+    args_sizes_get: function (argcPtr, bufSizePtr) {
+      const mem = getMemory();
+      const view = new DataView(mem.buffer);
+      // Provide a single argv[0] = "luke"
+      view.setUint32(argcPtr, 1, true);
+      view.setUint32(bufSizePtr, 5, true); // "luke\0"
+      return 0;
+    },
+    args_get: function (argvPtr, argvBufPtr) {
+      const mem = getMemory();
+      const view = new DataView(mem.buffer);
+      const u8 = new Uint8Array(mem.buffer);
+      view.setUint32(argvPtr, argvBufPtr, true);
+      u8[argvBufPtr] = 108; // l
+      u8[argvBufPtr + 1] = 117; // u
+      u8[argvBufPtr + 2] = 107; // k
+      u8[argvBufPtr + 3] = 101; // e
+      u8[argvBufPtr + 4] = 0;
+      return 0;
+    },
     fd_close: function () {
       return 0;
     },
@@ -70,14 +89,61 @@ function createLukeWasi(getMemory, opts) {
   };
 }
 
+function createLukeJs(getMemory, opts) {
+  opts = opts || {};
+  const decoder = new TextDecoder();
+  function readText(ptr, len) {
+    const mem = getMemory();
+    return decoder.decode(new Uint8Array(mem.buffer, ptr, len));
+  }
+  return {
+    set_text: function (idPtr, idLen, textPtr, textLen) {
+      const id = readText(idPtr, idLen);
+      const text = readText(textPtr, textLen);
+      if (typeof document !== "undefined") {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      } else if (opts.onJsSetText) opts.onJsSetText(id, text);
+      else console.log("[jsSetText #" + id + "] " + text);
+    },
+    set_html: function (idPtr, idLen, htmlPtr, htmlLen) {
+      const id = readText(idPtr, idLen);
+      const html = readText(htmlPtr, htmlLen);
+      if (typeof document !== "undefined") {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+      } else if (opts.onJsSetHtml) opts.onJsSetHtml(id, html);
+      else console.log("[jsSetHtml #" + id + "] " + html);
+    },
+    get_value: function (idPtr, idLen, outPtr, outCap, outLenPtr) {
+      const id = readText(idPtr, idLen);
+      var value = "";
+      if (typeof document !== "undefined") {
+        const el = document.getElementById(id);
+        if (el) value = el.value != null ? String(el.value) : el.textContent || "";
+      }
+      const mem = getMemory();
+      const u8 = new Uint8Array(mem.buffer);
+      const view = new DataView(mem.buffer);
+      const bytes = new TextEncoder().encode(value);
+      const n = Math.min(bytes.length, outCap > 0 ? outCap - 1 : 0);
+      u8.set(bytes.subarray(0, n), outPtr);
+      if (outCap > 0) u8[outPtr + n] = 0;
+      view.setUint32(outLenPtr, n, true);
+    },
+  };
+}
+
 function runLukeWasm(wasmBytes, opts) {
   var memory;
-  var wasi = createLukeWasi(function () {
+  var getMemory = function () {
     return memory;
-  }, opts);
-  return WebAssembly.instantiate(wasmBytes, {
-    wasi_snapshot_preview1: wasi,
-  }).then(function (result) {
+  };
+  var imports = {
+    wasi_snapshot_preview1: createLukeWasi(getMemory, opts),
+    lukejs: createLukeJs(getMemory, opts),
+  };
+  return WebAssembly.instantiate(wasmBytes, imports).then(function (result) {
     var instance = result.instance;
     memory = instance.exports.memory;
     try {
@@ -112,12 +178,18 @@ function browserBootstrap(wasmUrl) {
 
 if (typeof window !== "undefined") {
   window.createLukeWasi = createLukeWasi;
+  window.createLukeJs = createLukeJs;
   window.runLukeWasm = runLukeWasm;
   window.browserBootstrap = browserBootstrap;
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { createLukeWasi: createLukeWasi, runLukeWasm: runLukeWasm, browserBootstrap: browserBootstrap };
+  module.exports = {
+    createLukeWasi: createLukeWasi,
+    createLukeJs: createLukeJs,
+    runLukeWasm: runLukeWasm,
+    browserBootstrap: browserBootstrap,
+  };
 }
 
 var isNode =

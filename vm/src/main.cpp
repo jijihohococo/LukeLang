@@ -20,13 +20,14 @@ void printUsage(const char *argv0) {
       << "\n"
       << "  " << argv0 << " SHOW  <file.luke> [--vm]     Run (Build-first; VM fallback)\n"
       << "  " << argv0 << " BUILD <file.luke> [options]  Build (native / wasm / browser)\n"
+      << "  " << argv0 << " PKG init <name>             Create luke_modules/<name> package\n"
       << "\n"
       << "Build options:\n"
       << "  -o <path>                       output binary / wasm / browser stem\n"
       << "  -target native|wasm|browser     default native\n"
       << "\n"
-      << "IMPORT:\n"
-      << "  relative .luke, std/<name>, luke/<package> (luke_modules/)\n"
+      << "IMPORT: relative, std/<name>, luke/<package>\n"
+      << "Stdlib: files json http args env paths process js\n"
       << "See docs/BUILD_MODE.md\n";
 }
 
@@ -152,6 +153,7 @@ std::string makeBrowserHtml(const std::string &wasmFile, const std::string &titl
     << "      color: var(--accent); margin: 0 0 0.35rem; animation: rise 0.7s ease-out both; }\n"
     << "    h1 { font-size: 1.15rem; font-weight: 500; margin: 0 0 1.5rem; opacity: 0.75;\n"
     << "      animation: rise 0.7s ease-out 0.08s both; }\n"
+    << "    #luke-status, #luke-panel { margin: 0.75rem 0; animation: rise 0.7s ease-out 0.12s both; }\n"
     << "    #luke-out { font-family: \"Source Code Pro\", ui-monospace, monospace; font-size: 0.95rem;\n"
     << "      white-space: pre-wrap; line-height: 1.45; padding: 1.25rem 0; border-top: 1px solid "
        "rgba(0,0,0,0.12);\n"
@@ -161,6 +163,8 @@ std::string makeBrowserHtml(const std::string &wasmFile, const std::string &titl
     << "  </style>\n</head>\n<body>\n<main>\n"
     << "  <p class=\"brand\">Luke</p>\n"
     << "  <h1>" << escapeHtml(title) << "</h1>\n"
+    << "  <p id=\"luke-status\"></p>\n"
+    << "  <div id=\"luke-panel\"></div>\n"
     << "  <pre id=\"luke-out\"></pre>\n"
     << "</main>\n"
     << "<script src=\"./luke_browser_loader.js\"></script>\n"
@@ -404,6 +408,46 @@ int main(int argc, char **argv) {
       return 1;
     }
     return runBuild(path, out, target);
+  }
+
+  if (cmd == "PKG" || cmd == "PACKAGE") {
+    if (argc < 4 || upper(argv[2]) != "INIT") {
+      std::cerr << "Usage: " << argv[0] << " PKG init <name>\n";
+      return 1;
+    }
+    std::string name = argv[3];
+    for (char c : name) {
+      if (!(std::isalnum((unsigned char)c) || c == '_' || c == '-')) {
+        std::cerr << "Error: package name must be alphanumeric / _ / -\n";
+        return 1;
+      }
+    }
+    std::string root = "luke_modules";
+    if (std::ifstream("../luke_modules/greeter/luke.pkg") || std::ifstream("../luke_modules"))
+      root = "../luke_modules";
+    std::string dir = root + "/" + name;
+    if (std::ifstream(dir + "/main.luke") || std::ifstream(dir + "/luke.pkg")) {
+      std::cerr << "Error: package already exists at " << dir << "\n";
+      return 1;
+    }
+    std::string mk = "mkdir -p \"" + dir + "\"";
+    if (std::system(mk.c_str()) != 0) {
+      std::cerr << "Error: could not create " << dir << "\n";
+      return 1;
+    }
+    std::string pkg = "name=" + name + "\nentry=main.luke\ndescription=Luke package " + name + "\n";
+    std::string mainLuke =
+        "// Package: luke/" + name + "\n\n"
+        "THIS IS FUNCTION hello GIVES BACK TEXT DO\n"
+        "  GIVE BACK \"Hello from luke/" + name + "\"\n"
+        "END FUNCTION\n";
+    if (!writeFile(dir + "/luke.pkg", pkg) || !writeFile(dir + "/main.luke", mainLuke)) {
+      std::cerr << "Error: could not write package files\n";
+      return 1;
+    }
+    std::cerr << "Created package luke/" << name << " at " << dir << "\n";
+    std::cerr << "  IMPORT luke/" << name << "\n";
+    return 0;
   }
 
   std::string path = argv[1];

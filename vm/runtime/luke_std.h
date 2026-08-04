@@ -570,6 +570,195 @@ static inline LukeText luke_http_get(LukeArena *a, LukeText url) {
 #endif
 }
 
+/* ---------- args / env / paths / process (tooling beachhead) ---------- */
+
+static inline LukeText luke_get_arg(LukeArena *a, double index) {
+  int i = (int)index;
+  if (i < 0 || i >= luke_rt_argc || !luke_rt_argv) return luke_text("");
+  (void)a;
+  return luke_text(luke_rt_argv[i]);
+}
+
+static inline LukeText luke_get_env(LukeArena *a, LukeText key) {
+  char name[512];
+  size_t n = key.len < sizeof(name) - 1 ? key.len : sizeof(name) - 1;
+  memcpy(name, key.ptr, n);
+  name[n] = '\0';
+#if defined(__wasi__)
+  (void)a;
+  (void)name;
+  return luke_text("");
+#else
+  const char *v = getenv(name);
+  if (!v) return luke_text("");
+  size_t len = strlen(v);
+  char *p = (char *)luke_arena_alloc(a, len + 1, 1);
+  memcpy(p, v, len + 1);
+  return luke_text_n(p, len);
+#endif
+}
+
+static inline int luke_set_env(LukeText key, LukeText value) {
+  char name[512], val[2048];
+  size_t n = key.len < sizeof(name) - 1 ? key.len : sizeof(name) - 1;
+  size_t m = value.len < sizeof(val) - 1 ? value.len : sizeof(val) - 1;
+  memcpy(name, key.ptr, n);
+  name[n] = '\0';
+  memcpy(val, value.ptr, m);
+  val[m] = '\0';
+#if defined(__wasi__)
+  (void)name;
+  (void)val;
+  return 0;
+#else
+  return setenv(name, val, 1) == 0 ? 1 : 0;
+#endif
+}
+
+static inline LukeText luke_cwd(LukeArena *a) {
+#if defined(__wasi__)
+  (void)a;
+  return luke_text(".");
+#else
+  char buf[4096];
+  if (!getcwd(buf, sizeof(buf))) return luke_text("");
+  size_t len = strlen(buf);
+  char *p = (char *)luke_arena_alloc(a, len + 1, 1);
+  memcpy(p, buf, len + 1);
+  return luke_text_n(p, len);
+#endif
+}
+
+static inline LukeText luke_path_join(LukeArena *a, LukeText left, LukeText right) {
+  int needSlash = 1;
+  if (left.len == 0) return right;
+  if (right.len == 0) return left;
+  if (left.ptr[left.len - 1] == '/' || (right.len > 0 && right.ptr[0] == '/')) needSlash = 0;
+  size_t n = left.len + right.len + (needSlash ? 1 : 0);
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  memcpy(p, left.ptr, left.len);
+  size_t o = left.len;
+  if (needSlash) p[o++] = '/';
+  memcpy(p + o, right.ptr, right.len);
+  p[n] = '\0';
+  return luke_text_n(p, n);
+}
+
+static inline LukeText luke_path_basename(LukeArena *a, LukeText path) {
+  (void)a;
+  if (path.len == 0) return luke_text("");
+  size_t i = path.len;
+  while (i > 0 && path.ptr[i - 1] != '/' && path.ptr[i - 1] != '\\') --i;
+  return luke_text_n(path.ptr + i, path.len - i);
+}
+
+static inline LukeText luke_path_dirname(LukeArena *a, LukeText path) {
+  (void)a;
+  if (path.len == 0) return luke_text(".");
+  size_t i = path.len;
+  while (i > 0 && path.ptr[i - 1] != '/' && path.ptr[i - 1] != '\\') --i;
+  if (i == 0) return luke_text(".");
+  if (i == 1) return luke_text_n(path.ptr, 1);
+  return luke_text_n(path.ptr, i - 1);
+}
+
+static inline LukeText luke_shell(LukeArena *a, LukeText command) {
+#if defined(__wasi__)
+  (void)a;
+  (void)command;
+  return luke_text("");
+#else
+  char cmd[4096];
+  size_t n = command.len < sizeof(cmd) - 1 ? command.len : sizeof(cmd) - 1;
+  memcpy(cmd, command.ptr, n);
+  cmd[n] = '\0';
+  FILE *p = popen(cmd, "r");
+  if (!p) return luke_text("");
+  size_t cap = 4096, len = 0;
+  char *buf = (char *)malloc(cap);
+  if (!buf) {
+    pclose(p);
+    return luke_text("");
+  }
+  for (;;) {
+    if (len + 1024 > cap) {
+      cap *= 2;
+      char *nb = (char *)realloc(buf, cap);
+      if (!nb) {
+        free(buf);
+        pclose(p);
+        return luke_text("");
+      }
+      buf = nb;
+    }
+    size_t got = fread(buf + len, 1, 1024, p);
+    len += got;
+    if (got < 1024) break;
+  }
+  pclose(p);
+  char *out = (char *)luke_arena_alloc(a, len + 1, 1);
+  memcpy(out, buf, len);
+  out[len] = '\0';
+  free(buf);
+  return luke_text_n(out, len);
+#endif
+}
+
+static inline int luke_exit_code(double code) {
+  exit((int)code);
+  return 0;
+}
+
+/* ---------- browser JS bridge (imported when LUKE_BROWSER) ---------- */
+
+#if defined(LUKE_BROWSER)
+__attribute__((import_module("lukejs"), import_name("set_text"))) void
+luke_js_set_text_raw(const char *id, size_t id_len, const char *text, size_t text_len);
+
+__attribute__((import_module("lukejs"), import_name("set_html"))) void
+luke_js_set_html_raw(const char *id, size_t id_len, const char *html, size_t html_len);
+
+__attribute__((import_module("lukejs"), import_name("get_value"))) void
+luke_js_get_value_raw(const char *id, size_t id_len, char *out, size_t out_cap, size_t *out_len);
+
+static inline int luke_js_set_text(LukeText id, LukeText text) {
+  luke_js_set_text_raw(id.ptr, id.len, text.ptr, text.len);
+  return 1;
+}
+
+static inline int luke_js_set_html(LukeText id, LukeText html) {
+  luke_js_set_html_raw(id.ptr, id.len, html.ptr, html.len);
+  return 1;
+}
+
+static inline LukeText luke_js_get_value(LukeArena *a, LukeText id) {
+  char tmp[4096];
+  size_t n = 0;
+  luke_js_get_value_raw(id.ptr, id.len, tmp, sizeof(tmp), &n);
+  if (n >= sizeof(tmp)) n = sizeof(tmp) - 1;
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  memcpy(p, tmp, n);
+  p[n] = '\0';
+  return luke_text_n(p, n);
+}
+#else
+static inline int luke_js_set_text(LukeText id, LukeText text) {
+  (void)id;
+  (void)text;
+  return 0;
+}
+static inline int luke_js_set_html(LukeText id, LukeText html) {
+  (void)id;
+  (void)html;
+  return 0;
+}
+static inline LukeText luke_js_get_value(LukeArena *a, LukeText id) {
+  (void)a;
+  (void)id;
+  return luke_text("");
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif

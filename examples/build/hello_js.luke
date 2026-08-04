@@ -1,0 +1,5 @@
+IMPORT std/js
+
+SPEAK "Luke browser JS bridge"
+ASK jsSetText WITH "luke-status", "Hello from Luke → DOM"
+ASK jsSetHtml WITH "luke-panel", "<strong>Build</strong> · arena · no GC"

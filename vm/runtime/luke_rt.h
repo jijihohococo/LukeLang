@@ -25,6 +25,17 @@ typedef struct LukeArena {
   size_t len;
 } LukeArena;
 
+/* Process argv — set once from main(). */
+static int luke_rt_argc = 0;
+static char **luke_rt_argv = NULL;
+
+static inline void luke_runtime_set_args(int argc, char **argv) {
+  luke_rt_argc = argc;
+  luke_rt_argv = argv;
+}
+
+static inline int luke_arg_count(void) { return luke_rt_argc; }
+
 static inline LukeText luke_text(const char *s) {
   LukeText t;
   t.ptr = s ? s : "";
@@ -53,6 +64,15 @@ static inline void luke_arena_free(LukeArena *a) {
   free(a->buf);
   a->buf = NULL;
   a->cap = a->len = 0;
+}
+
+/* Checkpoint / restore — IN ARENA scopes (bulk free back to mark). */
+typedef size_t LukeArenaMark;
+
+static inline LukeArenaMark luke_arena_mark(LukeArena *a) { return a->len; }
+
+static inline void luke_arena_reset(LukeArena *a, LukeArenaMark m) {
+  if (m <= a->len) a->len = m;
 }
 
 static inline void *luke_arena_alloc(LukeArena *a, size_t n, size_t align) {

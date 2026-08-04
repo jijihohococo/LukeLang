@@ -1,0 +1,13 @@
+// IMPORT std/js — browser DOM bridge (no-ops on native)
+
+THIS IS FUNCTION jsSetText WITH id AS TEXT, text AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_set_text(id, text)
+END FUNCTION
+
+THIS IS FUNCTION jsSetHtml WITH id AS TEXT, html AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_set_html(id, html)
+END FUNCTION
+
+THIS IS FUNCTION jsGetValue WITH id AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_js_get_value(id)
+END FUNCTION

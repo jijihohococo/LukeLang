@@ -25,8 +25,9 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 | --- | --- |
 | Build → native C | Core + functions + blueprints + IMPORT + typechecks |
 | Build → WASM | `-target wasm` (WASI) and `-target browser` (html/js glue) |
-| Build stdlib | `std/files`, `std/json`, `std/http` |
-| Packages | `IMPORT luke/<name>` via `luke_modules/` |
+| Build stdlib | files, json, http, args, env, paths, process, js |
+| Packages | `IMPORT luke/<name>` + `luke PKG init` |
+| Arena scopes | `IN ARENA` / `END ARENA` |
 | Show | Prefers Build; Play VM is `--vm` / fallback |
 | Legacy `main.js` / `mimo/` | Old JS emit — reference only |
 
@@ -45,8 +46,8 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 
 ## Roadmap
 
-- Richer package tooling / remote registry
-- Foreign imports (C FFI → JS bridge; Python only via explicit bridge)
+- Remote package registry
+- C FFI foreign imports (then richer JS / explicit Python bridges)
 - Deeper IR unify (Play bytecode from Build IR)
 
 ## Legacy JS path

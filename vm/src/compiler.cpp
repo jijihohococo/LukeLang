@@ -1,3 +1,4 @@
+#include "luke/build.hpp"
 #include "luke/compiler.hpp"
 #include "luke/function.hpp"
 #include "luke/object.hpp"
@@ -1333,9 +1334,27 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
 }  // namespace
 
 CompileResult compileLuke(const std::string &source, Heap &heap) {
+  // Shared Build frontend: expand luke/ + relative IMPORTS, then soften for Play.
+  BuildOptions opt;
+  opt.expandStd = false;      // std/* needs Build natives
+  opt.expandCImports = false; // FOREIGN/c: is Build-only
+  BuildResult meta;
+  std::string src = source;
+  if (source.find("IMPORT ") != std::string::npos || source.find("import ") != std::string::npos) {
+    auto expanded = expandLukeImports(source, opt, &meta);
+    if (!expanded.empty())
+      src = softenBuildSurfaceForPlay(expanded);
+    else if (!meta.error.empty()) {
+      CompileResult fail;
+      fail.ok = false;
+      fail.error = meta.error;
+      return fail;
+    }
+  }
+
   Compiler root(heap);
   Compiler *current = &root;
-  std::istringstream in(source);
+  std::istringstream in(src);
   std::string line;
   std::size_t lineNo = 0;
   while (std::getline(in, line)) {

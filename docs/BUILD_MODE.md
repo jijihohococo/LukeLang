@@ -169,9 +169,12 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 9. ~~Tooling stdlib (args/env/paths/process) + `luke PKG init`~~
 10. ~~Browser JS bridge (`std/js`)~~
 11. ~~`IN ARENA` / `END ARENA` scopes~~
-12. Richer package tooling / remote registry
-13. Foreign imports (C FFI first; fuller JS; Python only via explicit bridge)
-14. Optional: generate Play bytecode directly from the Build IR (deeper unify)
+12. ~~Remote package registry (`luke PKG install` + `registry/index.json`)~~
+13. ~~Foreign imports (`IMPORT c:` + `FOREIGN FUNCTION`)~~
+14. ~~Build IR shared frontend (expand/soften for Play; `luke IR` dump)~~
+15. Richer remote registry (signed packages, versions)
+16. Explicit Python bridges (beyond C FFI)
+17. Optional: emit Play bytecode opcodes directly from Build IR nodes
 
 ## Philosophy
 

@@ -5,3 +5,4 @@ vm/build/
 *.luke.c
 node_modules/
 .tools/
+*.luke.ir.txt

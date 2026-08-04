@@ -46,9 +46,9 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 
 ## Roadmap
 
-- Remote package registry
-- C FFI foreign imports (then richer JS / explicit Python bridges)
-- Deeper IR unify (Play bytecode from Build IR)
+- Richer remote registry (versions, signing)
+- Explicit Python bridges (beyond C FFI)
+- Emit Play bytecode opcodes directly from Build IR nodes
 
 ## Legacy JS path
 

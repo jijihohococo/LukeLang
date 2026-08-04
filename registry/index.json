@@ -1,0 +1,17 @@
+{
+  "name": "luke-registry",
+  "version": "0.1.0",
+  "description": "Official-ish Luke package index (local + URL entries)",
+  "packages": {
+    "greeter": {
+      "version": "0.1.0",
+      "description": "Sample hello package",
+      "path": "luke_modules/greeter"
+    },
+    "echo": {
+      "version": "0.1.0",
+      "description": "Tiny echo helpers",
+      "path": "registry/packages/echo"
+    }
+  }
+}

@@ -21,6 +21,8 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " SHOW  <file.luke> [--vm]     Run (Build-first; VM fallback)\n"
       << "  " << argv0 << " BUILD <file.luke> [options]  Build (native / wasm / browser)\n"
       << "  " << argv0 << " PKG init <name>             Create luke_modules/<name> package\n"
+      << "  " << argv0 << " PKG install <name>          Install from registry/index.json\n"
+      << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
       << "\n"
       << "Build options:\n"
       << "  -o <path>                       output binary / wasm / browser stem\n"
@@ -318,6 +320,12 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
     cmd = "\"" + clang + "\" -O2 -o \"" + binary + "\" -I\"" + runtimeInclude + "\" \"" + cPath + "\"";
   } else {
     cmd = "cc -O2 -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
+    for (auto &lib : built.linkLibs) {
+      if (lib.find('/') != std::string::npos || lib.find('.') != std::string::npos)
+        cmd += " \"" + lib + "\"";
+      else
+        cmd += " -l" + lib;
+    }
   }
 
   std::cerr << "Build: " << cmd << "\n";
@@ -410,44 +418,168 @@ int main(int argc, char **argv) {
     return runBuild(path, out, target);
   }
 
-  if (cmd == "PKG" || cmd == "PACKAGE") {
-    if (argc < 4 || upper(argv[2]) != "INIT") {
-      std::cerr << "Usage: " << argv[0] << " PKG init <name>\n";
+  if (cmd == "IR") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0] << " IR <file.luke>\n";
       return 1;
     }
-    std::string name = argv[3];
-    for (char c : name) {
-      if (!(std::isalnum((unsigned char)c) || c == '_' || c == '-')) {
-        std::cerr << "Error: package name must be alphanumeric / _ / -\n";
+    std::string path = argv[2];
+    std::string source = readFile(path);
+    if (source.empty() && !std::ifstream(path)) {
+      std::cerr << "Error: could not open " << path << "\n";
+      return 1;
+    }
+    auto opt = makeBuildOptions(path, "native");
+    auto ir = luke::analyzeLukeBuild(source, opt);
+    if (!ir.ok && ir.irSummary.empty()) {
+      std::cerr << ir.error << "\n";
+      return 2;
+    }
+    if (!ir.ok) std::cerr << ir.error << "\n";
+    std::cout << ir.irSummary;
+    if (!ir.expandedSource.empty()) {
+      std::string outPath = basenameNoExt(path) + ".luke.ir.txt";
+      writeFile(outPath, ir.irSummary + "\n--- expanded ---\n" + ir.expandedSource);
+      std::cerr << "Wrote " << outPath << "\n";
+    }
+    return ir.ok ? 0 : 2;
+  }
+
+  if (cmd == "PKG" || cmd == "PACKAGE") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0] << " PKG init|install <name>\n";
+      return 1;
+    }
+    std::string sub = upper(argv[2]);
+    if (sub == "INIT") {
+      if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " PKG init <name>\n";
         return 1;
       }
+      std::string name = argv[3];
+      for (char c : name) {
+        if (!(std::isalnum((unsigned char)c) || c == '_' || c == '-')) {
+          std::cerr << "Error: package name must be alphanumeric / _ / -\n";
+          return 1;
+        }
+      }
+      std::string root = "luke_modules";
+      if (std::ifstream("../luke_modules/greeter/luke.pkg") || std::ifstream("../luke_modules"))
+        root = "../luke_modules";
+      std::string dir = root + "/" + name;
+      if (std::ifstream(dir + "/main.luke") || std::ifstream(dir + "/luke.pkg")) {
+        std::cerr << "Error: package already exists at " << dir << "\n";
+        return 1;
+      }
+      std::string mk = "mkdir -p \"" + dir + "\"";
+      if (std::system(mk.c_str()) != 0) {
+        std::cerr << "Error: could not create " << dir << "\n";
+        return 1;
+      }
+      std::string pkg = "name=" + name + "\nentry=main.luke\ndescription=Luke package " + name + "\n";
+      std::string mainLuke = "// Package: luke/" + name +
+                             "\n\nTHIS IS FUNCTION hello GIVES BACK TEXT DO\n"
+                             "  GIVE BACK \"Hello from luke/" +
+                             name +
+                             "\"\n"
+                             "END FUNCTION\n";
+      if (!writeFile(dir + "/luke.pkg", pkg) || !writeFile(dir + "/main.luke", mainLuke)) {
+        std::cerr << "Error: could not write package files\n";
+        return 1;
+      }
+      std::cerr << "Created package luke/" << name << " at " << dir << "\n";
+      std::cerr << "  IMPORT luke/" << name << "\n";
+      return 0;
     }
-    std::string root = "luke_modules";
-    if (std::ifstream("../luke_modules/greeter/luke.pkg") || std::ifstream("../luke_modules"))
-      root = "../luke_modules";
-    std::string dir = root + "/" + name;
-    if (std::ifstream(dir + "/main.luke") || std::ifstream(dir + "/luke.pkg")) {
-      std::cerr << "Error: package already exists at " << dir << "\n";
-      return 1;
+    if (sub == "INSTALL") {
+      if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " PKG install <name>\n";
+        return 1;
+      }
+      std::string name = argv[3];
+      const char *regEnv = std::getenv("LUKE_REGISTRY");
+      std::string indexPath = regEnv && *regEnv ? std::string(regEnv) : "";
+      if (indexPath.empty()) {
+        const char *cands[] = {"registry/index.json", "../registry/index.json",
+                               "/workspace/registry/index.json", nullptr};
+        for (int i = 0; cands[i]; ++i)
+          if (std::ifstream(cands[i])) {
+            indexPath = cands[i];
+            break;
+          }
+      }
+      if (indexPath.empty()) {
+        std::cerr << "Error: no registry index (set LUKE_REGISTRY or add registry/index.json)\n";
+        return 1;
+      }
+      std::string index = readFile(indexPath);
+      // Tiny JSON extract: "name": { ... "path":"..." } or "url":"..."
+      auto keyPos = index.find("\"" + name + "\"");
+      if (keyPos == std::string::npos) {
+        std::cerr << "Error: package '" << name << "' not in registry " << indexPath << "\n";
+        return 1;
+      }
+      auto brace = index.find('{', keyPos);
+      auto endBrace = index.find('}', brace);
+      if (brace == std::string::npos || endBrace == std::string::npos) {
+        std::cerr << "Error: malformed registry entry for " << name << "\n";
+        return 1;
+      }
+      std::string entry = index.substr(brace, endBrace - brace);
+      auto extract = [&](const char *field) -> std::string {
+        auto p = entry.find(std::string("\"") + field + "\"");
+        if (p == std::string::npos) return {};
+        auto c = entry.find(':', p);
+        auto q1 = entry.find('"', c + 1);
+        auto q2 = entry.find('"', q1 + 1);
+        if (q1 == std::string::npos || q2 == std::string::npos) return {};
+        return entry.substr(q1 + 1, q2 - q1 - 1);
+      };
+      std::string path = extract("path");
+      std::string url = extract("url");
+      std::string root = "luke_modules";
+      if (std::ifstream("../luke_modules") || std::ifstream("../registry/index.json"))
+        root = "../luke_modules";
+      std::string dest = root + "/" + name;
+      std::string mk = "mkdir -p \"" + root + "\"";
+      std::system(mk.c_str());
+      if (!path.empty()) {
+        // Resolve path relative to registry file directory
+        std::string regDir = dirnameOf(indexPath);
+        std::string srcDir = path;
+        if (path[0] != '/') srcDir = regDir + "/../" + path; // index in registry/, path luke_modules/...
+        // Prefer path as written from workspace root when running from vm/
+        if (std::ifstream(path + "/main.luke") || std::ifstream(path + "/luke.pkg"))
+          srcDir = path;
+        else if (std::ifstream("../" + path + "/main.luke"))
+          srcDir = "../" + path;
+        else if (std::ifstream(regDir + "/" + path + "/main.luke"))
+          srcDir = regDir + "/" + path;
+        std::string cmd = "rm -rf \"" + dest + "\" && cp -R \"" + srcDir + "\" \"" + dest + "\"";
+        std::cerr << "PKG install: " << cmd << "\n";
+        if (std::system(cmd.c_str()) != 0) {
+          std::cerr << "Error: copy failed from " << srcDir << "\n";
+          return 1;
+        }
+      } else if (!url.empty()) {
+        std::string cmd = "rm -rf \"" + dest + "\" && mkdir -p \"" + dest +
+                          "\" && curl -fsSL \"" + url + "\" -o /tmp/luke_pkg.tgz && "
+                          "tar -xzf /tmp/luke_pkg.tgz -C \"" + dest + "\" --strip-components=1";
+        std::cerr << "PKG install from url...\n";
+        if (std::system(cmd.c_str()) != 0) {
+          std::cerr << "Error: download/extract failed\n";
+          return 1;
+        }
+      } else {
+        std::cerr << "Error: registry entry needs path or url\n";
+        return 1;
+      }
+      std::cerr << "Installed luke/" << name << " → " << dest << "\n";
+      std::cerr << "  IMPORT luke/" << name << "\n";
+      return 0;
     }
-    std::string mk = "mkdir -p \"" + dir + "\"";
-    if (std::system(mk.c_str()) != 0) {
-      std::cerr << "Error: could not create " << dir << "\n";
-      return 1;
-    }
-    std::string pkg = "name=" + name + "\nentry=main.luke\ndescription=Luke package " + name + "\n";
-    std::string mainLuke =
-        "// Package: luke/" + name + "\n\n"
-        "THIS IS FUNCTION hello GIVES BACK TEXT DO\n"
-        "  GIVE BACK \"Hello from luke/" + name + "\"\n"
-        "END FUNCTION\n";
-    if (!writeFile(dir + "/luke.pkg", pkg) || !writeFile(dir + "/main.luke", mainLuke)) {
-      std::cerr << "Error: could not write package files\n";
-      return 1;
-    }
-    std::cerr << "Created package luke/" << name << " at " << dir << "\n";
-    std::cerr << "  IMPORT luke/" << name << "\n";
-    return 0;
+    std::cerr << "Usage: " << argv[0] << " PKG init|install <name>\n";
+    return 1;
   }
 
   std::string path = argv[1];

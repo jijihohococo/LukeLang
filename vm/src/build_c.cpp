@@ -149,6 +149,7 @@ struct Fn {
   std::vector<Param> params;
   Ty ret = Ty::num();
   bool retDeclared = false;
+  bool foreign = false;
   std::vector<std::string> body;
   std::vector<size_t> lines;
 };
@@ -477,9 +478,18 @@ Expr BC::expr(std::string e, size_t line) {
     auto checked = checkCallArgs(line, name, fns[name].params, args);
     if (bad) return {"0", Ty::num()};
     std::ostringstream call;
-    call << cIdent(name) << "(arena";
-    for (auto &a : checked) call << ", " << a.code;
-    call << ")";
+    if (fns[name].foreign) {
+      call << cIdent(name) << "(";
+      for (size_t i = 0; i < checked.size(); ++i) {
+        if (i) call << ", ";
+        call << checked[i].code;
+      }
+      call << ")";
+    } else {
+      call << cIdent(name) << "(arena";
+      for (auto &a : checked) call << ", " << a.code;
+      call << ")";
+    }
     return {call.str(), fns[name].ret};
   }
 
@@ -875,6 +885,50 @@ bool parse(BC &bc, const std::string &source) {
     }
 
     if (mode == Top) {
+      if (startsWithCI(text, "FOREIGN FUNCTION ") || startsWithCI(text, "FOREIGN ")) {
+        std::string rest =
+            startsWithCI(text, "FOREIGN FUNCTION ") ? trim(text.substr(17)) : trim(text.substr(8));
+        stripDo(rest);
+        Fn f;
+        f.foreign = true;
+        auto U = toUpper(rest);
+        Ty declaredRet = Ty::num();
+        auto gb = U.find(" GIVES BACK ");
+        if (gb == std::string::npos) gb = U.find(" RETURNS ");
+        if (gb != std::string::npos) {
+          size_t kwLen = (U.compare(gb, 12, " GIVES BACK ") == 0) ? 12 : 9;
+          auto tyRaw = trim(rest.substr(gb + kwLen));
+          declaredRet = bc.parseTy(tyRaw);
+          if (declaredRet.k == K::Void) {
+            bc.fail(lineNo, "Unknown FOREIGN return type '" + tyRaw + "'");
+            return false;
+          }
+          rest = trim(rest.substr(0, gb));
+          U = toUpper(rest);
+        }
+        f.ret = declaredRet;
+        f.retDeclared = true;
+        auto w = U.find(" WITH ");
+        if (w == std::string::npos) f.name = rest;
+        else {
+          f.name = trim(rest.substr(0, w));
+          for (auto &a : splitArgs(trim(rest.substr(w + 6)))) {
+            auto p = bc.parseParam(a);
+            if (p.ty.k == K::Void) {
+              bc.fail(lineNo, "Unknown FOREIGN parameter type on '" + p.name + "'");
+              return false;
+            }
+            f.params.push_back(p);
+          }
+        }
+        if (f.name.empty()) {
+          bc.fail(lineNo, "FOREIGN FUNCTION needs a name");
+          return false;
+        }
+        bc.fns[f.name] = f;
+        bc.fnOrder.push_back(f.name);
+        continue;
+      }
       if (startsWithCI(text, "THIS IS FUNCTION ") || startsWithCI(text, "MAKE FUNCTION ") ||
           startsWithCI(text, "RECIPE ")) {
         std::string rest;
@@ -1140,9 +1194,18 @@ std::string emit(BC &bc) {
 
   for (auto &n : bc.fnOrder) {
     auto &fn = bc.fns[n];
-    o << "static " << cTy(fn.ret) << " " << cIdent(n) << "(LukeArena *arena";
-    for (auto &p : fn.params) o << ", " << cTy(p.ty) << " " << cIdent(p.name);
-    o << ");\n";
+    if (fn.foreign) {
+      o << "extern " << cTy(fn.ret) << " " << cIdent(n) << "(";
+      for (size_t i = 0; i < fn.params.size(); ++i) {
+        if (i) o << ", ";
+        o << cTy(fn.params[i].ty) << " " << cIdent(fn.params[i].name);
+      }
+      o << ");\n";
+    } else {
+      o << "static " << cTy(fn.ret) << " " << cIdent(n) << "(LukeArena *arena";
+      for (auto &p : fn.params) o << ", " << cTy(p.ty) << " " << cIdent(p.name);
+      o << ");\n";
+    }
   }
   for (auto &n : bc.bpOrder) {
     auto &bp = bc.bps[n];
@@ -1176,6 +1239,7 @@ std::string emit(BC &bc) {
 
   for (auto &n : bc.fnOrder) {
     auto &fn = bc.fns[n];
+    if (fn.foreign) continue;
     bc.locals.clear();
     bc.curClass.clear();
     bc.curRet = fn.ret;
@@ -1282,11 +1346,26 @@ std::string emit(BC &bc) {
   return o.str();
 }
 
-}  // namespace
+static void fillIrSummary(BuildResult &r, BC &bc) {
+  std::ostringstream ir;
+  ir << "luke-build-ir 1\n";
+  ir << "imports " << r.importedFiles.size() << "\n";
+  for (auto &p : r.importedFiles) ir << "  " << p << "\n";
+  ir << "link " << r.linkLibs.size() << "\n";
+  for (auto &l : r.linkLibs) ir << "  -l" << l << "\n";
+  ir << "functions " << bc.fnOrder.size() << "\n";
+  for (auto &n : bc.fnOrder) {
+    auto &fn = bc.fns[n];
+    ir << "  " << (fn.foreign ? "foreign " : "fn ") << n << " -> " << tyName(fn.ret) << "\n";
+    if (fn.foreign) r.foreignFns.push_back(n);
+  }
+  ir << "blueprints " << bc.bpOrder.size() << "\n";
+  for (auto &n : bc.bpOrder) ir << "  bp " << n << "\n";
+  ir << "toplevel " << bc.top.size() << "\n";
+  r.irSummary = ir.str();
+}
 
-BuildResult compileLukeToC(const std::string &source, const BuildOptions &options) {
-  BuildResult r;
-
+static std::string expandImpl(const std::string &source, const BuildOptions &options, BuildResult &r) {
   auto dirname = [](std::string p) -> std::string {
     auto slash = p.find_last_of("/\\");
     if (slash == std::string::npos) return ".";
@@ -1317,6 +1396,8 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   addRoot("luke_modules");
   addRoot("../luke_modules");
   addRoot("vm/luke_modules");
+  addRoot("registry/packages");
+  addRoot("../registry/packages");
   if (const char *env = std::getenv("LUKE_PACKAGES")) {
     std::string e = env;
     size_t start = 0;
@@ -1332,13 +1413,11 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   }
 
   auto resolvePackage = [&](const std::string &name) -> std::string {
-    // luke/foo or package:foo → look for luke_modules/foo/{luke.pkg,main.luke,foo.luke}
     for (auto &root : pkgRoots) {
       std::string dir = root + "/" + name;
       auto readPkgEntry = [&](const std::string &pkgFile) -> std::string {
         auto body = readFile(pkgFile);
         if (body.empty()) return {};
-        // tiny format: entry=main.luke   or JSON-ish "entry":"main.luke"
         std::istringstream in(body);
         std::string line;
         while (std::getline(in, line)) {
@@ -1368,7 +1447,6 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   };
 
   std::set<std::string> seen;
-  std::vector<std::string> imported;
   std::function<std::string(const std::string &, const std::string &)> expand;
   expand = [&](const std::string &src, const std::string &baseDir) -> std::string {
     std::istringstream in(src);
@@ -1381,8 +1459,30 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
         if (spec.size() >= 2 && ((spec.front() == '"' && spec.back() == '"') ||
                                  (spec.front() == '\'' && spec.back() == '\'')))
           spec = spec.substr(1, spec.size() - 2);
+
+        if (startsWithCI(spec, "c:") || startsWithCI(spec, "C:") || startsWithCI(spec, "ffi:") ||
+            startsWithCI(spec, "FFI:")) {
+          if (!options.expandCImports) {
+            out << "// skipped " << t << "\n";
+            continue;
+          }
+          std::string lib = startsWithCI(spec, "ffi:") || startsWithCI(spec, "FFI:")
+                                ? trim(spec.substr(4))
+                                : trim(spec.substr(2));
+          bool dup = false;
+          for (auto &e : r.linkLibs)
+            if (e == lib) dup = true;
+          if (!dup) r.linkLibs.push_back(lib);
+          out << "// IMPORT c:" << lib << "\n";
+          continue;
+        }
+
         std::string path;
         if (startsWithCI(spec, "std/") || startsWithCI(spec, "STD/")) {
+          if (!options.expandStd) {
+            out << "// skipped " << t << "\n";
+            continue;
+          }
           path = stdlib + "/" + spec.substr(4) + ".luke";
         } else if (startsWithCI(spec, "luke/") || startsWithCI(spec, "LUKE/") ||
                    startsWithCI(spec, "package:") || startsWithCI(spec, "PACKAGE:")) {
@@ -1391,14 +1491,13 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
             name = spec.substr(5);
           else
             name = spec.substr(8);
-          // allow luke/foo/bar → nested path under package root as foo/bar
           while (!name.empty() && (name.back() == '/' || name.back() == ' ')) name.pop_back();
           path = resolvePackage(name);
           if (path.empty()) {
             r.ok = false;
             r.error = "Build error: package '" + name +
-                      "' not found — put it in luke_modules/" + name +
-                      " (main.luke or luke.pkg), or set LUKE_PACKAGES";
+                      "' not found — luke PKG install " + name +
+                      " or place it in luke_modules/" + name;
             return {};
           }
         } else {
@@ -1410,11 +1509,10 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
         auto body = readFile(path);
         if (body.empty()) {
           r.ok = false;
-          r.error = "Build error: IMPORT could not open '" + path +
-                    "' — check the path or INSTALL stdlib next to the compiler";
+          r.error = "Build error: IMPORT could not open '" + path + "'";
           return {};
         }
-        imported.push_back(path);
+        r.importedFiles.push_back(path);
         out << "// begin IMPORT " << path << "\n";
         out << expand(body, dirname(path));
         out << "// end IMPORT " << path << "\n";
@@ -1426,27 +1524,31 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   };
 
   std::string base = options.sourcePath.empty() ? "." : dirname(options.sourcePath);
-  // Also search luke_modules next to the source file.
   addRoot(base + "/luke_modules");
-  std::string expanded = expand(source, base);
-  if (!r.error.empty()) return r;
+  return expand(source, base);
+}
 
+static BuildResult compileExpanded(const std::string &expanded, const BuildOptions &options,
+                                   BuildResult r) {
+  if (!r.error.empty()) return r;
+  r.expandedSource = expanded;
   BC bc;
   bc.forBrowser = options.forBrowser;
   if (!parse(bc, expanded)) {
     r.ok = false;
     r.error = bc.err.empty() ? "Build parse failed" : bc.err;
     r.unsupportedForBuild = bc.unsupportedHint;
+    fillIrSummary(r, bc);
     return r;
   }
   for (auto &n : bc.bpOrder) {
     if (!bc.bps[n].parent.empty() && !bc.bps.count(bc.bps[n].parent)) {
       r.ok = false;
-      r.error = "Build error: unknown parent blueprint '" + bc.bps[n].parent +
-                "' — FOLLOWS a name that was never defined (IMPORT it?)";
+      r.error = "Build error: unknown parent blueprint '" + bc.bps[n].parent + "'";
       return r;
     }
   }
+  fillIrSummary(r, bc);
   auto c = emit(bc);
   if (bc.bad) {
     r.ok = false;
@@ -1460,8 +1562,91 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   }
   r.ok = true;
   r.cSource = std::move(c);
-  r.importedFiles = std::move(imported);
   return r;
+}
+
+}  // namespace
+
+BuildResult compileLukeToC(const std::string &source, const BuildOptions &options) {
+  BuildResult r;
+  std::string expanded = expandImpl(source, options, r);
+  if (!r.error.empty()) return r;
+  return compileExpanded(expanded, options, std::move(r));
+}
+
+std::string expandLukeImports(const std::string &source, const BuildOptions &options,
+                              BuildResult *meta) {
+  BuildResult local;
+  BuildResult &r = meta ? *meta : local;
+  std::string expanded = expandImpl(source, options, r);
+  if (!r.error.empty()) return {};
+  r.expandedSource = expanded;
+  return expanded;
+}
+
+std::string softenBuildSurfaceForPlay(const std::string &expanded) {
+  auto trimLine = [](std::string s) {
+    std::size_t b = 0;
+    while (b < s.size() && std::isspace((unsigned char)s[b])) ++b;
+    std::size_t e = s.size();
+    while (e > b && std::isspace((unsigned char)s[e - 1])) --e;
+    return s.substr(b, e - b);
+  };
+  auto up = [](std::string s) {
+    for (char &c : s) c = (char)toupper((unsigned char)c);
+    return s;
+  };
+  auto starts = [&](const std::string &s, const std::string &p) {
+    if (s.size() < p.size()) return false;
+    for (size_t i = 0; i < p.size(); ++i)
+      if (toupper((unsigned char)s[i]) != toupper((unsigned char)p[i])) return false;
+    return true;
+  };
+  std::istringstream in(expanded);
+  std::ostringstream out;
+  std::string line;
+  while (std::getline(in, line)) {
+    auto t = trimLine(line);
+    if (starts(t, "FOREIGN ") || starts(t, "IN ARENA") || up(t) == "END ARENA" ||
+        starts(t, "IMPORT C:") || starts(t, "IMPORT FFI:"))
+      continue;
+    std::string s = line;
+    for (;;) {
+      auto U = up(s);
+      auto gb = U.find(" GIVES BACK ");
+      if (gb == std::string::npos) gb = U.find(" RETURNS ");
+      if (gb == std::string::npos) break;
+      size_t kwLen = (U.compare(gb, 12, " GIVES BACK ") == 0) ? 12 : 9;
+      auto after = trimLine(s.substr(gb + kwLen));
+      auto doPos = up(after).find(" DO");
+      if (doPos != std::string::npos)
+        s = trimLine(s.substr(0, gb)) + " DO" + after.substr(doPos + 3);
+      else {
+        auto sp = after.find(' ');
+        s = trimLine(s.substr(0, gb)) + (sp == std::string::npos ? std::string() : after.substr(sp));
+      }
+    }
+    for (;;) {
+      auto U = up(s);
+      auto as = U.find(" AS ");
+      if (as == std::string::npos) break;
+      auto after = trimLine(s.substr(as + 4));
+      auto sp = after.find_first_of(" ,");
+      std::string rest = sp == std::string::npos ? std::string() : after.substr(sp);
+      s = trimLine(s.substr(0, as)) + rest;
+    }
+    out << s << "\n";
+  }
+  return out.str();
+}
+
+BuildResult analyzeLukeBuild(const std::string &source, const BuildOptions &options) {
+  BuildResult r;
+  std::string expanded = expandImpl(source, options, r);
+  if (!r.error.empty()) return r;
+  auto full = compileExpanded(expanded, options, std::move(r));
+  full.cSource.clear();
+  return full;
 }
 
 }  // namespace luke

@@ -59,6 +59,15 @@ test-build: build/luke
 	./build/ex_tooling
 	./build/luke BUILD ../examples/build/arena_scope.luke -o build/ex_arena
 	./build/ex_arena
+	./build/luke BUILD ../examples/build/ffi_math.luke -o build/ex_ffi
+	./build/ex_ffi
+	@rm -rf ../luke_modules/echo
+	./build/luke PKG install echo
+	./build/luke BUILD ../examples/build/registry_echo.luke -o build/ex_reg
+	./build/ex_reg
+	./build/luke IR ../examples/build/functions.luke >/tmp/luke_ir.txt
+	@grep -q "luke-build-ir" /tmp/luke_ir.txt
+	./build/luke SHOW ../examples/native/play_import.luke --vm
 	./build/luke BUILD ../examples/build/json_demo.luke -o build/ex_json
 	./build/ex_json
 	./build/luke BUILD ../examples/build/http_demo.luke -o build/ex_http

@@ -30,6 +30,9 @@ test: build/luke
 	./build/luke SHOW ../examples/native/counter.luke
 	./build/luke SHOW ../examples/native/functions.luke
 	./build/luke SHOW ../examples/native/oop.luke
+	./build/luke SHOW ../examples/native/advanced_oop.luke
+	./build/luke SHOW ../examples/native/closures.luke
+	./build/luke SHOW ../examples/native/privacy.luke
 
 clean:
 	rm -rf build

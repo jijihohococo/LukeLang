@@ -76,7 +76,6 @@ InterpretResult VM::interpret(Chunk &chunk) {
   script.slots = 0;
   frames_.push_back(script);
 
-  // Slot 0 reserved for script "function" placeholder (nil).
   push(Value::nil());
   return run();
 }
@@ -96,18 +95,65 @@ bool VM::call(ObjFunction *function, int argCount) {
   f.function = function;
   f.chunk = &function->chunk;
   f.ip = 0;
-  // Callee is at stack_[size - argCount - 1]; args follow.
   f.slots = stack_.size() - static_cast<std::size_t>(argCount) - 1;
   frames_.push_back(f);
   return true;
 }
 
-bool VM::callValue(Value callee, int argCount) {
-  if (!isFunction(callee)) {
-    runtimeError("Can only call functions.");
+bool VM::invokeFromClass(ObjClass *klass, const std::string &name, int argCount) {
+  ObjFunction *method = klass->findMethod(name);
+  if (!method) {
+    runtimeError("Undefined method '" + name + "'.");
     return false;
   }
-  return call(asFunction(callee), argCount);
+  return call(method, argCount);
+}
+
+bool VM::bindMethod(ObjClass *klass, const std::string &name) {
+  ObjFunction *method = klass->findMethod(name);
+  if (!method) return false;
+  Value receiver = peek();
+  pop();
+  push(Value::object(heap_.allocateBoundMethod(receiver, method)));
+  return true;
+}
+
+void VM::applyFieldDefaults(ObjInstance *instance, ObjClass *klass) {
+  if (!klass) return;
+  applyFieldDefaults(instance, klass->superclass);
+  for (auto &field : klass->fields) {
+    instance->fields[field.first] = field.second;
+  }
+}
+
+bool VM::callValue(Value callee, int argCount) {
+  if (isFunction(callee)) {
+    return call(asFunction(callee), argCount);
+  }
+  if (isBoundMethod(callee)) {
+    auto *bound = asBoundMethod(callee);
+    // Replace bound method with receiver so slot 0 is SELF.
+    stack_[stack_.size() - static_cast<std::size_t>(argCount) - 1] = bound->receiver;
+    return call(bound->method, argCount);
+  }
+  if (isClass(callee)) {
+    // Treat Call on class as Construct.
+    auto *klass = asClass(callee);
+    ObjInstance *instance = heap_.allocateInstance(klass);
+    applyFieldDefaults(instance, klass);
+    stack_[stack_.size() - static_cast<std::size_t>(argCount) - 1] = Value::object(instance);
+    ObjFunction *born = klass->findMethod("born");
+    if (born) {
+      return call(born, argCount);
+    }
+    if (argCount != 0) {
+      runtimeError("Class has no WHEN BORN but arguments were given.");
+      return false;
+    }
+    return true;
+  }
+  runtimeError("Can only call functions and blueprints.");
+  return false;
 }
 
 bool VM::binaryArith(Op op) {
@@ -178,12 +224,17 @@ InterpretResult VM::run() {
     }
 
     if (frame().ip >= frame().chunk->code.size()) {
-      // Implicit return nil from function / end of script.
       if (frames_.size() == 1) {
         collectRoots();
         return InterpretResult::Ok;
       }
+      // Falling off a method/constructor without return:
+      // constructors should yield the instance (slot 0).
       Value result = Value::nil();
+      if (frame().function && frame().function->isMethod &&
+          frame().function->name == "born") {
+        result = stack_[frame().slots];
+      }
       std::size_t slots = frame().slots;
       frames_.pop_back();
       stack_.resize(slots);
@@ -328,6 +379,11 @@ InterpretResult VM::run() {
       }
       case Op::Return: {
         Value result = pop();
+        // Constructor return always yields the instance.
+        if (frame().function && frame().function->isMethod &&
+            frame().function->name == "born") {
+          result = stack_[frame().slots];
+        }
         std::size_t slots = frame().slots;
         frames_.pop_back();
         if (frames_.empty()) {
@@ -366,6 +422,144 @@ InterpretResult VM::run() {
           break;
         }
         push(arr->items[i]);
+        break;
+      }
+      case Op::Class: {
+        Value nameVal = readConstant();
+        if (!isString(nameVal)) {
+          runtimeError("Class name must be a string.");
+          break;
+        }
+        push(Value::object(heap_.allocateClass(asString(nameVal)->chars)));
+        break;
+      }
+      case Op::Inherit: {
+        Value superclassVal = pop();
+        Value klassVal = peek();
+        if (!isClass(superclassVal)) {
+          runtimeError("Superclass must be a blueprint.");
+          break;
+        }
+        if (!isClass(klassVal)) {
+          runtimeError("Can only inherit on a blueprint.");
+          break;
+        }
+        asClass(klassVal)->superclass = asClass(superclassVal);
+        break;
+      }
+      case Op::Method: {
+        Value nameVal = readConstant();
+        Value methodVal = pop();
+        Value klassVal = peek();
+        if (!isString(nameVal) || !isFunction(methodVal) || !isClass(klassVal)) {
+          runtimeError("Invalid METHOD binding.");
+          break;
+        }
+        auto *fn = asFunction(methodVal);
+        auto *klass = asClass(klassVal);
+        fn->klass = klass;
+        fn->isMethod = true;
+        klass->methods[asString(nameVal)->chars] = fn;
+        break;
+      }
+      case Op::Field: {
+        Value nameVal = readConstant();
+        Value defaultVal = pop();
+        Value klassVal = peek();
+        if (!isString(nameVal) || !isClass(klassVal)) {
+          runtimeError("Invalid HAS field binding.");
+          break;
+        }
+        asClass(klassVal)->fields.emplace_back(asString(nameVal)->chars, defaultVal);
+        break;
+      }
+      case Op::GetProp: {
+        Value nameVal = readConstant();
+        Value object = pop();
+        if (!isString(nameVal)) {
+          runtimeError("Property name must be a string.");
+          break;
+        }
+        std::string name = asString(nameVal)->chars;
+        if (isInstance(object)) {
+          auto *inst = asInstance(object);
+          auto it = inst->fields.find(name);
+          if (it != inst->fields.end()) {
+            push(it->second);
+            break;
+          }
+          push(object);
+          if (!bindMethod(inst->klass, name)) {
+            pop();
+            runtimeError("Undefined property '" + name + "'.");
+          }
+          break;
+        }
+        runtimeError("Only instances have properties.");
+        break;
+      }
+      case Op::SetProp: {
+        Value nameVal = readConstant();
+        Value value = pop();
+        Value object = pop();
+        if (!isString(nameVal)) {
+          runtimeError("Property name must be a string.");
+          break;
+        }
+        if (!isInstance(object)) {
+          runtimeError("Only instances have fields.");
+          break;
+        }
+        asInstance(object)->fields[asString(nameVal)->chars] = value;
+        push(value);
+        break;
+      }
+      case Op::Invoke: {
+        Value nameVal = readConstant();
+        int argCount = readByte();
+        if (!isString(nameVal)) {
+          runtimeError("Method name must be a string.");
+          break;
+        }
+        Value receiver = peek(argCount);
+        if (!isInstance(receiver)) {
+          runtimeError("Only instances have methods.");
+          break;
+        }
+        if (!invokeFromClass(asInstance(receiver)->klass, asString(nameVal)->chars, argCount)) {
+          return InterpretResult::RuntimeError;
+        }
+        break;
+      }
+      case Op::SuperInvoke: {
+        Value nameVal = readConstant();
+        int argCount = readByte();
+        if (!isString(nameVal)) {
+          runtimeError("Method name must be a string.");
+          break;
+        }
+        if (!frame().function || !frame().function->klass ||
+            !frame().function->klass->superclass) {
+          runtimeError("CALL PARENT used without a parent blueprint.");
+          break;
+        }
+        // Receiver is already at peek(argCount) — compiler pushes SELF then args.
+        if (!invokeFromClass(frame().function->klass->superclass, asString(nameVal)->chars,
+                             argCount)) {
+          return InterpretResult::RuntimeError;
+        }
+        break;
+      }
+      case Op::Construct: {
+        int argCount = readByte();
+        Value klassVal = peek(argCount);
+        if (!isClass(klassVal)) {
+          runtimeError("NEW expects a blueprint.");
+          break;
+        }
+        if (!callValue(klassVal, argCount)) {
+          return InterpretResult::RuntimeError;
+        }
         break;
       }
       case Op::Halt:

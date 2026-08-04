@@ -17,6 +17,9 @@ enum class ObjType : uint8_t {
   String = 1,
   Array,
   Function,
+  Class,
+  Instance,
+  BoundMethod,
 };
 
 struct Obj;

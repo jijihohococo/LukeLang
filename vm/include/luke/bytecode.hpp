@@ -33,6 +33,15 @@ enum class Op : uint8_t {
   Return,
   MakeArray,   // operand: element count
   GetIndex,
+  Class,       // operand: name const — push new class
+  Inherit,     // stack: [class, superclass] → class
+  Method,      // operand: name const — stack: [class, fn] → class
+  Field,       // operand: name const — stack: [class, default] → class
+  GetProp,     // operand: name const — pop instance, push field/bound method
+  SetProp,     // operand: name const — stack: [instance, value] → value
+  Invoke,      // operand: name const, arg count — stack: [receiver, args...]
+  SuperInvoke, // operand: name const, arg count — CALL PARENT
+  Construct,   // operand: arg count — stack: [class, args...] → instance
   Halt,
 };
 

@@ -1,6 +1,6 @@
 #include "luke/heap.hpp"
-
-#include <new>
+#include "luke/function.hpp"
+#include "luke/object.hpp"
 
 namespace luke {
 
@@ -52,6 +52,31 @@ ObjFunction *Heap::allocateFunction(std::string name, int arity) {
   return obj;
 }
 
+ObjClass *Heap::allocateClass(std::string name) {
+  auto *obj = new ObjClass();
+  obj->type = ObjType::Class;
+  obj->name = std::move(name);
+  track(obj, sizeof(ObjClass) + obj->name.size());
+  return obj;
+}
+
+ObjInstance *Heap::allocateInstance(ObjClass *klass) {
+  auto *obj = new ObjInstance();
+  obj->type = ObjType::Instance;
+  obj->klass = klass;
+  track(obj, sizeof(ObjInstance));
+  return obj;
+}
+
+ObjBoundMethod *Heap::allocateBoundMethod(Value receiver, ObjFunction *method) {
+  auto *obj = new ObjBoundMethod();
+  obj->type = ObjType::BoundMethod;
+  obj->receiver = receiver;
+  obj->method = method;
+  track(obj, sizeof(ObjBoundMethod));
+  return obj;
+}
+
 void Heap::maybeCollect() {
   if (collecting_) return;
   if (bytesAllocated_ < nextGc_) return;
@@ -86,12 +111,39 @@ void Heap::markValue(Value &v) {
 void Heap::markObject(Obj *obj) {
   if (!obj || obj->marked) return;
   obj->marked = true;
-  if (obj->type == ObjType::Array) {
-    auto *arr = static_cast<ObjArray *>(obj);
-    for (Value &item : arr->items) markValue(item);
-  } else if (obj->type == ObjType::Function) {
-    auto *fn = static_cast<ObjFunction *>(obj);
-    for (Value &c : fn->chunk.constants) markValue(c);
+  switch (obj->type) {
+    case ObjType::String:
+      break;
+    case ObjType::Array: {
+      auto *arr = static_cast<ObjArray *>(obj);
+      for (Value &item : arr->items) markValue(item);
+      break;
+    }
+    case ObjType::Function: {
+      auto *fn = static_cast<ObjFunction *>(obj);
+      for (Value &c : fn->chunk.constants) markValue(c);
+      if (fn->klass) markObject(fn->klass);
+      break;
+    }
+    case ObjType::Class: {
+      auto *klass = static_cast<ObjClass *>(obj);
+      if (klass->superclass) markObject(klass->superclass);
+      for (auto &kv : klass->methods) markObject(kv.second);
+      for (auto &field : klass->fields) markValue(field.second);
+      break;
+    }
+    case ObjType::Instance: {
+      auto *inst = static_cast<ObjInstance *>(obj);
+      if (inst->klass) markObject(inst->klass);
+      for (auto &kv : inst->fields) markValue(kv.second);
+      break;
+    }
+    case ObjType::BoundMethod: {
+      auto *bound = static_cast<ObjBoundMethod *>(obj);
+      markValue(bound->receiver);
+      if (bound->method) markObject(bound->method);
+      break;
+    }
   }
 }
 
@@ -130,6 +182,23 @@ void Heap::freeObject(Obj *obj) {
       bytes = sizeof(ObjFunction) + f->name.size() + f->chunk.code.size() +
               f->chunk.constants.size() * sizeof(Value);
       delete f;
+      break;
+    }
+    case ObjType::Class: {
+      auto *c = static_cast<ObjClass *>(obj);
+      bytes = sizeof(ObjClass) + c->name.size();
+      delete c;
+      break;
+    }
+    case ObjType::Instance: {
+      auto *i = static_cast<ObjInstance *>(obj);
+      bytes = sizeof(ObjInstance);
+      delete i;
+      break;
+    }
+    case ObjType::BoundMethod: {
+      bytes = sizeof(ObjBoundMethod);
+      delete static_cast<ObjBoundMethod *>(obj);
       break;
     }
   }

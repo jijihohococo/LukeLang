@@ -3,6 +3,7 @@
 #include "luke/bytecode.hpp"
 #include "luke/function.hpp"
 #include "luke/heap.hpp"
+#include "luke/object.hpp"
 #include "luke/value.hpp"
 
 #include <string>
@@ -45,6 +46,9 @@ class VM {
   bool binaryArith(Op op);
   bool callValue(Value callee, int argCount);
   bool call(ObjFunction *function, int argCount);
+  bool invokeFromClass(ObjClass *klass, const std::string &name, int argCount);
+  bool bindMethod(ObjClass *klass, const std::string &name);
+  void applyFieldDefaults(ObjInstance *instance, ObjClass *klass);
   uint8_t readByte();
   uint16_t readShort();
   Value readConstant();

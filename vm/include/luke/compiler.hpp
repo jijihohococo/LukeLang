@@ -14,10 +14,8 @@ struct CompileResult {
 };
 
 // Compiles LukeLang into bytecode for the native VM.
-// Supported:
-//   SPEAK / variables / arithmetic / lists / IF / WHILE
-//   THIS IS FUNCTION name WITH a, b DO ... GIVE BACK expr ... END FUNCTION
-//   ASK name WITH args  (calls; method form deferred to blueprints)
+// Supported: SPEAK, variables, arithmetic, lists, IF/WHILE, functions,
+// blueprints (HAS, WHEN BORN, METHOD, NEW, ASK TO, SELF, CALL PARENT).
 CompileResult compileLuke(const std::string &source, Heap &heap);
 
 }  // namespace luke

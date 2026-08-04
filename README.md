@@ -66,12 +66,15 @@ Method-style `ASK obj TO method` still waits on blueprints.
 
 ## Classes (Blueprints)
 
-Still JS-backed today; moving onto Luke heap layouts next.
+Native VM supports these now (`examples/native/oop.luke`):
 
 - `BLUEPRINT Dog FOLLOWS Animal DO` … `END CLASS`
 - `WHEN BORN WITH name DO` … `END BORN`
 - `METHOD speak DO` … `END METHOD`
-- `CONTRACT Walkable DO` / `MUST METHOD walk WITH speed`
+- `NEW Dog WITH "Rex"` / `ASK buddy TO speak`
+- `CALL PARENT speak`
+
+`CONTRACT` / `ALWAYS` statics still pending.
 
 ## Output
 
@@ -83,11 +86,12 @@ Still JS-backed today; moving onto Luke heap layouts next.
 ./vm/build/luke SHOW examples/native/hello.luke
 ./vm/build/luke SHOW examples/native/counter.luke
 ./vm/build/luke SHOW examples/native/functions.luke
+./vm/build/luke SHOW examples/native/oop.luke
 ```
 
 ## Roadmap (true language, not a wrapper)
 
 - ~~Native functions with call frames~~
-- Blueprints / objects on Luke-owned layouts (no JS object model)
-- Closures, contracts, modules
+- ~~Blueprints / objects on Luke-owned layouts~~
+- Contracts, statics, closures, modules
 - Keep JS emit only as an optional interop backend

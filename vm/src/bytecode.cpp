@@ -64,6 +64,15 @@ std::string opName(Op op) {
     case Op::Return: return "RETURN";
     case Op::MakeArray: return "MAKE_ARRAY";
     case Op::GetIndex: return "GET_INDEX";
+    case Op::Class: return "CLASS";
+    case Op::Inherit: return "INHERIT";
+    case Op::Method: return "METHOD";
+    case Op::Field: return "FIELD";
+    case Op::GetProp: return "GET_PROP";
+    case Op::SetProp: return "SET_PROP";
+    case Op::Invoke: return "INVOKE";
+    case Op::SuperInvoke: return "SUPER_INVOKE";
+    case Op::Construct: return "CONSTRUCT";
     case Op::Halt: return "HALT";
   }
   return "UNKNOWN";

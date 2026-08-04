@@ -1,4 +1,5 @@
 #include "luke/function.hpp"
+#include "luke/object.hpp"
 #include "luke/value.hpp"
 
 #include <sstream>
@@ -32,23 +33,34 @@ std::string Value::toString() const {
     }
     case ValueType::Obj: {
       if (!as.obj) return "nil";
-      if (as.obj->type == ObjType::String) {
-        return static_cast<ObjString *>(as.obj)->chars;
-      }
-      if (as.obj->type == ObjType::Array) {
-        auto *arr = static_cast<ObjArray *>(as.obj);
-        std::ostringstream oss;
-        oss << "[";
-        for (std::size_t i = 0; i < arr->items.size(); ++i) {
-          if (i) oss << ", ";
-          oss << arr->items[i].toString();
+      switch (as.obj->type) {
+        case ObjType::String:
+          return static_cast<ObjString *>(as.obj)->chars;
+        case ObjType::Array: {
+          auto *arr = static_cast<ObjArray *>(as.obj);
+          std::ostringstream oss;
+          oss << "[";
+          for (std::size_t i = 0; i < arr->items.size(); ++i) {
+            if (i) oss << ", ";
+            oss << arr->items[i].toString();
+          }
+          oss << "]";
+          return oss.str();
         }
-        oss << "]";
-        return oss.str();
-      }
-      if (as.obj->type == ObjType::Function) {
-        auto *fn = static_cast<ObjFunction *>(as.obj);
-        return "<fn " + (fn->name.empty() ? "?" : fn->name) + ">";
+        case ObjType::Function: {
+          auto *fn = static_cast<ObjFunction *>(as.obj);
+          return "<fn " + (fn->name.empty() ? "?" : fn->name) + ">";
+        }
+        case ObjType::Class: {
+          auto *klass = static_cast<ObjClass *>(as.obj);
+          return "<blueprint " + klass->name + ">";
+        }
+        case ObjType::Instance: {
+          auto *inst = static_cast<ObjInstance *>(as.obj);
+          return "<" + (inst->klass ? inst->klass->name : "?") + " instance>";
+        }
+        case ObjType::BoundMethod:
+          return "<bound method>";
       }
       return "<object>";
     }

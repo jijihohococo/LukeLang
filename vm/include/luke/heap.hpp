@@ -1,13 +1,20 @@
 #pragma once
 
-#include "luke/function.hpp"
 #include "luke/value.hpp"
 
 #include <cstddef>
 #include <functional>
+#include <string>
 #include <vector>
 
 namespace luke {
+
+struct ObjString;
+struct ObjArray;
+struct ObjFunction;
+struct ObjClass;
+struct ObjInstance;
+struct ObjBoundMethod;
 
 class Heap {
  public:
@@ -20,6 +27,9 @@ class Heap {
   ObjString *allocateString(std::string chars);
   ObjArray *allocateArray(std::size_t capacity = 0);
   ObjFunction *allocateFunction(std::string name, int arity);
+  ObjClass *allocateClass(std::string name);
+  ObjInstance *allocateInstance(ObjClass *klass);
+  ObjBoundMethod *allocateBoundMethod(Value receiver, ObjFunction *method);
 
   // Mark-sweep GC. Roots are supplied by the caller (VM stack, globals, etc.).
   void collect(const std::vector<Value *> &roots);

@@ -56,9 +56,13 @@ The material below documents the original conversational syntax. Much of the OOP
 
 ## Functions
 
-- Define: `THIS IS FUNCTION add WITH a, b DO` … `END FUNCTION`.
-- Call: `ASK calculator TO add WITH 2, 3`.
-- Return: `GIVE BACK result`.
+Native VM supports these now (`examples/native/functions.luke`):
+
+- Define: `THIS IS FUNCTION add WITH a, b DO` … `END FUNCTION`
+- Call: `ASK add WITH 2, 3`
+- Return: `GIVE BACK result`
+
+Method-style `ASK obj TO method` still waits on blueprints.
 
 ## Classes (Blueprints)
 
@@ -78,12 +82,12 @@ Still JS-backed today; moving onto Luke heap layouts next.
 ```bash
 ./vm/build/luke SHOW examples/native/hello.luke
 ./vm/build/luke SHOW examples/native/counter.luke
+./vm/build/luke SHOW examples/native/functions.luke
 ```
 
 ## Roadmap (true language, not a wrapper)
 
-- Grow the native VM: functions, closures, blueprints, contracts.
-- Luke-owned memory layouts and GC for objects/methods (no JS object model).
-- Module system with `IMPORT`/`EXPORT` brand words.
-- Optional static typing layer with friendly type terms.
-- Keep JS emit only as an optional interop backend.
+- ~~Native functions with call frames~~
+- Blueprints / objects on Luke-owned layouts (no JS object model)
+- Closures, contracts, modules
+- Keep JS emit only as an optional interop backend

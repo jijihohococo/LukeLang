@@ -165,6 +165,11 @@ std::string jsonQuote(const std::string &s) {
 }
 
 std::string stripBootForInline(std::string boot) {
+  /* Browser <script> cannot include Node shebang / CLI harness. */
+  if (boot.rfind("#!", 0) == 0) {
+    auto nl = boot.find('\n');
+    if (nl != std::string::npos) boot = boot.substr(nl + 1);
+  }
   auto pos = boot.find("\nvar isNode");
   if (pos == std::string::npos) pos = boot.find("var isNode");
   if (pos != std::string::npos) boot = boot.substr(0, pos);

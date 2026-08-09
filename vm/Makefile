@@ -104,6 +104,8 @@ test-build: build/luke
 	@test -f ../sample/dist/fonts/syne-700.woff2
 	@test ! -f ../sample/dist/luke_browser_loader.js
 	@node ../scripts/luke_browser_loader.cjs ../sample/dist/landing.wasm >/tmp/luke_sample_boot.txt
+	./build/luke BUILD ../examples/build/render_demo.luke -target browser -o build/render_demo
+	@node ../scripts/luke_browser_loader.cjs build/render_demo.wasm 2>&1 | grep -q "render_upsert"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

@@ -1,0 +1,17 @@
+// IMPORT std/render — Luke rendering engine wrappers (DOM presentment)
+
+THIS IS FUNCTION renderPlaceText WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_render_place_text(id, x, y, w, h, text)
+END FUNCTION
+
+THIS IS FUNCTION renderPlaceButton WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_render_place_button(id, x, y, w, h, text)
+END FUNCTION
+
+THIS IS FUNCTION renderPlaceImage WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, src AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_render_place_image(id, x, y, w, h, src)
+END FUNCTION
+
+THIS IS FUNCTION renderPaint GIVES BACK FLAG DO
+  GIVE BACK __luke_render_paint()
+END FUNCTION

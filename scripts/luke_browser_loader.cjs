@@ -202,6 +202,86 @@ function createLukeJs(getMemory, opts) {
       else if (opts.onJsSetTitle) opts.onJsSetTitle(title);
       else console.log("[jsSetTitle] " + title);
     },
+    render_clear: function () {
+      if (typeof document === "undefined") return;
+      var root = document.getElementById("root");
+      if (root) root.innerHTML = "";
+    },
+    render_upsert: function (idPtr, idLen, kind) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[render_upsert]", id, kind);
+        return;
+      }
+      var root = document.getElementById("root");
+      if (!root) return;
+      if (!root.getAttribute("data-luke-render")) {
+        root.setAttribute("data-luke-render", "1");
+        root.style.position = "relative";
+        root.style.width = "100vw";
+        root.style.height = "100vh";
+        root.style.overflow = "hidden";
+        root.style.margin = "0";
+      }
+      var el = document.getElementById(id);
+      if (!el) {
+        var k = kind | 0;
+        el = document.createElement(k === 2 ? "button" : k === 3 ? "div" : "div");
+        el.id = id;
+        el.setAttribute("data-luke-node", String(k));
+        el.style.position = "absolute";
+        el.style.boxSizing = "border-box";
+        el.style.margin = "0";
+        el.style.border = "0";
+        if (k === 2) {
+          el.type = "button";
+          el.style.cursor = "pointer";
+          el.style.font = "inherit";
+        }
+        if (k === 3) {
+          el.style.backgroundSize = "cover";
+          el.style.backgroundPosition = "center";
+          el.style.backgroundRepeat = "no-repeat";
+        }
+        root.appendChild(el);
+      }
+    },
+    render_frame: function (idPtr, idLen, x, y, w, h, opacity) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[render_frame]", id, x, y, w, h, opacity);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.style.width = w + "px";
+      el.style.height = h + "px";
+      el.style.opacity = String(opacity);
+    },
+    render_text: function (idPtr, idLen, textPtr, textLen) {
+      const id = readText(idPtr, idLen);
+      const text = readText(textPtr, textLen);
+      if (typeof document === "undefined") {
+        console.log("[render_text]", id, text);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+    },
+    render_image: function (idPtr, idLen, srcPtr, srcLen) {
+      const id = readText(idPtr, idLen);
+      const src = readText(srcPtr, srcLen);
+      if (typeof document === "undefined") {
+        console.log("[render_image]", id, src);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.backgroundImage = src ? 'url("' + src.replace(/"/g, '\\"') + '")' : "";
+    },
   };
 }
 

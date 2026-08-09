@@ -7,6 +7,7 @@
 #include "luke_rt.h"
 #include "luke_net.h"
 #include "luke_db.h"
+#include "luke_render.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

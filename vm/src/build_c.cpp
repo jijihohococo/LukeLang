@@ -432,6 +432,17 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_js_add_style") return mapCall("luke_js_add_style", Ty::flag(), false);
       if (callee == "__luke_js_load_font") return mapCall("luke_js_load_font", Ty::flag(), false);
       if (callee == "__luke_js_set_title") return mapCall("luke_js_set_title", Ty::flag(), false);
+      if (callee == "__luke_render_place_text")
+        return mapCall("luke_render_place_text", Ty::flag(), true);
+      if (callee == "__luke_render_place_button")
+        return mapCall("luke_render_place_button", Ty::flag(), true);
+      if (callee == "__luke_render_place_image")
+        return mapCall("luke_render_place_image", Ty::flag(), true);
+      if (callee == "__luke_render_place_box")
+        return mapCall("luke_render_place_box", Ty::flag(), true);
+      if (callee == "__luke_render_paint") {
+        return {"(luke_render_paint(arena), 1)", Ty::flag()};
+      }
       fail(line, "Unknown native helper '" + callee +
                      "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
                      "std/args, std/env, std/paths, std/process, or std/js");
@@ -1258,6 +1269,74 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
+  /* luke-render — conversational scene presentment (DOM backend) */
+  if (toUpper(text) == "PAINT THE SCREEN" || toUpper(text) == "PAINT SCREEN") {
+    o << "  luke_render_paint(arena);\n";
+    return;
+  }
+  if (startsWithCI(text, "PLACE ")) {
+    auto rest = trim(text.substr(6));
+    auto U = toUpper(rest);
+    auto asPos = findOutsideQuotes(rest, U, " AS ");
+    auto atPos = findOutsideQuotes(rest, U, " AT ");
+    auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
+    if (asPos == std::string::npos || atPos == std::string::npos || sizePos == std::string::npos ||
+        !(asPos < atPos && atPos < sizePos)) {
+      bc.fail(line, "PLACE needs: PLACE \"id\" AS TEXT|BUTTON|IMAGE|BOX AT x, y SIZE w, h …");
+      return;
+    }
+    auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, asPos)), line));
+    auto kindRaw = toUpper(trim(rest.substr(asPos + 4, atPos - (asPos + 4))));
+    auto atPart = trim(rest.substr(atPos + 4, sizePos - (atPos + 4)));
+    auto afterSize = trim(rest.substr(sizePos + 6));
+    auto sayPos = findOutsideQuotes(afterSize, toUpper(afterSize), " SAY ");
+    auto fromPos = findOutsideQuotes(afterSize, toUpper(afterSize), " FROM ");
+    std::string sizePart;
+    std::string trail;
+    if (sayPos != std::string::npos) {
+      sizePart = trim(afterSize.substr(0, sayPos));
+      trail = trim(afterSize.substr(sayPos + 5));
+    } else if (fromPos != std::string::npos) {
+      sizePart = trim(afterSize.substr(0, fromPos));
+      trail = trim(afterSize.substr(fromPos + 6));
+    } else {
+      sizePart = afterSize;
+    }
+    auto commaAt = findOutsideQuotes(atPart, toUpper(atPart), ",");
+    auto commaSz = findOutsideQuotes(sizePart, toUpper(sizePart), ",");
+    if (commaAt == std::string::npos || commaSz == std::string::npos) {
+      bc.fail(line, "PLACE AT needs x, y and SIZE needs w, h");
+      return;
+    }
+    auto x = bc.expr(trim(atPart.substr(0, commaAt)), line);
+    auto y = bc.expr(trim(atPart.substr(commaAt + 1)), line);
+    auto w = bc.expr(trim(sizePart.substr(0, commaSz)), line);
+    auto h = bc.expr(trim(sizePart.substr(commaSz + 1)), line);
+    bc.expectTy(line, x.ty, Ty::num(), "PLACE AT x");
+    bc.expectTy(line, y.ty, Ty::num(), "PLACE AT y");
+    bc.expectTy(line, w.ty, Ty::num(), "PLACE SIZE w");
+    bc.expectTy(line, h.ty, Ty::num(), "PLACE SIZE h");
+    if (kindRaw == "TEXT") {
+      auto t = bc.coerceText(bc.expr(trail, line));
+      o << "  luke_render_place_text(arena, " << idE.code << ", " << x.code << ", " << y.code
+        << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+    } else if (kindRaw == "BUTTON") {
+      auto t = bc.coerceText(bc.expr(trail, line));
+      o << "  luke_render_place_button(arena, " << idE.code << ", " << x.code << ", " << y.code
+        << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+    } else if (kindRaw == "IMAGE") {
+      auto t = bc.coerceText(bc.expr(trail, line));
+      o << "  luke_render_place_image(arena, " << idE.code << ", " << x.code << ", " << y.code
+        << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+    } else if (kindRaw == "BOX") {
+      o << "  luke_render_place_box(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ");\n";
+    } else {
+      bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, or BOX — got " + kindRaw);
+    }
+    return;
+  }
+
   bc.fail(line, "Unsupported Build statement: " + text +
                     " — Build doesn't understand this yet (Play-only feature?)");
   bc.unsupportedHint = true;
@@ -1646,6 +1725,7 @@ std::string emit(BC &bc) {
   if (bc.forBrowser) o << "#define LUKE_BROWSER 1\n";
   o << "#include \"luke_rt.h\"\n";
   o << "#include \"luke_std.h\"\n";
+  o << "#include \"luke_render.h\"\n";
   o << "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n";
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";

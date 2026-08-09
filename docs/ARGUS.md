@@ -69,4 +69,6 @@ END WHEN
 
 ## Success metric
 
-A browser demo paints via `PLACE` + `PAINT THE SCREEN` without `FILL "root" WITH """…html…"""`.
+A browser demo paints via `PLACE` / Hanka + `PAINT THE SCREEN` without `FILL "root" WITH """…html…"""`.
+
+Production path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md).

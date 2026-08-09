@@ -24,6 +24,10 @@ THIS IS FUNCTION hankaSlotImage WITH id AS TEXT, w AS NUMBER, h AS NUMBER, src A
   GIVE BACK __hanka_slot_image(id, w, h, src)
 END FUNCTION
 
+THIS IS FUNCTION hankaSlotInput WITH id AS TEXT, w AS NUMBER, h AS NUMBER, placeholder AS TEXT, inputType AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __hanka_slot_input(id, w, h, placeholder, inputType)
+END FUNCTION
+
 THIS IS FUNCTION hankaEnd GIVES BACK FLAG DO
   GIVE BACK __hanka_end()
 END FUNCTION

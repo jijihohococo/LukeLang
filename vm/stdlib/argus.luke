@@ -16,6 +16,10 @@ THIS IS FUNCTION argusPlaceBox WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS N
   GIVE BACK __argus_place_box(id, x, y, w, h)
 END FUNCTION
 
+THIS IS FUNCTION argusPlaceInput WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, placeholder AS TEXT, inputType AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __argus_place_input(id, x, y, w, h, placeholder, inputType)
+END FUNCTION
+
 THIS IS FUNCTION argusPaint GIVES BACK FLAG DO
   GIVE BACK __argus_paint()
 END FUNCTION

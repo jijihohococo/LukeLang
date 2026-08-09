@@ -131,6 +131,50 @@ function createLukeJs(getMemory, opts) {
       if (outCap > 0) u8[outPtr + n] = 0;
       view.setUint32(outLenPtr, n, true);
     },
+    fetch: function (urlPtr, urlLen, outPtr, outCap, outLenPtr) {
+      const url = readText(urlPtr, urlLen);
+      var body = "";
+      try {
+        if (typeof XMLHttpRequest !== "undefined") {
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", url, false);
+          xhr.send(null);
+          if (xhr.status >= 200 && xhr.status < 300) body = xhr.responseText || "";
+        } else if (opts.onJsFetch) {
+          body = String(opts.onJsFetch(url) || "");
+        } else {
+          body = "";
+        }
+      } catch (e) {
+        body = "";
+      }
+      const mem = getMemory();
+      const u8 = new Uint8Array(mem.buffer);
+      const view = new DataView(mem.buffer);
+      const bytes = new TextEncoder().encode(body);
+      const n = Math.min(bytes.length, outCap > 0 ? outCap - 1 : 0);
+      u8.set(bytes.subarray(0, n), outPtr);
+      if (outCap > 0) u8[outPtr + n] = 0;
+      view.setUint32(outLenPtr, n, true);
+    },
+    on_click: function (idPtr, idLen, targetPtr, targetLen, msgPtr, msgLen) {
+      const id = readText(idPtr, idLen);
+      const target = readText(targetPtr, targetLen);
+      const message = readText(msgPtr, msgLen);
+      if (typeof document !== "undefined") {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener("click", function () {
+            const t = document.getElementById(target);
+            if (t) t.textContent = message;
+          });
+        }
+      } else if (opts.onJsOnClick) {
+        opts.onJsOnClick(id, target, message);
+      } else {
+        console.log("[jsOnClick #" + id + " -> #" + target + "] " + message);
+      }
+    },
   };
 }
 

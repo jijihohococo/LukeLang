@@ -119,6 +119,111 @@ static inline void luke_speak_flag(int f) {
   puts(f ? "true" : "false");
 }
 
+/* ---------- collections (arena-backed; Luke LIST / MAP) ---------- */
+
+typedef struct LukeList {
+  LukeText *items;
+  size_t len;
+  size_t cap;
+} LukeList;
+
+typedef struct LukeMap {
+  LukeText *keys;
+  LukeText *vals;
+  size_t len;
+  size_t cap;
+} LukeMap;
+
+static inline LukeList *luke_list_new(LukeArena *a) {
+  LukeList *l = (LukeList *)luke_arena_alloc(a, sizeof(LukeList), sizeof(void *));
+  l->items = NULL;
+  l->len = 0;
+  l->cap = 0;
+  return l;
+}
+
+static inline void luke_list_add(LukeArena *a, LukeList *l, LukeText v) {
+  if (!l) return;
+  if (l->len + 1 > l->cap) {
+    size_t ncap = l->cap ? l->cap * 2 : 4;
+    LukeText *ni = (LukeText *)luke_arena_alloc(a, ncap * sizeof(LukeText), sizeof(void *));
+    if (l->items && l->len) memcpy(ni, l->items, l->len * sizeof(LukeText));
+    l->items = ni;
+    l->cap = ncap;
+  }
+  l->items[l->len++] = v;
+}
+
+static inline LukeText luke_list_get(LukeList *l, double index) {
+  if (!l || index < 0) return luke_text("");
+  size_t i = (size_t)index;
+  if (i >= l->len) return luke_text("");
+  return l->items[i];
+}
+
+static inline double luke_list_len(LukeList *l) { return l ? (double)l->len : 0; }
+
+static inline LukeMap *luke_map_new(LukeArena *a) {
+  LukeMap *m = (LukeMap *)luke_arena_alloc(a, sizeof(LukeMap), sizeof(void *));
+  m->keys = NULL;
+  m->vals = NULL;
+  m->len = 0;
+  m->cap = 0;
+  return m;
+}
+
+static inline int luke_map_key_eq(LukeText a, LukeText b) {
+  return a.len == b.len && (a.len == 0 || memcmp(a.ptr, b.ptr, a.len) == 0);
+}
+
+static inline void luke_map_put(LukeArena *a, LukeMap *m, LukeText key, LukeText val) {
+  if (!m) return;
+  for (size_t i = 0; i < m->len; ++i) {
+    if (luke_map_key_eq(m->keys[i], key)) {
+      m->vals[i] = val;
+      return;
+    }
+  }
+  if (m->len + 1 > m->cap) {
+    size_t ncap = m->cap ? m->cap * 2 : 4;
+    LukeText *nk = (LukeText *)luke_arena_alloc(a, ncap * sizeof(LukeText), sizeof(void *));
+    LukeText *nv = (LukeText *)luke_arena_alloc(a, ncap * sizeof(LukeText), sizeof(void *));
+    if (m->keys && m->len) {
+      memcpy(nk, m->keys, m->len * sizeof(LukeText));
+      memcpy(nv, m->vals, m->len * sizeof(LukeText));
+    }
+    m->keys = nk;
+    m->vals = nv;
+    m->cap = ncap;
+  }
+  m->keys[m->len] = key;
+  m->vals[m->len] = val;
+  m->len++;
+}
+
+static inline LukeText luke_map_get(LukeMap *m, LukeText key) {
+  if (!m) return luke_text("");
+  for (size_t i = 0; i < m->len; ++i)
+    if (luke_map_key_eq(m->keys[i], key)) return m->vals[i];
+  return luke_text("");
+}
+
+static inline int luke_map_has(LukeMap *m, LukeText key) {
+  if (!m) return 0;
+  for (size_t i = 0; i < m->len; ++i)
+    if (luke_map_key_eq(m->keys[i], key)) return 1;
+  return 0;
+}
+
+static inline double luke_map_len(LukeMap *m) { return m ? (double)m->len : 0; }
+
+/* Problem / last-error for conversational ATTEMPT */
+static LukeText luke_last_problem = { "", 0 };
+static inline void luke_set_problem(LukeText msg) { luke_last_problem = msg; }
+static inline LukeText luke_the_problem(void) { return luke_last_problem; }
+static inline int luke_has_problem(void) { return luke_last_problem.len > 0; }
+static inline void luke_clear_problem(void) { luke_last_problem = luke_text(""); }
+
 #ifdef __cplusplus
 }
 #endif

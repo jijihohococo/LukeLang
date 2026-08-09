@@ -11,3 +11,11 @@ END FUNCTION
 THIS IS FUNCTION jsGetValue WITH id AS TEXT GIVES BACK TEXT DO
   GIVE BACK __luke_js_get_value(id)
 END FUNCTION
+
+THIS IS FUNCTION jsFetch WITH url AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_js_fetch(url)
+END FUNCTION
+
+THIS IS FUNCTION jsOnClick WITH id AS TEXT, target AS TEXT, message AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_on_click(id, target, message)
+END FUNCTION

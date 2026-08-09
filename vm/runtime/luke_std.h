@@ -743,6 +743,29 @@ static inline LukeText luke_js_get_value(LukeArena *a, LukeText id) {
   p[n] = '\0';
   return luke_text_n(p, n);
 }
+
+__attribute__((import_module("lukejs"), import_name("fetch"))) void
+luke_js_fetch_raw(const char *url, size_t url_len, char *out, size_t out_cap, size_t *out_len);
+
+__attribute__((import_module("lukejs"), import_name("on_click"))) void
+luke_js_on_click_raw(const char *id, size_t id_len, const char *target, size_t target_len,
+                      const char *message, size_t message_len);
+
+static inline LukeText luke_js_fetch(LukeArena *a, LukeText url) {
+  char tmp[65536];
+  size_t n = 0;
+  luke_js_fetch_raw(url.ptr, url.len, tmp, sizeof(tmp), &n);
+  if (n >= sizeof(tmp)) n = sizeof(tmp) - 1;
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  memcpy(p, tmp, n);
+  p[n] = '\0';
+  return luke_text_n(p, n);
+}
+
+static inline int luke_js_on_click(LukeText id, LukeText target, LukeText message) {
+  luke_js_on_click_raw(id.ptr, id.len, target.ptr, target.len, message.ptr, message.len);
+  return 1;
+}
 #else
 static inline int luke_js_set_text(LukeText id, LukeText text) {
   (void)id;
@@ -758,6 +781,17 @@ static inline LukeText luke_js_get_value(LukeArena *a, LukeText id) {
   (void)a;
   (void)id;
   return luke_text("");
+}
+static inline LukeText luke_js_fetch(LukeArena *a, LukeText url) {
+  (void)a;
+  (void)url;
+  return luke_text("");
+}
+static inline int luke_js_on_click(LukeText id, LukeText target, LukeText message) {
+  (void)id;
+  (void)target;
+  (void)message;
+  return 0;
 }
 #endif
 

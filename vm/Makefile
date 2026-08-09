@@ -77,6 +77,13 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/http_json.luke -o build/ex_http_json
 	./build/ex_http_json
 	@kill `cat /tmp/luke_http_server.pid` 2>/dev/null || true
+	./build/luke BUILD ../examples/build/collections.luke -o build/ex_collections
+	./build/ex_collections | grep -q "caught:"
+	./build/luke TEST ../examples/build/collections_test.luke
+	./build/luke BUILD ../examples/build/sqlite_demo.luke -o build/ex_sqlite
+	./build/ex_sqlite | grep -q "hello from LukeLang"
+	./build/luke PKG lock
+	@test -f ../luke.lock
 	@# negative typechecks must fail
 	@./build/luke BUILD ../examples/build/bad_types.luke -o build/bad_types 2>/tmp/luke_bad_types.txt; test $$? -ne 0
 	@grep -q "wants TEXT but got NUMBER" /tmp/luke_bad_types.txt

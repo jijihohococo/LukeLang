@@ -4,6 +4,7 @@
 #include "luke/vm.hpp"
 
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
@@ -20,8 +21,11 @@ void printUsage(const char *argv0) {
       << "\n"
       << "  " << argv0 << " SHOW  <file.luke> [--vm]     Run (Build-first; VM fallback)\n"
       << "  " << argv0 << " BUILD <file.luke> [options]  Build (native / wasm / browser)\n"
+      << "  " << argv0 << " TEST  <file.luke>            Build + run MAKE SURE checks\n"
       << "  " << argv0 << " PKG init <name>             Create luke_modules/<name> package\n"
       << "  " << argv0 << " PKG install <name>          Install from registry/index.json\n"
+      << "  " << argv0 << " PKG publish <name>          Publish luke_modules/<name> to registry\n"
+      << "  " << argv0 << " PKG lock                   Write luke.lock from luke_modules/\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
       << "\n"
       << "Build options:\n"
@@ -29,7 +33,7 @@ void printUsage(const char *argv0) {
       << "  -target native|wasm|browser     default native\n"
       << "\n"
       << "IMPORT: relative, std/<name>, luke/<package>\n"
-      << "Stdlib: files json http args env paths process js\n"
+      << "Stdlib: files json http server sqlite args env paths process js\n"
       << "See docs/BUILD_MODE.md\n";
 }
 
@@ -51,6 +55,14 @@ bool writeFile(const std::string &path, const std::string &data) {
 std::string upper(std::string s) {
   for (char &c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
   return s;
+}
+
+std::string trimStr(const std::string &s) {
+  std::size_t b = 0;
+  while (b < s.size() && std::isspace((unsigned char)s[b])) ++b;
+  std::size_t e = s.size();
+  while (e > b && std::isspace((unsigned char)s[e - 1])) --e;
+  return s.substr(b, e - b);
 }
 
 std::string basenameNoExt(std::string path) {
@@ -141,21 +153,26 @@ std::string makeBrowserHtml(const std::string &wasmFile, const std::string &titl
   o << "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
     << "  <meta charset=\"utf-8\" />\n"
     << "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
-    << "  <title>" << escapeHtml(title) << " — Luke</title>\n"
+    << "  <title>" << escapeHtml(title) << " — LukeLang</title>\n"
     << "  <style>\n"
-    << "    :root { color-scheme: light; --ink:#1a1a1a; --paper:#f7f4ef; --accent:#0b6e4f; }\n"
+    << "    :root { color-scheme: light; --ink:#14231a; --paper:#f3efe6; --accent:#0b6e4f; --line:#c9c0b0; }\n"
     << "    * { box-sizing: border-box; }\n"
     << "    body { margin:0; min-height:100vh; font-family: \"Iowan Old Style\", \"Palatino Linotype\", "
        "Palatino, Georgia, serif;\n"
     << "      background: radial-gradient(1200px 600px at 10% -10%, #dfece6 0%, transparent 55%),\n"
     << "                 radial-gradient(900px 500px at 100% 0%, #f0e6d8 0%, transparent 50%),\n"
-    << "                 var(--paper); color: var(--ink); }\n"
+    << "                 linear-gradient(180deg, #f7f2e8, var(--paper)); color: var(--ink); }\n"
     << "    main { max-width: 42rem; margin: 0 auto; padding: 12vh 1.5rem 4rem; }\n"
-    << "    .brand { font-size: clamp(2.5rem, 8vw, 4rem); font-weight: 700; letter-spacing: -0.03em;\n"
+    << "    #title, .brand { font-size: clamp(2.5rem, 8vw, 4rem); font-weight: 700; letter-spacing: -0.03em;\n"
     << "      color: var(--accent); margin: 0 0 0.35rem; animation: rise 0.7s ease-out both; }\n"
-    << "    h1 { font-size: 1.15rem; font-weight: 500; margin: 0 0 1.5rem; opacity: 0.75;\n"
+    << "    #tagline, h1 { font-size: 1.15rem; font-weight: 500; margin: 0 0 1.5rem; opacity: 0.8;\n"
     << "      animation: rise 0.7s ease-out 0.08s both; }\n"
-    << "    #luke-status, #luke-panel { margin: 0.75rem 0; animation: rise 0.7s ease-out 0.12s both; }\n"
+    << "    #go { appearance:none; border:1px solid var(--line); background:#fff8ee; color:var(--ink);\n"
+    << "      font: inherit; font-size:1rem; padding:0.65rem 1.1rem; cursor:pointer;\n"
+    << "      animation: rise 0.7s ease-out 0.12s both; }\n"
+    << "    #go:hover { border-color: var(--accent); color: var(--accent); }\n"
+    << "    #out, #luke-status, #luke-panel { margin: 0.75rem 0; min-height: 1.4em;\n"
+    << "      animation: rise 0.7s ease-out 0.14s both; }\n"
     << "    #luke-out { font-family: \"Source Code Pro\", ui-monospace, monospace; font-size: 0.95rem;\n"
     << "      white-space: pre-wrap; line-height: 1.45; padding: 1.25rem 0; border-top: 1px solid "
        "rgba(0,0,0,0.12);\n"
@@ -163,8 +180,10 @@ std::string makeBrowserHtml(const std::string &wasmFile, const std::string &titl
     << "    @keyframes rise { from { opacity:0; transform: translateY(0.6rem); } to { opacity:1; "
        "transform:none; } }\n"
     << "  </style>\n</head>\n<body>\n<main>\n"
-    << "  <p class=\"brand\">Luke</p>\n"
-    << "  <h1>" << escapeHtml(title) << "</h1>\n"
+    << "  <p id=\"title\" class=\"brand\">LukeLang</p>\n"
+    << "  <p id=\"tagline\">" << escapeHtml(title) << "</p>\n"
+    << "  <button type=\"button\" id=\"go\">Try me</button>\n"
+    << "  <p id=\"out\"></p>\n"
     << "  <p id=\"luke-status\"></p>\n"
     << "  <div id=\"luke-panel\"></div>\n"
     << "  <pre id=\"luke-out\"></pre>\n"
@@ -217,7 +236,14 @@ int runViaBuildTemp(const std::string &path) {
   }
   std::string runtimeInclude = findRuntimeInclude();
   std::string cmd = "cc -O2 -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binPath + "\" \"" +
-                    cPath + "\" 2>/tmp/luke_show_cc.err";
+                    cPath + "\"";
+  for (auto &lib : built.linkLibs) {
+    if (!lib.empty() && lib[0] == '/')
+      cmd += " \"" + lib + "\"";
+    else
+      cmd += " -l" + lib;
+  }
+  cmd += " 2>/tmp/luke_show_cc.err";
   int rc = std::system(cmd.c_str());
   if (rc != 0) {
     std::cerr << "Build (SHOW) compile failed — falling back to Play VM\n";
@@ -418,6 +444,30 @@ int main(int argc, char **argv) {
     return runBuild(path, out, target);
   }
 
+  if (cmd == "TEST") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0] << " TEST <file.luke>\n";
+      return 1;
+    }
+    std::string path = argv[2];
+    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
+      std::cerr << "Error: input must be a .luke file\n";
+      return 1;
+    }
+    std::cerr << "TEST via Build (MAKE SURE / TEST … END TEST)\n";
+    int built = runViaBuildTemp(path);
+    if (built == 0) {
+      std::cerr << "All tests passed\n";
+      return 0;
+    }
+    if (built < 0) {
+      std::cerr << "TEST: Build failed — fix errors above\n";
+      return 2;
+    }
+    std::cerr << "TEST: MAKE SURE failed (exit " << built << ")\n";
+    return 1;
+  }
+
   if (cmd == "IR") {
     if (argc < 3) {
       std::cerr << "Usage: " << argv[0] << " IR <file.luke>\n";
@@ -578,7 +628,155 @@ int main(int argc, char **argv) {
       std::cerr << "  IMPORT luke/" << name << "\n";
       return 0;
     }
-    std::cerr << "Usage: " << argv[0] << " PKG init|install <name>\n";
+    if (sub == "PUBLISH") {
+      if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " PKG publish <name>\n";
+        return 1;
+      }
+      std::string name = argv[3];
+      std::string root = "luke_modules";
+      if (std::ifstream("../luke_modules/greeter/luke.pkg") || std::ifstream("../luke_modules"))
+        root = "../luke_modules";
+      std::string src = root + "/" + name;
+      if (!std::ifstream(src + "/luke.pkg") && !std::ifstream(src + "/main.luke")) {
+        std::cerr << "Error: no local package at " << src << " — luke PKG init " << name << "\n";
+        return 1;
+      }
+      const char *regEnv = std::getenv("LUKE_REGISTRY");
+      std::string indexPath = regEnv && *regEnv ? std::string(regEnv) : "";
+      if (indexPath.empty()) {
+        const char *cands[] = {"registry/index.json", "../registry/index.json",
+                               "/workspace/registry/index.json", nullptr};
+        for (int i = 0; cands[i]; ++i)
+          if (std::ifstream(cands[i])) {
+            indexPath = cands[i];
+            break;
+          }
+      }
+      if (indexPath.empty()) {
+        std::string regDir = (root == "../luke_modules") ? "../registry" : "registry";
+        std::system(("mkdir -p \"" + regDir + "/packages\"").c_str());
+        indexPath = regDir + "/index.json";
+        writeFile(indexPath,
+                  "{\n  \"name\": \"luke-registry\",\n  \"version\": \"0.1.0\",\n  "
+                  "\"packages\": {}\n}\n");
+      }
+      std::string regDir = dirnameOf(indexPath);
+      std::string dest = regDir + "/packages/" + name;
+      std::system(("mkdir -p \"" + regDir + "/packages\"").c_str());
+      std::string copy = "rm -rf \"" + dest + "\" && cp -R \"" + src + "\" \"" + dest + "\"";
+      if (std::system(copy.c_str()) != 0) {
+        std::cerr << "Error: could not copy package to " << dest << "\n";
+        return 1;
+      }
+      std::string version = "0.1.0";
+      std::string pkgMeta = readFile(src + "/luke.pkg");
+      auto vp = pkgMeta.find("version=");
+      if (vp != std::string::npos) {
+        auto end = pkgMeta.find('\n', vp);
+        version = trimStr(pkgMeta.substr(
+            vp + 8, end == std::string::npos ? std::string::npos : end - (vp + 8)));
+      }
+      std::string index = readFile(indexPath);
+      std::string relPath = "registry/packages/" + name;
+      auto packages = index.find("\"packages\"");
+      if (packages == std::string::npos) {
+        std::cerr << "Error: registry index missing packages object\n";
+        return 1;
+      }
+      auto brace = index.find('{', packages);
+      auto existing = index.find("\"" + name + "\"");
+      if (existing != std::string::npos && existing > brace) {
+        auto eb = index.find('{', existing);
+        auto ee = index.find('}', eb);
+        if (eb != std::string::npos && ee != std::string::npos) {
+          index.replace(eb, ee - eb + 1,
+                        "{\n      \"version\": \"" + version +
+                            "\",\n      \"description\": \"Published luke/" + name +
+                            "\",\n      \"path\": \"" + relPath + "\"\n    }");
+        }
+      } else {
+        size_t i = brace + 1;
+        int depth = 1;
+        size_t packagesEnd = std::string::npos;
+        for (; i < index.size(); ++i) {
+          if (index[i] == '{')
+            depth++;
+          else if (index[i] == '}') {
+            depth--;
+            if (depth == 0) {
+              packagesEnd = i;
+              break;
+            }
+          }
+        }
+        if (packagesEnd == std::string::npos) {
+          std::cerr << "Error: malformed packages object\n";
+          return 1;
+        }
+        bool empty = true;
+        for (size_t j = brace + 1; j < packagesEnd; ++j) {
+          if (!std::isspace((unsigned char)index[j])) {
+            empty = false;
+            break;
+          }
+        }
+        std::string entry = "    \"" + name + "\": {\n      \"version\": \"" + version +
+                            "\",\n      \"description\": \"Published luke/" + name +
+                            "\",\n      \"path\": \"" + relPath + "\"\n    }";
+        std::string insert = empty ? ("\n" + entry + "\n  ") : (",\n" + entry + "\n  ");
+        index.insert(packagesEnd, insert);
+      }
+      if (!writeFile(indexPath, index)) {
+        std::cerr << "Error: could not update " << indexPath << "\n";
+        return 1;
+      }
+      std::cerr << "Published luke/" << name << " @" << version << " → " << dest << "\n";
+      std::cerr << "  registry: " << indexPath << "\n";
+      return 0;
+    }
+    if (sub == "LOCK") {
+      std::string root = "luke_modules";
+      if (std::ifstream("../luke_modules") || std::ifstream("../registry/index.json"))
+        root = "../luke_modules";
+      std::string outPath = (root == "../luke_modules") ? "../luke.lock" : "luke.lock";
+      std::string listCmd = "ls -1 \"" + root + "\" 2>/dev/null";
+      FILE *pipe = popen(listCmd.c_str(), "r");
+      if (!pipe) {
+        std::cerr << "Error: could not list " << root << "\n";
+        return 1;
+      }
+      std::ostringstream lock;
+      lock << "# luke.lock — installed package pins\n";
+      lock << "lock_version=1\n";
+      char buf[512];
+      while (fgets(buf, sizeof(buf), pipe)) {
+        std::string name = buf;
+        while (!name.empty() && (name.back() == '\n' || name.back() == '\r' || name.back() == ' '))
+          name.pop_back();
+        if (name.empty() || name[0] == '.') continue;
+        std::string dir = root + "/" + name;
+        if (!std::ifstream(dir + "/luke.pkg") && !std::ifstream(dir + "/main.luke")) continue;
+        std::string version = "0.0.0";
+        auto meta = readFile(dir + "/.luke-installed");
+        if (meta.empty()) meta = readFile(dir + "/luke.pkg");
+        auto vp = meta.find("version=");
+        if (vp != std::string::npos) {
+          auto end = meta.find('\n', vp);
+          version = trimStr(meta.substr(
+              vp + 8, end == std::string::npos ? std::string::npos : end - (vp + 8)));
+        }
+        lock << "package " << name << " version " << version << "\n";
+      }
+      pclose(pipe);
+      if (!writeFile(outPath, lock.str())) {
+        std::cerr << "Error: could not write " << outPath << "\n";
+        return 1;
+      }
+      std::cerr << "Wrote " << outPath << "\n";
+      return 0;
+    }
+    std::cerr << "Usage: " << argv[0] << " PKG init|install|publish|lock …\n";
     return 1;
   }
 

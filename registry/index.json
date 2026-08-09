@@ -5,8 +5,8 @@
   "packages": {
     "greeter": {
       "version": "0.1.0",
-      "description": "Sample hello package",
-      "path": "luke_modules/greeter"
+      "description": "Published luke/greeter",
+      "path": "registry/packages/greeter"
     },
     "echo": {
       "version": "0.1.0",

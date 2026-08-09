@@ -25,8 +25,10 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 | --- | --- |
 | Build → native C | Core + functions + blueprints + IMPORT + typechecks |
 | Build → WASM | `-target wasm` (WASI) and `-target browser` (html/js glue) |
-| Build stdlib | files, json, http, args, env, paths, process, js |
-| Packages | `IMPORT luke/<name>` + `luke PKG init` |
+| Build stdlib | files, json, http, server, sqlite, args, env, paths, process, js |
+| Packages | `IMPORT luke/<name>` + `luke PKG init|install|publish|lock` |
+| Collections | `LIST` / `MAP` + `ATTEMPT` / `GIVE UP` / `OTHERWISE` |
+| Tests | `luke TEST` + `MAKE SURE` / `TEST … END TEST` |
 | Arena scopes | `IN ARENA` / `END ARENA` |
 | Show | Prefers Build; Play VM is `--vm` / fallback |
 | Legacy `main.js` / `mimo/` | Old JS emit — reference only |

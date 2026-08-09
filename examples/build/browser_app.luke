@@ -1,0 +1,9 @@
+// LukeLang browser app — DOM + click + conversational voice
+// Build: luke BUILD examples/build/browser_app.luke -target browser -o build/app
+
+IMPORT std/js
+
+ASK jsSetText WITH "title", "LukeLang"
+ASK jsSetHtml WITH "tagline", "<em>Not JavaScript. Not Python. Not Rust. LukeLang.</em>"
+ASK jsOnClick WITH "go", "out", "You clicked — still LukeLang underneath."
+SPEAK "browser app ready"

@@ -84,7 +84,7 @@ std::vector<std::string> splitArgs(const std::string &s) {
   return out;
 }
 
-enum class K { Num, Flag, Text, Json, Void, Ptr };
+enum class K { Num, Flag, Text, Json, List, Map, Void, Ptr };
 struct Ty {
   K k = K::Void;
   std::string klass;
@@ -92,6 +92,8 @@ struct Ty {
   static Ty flag() { return {K::Flag, ""}; }
   static Ty text() { return {K::Text, ""}; }
   static Ty json() { return {K::Json, ""}; }
+  static Ty list() { return {K::List, ""}; }
+  static Ty map() { return {K::Map, ""}; }
   static Ty vod() { return {K::Void, ""}; }
   static Ty ptr(const std::string &c) { return {K::Ptr, c}; }
 };
@@ -101,7 +103,13 @@ std::string cTy(const Ty &t) {
     case K::Flag: return "int";
     case K::Text: return "LukeText";
     case K::Json: return "LukeJson *";
-    case K::Ptr: return cIdent(t.klass) + " *";
+    case K::List: return "LukeList *";
+    case K::Map: return "LukeMap *";
+    case K::Ptr:
+      if (t.klass == "__HttpServer") return "LukeHttpServer *";
+      if (t.klass == "__HttpReq") return "LukeHttpRequest *";
+      if (t.klass == "__Db") return "LukeDb *";
+      return cIdent(t.klass) + " *";
     default: return "void";
   }
 }
@@ -111,7 +119,13 @@ std::string tyName(const Ty &t) {
     case K::Flag: return "FLAG";
     case K::Text: return "TEXT";
     case K::Json: return "JSON";
-    case K::Ptr: return t.klass.empty() ? "blueprint" : t.klass;
+    case K::List: return "LIST";
+    case K::Map: return "MAP";
+    case K::Ptr:
+      if (t.klass == "__HttpServer") return "SERVER";
+      if (t.klass == "__HttpReq") return "REQUEST";
+      if (t.klass == "__Db") return "DATABASE";
+      return t.klass.empty() ? "blueprint" : t.klass;
     default: return "nothing";
   }
 }
@@ -165,7 +179,10 @@ struct BC {
   bool unsupportedHint = false;
   bool forBrowser = false;
   int arenaSeq = 0;
+  int attemptSeq = 0;
   std::vector<std::string> arenaMarks;
+  std::vector<std::string> attemptLabels;
+  std::vector<bool> attemptHasOtherwise;
   std::map<std::string, BP> bps;
   std::vector<std::string> bpOrder;
   std::map<std::string, Fn> fns;
@@ -224,6 +241,11 @@ struct BC {
     if (U == "FLAG" || U == "BOOL") return Ty::flag();
     if (U == "TEXT" || U == "STRING") return Ty::text();
     if (U == "JSON") return Ty::json();
+    if (U == "LIST") return Ty::list();
+    if (U == "MAP") return Ty::map();
+    if (U == "SERVER" || U == "HTTPSERVER") return Ty::ptr("__HttpServer");
+    if (U == "REQUEST" || U == "HTTPREQ") return Ty::ptr("__HttpReq");
+    if (U == "DATABASE" || U == "DB") return Ty::ptr("__Db");
     if (bps.count(t)) return Ty::ptr(t);
     return Ty::vod();
   }
@@ -319,6 +341,30 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_json_stringify") return mapCall("luke_json_stringify", Ty::text(), true);
       if (callee == "__luke_json_is_null") return mapCall("luke_json_is_null", Ty::flag(), false);
       if (callee == "__luke_http_get") return mapCall("luke_http_get", Ty::text(), true);
+      if (callee == "__luke_http_listen")
+        return mapCall("luke_http_listen", Ty::ptr("__HttpServer"), true);
+      if (callee == "__luke_http_accept")
+        return mapCall("luke_http_accept", Ty::ptr("__HttpReq"), true);
+      if (callee == "__luke_http_reply") return mapCall("luke_http_reply", Ty::flag(), false);
+      if (callee == "__luke_http_path") return mapCall("luke_http_path", Ty::text(), false);
+      if (callee == "__luke_http_method") return mapCall("luke_http_method", Ty::text(), false);
+      if (callee == "__luke_http_query") return mapCall("luke_http_query", Ty::text(), false);
+      if (callee == "__luke_http_body") return mapCall("luke_http_body", Ty::text(), false);
+      if (callee == "__luke_db_open") return mapCall("luke_db_open", Ty::ptr("__Db"), true);
+      if (callee == "__luke_db_exec") return mapCall("luke_db_exec", Ty::flag(), false);
+      if (callee == "__luke_db_query") return mapCall("luke_db_query_text", Ty::text(), true);
+      if (callee == "__luke_db_close") return mapCall("luke_db_close", Ty::flag(), false);
+      if (callee == "__luke_list_new") return mapCall("luke_list_new", Ty::list(), true);
+      if (callee == "__luke_list_add") return mapCall("luke_list_add", Ty::vod(), true);
+      if (callee == "__luke_list_get") return mapCall("luke_list_get", Ty::text(), false);
+      if (callee == "__luke_list_len") return mapCall("luke_list_len", Ty::num(), false);
+      if (callee == "__luke_map_new") return mapCall("luke_map_new", Ty::map(), true);
+      if (callee == "__luke_map_put") return mapCall("luke_map_put", Ty::vod(), true);
+      if (callee == "__luke_map_get") return mapCall("luke_map_get", Ty::text(), false);
+      if (callee == "__luke_map_has") return mapCall("luke_map_has", Ty::flag(), false);
+      if (callee == "__luke_map_len") return mapCall("luke_map_len", Ty::num(), false);
+      if (callee == "__luke_js_fetch") return mapCall("luke_js_fetch", Ty::text(), true);
+      if (callee == "__luke_js_on_click") return mapCall("luke_js_on_click", Ty::flag(), false);
       if (callee == "__luke_arg_count") return {"((double)luke_arg_count())", Ty::num()};
       if (callee == "__luke_get_arg") return mapCall("luke_get_arg", Ty::text(), true);
       if (callee == "__luke_get_env") return mapCall("luke_get_env", Ty::text(), true);
@@ -333,8 +379,8 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_js_set_html") return mapCall("luke_js_set_html", Ty::flag(), false);
       if (callee == "__luke_js_get_value") return mapCall("luke_js_get_value", Ty::text(), true);
       fail(line, "Unknown native helper '" + callee +
-                     "' — IMPORT std/files, std/json, std/http, std/args, std/env, std/paths, "
-                     "std/process, or std/js");
+                     "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
+                     "std/args, std/env, std/paths, std/process, or std/js");
       return {"0", Ty::num()};
     }
   }
@@ -532,6 +578,51 @@ Expr BC::expr(std::string e, size_t line) {
   }
 
   auto U = toUpper(e);
+
+  /* Collections / problems — conversational expressions */
+  if (U == "THE PROBLEM") return {"luke_the_problem()", Ty::text()};
+  if (startsWithCI(e, "ITEM ")) {
+    auto rest = trim(e.substr(5));
+    auto rU = toUpper(rest);
+    auto of = rU.find(" OF ");
+    if (of != std::string::npos) {
+      auto idx = expr(trim(rest.substr(0, of)), line);
+      auto listE = expr(trim(rest.substr(of + 4)), line);
+      expectTy(line, idx.ty, Ty::num(), "ITEM … OF");
+      expectTy(line, listE.ty, Ty::list(), "ITEM … OF");
+      return {"luke_list_get(" + listE.code + ", " + idx.code + ")", Ty::text()};
+    }
+  }
+  if (startsWithCI(e, "HOW MANY IN ")) {
+    auto col = expr(trim(e.substr(12)), line);
+    if (col.ty.k == K::List) return {"luke_list_len(" + col.code + ")", Ty::num()};
+    if (col.ty.k == K::Map) return {"luke_map_len(" + col.code + ")", Ty::num()};
+    fail(line, "HOW MANY IN needs a LIST or MAP — got " + tyName(col.ty));
+    return {"0", Ty::num()};
+  }
+  if (startsWithCI(e, "GET ")) {
+    auto rest = trim(e.substr(4));
+    auto rU = toUpper(rest);
+    auto fr = rU.find(" FROM ");
+    if (fr != std::string::npos) {
+      auto key = coerceText(expr(trim(rest.substr(0, fr)), line));
+      auto mapE = expr(trim(rest.substr(fr + 6)), line);
+      expectTy(line, mapE.ty, Ty::map(), "GET … FROM");
+      return {"luke_map_get(" + mapE.code + ", " + key.code + ")", Ty::text()};
+    }
+  }
+  if (startsWithCI(e, "HAS KEY ")) {
+    auto rest = trim(e.substr(8));
+    auto rU = toUpper(rest);
+    auto in = rU.find(" IN ");
+    if (in != std::string::npos) {
+      auto key = coerceText(expr(trim(rest.substr(0, in)), line));
+      auto mapE = expr(trim(rest.substr(in + 4)), line);
+      expectTy(line, mapE.ty, Ty::map(), "HAS KEY … IN");
+      return {"luke_map_has(" + mapE.code + ", " + key.code + ")", Ty::flag()};
+    }
+  }
+
   auto cmp = [&](const std::string &needle, const char *op) -> Expr * {
     static Expr r;
     auto pos = U.find(needle);
@@ -626,6 +717,10 @@ void speak(const Expr &e, std::ostringstream &o) {
   else if (e.ty.k == K::Num) o << "  luke_speak_number(" << e.code << ");\n";
   else if (e.ty.k == K::Json)
     o << "  luke_speak_text(luke_json_stringify(arena, " << e.code << "));\n";
+  else if (e.ty.k == K::List)
+    o << "  luke_speak_number(luke_list_len(" << e.code << "));\n";
+  else if (e.ty.k == K::Map)
+    o << "  luke_speak_number(luke_map_len(" << e.code << "));\n";
   else if (e.ty.k == K::Void) o << "  " << e.code << ";\n";
   else o << "  luke_speak_text(luke_text(\"<obj>\"));\n";
 }
@@ -711,7 +806,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         forced = bc.parseTy(tyRaw);
         if (forced.k == K::Void) {
           bc.fail(line, "Unknown type '" + tyRaw +
-                            "' — use NUMBER, TEXT, FLAG, JSON, or a blueprint name");
+                            "' — use NUMBER, TEXT, FLAG, JSON, LIST, MAP, SERVER, "
+                            "REQUEST, DATABASE, or a blueprint name");
           return;
         }
         rest = name + " SET TO " + trim(after.substr(set2 + 8));
@@ -721,7 +817,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         forced = bc.parseTy(after);
         if (forced.k == K::Void) {
           bc.fail(line, "Unknown type '" + after +
-                            "' — use NUMBER, TEXT, FLAG, JSON, or a blueprint name");
+                            "' — use NUMBER, TEXT, FLAG, JSON, LIST, MAP, SERVER, "
+                            "REQUEST, DATABASE, or a blueprint name");
           return;
         }
         rest = name;
@@ -734,8 +831,18 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       if (forced.k == K::Text) e = {"luke_text(\"\")", Ty::text()};
       else if (forced.k == K::Flag) e = {"0", Ty::flag()};
       else if (forced.k == K::Json) e = {"((LukeJson*)0)", Ty::json()};
-      else if (forced.k == K::Ptr) e = {"((" + cIdent(forced.klass) + "*)0)", forced};
-      else if (forced.k == K::Void) e = {"luke_text(\"\")", Ty::text()};
+      else if (forced.k == K::List) e = {"luke_list_new(arena)", Ty::list()};
+      else if (forced.k == K::Map) e = {"luke_map_new(arena)", Ty::map()};
+      else if (forced.k == K::Ptr) {
+        if (forced.klass == "__HttpServer")
+          e = {"((LukeHttpServer*)0)", forced};
+        else if (forced.klass == "__HttpReq")
+          e = {"((LukeHttpRequest*)0)", forced};
+        else if (forced.klass == "__Db")
+          e = {"((LukeDb*)0)", forced};
+        else
+          e = {"((" + cIdent(forced.klass) + "*)0)", forced};
+      } else if (forced.k == K::Void) e = {"luke_text(\"\")", Ty::text()};
       else e = {"0.0", Ty::num()};
       if (forced.k != K::Void) e.ty = forced;
     } else {
@@ -852,6 +959,162 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  }\n";
     return;
   }
+
+  /* Collections — conversational */
+  if (startsWithCI(text, "ADD ")) {
+    auto rest = trim(text.substr(4));
+    auto U = toUpper(rest);
+    auto to = U.find(" TO ");
+    if (to != std::string::npos) {
+      auto val = bc.expr(trim(rest.substr(0, to)), line);
+      auto listName = trim(rest.substr(to + 4));
+      if (!bc.locals.count(listName) || bc.locals[listName].k != K::List) {
+        bc.fail(line, "ADD … TO needs a LIST — declare MY NAME IS " + listName + " AS LIST");
+        return;
+      }
+      auto v = bc.coerceText(val);
+      o << "  luke_list_add(arena, " << cIdent(listName) << ", " << v.code << ");\n";
+      return;
+    }
+  }
+  if (startsWithCI(text, "PUT ")) {
+    auto rest = trim(text.substr(4));
+    auto U = toUpper(rest);
+    auto to = U.find(" TO ");
+    auto in = U.find(" IN ");
+    if (to != std::string::npos && in != std::string::npos && in > to) {
+      auto key = bc.expr(trim(rest.substr(0, to)), line);
+      auto val = bc.expr(trim(rest.substr(to + 4, in - (to + 4))), line);
+      auto mapName = trim(rest.substr(in + 4));
+      if (!bc.locals.count(mapName) || bc.locals[mapName].k != K::Map) {
+        bc.fail(line, "PUT … IN needs a MAP — declare MY NAME IS " + mapName + " AS MAP");
+        return;
+      }
+      auto k = bc.coerceText(key);
+      auto v = bc.coerceText(val);
+      o << "  luke_map_put(arena, " << cIdent(mapName) << ", " << k.code << ", " << v.code
+        << ");\n";
+      return;
+    }
+  }
+
+  /* ATTEMPT / OTHERWISE / GIVE UP — conversational errors */
+  if (toUpper(text) == "ATTEMPT" || toUpper(text) == "ATTEMPT DO" ||
+      startsWithCI(text, "ATTEMPT ")) {
+    int id = ++bc.attemptSeq;
+    std::string lab = "luke_attempt_" + std::to_string(id);
+    bc.attemptLabels.push_back(lab);
+    bc.attemptHasOtherwise.push_back(false);
+    o << "  luke_clear_problem();\n";
+    o << "  {\n";
+    return;
+  }
+  if (startsWithCI(text, "OTHERWISE")) {
+    if (bc.attemptLabels.empty()) {
+      bc.fail(line, "OTHERWISE without matching ATTEMPT");
+      return;
+    }
+    if (bc.attemptHasOtherwise.back()) {
+      bc.fail(line, "ATTEMPT already has OTHERWISE — one recovery path only");
+      return;
+    }
+    bc.attemptHasOtherwise.back() = true;
+    auto rest = trim(text);
+    if (startsWithCI(rest, "OTHERWISE")) rest = trim(rest.substr(9));
+    stripDo(rest);
+    std::string bind = "problem";
+    if (startsWithCI(rest, "WITH ")) {
+      bind = trim(rest.substr(5));
+      if (bind.empty()) bind = "problem";
+    }
+    std::string lab = bc.attemptLabels.back();
+    o << "    goto " << lab << "_end;\n";
+    o << "  " << lab << "_fail:\n";
+    o << "    {\n";
+    o << "      LukeText " << cIdent(bind) << " = luke_the_problem();\n";
+    bc.locals[bind] = Ty::text();
+    return;
+  }
+  if (toUpper(text) == "END ATTEMPT" || toUpper(text) == "ENDATTEMPT") {
+    if (bc.attemptLabels.empty()) {
+      bc.fail(line, "END ATTEMPT without matching ATTEMPT");
+      return;
+    }
+    std::string lab = bc.attemptLabels.back();
+    bool hasO = bc.attemptHasOtherwise.back();
+    bc.attemptLabels.pop_back();
+    bc.attemptHasOtherwise.pop_back();
+    if (hasO) {
+      o << "    }\n";
+    } else {
+      o << "    goto " << lab << "_end;\n";
+      o << "  " << lab << "_fail: ;\n";
+    }
+    o << "  " << lab << "_end: ;\n";
+    o << "  }\n";
+    return;
+  }
+  if (startsWithCI(text, "GIVE UP")) {
+    if (bc.attemptLabels.empty()) {
+      bc.fail(line, "GIVE UP only works inside ATTEMPT … END ATTEMPT");
+      return;
+    }
+    auto rest = trim(text.substr(7));
+    Expr msg{"luke_text(\"gave up\")", Ty::text()};
+    if (startsWithCI(rest, "WITH ")) {
+      msg = bc.coerceText(bc.expr(trim(rest.substr(5)), line));
+    } else if (!rest.empty()) {
+      msg = bc.coerceText(bc.expr(rest, line));
+    }
+    std::string lab = bc.attemptLabels.back();
+    o << "  luke_set_problem(" << msg.code << ");\n";
+    o << "  goto " << lab << "_fail;\n";
+    return;
+  }
+
+  /* TEST / MAKE SURE */
+  if (startsWithCI(text, "TEST ")) {
+    auto rest = trim(text.substr(5));
+    stripDo(rest);
+    auto name = bc.coerceText(bc.expr(rest, line));
+    o << "  luke_speak_text(luke_text_concat(arena, luke_text(\"TEST \"), " << name.code
+      << "));\n";
+    o << "  {\n";
+    return;
+  }
+  if (toUpper(text) == "END TEST" || toUpper(text) == "ENDTEST") {
+    o << "  }\n";
+    o << "  luke_speak_text(luke_text(\"  ok\"));\n";
+    return;
+  }
+  if (startsWithCI(text, "MAKE SURE ")) {
+    auto rest = trim(text.substr(10));
+    auto U = toUpper(rest);
+    auto eq = U.find(" EQUALS ");
+    if (eq == std::string::npos) eq = U.find(" IS EQUAL TO ");
+    if (eq == std::string::npos) {
+      bc.fail(line, "MAKE SURE needs … EQUALS … — tell me what must match");
+      return;
+    }
+    size_t kwLen = (U.compare(eq, 8, " EQUALS ") == 0) ? 8 : 13;
+    auto L = bc.expr(trim(rest.substr(0, eq)), line);
+    auto R = bc.expr(trim(rest.substr(eq + kwLen)), line);
+    std::string cond;
+    if (L.ty.k == K::Text || R.ty.k == K::Text) {
+      auto Lt = bc.coerceText(L);
+      auto Rt = bc.coerceText(R);
+      cond = "luke_text_eq((" + Lt.code + "),(" + Rt.code + "))";
+    } else {
+      bc.expectTy(line, L.ty, R.ty, "MAKE SURE");
+      cond = "((" + L.code + ") == (" + R.code + "))";
+    }
+    o << "  if (!(" << cond << ")) {\n";
+    o << "    luke_speak_text(luke_text(\"MAKE SURE failed on line " << line << "\"));\n";
+    o << "    exit(1);\n";
+    o << "  }\n";
+    return;
+  }
+
   bc.fail(line, "Unsupported Build statement: " + text +
                     " — Build doesn't understand this yet (Play-only feature?)");
   bc.unsupportedHint = true;
@@ -1174,7 +1437,7 @@ std::string emit(BC &bc) {
   if (bc.forBrowser) o << "#define LUKE_BROWSER 1\n";
   o << "#include \"luke_rt.h\"\n";
   o << "#include \"luke_std.h\"\n";
-  o << "#include <stdio.h>\n#include <string.h>\n\n";
+  o << "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n";
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";
   o << "  char *p=(char*)luke_arena_alloc(arena,(size_t)k+1,1); memcpy(p,buf,(size_t)k+1);\n";
@@ -1255,7 +1518,9 @@ std::string emit(BC &bc) {
     else if (fn.ret.k == K::Flag) o << "  return 0;\n";
     else if (fn.ret.k == K::Text) o << "  return luke_text(\"\");\n";
     else if (fn.ret.k == K::Json) o << "  return (LukeJson*)0;\n";
-    else if (fn.ret.k == K::Ptr) o << "  return (" << cIdent(fn.ret.klass) << "*)0;\n";
+    else if (fn.ret.k == K::List) o << "  return luke_list_new(arena);\n";
+    else if (fn.ret.k == K::Map) o << "  return luke_map_new(arena);\n";
+    else if (fn.ret.k == K::Ptr) o << "  return (" << cTy(fn.ret) << ")0;\n";
     o << "}\n\n";
   }
 
@@ -1484,6 +1749,13 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
             continue;
           }
           path = stdlib + "/" + spec.substr(4) + ".luke";
+          auto mod = toUpper(spec.substr(4));
+          if (mod == "SQLITE") {
+            bool dup = false;
+            for (auto &e : r.linkLibs)
+              if (e == "sqlite3") dup = true;
+            if (!dup) r.linkLibs.push_back("sqlite3");
+          }
         } else if (startsWithCI(spec, "luke/") || startsWithCI(spec, "LUKE/") ||
                    startsWithCI(spec, "package:") || startsWithCI(spec, "PACKAGE:")) {
           std::string name;

@@ -1,0 +1,4 @@
+# luke.lock — installed package pins
+lock_version=1
+package echo version 0.1.0
+package greeter version 0.0.0

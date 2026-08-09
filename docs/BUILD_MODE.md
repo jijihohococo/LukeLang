@@ -54,12 +54,54 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 | `std/files` | `readFile`, `writeFile`, `fileExists` |
 | `std/json` | `jsonParse`, `jsonGet`, `jsonIndex`, `jsonLen`, `jsonHas`, `jsonAsText` / `Number` / `Flag`, `jsonStringify`, `jsonString` |
 | `std/http` | `httpGet` (native via curl; empty on WASI) |
+| `std/server` | `httpListen`, `httpAccept`, `httpReply`, `httpPath` / `Method` / `Query` / `Body` |
+| `std/sqlite` | `dbOpen`, `dbExec`, `dbQuery`, `dbClose` (auto `-lsqlite3`) |
 | `std/args` | `argCount`, `getArg` |
 | `std/env` | `getEnv`, `setEnv` |
 | `std/paths` | `cwd`, `pathJoin`, `pathBasename`, `pathDirname` |
 | `std/process` | `shell`, `exitWith` |
-| `std/js` | `jsSetText`, `jsSetHtml`, `jsGetValue` (browser DOM bridge) |
+| `std/js` | `jsSetText`, `jsSetHtml`, `jsGetValue`, `jsFetch`, `jsOnClick` (browser) |
 | `luke/…` | Your packages under `luke_modules/` (`luke PKG init <name>`) |
+
+### Collections + problems (conversational)
+
+```luke
+MY NAME IS nums AS LIST
+ADD "one" TO nums
+SPEAK ITEM 0 OF nums
+SPEAK HOW MANY IN nums
+
+MY NAME IS bag AS MAP
+PUT "name" TO "Luke" IN bag
+SPEAK GET "name" FROM bag
+
+ATTEMPT DO
+  GIVE UP WITH "could not finish"
+OTHERWISE WITH problem DO
+  SPEAK problem
+END ATTEMPT
+```
+
+### TEST
+
+```luke
+TEST "math" DO
+  MAKE SURE ADD 1 AND 1 EQUALS 2
+END TEST
+```
+
+```bash
+luke TEST examples/build/collections_test.luke
+```
+
+### Packages
+
+```bash
+luke PKG init mylib
+luke PKG install echo
+luke PKG publish mylib
+luke PKG lock          # writes luke.lock
+```
 
 ### Arena scopes
 
@@ -90,6 +132,10 @@ Bump pointer is restored at `END ARENA` — request/frame-scoped memory without 
 | `FLAG` | `int` (0/1) |
 | `TEXT` | `LukeText { ptr, len }` (arena or literal) |
 | `JSON` | `LukeJson *` (arena tree — parse / get / stringify) |
+| `LIST` | `LukeList *` (arena-backed text items) |
+| `MAP` | `LukeMap *` (arena-backed text keys/values) |
+| `SERVER` / `REQUEST` | HTTP server / request handles |
+| `DATABASE` | SQLite handle |
 | `BLUEPRINT Foo` | `typedef struct Foo { ... } Foo` |
 
 Inference (v0):
@@ -172,9 +218,12 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 12. ~~Remote package registry (`luke PKG install` + `registry/index.json`)~~
 13. ~~Foreign imports (`IMPORT c:` + `FOREIGN FUNCTION`)~~
 14. ~~Build IR shared frontend (expand/soften for Play; `luke IR` dump)~~
-15. Richer remote registry (signed packages, versions)
-16. Explicit Python bridges (beyond C FFI)
-17. Optional: emit Play bytecode opcodes directly from Build IR nodes
+15. ~~LIST / MAP + ATTEMPT / OTHERWISE + `luke TEST`~~
+16. ~~`std/server` + `std/sqlite` + browser fetch/click~~
+17. ~~`luke PKG publish` + `luke.lock`~~
+18. Richer remote registry (signed packages)
+19. Explicit Python bridges (beyond C FFI)
+20. Optional: emit Play bytecode opcodes directly from Build IR nodes
 
 ## Philosophy
 

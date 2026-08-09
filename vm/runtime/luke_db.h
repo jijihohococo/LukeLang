@@ -40,7 +40,10 @@ static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql
   return luke_text("");
 }
 
-static inline void luke_db_close(LukeDb *db) { (void)db; }
+static inline int luke_db_close(LukeDb *db) {
+  (void)db;
+  return 0;
+}
 
 #else /* !__wasi__ */
 
@@ -135,10 +138,11 @@ static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql
   return luke_text_n(out, len);
 }
 
-static inline void luke_db_close(LukeDb *db) {
-  if (!db || !db->db) return;
+static inline int luke_db_close(LukeDb *db) {
+  if (!db || !db->db) return 0;
   sqlite3_close(db->db);
   db->db = NULL;
+  return 1;
 }
 
 #endif /* !__wasi__ */

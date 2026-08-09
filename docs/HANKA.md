@@ -1,6 +1,6 @@
 # Hanka — LukeLang Layout Engine
 
-> **Status:** Started (v0 beachhead)  
+> **Status:** v1 — nested boxes  
 > **Name:** Hanka  
 > **Role:** Own layout numbers → feed Argus frames  
 > **Not:** browser flex/grid as source of truth
@@ -54,16 +54,15 @@ PAINT THE SCREEN
 - `vm/stdlib/hanka.luke` — thin wrappers  
 - Demo: `examples/build/hanka_demo.luke`
 
-## v0 non-goals
+## Non-goals (still)
 
 - Intrinsic text measurement  
 - Breakpoints / wrap  
-- Nested containers (auto-close previous `BEGIN` for now)  
-- CSS flex as authority
+- CSS flex as authority  
+- Align start/center/end (pack start only)
 
-## Next (v1)
+## Next
 
-- Nested `COLUMN`/`ROW` trees  
 - Align start/center/end  
 - Measure text via embedder  
 - Viewport / DPR snapping

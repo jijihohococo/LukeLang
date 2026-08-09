@@ -211,6 +211,72 @@ function createLukeJs(getMemory, opts) {
           globalThis.__lukeDispatchRoute();
       } else console.log("[route_go]", path);
     },
+    fetch_start: function (idPtr, idLen, methodPtr, methodLen, urlPtr, urlLen, bodyPtr, bodyLen) {
+      var id = readText(idPtr, idLen);
+      var method = (readText(methodPtr, methodLen) || "GET").toUpperCase();
+      var url = readText(urlPtr, urlLen);
+      var body = readText(bodyPtr, bodyLen);
+      if (!globalThis.__lukeFetchJobs) globalThis.__lukeFetchJobs = {};
+      globalThis.__lukeFetchJobs[id] = { ready: false, status: 0, body: "" };
+      console.log("[fetch_start]", id, method, url);
+      var finish = function (status, text) {
+        globalThis.__lukeFetchJobs[id] = { ready: true, status: status | 0, body: text || "" };
+        console.log("[fetch_ready]", id, status);
+        if (typeof globalThis.__lukeDispatchFetch === "function") globalThis.__lukeDispatchFetch(id);
+      };
+      if (typeof fetch === "function") {
+        var opts = { method: method };
+        if (method === "POST" || method === "PUT" || method === "PATCH") opts.body = body;
+        fetch(url, opts)
+          .then(function (r) {
+            return r.text().then(function (t) {
+              finish(r.status, t);
+            });
+          })
+          .catch(function () {
+            finish(0, "");
+          });
+      } else if (typeof XMLHttpRequest !== "undefined") {
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open(method, url, true);
+          xhr.onload = function () {
+            finish(xhr.status, xhr.responseText || "");
+          };
+          xhr.onerror = function () {
+            finish(0, "");
+          };
+          xhr.send(method === "GET" || method === "HEAD" ? null : body);
+        } catch (e) {
+          finish(0, "");
+        }
+      } else {
+        finish(200, "[fetch stub] " + url);
+      }
+    },
+    fetch_ready: function (idPtr, idLen) {
+      var id = readText(idPtr, idLen);
+      var job = globalThis.__lukeFetchJobs && globalThis.__lukeFetchJobs[id];
+      return job && job.ready ? 1 : 0;
+    },
+    fetch_status: function (idPtr, idLen) {
+      var id = readText(idPtr, idLen);
+      var job = globalThis.__lukeFetchJobs && globalThis.__lukeFetchJobs[id];
+      return job ? job.status : 0;
+    },
+    fetch_body: function (idPtr, idLen, outPtr, outCap, outLenPtr) {
+      var id = readText(idPtr, idLen);
+      var job = globalThis.__lukeFetchJobs && globalThis.__lukeFetchJobs[id];
+      var value = job && job.ready ? String(job.body || "") : "";
+      const mem = getMemory();
+      const u8 = new Uint8Array(mem.buffer);
+      const view = new DataView(mem.buffer);
+      const bytes = new TextEncoder().encode(value);
+      const n = Math.min(bytes.length, outCap > 0 ? outCap - 1 : 0);
+      u8.set(bytes.subarray(0, n), outPtr);
+      if (outCap > 0) u8[outPtr + n] = 0;
+      view.setUint32(outLenPtr, n, true);
+    },
     argus_clear: function () {
       if (typeof document === "undefined") return;
       var root = document.getElementById("root");
@@ -257,6 +323,7 @@ function createLukeJs(getMemory, opts) {
           el.type = "text";
           el.style.font = "inherit";
           el.style.padding = "0 12px";
+          el.setAttribute("data-argus-input", "1");
         }
         root.appendChild(el);
       }
@@ -297,15 +364,18 @@ function createLukeJs(getMemory, opts) {
       if (!el) return;
       el.style.backgroundImage = src ? 'url("' + src.replace(/"/g, '\\"') + '")' : "";
     },
-    argus_input: function (idPtr, idLen, phPtr, phLen) {
+    argus_input: function (idPtr, idLen, phPtr, phLen, inputType) {
       const id = readText(idPtr, idLen);
       const ph = readText(phPtr, phLen);
+      var t = inputType | 0;
+      var type = t === 1 ? "password" : t === 2 ? "email" : "text";
       if (typeof document === "undefined") {
-        console.log("[argus_input]", id, ph);
+        console.log("[argus_input]", id, type, ph);
         return;
       }
       var el = document.getElementById(id);
       if (!el) return;
+      el.type = type;
       el.placeholder = ph;
     },
   };
@@ -373,7 +443,12 @@ function wireLukeWhens(instance, whens) {
     console.log("[route]", route);
     dispatch(route, "route");
   }
+  function dispatchFetch(jobId) {
+    console.log("[fetch_dispatch]", jobId);
+    dispatch(jobId, "fetch");
+  }
   globalThis.__lukeDispatchRoute = dispatchRoute;
+  globalThis.__lukeDispatchFetch = dispatchFetch;
 
   if (typeof document === "undefined") {
     /* Node smoke: run home route handler if present */

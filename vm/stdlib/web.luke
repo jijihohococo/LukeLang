@@ -1,4 +1,4 @@
-// IMPORT std/web — production web helpers (routes + field reads)
+// IMPORT std/web — production web helpers (routes, fields, fetch, validation)
 
 IMPORT std/js
 
@@ -8,4 +8,32 @@ END FUNCTION
 
 THIS IS FUNCTION readField WITH id AS TEXT GIVES BACK TEXT DO
   GIVE BACK __luke_js_get_value(id)
+END FUNCTION
+
+THIS IS FUNCTION startFetchGet WITH id AS TEXT, url AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_fetch_start(id, "GET", url, "")
+END FUNCTION
+
+THIS IS FUNCTION startFetchPost WITH id AS TEXT, url AS TEXT, body AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_fetch_start(id, "POST", url, body)
+END FUNCTION
+
+THIS IS FUNCTION fetchReady WITH id AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_fetch_ready(id)
+END FUNCTION
+
+THIS IS FUNCTION fetchStatus WITH id AS TEXT GIVES BACK NUMBER DO
+  GIVE BACK __luke_js_fetch_status(id)
+END FUNCTION
+
+THIS IS FUNCTION fetchBody WITH id AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_js_fetch_body(id)
+END FUNCTION
+
+THIS IS FUNCTION looksLikeEmail WITH s AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_looks_like_email(s)
+END FUNCTION
+
+THIS IS FUNCTION textNonempty WITH s AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_text_nonempty(s)
 END FUNCTION

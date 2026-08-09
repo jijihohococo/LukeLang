@@ -1,9 +1,10 @@
-// Production web beachhead — Hanka + Argus + inputs + hash routes
+// Production web v1 — nested Hanka, FOR EACH, async fetch, typed inputs
 // Build: luke BUILD examples/build/web_app.luke -target browser -o build/web_app
 
 IMPORT std/js
 IMPORT std/hanka
 IMPORT std/argus
+IMPORT std/web
 
 NAME THE PAGE "Luke Web"
 
@@ -11,25 +12,38 @@ BRING FONT "Syne" FROM "https://fonts.googleapis.com/css2?family=Syne:wght@700&d
 
 WEAR STYLE """
 html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Syne, sans-serif; }
-#title, #lead, #out, #result { color: #f4fff8; }
-#title { font-size: 48px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
-#lead, #out, #result { font-size: 18px; opacity: 0.92; }
-#to-home, #to-search, #go {
+#title, #lead, #status, #row0, #row1, #row2, #out { color: #f4fff8; }
+#title { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+#lead, #status, #out, #row0, #row1, #row2 { font-size: 17px; opacity: 0.92; }
+#nav-home, #nav-search, #nav-account, #search-go, #account-go, #load {
   background: #f4a259; color: #101820; font-family: Syne, sans-serif;
-  font-weight: 700; font-size: 15px; cursor: pointer;
+  font-weight: 700; font-size: 14px; cursor: pointer;
 }
-#q {
+#q, #email, #pass {
   background: #1a2420; color: #f4fff8; font-family: Syne, sans-serif;
   font-size: 16px; border: 1px solid #2f4038;
 }
 """
 
+THIS IS FUNCTION paintNav DO
+  BEGIN ROW AT 0, 0 SIZE 720, 48 PAD 0 GAP 12
+    SLOT BUTTON "nav-home" SIZE 120, 44 SAY "Home"
+    SLOT BUTTON "nav-search" SIZE 120, 44 SAY "Search"
+    SLOT BUTTON "nav-account" SIZE 140, 44 SAY "Account"
+  END ROW
+END FUNCTION
+
 THIS IS FUNCTION showHome DO
   CLEAR THE SCREEN
-  BEGIN COLUMN AT 48, 48 SIZE 720, 360 PAD 0 GAP 20
-    SLOT TEXT "title" SIZE 640, 64 SAY "LukeLang"
-    SLOT TEXT "lead" SIZE 640, 48 SAY "Production web beachhead — routes, forms, Hanka → Argus."
-    SLOT BUTTON "to-search" SIZE 200, 48 SAY "Go to search"
+  BEGIN COLUMN AT 48, 48 SIZE 720, 520 PAD 0 GAP 16
+    ASK paintNav
+    SLOT TEXT "title" SIZE 640, 56 SAY "LukeLang"
+    SLOT TEXT "lead" SIZE 640, 48 SAY "Production v1 — nested layout, lists, async fetch."
+    SLOT BUTTON "load" SIZE 200, 44 SAY "Load sample list"
+    SLOT TEXT "status" SIZE 640, 36 SAY ""
+    SLOT TEXT "row0" SIZE 640, 32 SAY ""
+    SLOT TEXT "row1" SIZE 640, 32 SAY ""
+    SLOT TEXT "row2" SIZE 640, 32 SAY ""
   END COLUMN
   LAY OUT THE SCREEN
   PAINT THE SCREEN
@@ -37,15 +51,47 @@ END FUNCTION
 
 THIS IS FUNCTION showSearch DO
   CLEAR THE SCREEN
-  BEGIN COLUMN AT 48, 48 SIZE 720, 400 PAD 0 GAP 16
+  BEGIN COLUMN AT 48, 48 SIZE 720, 420 PAD 0 GAP 16
+    ASK paintNav
     SLOT TEXT "title" SIZE 640, 56 SAY "Search"
-    SLOT INPUT "q" SIZE 480, 48 SAY "Type a query…"
-    SLOT BUTTON "go" SIZE 140, 48 SAY "Search"
-    SLOT BUTTON "to-home" SIZE 140, 48 SAY "Home"
+    SLOT INPUT "q" SIZE 480, 48 SAY "Query…"
+    SLOT BUTTON "search-go" SIZE 140, 48 SAY "Search"
     SLOT TEXT "out" SIZE 640, 40 SAY ""
-    SLOT TEXT "result" SIZE 640, 40 SAY ""
+    SLOT TEXT "status" SIZE 640, 36 SAY ""
   END COLUMN
   LAY OUT THE SCREEN
+  PAINT THE SCREEN
+END FUNCTION
+
+THIS IS FUNCTION showAccount DO
+  CLEAR THE SCREEN
+  BEGIN COLUMN AT 48, 48 SIZE 720, 420 PAD 0 GAP 16
+    ASK paintNav
+    SLOT TEXT "title" SIZE 640, 56 SAY "Account"
+    SLOT INPUT "email" AS EMAIL SIZE 480, 48 SAY "you@example.com"
+    SLOT INPUT "pass" AS PASSWORD SIZE 480, 48 SAY "Password"
+    SLOT BUTTON "account-go" SIZE 160, 48 SAY "Validate"
+    SLOT TEXT "out" SIZE 640, 40 SAY ""
+  END COLUMN
+  LAY OUT THE SCREEN
+  PAINT THE SCREEN
+END FUNCTION
+
+THIS IS FUNCTION paintList WITH items AS LIST DO
+  MY NAME IS i AS NUMBER
+  SET i TO 0
+  FOR EACH item IN items DO
+    IF i EQUALS 0 DO
+      PLACE "row0" AS TEXT AT 48, 280 SIZE 640, 32 SAY item
+    END IF
+    IF i EQUALS 1 DO
+      PLACE "row1" AS TEXT AT 48, 316 SIZE 640, 32 SAY item
+    END IF
+    IF i EQUALS 2 DO
+      PLACE "row2" AS TEXT AT 48, 352 SIZE 640, 32 SAY item
+    END IF
+    SET i TO ADD i AND 1
+  END FOR
   PAINT THE SCREEN
 END FUNCTION
 
@@ -60,26 +106,64 @@ WHEN THE ROUTE IS "search" DO
   ASK showSearch
 END WHEN
 
-WHEN "to-search" IS CLICKED DO
-  GO TO "search"
+WHEN THE ROUTE IS "account" DO
+  ASK showAccount
 END WHEN
 
-WHEN "to-home" IS CLICKED DO
+WHEN "nav-home" IS CLICKED DO
   GO TO "home"
 END WHEN
 
-WHEN "go" IS CLICKED DO
+WHEN "nav-search" IS CLICKED DO
+  GO TO "search"
+END WHEN
+
+WHEN "nav-account" IS CLICKED DO
+  GO TO "account"
+END WHEN
+
+WHEN "load" IS CLICKED DO
+  PLACE "status" AS TEXT AT 48, 240 SIZE 640, 36 SAY "Fetching…"
+  PAINT THE SCREEN
+  START FETCH "demo" GET "https://httpbin.org/get"
+END WHEN
+
+WHEN FETCH "demo" IS READY DO
+  MY NAME IS st AS NUMBER
+  SET st TO THE STATUS OF FETCH "demo"
+  MY NAME IS body AS TEXT
+  SET body TO THE BODY OF FETCH "demo"
+  PLACE "status" AS TEXT AT 48, 240 SIZE 640, 36 SAY "Fetch done."
+  MY NAME IS items AS LIST
+  ADD "status ok" TO items
+  ADD body TO items
+  ADD "still LukeLang" TO items
+  ASK paintList WITH items
+END WHEN
+
+WHEN "search-go" IS CLICKED DO
   MY NAME IS q AS TEXT
   SET q TO THE VALUE OF "q"
   PLACE "out" AS TEXT AT 48, 280 SIZE 640, 40 SAY q
-  PLACE "result" AS TEXT AT 48, 328 SIZE 640, 40 SAY "Still LukeLang — no app JS."
+  PLACE "status" AS TEXT AT 48, 328 SIZE 640, 36 SAY "Search path."
   PAINT THE SCREEN
 END WHEN
 
-WHEN "q" IS SUBMITTED DO
-  MY NAME IS q AS TEXT
-  SET q TO THE VALUE OF "q"
-  PLACE "out" AS TEXT AT 48, 280 SIZE 640, 40 SAY q
-  PLACE "result" AS TEXT AT 48, 328 SIZE 640, 40 SAY "Submitted from the field."
+WHEN "account-go" IS CLICKED DO
+  MY NAME IS email AS TEXT
+  SET email TO THE VALUE OF "email"
+  MY NAME IS pass AS TEXT
+  SET pass TO THE VALUE OF "pass"
+  IF ASK looksLikeEmail WITH email DO
+    IF ASK textNonempty WITH pass DO
+      PLACE "out" AS TEXT AT 48, 280 SIZE 640, 40 SAY "Account looks valid."
+    END IF
+    IF NOT ASK textNonempty WITH pass DO
+      PLACE "out" AS TEXT AT 48, 280 SIZE 640, 40 SAY "Password needed."
+    END IF
+  END IF
+  IF NOT ASK looksLikeEmail WITH email DO
+    PLACE "out" AS TEXT AT 48, 280 SIZE 640, 40 SAY "Email looks wrong."
+  END IF
   PAINT THE SCREEN
 END WHEN

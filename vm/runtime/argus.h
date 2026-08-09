@@ -26,6 +26,7 @@ typedef struct ArgusNode {
   double opacity;
   LukeText text;
   LukeText src;
+  int input_type; /* 0 text, 1 password, 2 email */
   int dirty;
   int mounted;
 } ArgusNode;
@@ -53,7 +54,8 @@ __attribute__((import_module("lukejs"), import_name("argus_image"))) void
 argus_js_image_raw(const char *id, size_t id_len, const char *src, size_t src_len);
 
 __attribute__((import_module("lukejs"), import_name("argus_input"))) void
-argus_js_input_raw(const char *id, size_t id_len, const char *placeholder, size_t placeholder_len);
+argus_js_input_raw(const char *id, size_t id_len, const char *placeholder, size_t placeholder_len,
+                   double input_type);
 
 __attribute__((import_module("lukejs"), import_name("argus_clear"))) void
 argus_js_clear_raw(void);
@@ -71,8 +73,8 @@ static inline void argus_js_text(LukeText id, LukeText text) {
 static inline void argus_js_image(LukeText id, LukeText src) {
   argus_js_image_raw(id.ptr, id.len, src.ptr, src.len);
 }
-static inline void argus_js_input(LukeText id, LukeText placeholder) {
-  argus_js_input_raw(id.ptr, id.len, placeholder.ptr, placeholder.len);
+static inline void argus_js_input(LukeText id, LukeText placeholder, double input_type) {
+  argus_js_input_raw(id.ptr, id.len, placeholder.ptr, placeholder.len, input_type);
 }
 static inline void argus_js_clear(void) { argus_js_clear_raw(); }
 #else
@@ -97,9 +99,10 @@ static inline void argus_js_image(LukeText id, LukeText src) {
   (void)id;
   (void)src;
 }
-static inline void argus_js_input(LukeText id, LukeText placeholder) {
+static inline void argus_js_input(LukeText id, LukeText placeholder, double input_type) {
   (void)id;
   (void)placeholder;
+  (void)input_type;
 }
 static inline void argus_js_clear(void) {}
 #endif
@@ -194,7 +197,7 @@ static inline void argus_paint(LukeArena *a) {
     if (n->kind == ARGUS_IMAGE)
       argus_js_image(id, n->src);
     else if (n->kind == ARGUS_INPUT)
-      argus_js_input(id, n->text);
+      argus_js_input(id, n->text, (double)n->input_type);
     else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON)
       argus_js_text(id, n->text);
     n->dirty = 0;
@@ -243,10 +246,11 @@ static inline int argus_place_box(LukeArena *a, LukeText id, double x, double y,
 }
 
 static inline int argus_place_input(LukeArena *a, LukeText id, double x, double y, double w,
-                                    double h, LukeText placeholder) {
+                                    double h, LukeText placeholder, double input_type) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_INPUT);
   argus_set_frame(n, x, y, w, h);
   argus_set_text(n, placeholder);
+  n->input_type = (int)input_type;
   return 1;
 }
 

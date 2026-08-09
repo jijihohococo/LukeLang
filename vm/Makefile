@@ -111,7 +111,10 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/web_app.luke -target browser -o build/web_app
 	@node ../scripts/luke_browser_loader.cjs build/web_app.wasm 2>&1 | grep -q "route_go"
 	@grep -q 'event:"route"' build/web_app.html
-	@grep -q 'argus_place_input\|hanka_slot_input' build/web_app.luke.c
+	@grep -q 'event:"fetch"' build/web_app.html
+	@grep -qE 'hanka_slot_input|argus_place_input' build/web_app.luke.c
+	@grep -q '_luke_fe_i' build/web_app.luke.c
+	@grep -q 'hanka_begin_row' build/web_app.luke.c
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

@@ -224,6 +224,8 @@ struct BC {
   int whenSeq = 0;
   std::vector<std::string> arenaMarks;
   std::vector<std::string> hankaStack; /* "COLUMN" | "ROW" | "STACK" */
+  std::vector<std::string> forEachVars;
+  int forEachSeq = 0;
   std::vector<std::string> attemptLabels;
   std::vector<bool> attemptHasOtherwise;
   std::map<std::string, BP> bps;
@@ -449,6 +451,14 @@ Expr BC::primary(std::string e, size_t line) {
         return {"(argus_clear(arena), 1)", Ty::flag()};
       }
       if (callee == "__luke_js_route_go") return mapCall("luke_js_route_go", Ty::flag(), false);
+      if (callee == "__luke_js_fetch_start") return mapCall("luke_js_fetch_start", Ty::flag(), false);
+      if (callee == "__luke_js_fetch_body") return mapCall("luke_js_fetch_body", Ty::text(), true);
+      if (callee == "__luke_js_fetch_status")
+        return mapCall("luke_js_fetch_status", Ty::num(), false);
+      if (callee == "__luke_js_fetch_ready") return mapCall("luke_js_fetch_ready", Ty::flag(), false);
+      if (callee == "__luke_looks_like_email")
+        return mapCall("luke_looks_like_email", Ty::flag(), false);
+      if (callee == "__luke_text_nonempty") return mapCall("luke_text_nonempty", Ty::flag(), false);
       if (callee == "__hanka_begin_column")
         return mapCall("hanka_begin_column", Ty::flag(), true);
       if (callee == "__hanka_begin_row") return mapCall("hanka_begin_row", Ty::flag(), true);
@@ -541,6 +551,20 @@ Expr BC::expr(std::string e, size_t line) {
   if (startsWithCI(e, "THE VALUE OF ")) {
     auto id = coerceText(expr(trim(e.substr(13)), line));
     return {"luke_js_get_value(arena, " + id.code + ")", Ty::text()};
+  }
+  if (startsWithCI(e, "THE BODY OF FETCH ")) {
+    auto id = coerceText(expr(trim(e.substr(18)), line));
+    return {"luke_js_fetch_body(arena, " + id.code + ")", Ty::text()};
+  }
+  if (startsWithCI(e, "THE STATUS OF FETCH ")) {
+    auto id = coerceText(expr(trim(e.substr(20)), line));
+    return {"luke_js_fetch_status(" + id.code + ")", Ty::num()};
+  }
+  if (startsWithCI(e, "FETCH ") && toUpper(e).find(" IS READY") != std::string::npos) {
+    auto U = toUpper(e);
+    auto ready = U.find(" IS READY");
+    auto id = coerceText(expr(trim(e.substr(6, ready - 6)), line));
+    return {"luke_js_fetch_ready(" + id.code + ")", Ty::flag()};
   }
 
   if (startsWithCI(e, "ASK ")) {
@@ -1025,6 +1049,43 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  }\n";
     return;
   }
+  if (startsWithCI(text, "FOR EACH ")) {
+    auto rest = trim(text.substr(9));
+    stripDo(rest);
+    auto U = toUpper(rest);
+    auto inPos = findOutsideQuotes(rest, U, " IN ");
+    if (inPos == std::string::npos) {
+      bc.fail(line, "FOR EACH needs: FOR EACH item IN list DO");
+      return;
+    }
+    auto varName = trim(rest.substr(0, inPos));
+    auto listE = bc.expr(trim(rest.substr(inPos + 4)), line);
+    bc.expectTy(line, listE.ty, Ty::list(), "FOR EACH … IN");
+    if (varName.empty()) {
+      bc.fail(line, "FOR EACH needs an item name");
+      return;
+    }
+    int id = ++bc.forEachSeq;
+    o << "  {\n";
+    o << "    double _luke_fe_n" << id << " = luke_list_len(" << listE.code << ");\n";
+    o << "    for (double _luke_fe_i" << id << " = 0; _luke_fe_i" << id << " < _luke_fe_n" << id
+      << "; _luke_fe_i" << id << " += 1) {\n";
+    o << "      LukeText " << cIdent(varName) << " = luke_list_get(" << listE.code << ", _luke_fe_i"
+      << id << ");\n";
+    bc.locals[varName] = Ty::text();
+    bc.forEachVars.push_back(varName);
+    return;
+  }
+  if (toUpper(text) == "END FOR" || toUpper(text) == "ENDFOR" || toUpper(text) == "END FOR EACH") {
+    if (bc.forEachVars.empty()) {
+      bc.fail(line, "END FOR without matching FOR EACH");
+      return;
+    }
+    bc.locals.erase(bc.forEachVars.back());
+    bc.forEachVars.pop_back();
+    o << "    }\n  }\n";
+    return;
+  }
   if (startsWithCI(text, "IN ARENA") || toUpper(text) == "IN ARENA DO") {
     std::string rest = startsWithCI(text, "IN ARENA") ? trim(text.substr(8)) : "";
     stripDo(rest);
@@ -1290,10 +1351,34 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
-  /* Production web — hash routing */
+  /* Production web — hash routing + async fetch */
   if (startsWithCI(text, "GO TO ")) {
     auto path = bc.coerceText(bc.expr(trim(text.substr(6)), line));
     o << "  luke_js_route_go(" << path.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "START FETCH ")) {
+    auto rest = trim(text.substr(12));
+    auto U = toUpper(rest);
+    /* START FETCH "job" GET "url"  |  START FETCH "job" POST "url" WITH body */
+    auto getPos = findOutsideQuotes(rest, U, " GET ");
+    auto postPos = findOutsideQuotes(rest, U, " POST ");
+    bool isPost = postPos != std::string::npos && (getPos == std::string::npos || postPos < getPos);
+    size_t methPos = isPost ? postPos : getPos;
+    if (methPos == std::string::npos) {
+      bc.fail(line, "START FETCH needs GET or POST — START FETCH \"job\" GET \"url\"");
+      return;
+    }
+    auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, methPos)), line));
+    auto after = trim(rest.substr(methPos + (isPost ? 6 : 5)));
+    auto aU = toUpper(after);
+    auto withPos = findOutsideQuotes(after, aU, " WITH ");
+    std::string urlPart = withPos == std::string::npos ? after : trim(after.substr(0, withPos));
+    auto urlE = bc.coerceText(bc.expr(urlPart, line));
+    Expr bodyE{"luke_text(\"\")", Ty::text()};
+    if (withPos != std::string::npos) bodyE = bc.coerceText(bc.expr(trim(after.substr(withPos + 6)), line));
+    o << "  luke_js_fetch_start(" << idE.code << ", luke_text(\"" << (isPost ? "POST" : "GET")
+      << "\"), " << urlE.code << ", " << bodyE.code << ");\n";
     return;
   }
 
@@ -1411,10 +1496,40 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     } else {
       idPart = trim(rest.substr(0, sizePos));
     }
+    int inputType = 0;
+    {
+      auto idU = toUpper(idPart);
+      auto asTy = findOutsideQuotes(idPart, idU, " AS ");
+      if (asTy != std::string::npos) {
+        auto ty = toUpper(trim(idPart.substr(asTy + 4)));
+        idPart = trim(idPart.substr(0, asTy));
+        if (ty == "PASSWORD") inputType = 1;
+        else if (ty == "EMAIL") inputType = 2;
+        else if (ty == "TEXT") inputType = 0;
+        else {
+          bc.fail(line, "INPUT AS needs TEXT, EMAIL, or PASSWORD — got " + ty);
+          return;
+        }
+      }
+    }
     auto idE = bc.coerceText(bc.expr(idPart, line));
     std::string atPart;
     if (hasAt) atPart = trim(rest.substr(atPos + 4, sizePos - (atPos + 4)));
     auto afterSize = trim(rest.substr(sizePos + 6));
+    {
+      auto aU = toUpper(afterSize);
+      size_t p = findOutsideQuotes(afterSize, aU, " AS PASSWORD");
+      if (p != std::string::npos) {
+        inputType = 1;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 12)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS EMAIL")) != std::string::npos) {
+        inputType = 2;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 9)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS TEXT")) != std::string::npos) {
+        inputType = 0;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 8)));
+      }
+    }
     auto sayPos = findOutsideQuotes(afterSize, toUpper(afterSize), " SAY ");
     auto fromPos = findOutsideQuotes(afterSize, toUpper(afterSize), " FROM ");
     std::string sizePart;
@@ -1483,10 +1598,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
       if (hasAt)
         o << "  hanka_slot_input_at(arena, " << idE.code << ", " << ox.code << ", " << oy.code
-          << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+          << ", " << w.code << ", " << h.code << ", " << t.code << ", " << inputType << ");\n";
       else
         o << "  hanka_slot_input(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
-          << t.code << ");\n";
+          << t.code << ", " << inputType << ");\n";
     } else {
       bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, BOX, or INPUT — got " + kindRaw);
     }
@@ -1518,6 +1633,21 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto kindRaw = toUpper(trim(rest.substr(asPos + 4, atPos - (asPos + 4))));
     auto atPart = trim(rest.substr(atPos + 4, sizePos - (atPos + 4)));
     auto afterSize = trim(rest.substr(sizePos + 6));
+    int inputType = 0;
+    {
+      auto aU = toUpper(afterSize);
+      size_t p = findOutsideQuotes(afterSize, aU, " AS PASSWORD");
+      if (p != std::string::npos) {
+        inputType = 1;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 12)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS EMAIL")) != std::string::npos) {
+        inputType = 2;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 9)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS TEXT")) != std::string::npos) {
+        inputType = 0;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 8)));
+      }
+    }
     auto sayPos = findOutsideQuotes(afterSize, toUpper(afterSize), " SAY ");
     auto fromPos = findOutsideQuotes(afterSize, toUpper(afterSize), " FROM ");
     std::string sizePart;
@@ -1563,7 +1693,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     } else if (kindRaw == "INPUT") {
       auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
       o << "  argus_place_input(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
-        << w.code << ", " << h.code << ", " << t.code << ");\n";
+        << w.code << ", " << h.code << ", " << t.code << ", " << inputType << ");\n";
     } else {
       bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, BOX, or INPUT — got " + kindRaw);
     }
@@ -1758,6 +1888,14 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN THE ROUTE IS needs a name — WHEN THE ROUTE IS \"home\" DO");
             return false;
           }
+        } else if (startsWithCI(rest, "FETCH ") && U.find(" IS READY") != std::string::npos) {
+          curWhen.event = "fetch";
+          auto ready = U.find(" IS READY");
+          curWhen.elementId = unquoteText(trim(rest.substr(6, ready - 6)));
+          if (curWhen.elementId.empty()) {
+            bc.fail(lineNo, "WHEN FETCH … IS READY needs a job id");
+            return false;
+          }
         } else {
           size_t evPos = std::string::npos;
           if ((evPos = U.find(" IS CLICKED")) != std::string::npos)
@@ -1767,8 +1905,8 @@ bool parse(BC &bc, const std::string &source) {
           else if ((evPos = U.find(" IS SUBMITTED")) != std::string::npos)
             curWhen.event = "submit";
           else {
-            bc.fail(lineNo,
-                    "WHEN needs IS CLICKED|CHANGED|SUBMITTED or THE ROUTE IS \"name\"");
+            bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
+                            "or FETCH … IS READY");
             return false;
           }
           curWhen.elementId = unquoteText(trim(rest.substr(0, evPos)));
@@ -2174,6 +2312,10 @@ std::string emit(BC &bc) {
   }
   if (!bc.hankaStack.empty()) {
     bc.fail(1, "Unclosed BEGIN " + bc.hankaStack.back() + " — missing END " + bc.hankaStack.back());
+    return {};
+  }
+  if (!bc.forEachVars.empty()) {
+    bc.fail(1, "Unclosed FOR EACH — missing END FOR");
     return {};
   }
   if (bc.forBrowser || !bc.pageWhens.empty()) {

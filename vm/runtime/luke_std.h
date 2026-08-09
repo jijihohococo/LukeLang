@@ -800,6 +800,44 @@ static inline int luke_js_route_go(LukeText path) {
   luke_js_route_go_raw(path.ptr, path.len);
   return 1;
 }
+
+__attribute__((import_module("lukejs"), import_name("fetch_start"))) void
+luke_js_fetch_start_raw(const char *id, size_t id_len, const char *method, size_t method_len,
+                        const char *url, size_t url_len, const char *body, size_t body_len);
+
+__attribute__((import_module("lukejs"), import_name("fetch_ready"))) double
+luke_js_fetch_ready_raw(const char *id, size_t id_len);
+
+__attribute__((import_module("lukejs"), import_name("fetch_status"))) double
+luke_js_fetch_status_raw(const char *id, size_t id_len);
+
+__attribute__((import_module("lukejs"), import_name("fetch_body"))) void
+luke_js_fetch_body_raw(const char *id, size_t id_len, char *out, size_t out_cap, size_t *out_len);
+
+static inline int luke_js_fetch_start(LukeText id, LukeText method, LukeText url, LukeText body) {
+  luke_js_fetch_start_raw(id.ptr, id.len, method.ptr, method.len, url.ptr, url.len, body.ptr,
+                          body.len);
+  return 1;
+}
+
+static inline int luke_js_fetch_ready(LukeText id) {
+  return luke_js_fetch_ready_raw(id.ptr, id.len) != 0.0;
+}
+
+static inline double luke_js_fetch_status(LukeText id) {
+  return luke_js_fetch_status_raw(id.ptr, id.len);
+}
+
+static inline LukeText luke_js_fetch_body(LukeArena *a, LukeText id) {
+  char tmp[65536];
+  size_t n = 0;
+  luke_js_fetch_body_raw(id.ptr, id.len, tmp, sizeof(tmp), &n);
+  if (n >= sizeof(tmp)) n = sizeof(tmp) - 1;
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  memcpy(p, tmp, n);
+  p[n] = '\0';
+  return luke_text_n(p, n);
+}
 #else
 static inline int luke_js_set_text(LukeText id, LukeText text) {
   (void)id;
@@ -843,7 +881,47 @@ static inline int luke_js_route_go(LukeText path) {
   (void)path;
   return 0;
 }
+static inline int luke_js_fetch_start(LukeText id, LukeText method, LukeText url, LukeText body) {
+  (void)id;
+  (void)method;
+  (void)url;
+  (void)body;
+  return 0;
+}
+static inline int luke_js_fetch_ready(LukeText id) {
+  (void)id;
+  return 0;
+}
+static inline double luke_js_fetch_status(LukeText id) {
+  (void)id;
+  return 0;
+}
+static inline LukeText luke_js_fetch_body(LukeArena *a, LukeText id) {
+  (void)a;
+  (void)id;
+  return luke_text("");
+}
 #endif
+
+/* ---------- validation helpers (all targets) ---------- */
+
+static inline int luke_text_nonempty(LukeText s) { return s.len > 0; }
+
+static inline int luke_looks_like_email(LukeText s) {
+  if (!s.ptr || s.len < 3) return 0;
+  size_t at = (size_t)-1;
+  for (size_t i = 0; i < s.len; ++i) {
+    if (s.ptr[i] == '@') {
+      if (at != (size_t)-1) return 0;
+      at = i;
+    }
+  }
+  if (at == (size_t)-1 || at == 0 || at + 1 >= s.len) return 0;
+  int dot = 0;
+  for (size_t i = at + 1; i < s.len; ++i)
+    if (s.ptr[i] == '.') dot = 1;
+  return dot;
+}
 
 #ifdef __cplusplus
 }

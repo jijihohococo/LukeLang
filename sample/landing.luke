@@ -1,17 +1,15 @@
-// sample/landing.luke — LukeLang-authored landing page
-// Fonts, CSS, markup, and title all come from Luke (not the C++ HTML shell).
+// sample/landing.luke — full LukeLang landing page
+// Fonts are local packs. Markup/CSS/title/events are Luke. Boot is Luke runtime.
 //
-// Build:
 //   cd vm && ./build/luke BUILD ../sample/landing.luke -target browser -o ../sample/dist/landing
-// Open:
-//   sample/dist/landing.html
 
 IMPORT std/js
 
 NAME THE PAGE "LukeLang"
 
-BRING FONT "Syne" FROM "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&display=swap"
-BRING FONT "Literata" FROM "https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap"
+BRING FONT "Syne" FROM "./fonts/syne-700.woff2"
+BRING FONT "Literata" FROM "./fonts/literata-400.woff2"
+BRING FONT "Literata" FROM "./fonts/literata-600.woff2"
 
 WEAR STYLE """
 :root {
@@ -19,7 +17,6 @@ WEAR STYLE """
   --fog: #e8eef2;
   --sea: #0e7c7b;
   --flare: #f4a259;
-  --line: rgba(16, 24, 32, 0.14);
 }
 * { box-sizing: border-box; }
 html, body {
@@ -27,7 +24,7 @@ html, body {
   min-height: 100%;
   color: var(--ink);
   background: var(--fog);
-  font-family: "Literata", "Iowan Old Style", Georgia, serif;
+  font-family: "Literata", Georgia, serif;
 }
 .hero {
   position: relative;
@@ -45,8 +42,8 @@ html, body {
   animation: hero-in 1s ease-out both;
 }
 .brand {
-  font-family: "Syne", "Avenir Next", "Segoe UI", sans-serif;
-  font-weight: 800;
+  font-family: "Syne", sans-serif;
+  font-weight: 700;
   font-size: clamp(3.4rem, 12vw, 7.5rem);
   line-height: 0.92;
   letter-spacing: -0.04em;
@@ -97,6 +94,7 @@ html, body {
   margin: 0;
   line-height: 1.55;
   color: rgba(16,24,32,0.82);
+  font-weight: 400;
 }
 @keyframes rise {
   from { opacity: 0; transform: translateY(0.7rem); }
@@ -105,9 +103,6 @@ html, body {
 @keyframes hero-in {
   from { opacity: 0.4; transform: scale(1.02); }
   to { opacity: 1; transform: none; }
-}
-@media (max-width: 640px) {
-  .hero { align-content: end; }
 }
 """
 
@@ -124,4 +119,6 @@ FILL "root" WITH """
 </section>
 """
 
-ASK jsOnClick WITH "cta", "cta-out", "Still LukeLang — Build mode, arena memory, no GC."
+WHEN "cta" IS CLICKED DO
+  FILL "cta-out" WITH "Still LukeLang — Build mode, arena memory, no GC."
+END WHEN

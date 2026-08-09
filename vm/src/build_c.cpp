@@ -105,6 +105,26 @@ size_t findOutsideQuotes(const std::string &orig, const std::string &origUpper,
   return std::string::npos;
 }
 
+std::string unquoteText(std::string s) {
+  s = trim(s);
+  if (s.size() >= 2 && ((s.front() == '"' && s.back() == '"') || (s.front() == '\'' && s.back() == '\''))) {
+    s = s.substr(1, s.size() - 2);
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+      if (s[i] == '\\' && i + 1 < s.size()) {
+        char n = s[++i];
+        if (n == 'n') out.push_back('\n');
+        else if (n == 't') out.push_back('\t');
+        else if (n == 'r') out.push_back('\r');
+        else out.push_back(n);
+      } else
+        out.push_back(s[i]);
+    }
+    return out;
+  }
+  return s;
+}
+
 enum class K { Num, Flag, Text, Json, List, Map, Void, Ptr };
 struct Ty {
   K k = K::Void;
@@ -201,6 +221,7 @@ struct BC {
   bool forBrowser = false;
   int arenaSeq = 0;
   int attemptSeq = 0;
+  int whenSeq = 0;
   std::vector<std::string> arenaMarks;
   std::vector<std::string> attemptLabels;
   std::vector<bool> attemptHasOtherwise;
@@ -213,6 +234,15 @@ struct BC {
   std::string curClass;
   Ty curRet = Ty::vod();
   bool hasCurRet = false;
+
+  /* Page manifest (browser) */
+  bool hasPage = false;
+  std::string pageTitle;
+  std::string pageStyle;
+  std::string pageBody;
+  std::vector<BrowserFont> pageFonts;
+  std::vector<BrowserWhen> pageWhens;
+  BrowserWhen *curWhen = nullptr;
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -1141,36 +1171,89 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
 
   /* Browser page ownership — conversational */
   if (startsWithCI(text, "BRING FONT FROM ")) {
-    auto href = bc.coerceText(bc.expr(trim(text.substr(16)), line));
-    o << "  luke_js_load_font(" << href.code << ");\n";
+    auto raw = trim(text.substr(16));
+    auto href = bc.coerceText(bc.expr(raw, line));
+    BrowserFont f;
+    f.family = "LukeFont";
+    f.hrefOrPath = unquoteText(raw);
+    f.local = !(startsWithCI(f.hrefOrPath, "http://") || startsWithCI(f.hrefOrPath, "https://"));
+    if (f.local) {
+      auto slash = f.hrefOrPath.find_last_of("/\\");
+      auto base = slash == std::string::npos ? f.hrefOrPath : f.hrefOrPath.substr(slash + 1);
+      f.outRelPath = "fonts/" + base;
+    }
+    bc.pageFonts.push_back(f);
+    bc.hasPage = true;
+    if (f.local) {
+      std::ostringstream face;
+      face << "@font-face{font-family:\"" << esc(f.family) << "\";src:url(\"" << esc(f.outRelPath)
+           << "\") format(\"woff2\");font-display:swap;}";
+      o << "  luke_js_add_style(luke_text(\"" << esc(face.str()) << "\"));\n";
+    } else {
+      o << "  luke_js_load_font(" << href.code << ");\n";
+    }
     return;
   }
   if (startsWithCI(text, "BRING FONT ")) {
-    /* BRING FONT "Name" FROM "url" — name is documentary; URL loads the face */
     auto rest = trim(text.substr(11));
-    auto U = toUpper(rest);
-    auto fr = U.find(" FROM ");
+    auto fr = findOutsideQuotes(rest, toUpper(rest), " FROM ");
     if (fr != std::string::npos) {
-      auto href = bc.coerceText(bc.expr(trim(rest.substr(fr + 6)), line));
-      o << "  luke_js_load_font(" << href.code << ");\n";
+      auto famRaw = trim(rest.substr(0, fr));
+      auto pathRaw = trim(rest.substr(fr + 6));
+      auto href = bc.coerceText(bc.expr(pathRaw, line));
+      BrowserFont f;
+      f.family = unquoteText(famRaw);
+      f.hrefOrPath = unquoteText(pathRaw);
+      f.local = !(startsWithCI(f.hrefOrPath, "http://") || startsWithCI(f.hrefOrPath, "https://"));
+      bc.pageFonts.push_back(f);
+      bc.hasPage = true;
+      if (f.local) {
+        auto slash = f.hrefOrPath.find_last_of("/\\");
+        auto base =
+            slash == std::string::npos ? f.hrefOrPath : f.hrefOrPath.substr(slash + 1);
+        bc.pageFonts.back().outRelPath = "fonts/" + base;
+        std::ostringstream face;
+        face << "@font-face{font-family:\"" << esc(f.family) << "\";src:url(\""
+             << esc(bc.pageFonts.back().outRelPath)
+             << "\") format(\"woff2\");font-display:swap;}";
+        o << "  luke_js_add_style(luke_text(\"" << esc(face.str()) << "\"));\n";
+      } else {
+        o << "  luke_js_load_font(" << href.code << ");\n";
+      }
       return;
     }
   }
   if (startsWithCI(text, "WEAR STYLE ")) {
-    auto css = bc.coerceText(bc.expr(trim(text.substr(11)), line));
+    auto raw = trim(text.substr(11));
+    auto css = bc.coerceText(bc.expr(raw, line));
+    auto cssText = unquoteText(raw);
+    if (!cssText.empty()) {
+      if (!bc.pageStyle.empty()) bc.pageStyle += "\n";
+      bc.pageStyle += cssText;
+      bc.hasPage = true;
+    }
     o << "  luke_js_add_style(" << css.code << ");\n";
     return;
   }
   if (startsWithCI(text, "NAME THE PAGE ")) {
-    auto title = bc.coerceText(bc.expr(trim(text.substr(14)), line));
+    auto raw = trim(text.substr(14));
+    auto title = bc.coerceText(bc.expr(raw, line));
+    bc.pageTitle = unquoteText(raw);
+    bc.hasPage = true;
     o << "  luke_js_set_title(" << title.code << ");\n";
     return;
   }
   if (startsWithCI(text, "FILL ") && findOutsideQuotes(text, toUpper(text), " WITH ") != std::string::npos) {
     auto rest = trim(text.substr(5));
     auto w = findOutsideQuotes(rest, toUpper(rest), " WITH ");
-    auto id = bc.coerceText(bc.expr(trim(rest.substr(0, w)), line));
-    auto html = bc.coerceText(bc.expr(trim(rest.substr(w + 6)), line));
+    auto idRaw = trim(rest.substr(0, w));
+    auto htmlRaw = trim(rest.substr(w + 6));
+    auto id = bc.coerceText(bc.expr(idRaw, line));
+    auto html = bc.coerceText(bc.expr(htmlRaw, line));
+    if (unquoteText(idRaw) == "root") {
+      bc.pageBody = unquoteText(htmlRaw);
+      bc.hasPage = true;
+    }
     o << "  luke_js_set_html(" << id.code << ", " << html.code << ");\n";
     return;
   }
@@ -1218,11 +1301,12 @@ bool parse(BC &bc, const std::string &source) {
   std::istringstream in(src);
   std::string raw;
   size_t lineNo = 0;
-  enum Mode { Top, InFn, InBp, InMeth };
+  enum Mode { Top, InFn, InBp, InMeth, InWhen };
   Mode mode = Top;
   Fn curFn;
   BP curBp;
   Method curM;
+  BrowserWhen curWhen;
   bool skipContract = false;
 
   while (std::getline(in, raw)) {
@@ -1350,7 +1434,38 @@ bool parse(BC &bc, const std::string &source) {
         mode = InBp;
         continue;
       }
+      if (startsWithCI(text, "WHEN ") && toUpper(text).find(" IS CLICKED") != std::string::npos) {
+        curWhen = {};
+        auto rest = trim(text.substr(5));
+        stripDo(rest);
+        auto U = toUpper(rest);
+        auto clicked = U.find(" IS CLICKED");
+        if (clicked == std::string::npos) {
+          bc.fail(lineNo, "WHEN … IS CLICKED — tell me which element");
+          return false;
+        }
+        curWhen.elementId = unquoteText(trim(rest.substr(0, clicked)));
+        if (curWhen.elementId.empty()) {
+          bc.fail(lineNo, "WHEN needs an element id — WHEN \"cta\" IS CLICKED DO");
+          return false;
+        }
+        curWhen.exportName = "luke_when_" + std::to_string(bc.whenSeq++);
+        mode = InWhen;
+        continue;
+      }
       bc.top.push_back({lineNo, text});
+      continue;
+    }
+
+    if (mode == InWhen) {
+      if (toUpper(text) == "END WHEN" || toUpper(text) == "ENDWHEN") {
+        bc.pageWhens.push_back(curWhen);
+        bc.hasPage = true;
+        mode = Top;
+        continue;
+      }
+      curWhen.body.push_back(text);
+      curWhen.lines.push_back(lineNo);
       continue;
     }
 
@@ -1689,10 +1804,31 @@ std::string emit(BC &bc) {
   bc.curClass.clear();
   bc.hasCurRet = false;
   bc.curRet = Ty::vod();
+
+  if (bc.forBrowser || !bc.pageWhens.empty())
+    o << "static LukeArena *luke_page_arena = NULL;\n\n";
+
+  if (!bc.pageWhens.empty()) {
+    for (auto &w : bc.pageWhens) {
+      o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
+      o << "void " << w.exportName << "(void) {\n";
+      o << "  LukeArena *arena = luke_page_arena;\n";
+      o << "  if (!arena) return;\n";
+      bc.locals.clear();
+      for (size_t i = 0; i < w.body.size(); ++i) {
+        stmt(bc, w.body[i], w.lines[i], o);
+        if (bc.bad) return {};
+      }
+      o << "}\n\n";
+    }
+  }
+
   o << "int main(int argc, char **argv) {\n";
   o << "  luke_runtime_set_args(argc, argv);\n";
   o << "  LukeArena arena_storage; LukeArena *arena = &arena_storage;\n";
   o << "  luke_arena_init(arena, 1u<<20);\n";
+  if (bc.forBrowser || !bc.pageWhens.empty())
+    o << "  luke_page_arena = arena;\n";
   for (auto &tl : bc.top) {
     stmt(bc, tl.second, tl.first, o);
     if (bc.bad) return {};
@@ -1701,7 +1837,12 @@ std::string emit(BC &bc) {
     bc.fail(1, "Unclosed IN ARENA — missing END ARENA");
     return {};
   }
-  o << "  luke_arena_free(arena);\n  return 0;\n}\n";
+  if (bc.forBrowser || !bc.pageWhens.empty()) {
+    /* Keep arena alive for WHEN handlers / page lifetime. */
+    o << "  return 0;\n}\n";
+  } else {
+    o << "  luke_arena_free(arena);\n  return 0;\n}\n";
+  }
   return o.str();
 }
 
@@ -1928,6 +2069,12 @@ static BuildResult compileExpanded(const std::string &expanded, const BuildOptio
   }
   r.ok = true;
   r.cSource = std::move(c);
+  r.hasPage = bc.hasPage;
+  r.pageTitle = bc.pageTitle;
+  r.pageStyle = bc.pageStyle;
+  r.pageBody = bc.pageBody;
+  r.pageFonts = bc.pageFonts;
+  r.pageWhens = bc.pageWhens;
   return r;
 }
 

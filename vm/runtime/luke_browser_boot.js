@@ -223,43 +223,21 @@ function runLukeWasm(wasmBytes, opts) {
     } catch (e) {
       if (e && typeof e.exitCode === "number") {
         if (e.exitCode !== 0) throw e;
-        wireLukeWhens(instance, opts && opts.whens);
-        return { code: e.exitCode, instance: instance };
+        return e.exitCode;
       }
       throw e;
     }
-    wireLukeWhens(instance, opts && opts.whens);
-    return { code: 0, instance: instance };
+    return 0;
   });
 }
 
-function wireLukeWhens(instance, whens) {
-  if (!instance || !whens || !whens.length || typeof document === "undefined") return;
-  for (var i = 0; i < whens.length; i++) {
-    (function (w) {
-      var el = document.getElementById(w.id);
-      var fn = instance.exports[w.export];
-      if (!el || typeof fn !== "function") return;
-      el.addEventListener("click", function () {
-        try {
-          fn();
-        } catch (e) {
-          console.error(e);
-        }
-      });
-    })(whens[i]);
-  }
-}
-
-function browserBootstrap(wasmUrl, opts) {
-  opts = opts || {};
+function browserBootstrap(wasmUrl) {
   return fetch(wasmUrl)
     .then(function (r) {
       return r.arrayBuffer();
     })
     .then(function (b) {
       return runLukeWasm(new Uint8Array(b), {
-        whens: opts.whens || [],
         onWrite: function (fd, text) {
           var el = document.getElementById("luke-out");
           if (el) el.textContent += text;
@@ -273,7 +251,6 @@ if (typeof window !== "undefined") {
   window.createLukeWasi = createLukeWasi;
   window.createLukeJs = createLukeJs;
   window.runLukeWasm = runLukeWasm;
-  window.wireLukeWhens = wireLukeWhens;
   window.browserBootstrap = browserBootstrap;
 }
 
@@ -282,7 +259,6 @@ if (typeof module !== "undefined" && module.exports) {
     createLukeWasi: createLukeWasi,
     createLukeJs: createLukeJs,
     runLukeWasm: runLukeWasm,
-    wireLukeWhens: wireLukeWhens,
     browserBootstrap: browserBootstrap,
   };
 }
@@ -301,8 +277,8 @@ if (isNode) {
   }
   var fs = require("fs");
   runLukeWasm(fs.readFileSync(path))
-    .then(function (res) {
-      process.exit((res && res.code) || 0);
+    .then(function (code) {
+      process.exit(code || 0);
     })
     .catch(function (e) {
       console.error(e);

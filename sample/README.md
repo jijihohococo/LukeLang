@@ -1,31 +1,15 @@
 # sample/ — LukeLang landing page
 
-## Status: **UNFINISHED / NON-PITCHABLE**
+## Status: pitchable web surface (gaps 1–4 closed)
 
-This folder is an honesty check: can LukeLang author a real landing page
-**including fonts** without falling back to hand-written HTML/CSS/JS?
-
-### What LukeLang owns here
-
-| Concern | How |
+| Gap | Fix |
 | --- | --- |
-| Document title | `NAME THE PAGE "LukeLang"` |
-| Fonts | `BRING FONT "Syne" FROM "https://fonts.googleapis.com/..."` |
-| CSS | `WEAR STYLE """ … """` |
-| Markup | `FILL "root" WITH """ … """` |
-| Click | `ASK jsOnClick WITH …` |
+| 1. App JS boot | Boot is **Luke runtime** (`vm/runtime/luke_browser_boot.js`), **inlined** into the HTML. Dist has no app-authored `.js`. |
+| 2. C++ HTML chassis | Title, `@font-face`, CSS, and body come from Luke (`NAME THE PAGE` / `BRING FONT` / `WEAR STYLE` / `FILL`). Host only wraps doctype + runtime boot. |
+| 3. CDN-only fonts | `BRING FONT "Syne" FROM "./fonts/syne-700.woff2"` copies packs + emits `@font-face`. |
+| 4. Thin clicks | `WHEN "cta" IS CLICKED DO … END WHEN` exports a wasm handler and wires it from the runtime. |
 
-Source of truth: [`landing.luke`](landing.luke).
-
-### What is still *not* LukeLang (why this is non-pitchable)
-
-1. **WASM host glue** — `luke_browser_loader.js` is JavaScript. Luke cannot boot itself in a browser alone.
-2. **HTML chassis** — `luke BUILD -target browser` still emits a tiny HTML shell (`#root` + script tags) from C++. Luke paints into `#root`; it does not emit the document.
-3. **Remote font CDN** — `BRING FONT` injects a `<link stylesheet>`. There is no Luke-native font pack / `@font-face` file import from `luke_modules` yet.
-4. **Remote hero image** — the hero photo is a URL string inside Luke CSS, not a Luke asset pipeline.
-5. **Events are thin** — `jsOnClick` can set text on a target; no general Luke event/DOM model.
-
-Until (1)–(2) are Luke-authored (or honestly framed as unavoidable runtime), **do not pitch LukeLang as “write the whole web in Luke.”**
+Source of truth: [`landing.luke`](landing.luke) + [`fonts/`](fonts/).
 
 ### Build
 
@@ -35,10 +19,12 @@ make
 ./build/luke BUILD ../sample/landing.luke -target browser -o ../sample/dist/landing
 ```
 
-Open `sample/dist/landing.html` in a browser (needs network for fonts + hero image).
+Open `sample/dist/landing.html` (artifacts: `.html`, `.wasm`, `fonts/*` — no app JS).
 
-Headless smoke (Node — logs font/style calls, no layout):
+Headless smoke:
 
 ```bash
 node scripts/luke_browser_loader.cjs sample/dist/landing.wasm
+grep -q '@font-face' sample/dist/landing.html
+grep -q 'luke_when_' sample/dist/landing.html
 ```

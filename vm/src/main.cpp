@@ -113,6 +113,10 @@ std::string findWasiClang() {
 
 std::string findBrowserLoaderSrc() {
   const char *candidates[] = {
+      "runtime/luke_browser_boot.js",
+      "../runtime/luke_browser_boot.js",
+      "vm/runtime/luke_browser_boot.js",
+      "/workspace/vm/runtime/luke_browser_boot.js",
       "../scripts/luke_browser_loader.cjs",
       "scripts/luke_browser_loader.cjs",
       "/workspace/scripts/luke_browser_loader.cjs",
@@ -148,25 +152,71 @@ std::string escapeHtml(const std::string &s) {
   return o;
 }
 
-std::string makeBrowserHtml(const std::string &wasmFile, const std::string &title) {
-  /* Blank canvas on purpose: fonts, CSS, and markup must come from LukeLang
-   * (BRING FONT / WEAR STYLE / FILL). Host only boots WASM. */
+std::string jsonQuote(const std::string &s) {
   std::ostringstream o;
+  o << '"';
+  for (char c : s) {
+    if (c == '\\' || c == '"') o << '\\' << c;
+    else if (c == '\n') o << "\\n";
+    else o << c;
+  }
+  o << '"';
+  return o.str();
+}
+
+std::string stripBootForInline(std::string boot) {
+  auto pos = boot.find("\nvar isNode");
+  if (pos == std::string::npos) pos = boot.find("var isNode");
+  if (pos != std::string::npos) boot = boot.substr(0, pos);
+  size_t p = 0;
+  while ((p = boot.find("</script>", p)) != std::string::npos) {
+    boot.replace(p, 9, "<\\/script>");
+    p += 10;
+  }
+  return boot;
+}
+
+std::string makeBrowserHtml(const std::string &wasmFile, const luke::BuildResult &page) {
+  /* Luke owns title/fonts/CSS/body. Boot is Luke runtime inlined (not app JS). */
+  std::ostringstream o;
+  std::string title = page.pageTitle.empty() ? "LukeLang" : page.pageTitle;
   o << "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
     << "  <meta charset=\"utf-8\" />\n"
     << "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
-    << "  <title>" << escapeHtml(title) << "</title>\n"
-    << "  <style>html,body{margin:0;min-height:100%}#luke-out{position:absolute;width:1px;height:1px;"
-       "overflow:hidden;clip:rect(0,0,0,0)}</style>\n"
-    << "</head>\n<body>\n"
-    << "  <div id=\"root\"></div>\n"
-    << "  <pre id=\"luke-out\"></pre>\n"
-    << "<script src=\"./luke_browser_loader.js\"></script>\n"
-    << "<script>\n"
-    << "  browserBootstrap(\"./" << escapeHtml(wasmFile) << "\")"
+    << "  <title>" << escapeHtml(title) << "</title>\n";
+  for (auto &f : page.pageFonts) {
+    if (f.local) continue;
+    o << "  <link rel=\"stylesheet\" href=\"" << escapeHtml(f.hrefOrPath)
+      << "\" data-luke=\"bring-font\" />\n";
+  }
+  o << "  <style>\n";
+  for (auto &f : page.pageFonts) {
+    if (!f.local) continue;
+    std::string rel = f.outRelPath.empty() ? f.hrefOrPath : f.outRelPath;
+    o << "@font-face{font-family:\"" << escapeHtml(f.family) << "\";src:url(\"" << escapeHtml(rel)
+      << "\") format(\"woff2\");font-display:swap;}\n";
+  }
+  o << "html,body{margin:0;min-height:100%}\n";
+  o << "#luke-out{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}\n";
+  o << page.pageStyle << "\n";
+  o << "  </style>\n</head>\n<body>\n";
+  o << "  <div id=\"root\">" << page.pageBody << "</div>\n";
+  o << "  <pre id=\"luke-out\"></pre>\n";
+
+  std::string bootSrc = findBrowserLoaderSrc();
+  std::string boot = bootSrc.empty() ? "" : stripBootForInline(readFile(bootSrc));
+  o << "<script>\n" << boot << "\n";
+  o << "var LUKE_WHENS = [";
+  for (size_t i = 0; i < page.pageWhens.size(); ++i) {
+    if (i) o << ",";
+    o << "{id:" << jsonQuote(page.pageWhens[i].elementId)
+      << ",export:" << jsonQuote(page.pageWhens[i].exportName) << "}";
+  }
+  o << "];\n";
+  o << "browserBootstrap(\"./" << escapeHtml(wasmFile) << "\", { whens: LUKE_WHENS })"
     << ".catch(function(e){ console.error(e); "
-       "var r=document.getElementById('root'); if(r) r.textContent=String(e); });\n"
-    << "</script>\n</body>\n</html>\n";
+       "var r=document.getElementById('root'); if(r) r.textContent=String(e); });\n";
+  o << "</script>\n</body>\n</html>\n";
   return o.str();
 }
 
@@ -244,27 +294,46 @@ int runPlay(const std::string &path, bool forceVm) {
   return runViaVm(path);
 }
 
-int emitBrowserGlue(const std::string &stem, const std::string &wasmBasename) {
-  std::string loaderSrc = findBrowserLoaderSrc();
-  if (loaderSrc.empty()) {
-    std::cerr << "Error: could not find scripts/luke_browser_loader.cjs\n";
-    return 1;
-  }
-  std::string loader = readFile(loaderSrc);
+int emitBrowserGlue(const std::string &stem, const std::string &wasmBasename,
+                    const luke::BuildResult &built, const std::string &sourcePath) {
   std::string outDir = dirnameOf(stem);
-  std::string loaderOut = outDir + "/luke_browser_loader.js";
-  // Browser <script src> wants .js; content is plain JS (CJS guards are inert in browsers).
-  if (!writeFile(loaderOut, loader)) {
-    std::cerr << "Error: could not write " << loaderOut << "\n";
-    return 1;
+  std::string srcDir = dirnameOf(sourcePath);
+
+  /* Copy local Luke font packs beside the HTML. */
+  bool needFontsDir = false;
+  for (auto &f : built.pageFonts)
+    if (f.local) needFontsDir = true;
+  if (needFontsDir) {
+    std::string mk = "mkdir -p \"" + outDir + "/fonts\"";
+    std::system(mk.c_str());
   }
+  luke::BuildResult page = built;
+  for (auto &f : page.pageFonts) {
+    if (!f.local) continue;
+    std::string from = f.hrefOrPath;
+    if (!from.empty() && from[0] != '/') from = srcDir + "/" + from;
+    if (f.outRelPath.empty()) {
+      auto slash = f.hrefOrPath.find_last_of("/\\");
+      auto base =
+          slash == std::string::npos ? f.hrefOrPath : f.hrefOrPath.substr(slash + 1);
+      f.outRelPath = "fonts/" + base;
+    }
+    std::string to = outDir + "/" + f.outRelPath;
+    std::string cp = "cp -f \"" + from + "\" \"" + to + "\"";
+    if (std::system(cp.c_str()) != 0) {
+      std::cerr << "Error: could not copy font pack " << from << " → " << to << "\n";
+      return 1;
+    }
+    std::cerr << "  font pack " << f.family << " → " << to << "\n";
+  }
+
   std::string htmlPath = stem + ".html";
-  // wasm file may be stem.wasm — basename for relative URL
-  if (!writeFile(htmlPath, makeBrowserHtml(wasmBasename, basenameNoExt(stem)))) {
+  if (!writeFile(htmlPath, makeBrowserHtml(wasmBasename, page))) {
     std::cerr << "Error: could not write " << htmlPath << "\n";
     return 1;
   }
-  std::cerr << "Browser glue → " << htmlPath << " + " << loaderOut << "\n";
+  /* Boot is inlined into HTML from vm/runtime — no app-authored JS file. */
+  std::cerr << "Browser page → " << htmlPath << " (Luke content + runtime boot inlined)\n";
   return 0;
 }
 
@@ -340,7 +409,7 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
       stem = stem.substr(0, stem.size() - 5);
     std::string wasmBase = basenameNoExt(binary) + ".wasm";
     // If binary is path/foo.wasm, html sits next to it as path/foo.html
-    int g = emitBrowserGlue(stem, wasmBase);
+    int g = emitBrowserGlue(stem, wasmBase, built, path);
     if (g != 0) return g;
     std::cerr << "Build ok → " << binary << " (browser wasm, no GC)\n";
     std::cerr << "  Open " << stem << ".html in a browser (or: node ../scripts/luke_browser_loader.cjs "

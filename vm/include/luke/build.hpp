@@ -15,6 +15,21 @@ struct BuildOptions {
   bool expandCImports = true;
 };
 
+struct BrowserFont {
+  std::string family;
+  std::string hrefOrPath;   // remote URL or local path as written in source
+  std::string resolvedPath; // resolved filesystem path when local
+  std::string outRelPath;   // e.g. fonts/syne-700.woff2 beside HTML
+  bool local = false;
+};
+
+struct BrowserWhen {
+  std::string elementId;
+  std::string exportName; // luke_when_0
+  std::vector<std::string> body;
+  std::vector<size_t> lines;
+};
+
 struct BuildResult {
   bool ok = false;
   std::string cSource;
@@ -25,21 +40,24 @@ struct BuildResult {
   std::string expandedSource;          // Build IR text after IMPORT expansion
   std::string irSummary;               // human/machine IR dump
   bool unsupportedForBuild = false;    // Play-only feature; SHOW may fall back to VM
+
+  /* Browser page owned by Luke (content baked into HTML; boot is runtime). */
+  bool hasPage = false;
+  std::string pageTitle;
+  std::string pageStyle;
+  std::string pageBody; // FILL "root" markup
+  std::vector<BrowserFont> pageFonts;
+  std::vector<BrowserWhen> pageWhens;
 };
 
 // Compile Luke source to standalone C (Build mode: no GC, arena runtime).
-// Supports IMPORT relative / std/ / luke/ / c:<lib>, and FOREIGN FUNCTION.
 BuildResult compileLukeToC(const std::string &source, const BuildOptions &options = {});
 
-// Shared frontend: expand IMPORT lines (used by Build and Play).
-// On failure, sets result.error and returns {}.
 std::string expandLukeImports(const std::string &source, const BuildOptions &options,
                               BuildResult *meta = nullptr);
 
-// Strip Build-only annotations so Play's bytecode compiler can ingest Build IR text.
 std::string softenBuildSurfaceForPlay(const std::string &expanded);
 
-// Analyze / dump Build IR without requiring a full native link.
 BuildResult analyzeLukeBuild(const std::string &source, const BuildOptions &options = {});
 
 }  // namespace luke

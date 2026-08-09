@@ -67,17 +67,23 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 
 ```luke
 NAME THE PAGE "LukeLang"
-BRING FONT "Syne" FROM "https://fonts.googleapis.com/css2?family=Syne:wght@700&display=swap"
+BRING FONT "Syne" FROM "./fonts/syne-700.woff2"   # local pack → @font-face + copy
 WEAR STYLE """
   body { font-family: Syne, sans-serif; }
 """
 FILL "root" WITH """
   <h1>LukeLang</h1>
+  <button id="go">Go</button>
+  <p id="out"></p>
 """
+WHEN "go" IS CLICKED DO
+  FILL "out" WITH "Still LukeLang."
+END WHEN
 ```
 
-Host HTML is a blank `#root` canvas — fonts/CSS/markup must come from Luke.
-See `sample/` (currently **non-pitchable**: WASM boot glue is still JS).
+`-target browser` emits HTML with Luke title/CSS/body/fonts **baked in**, wasm beside it, and **inlines** `vm/runtime/luke_browser_boot.js` (runtime — not app JS). Dist has no `luke_browser_loader.js`.
+
+See `sample/landing.luke`.
 
 ### Collections + problems (conversational)
 

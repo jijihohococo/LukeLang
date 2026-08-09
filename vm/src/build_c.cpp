@@ -432,16 +432,19 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_js_add_style") return mapCall("luke_js_add_style", Ty::flag(), false);
       if (callee == "__luke_js_load_font") return mapCall("luke_js_load_font", Ty::flag(), false);
       if (callee == "__luke_js_set_title") return mapCall("luke_js_set_title", Ty::flag(), false);
-      if (callee == "__luke_render_place_text")
-        return mapCall("luke_render_place_text", Ty::flag(), true);
-      if (callee == "__luke_render_place_button")
-        return mapCall("luke_render_place_button", Ty::flag(), true);
-      if (callee == "__luke_render_place_image")
-        return mapCall("luke_render_place_image", Ty::flag(), true);
-      if (callee == "__luke_render_place_box")
-        return mapCall("luke_render_place_box", Ty::flag(), true);
-      if (callee == "__luke_render_paint") {
-        return {"(luke_render_paint(arena), 1)", Ty::flag()};
+      if (callee == "__argus_place_text" || callee == "__luke_render_place_text")
+        return mapCall("argus_place_text", Ty::flag(), true);
+      if (callee == "__argus_place_button" || callee == "__luke_render_place_button")
+        return mapCall("argus_place_button", Ty::flag(), true);
+      if (callee == "__argus_place_image" || callee == "__luke_render_place_image")
+        return mapCall("argus_place_image", Ty::flag(), true);
+      if (callee == "__argus_place_box" || callee == "__luke_render_place_box")
+        return mapCall("argus_place_box", Ty::flag(), true);
+      if (callee == "__argus_paint" || callee == "__luke_render_paint") {
+        return {"(argus_paint(arena), 1)", Ty::flag()};
+      }
+      if (callee == "__argus_clear") {
+        return {"(argus_clear(arena), 1)", Ty::flag()};
       }
       fail(line, "Unknown native helper '" + callee +
                      "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
@@ -1269,9 +1272,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
-  /* luke-render — conversational scene presentment (DOM backend) */
+  /* Argus — conversational scene presentment (DOM backend) */
   if (toUpper(text) == "PAINT THE SCREEN" || toUpper(text) == "PAINT SCREEN") {
-    o << "  luke_render_paint(arena);\n";
+    o << "  argus_paint(arena);\n";
+    return;
+  }
+  if (toUpper(text) == "CLEAR THE SCREEN" || toUpper(text) == "CLEAR SCREEN") {
+    o << "  argus_clear(arena);\n";
     return;
   }
   if (startsWithCI(text, "PLACE ")) {
@@ -1318,18 +1325,18 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     bc.expectTy(line, h.ty, Ty::num(), "PLACE SIZE h");
     if (kindRaw == "TEXT") {
       auto t = bc.coerceText(bc.expr(trail, line));
-      o << "  luke_render_place_text(arena, " << idE.code << ", " << x.code << ", " << y.code
-        << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+      o << "  argus_place_text(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
     } else if (kindRaw == "BUTTON") {
       auto t = bc.coerceText(bc.expr(trail, line));
-      o << "  luke_render_place_button(arena, " << idE.code << ", " << x.code << ", " << y.code
-        << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+      o << "  argus_place_button(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
     } else if (kindRaw == "IMAGE") {
       auto t = bc.coerceText(bc.expr(trail, line));
-      o << "  luke_render_place_image(arena, " << idE.code << ", " << x.code << ", " << y.code
-        << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+      o << "  argus_place_image(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
     } else if (kindRaw == "BOX") {
-      o << "  luke_render_place_box(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+      o << "  argus_place_box(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
         << w.code << ", " << h.code << ");\n";
     } else {
       bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, or BOX — got " + kindRaw);
@@ -1725,7 +1732,7 @@ std::string emit(BC &bc) {
   if (bc.forBrowser) o << "#define LUKE_BROWSER 1\n";
   o << "#include \"luke_rt.h\"\n";
   o << "#include \"luke_std.h\"\n";
-  o << "#include \"luke_render.h\"\n";
+  o << "#include \"argus.h\"\n";
   o << "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n";
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";

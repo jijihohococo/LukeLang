@@ -34,7 +34,7 @@ This documentation serves as a comprehensive guide for learners and developers, 
 
 5.  **Engine track**
     *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
-    *   [Rendering Engine](./RENDERING_ENGINE.md) — `luke-render` (DOM presentment)
+    *   [Argus](./ARGUS.md) — rendering engine (DOM presentment)
     *   [Layout Engine](./LAYOUT_ENGINE.md) — future job (parked)
 
 6.  **[Contributor Guide](./contributor_guide.md)**

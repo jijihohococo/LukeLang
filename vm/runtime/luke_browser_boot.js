@@ -202,21 +202,21 @@ function createLukeJs(getMemory, opts) {
       else if (opts.onJsSetTitle) opts.onJsSetTitle(title);
       else console.log("[jsSetTitle] " + title);
     },
-    render_clear: function () {
+    argus_clear: function () {
       if (typeof document === "undefined") return;
       var root = document.getElementById("root");
       if (root) root.innerHTML = "";
     },
-    render_upsert: function (idPtr, idLen, kind) {
+    argus_upsert: function (idPtr, idLen, kind) {
       const id = readText(idPtr, idLen);
       if (typeof document === "undefined") {
-        console.log("[render_upsert]", id, kind);
+        console.log("[argus_upsert]", id, kind);
         return;
       }
       var root = document.getElementById("root");
       if (!root) return;
-      if (!root.getAttribute("data-luke-render")) {
-        root.setAttribute("data-luke-render", "1");
+      if (!root.getAttribute("data-argus")) {
+        root.setAttribute("data-argus", "1");
         root.style.position = "relative";
         root.style.width = "100vw";
         root.style.height = "100vh";
@@ -228,7 +228,7 @@ function createLukeJs(getMemory, opts) {
         var k = kind | 0;
         el = document.createElement(k === 2 ? "button" : "div");
         el.id = id;
-        el.setAttribute("data-luke-node", String(k));
+        el.setAttribute("data-argus-node", String(k));
         el.style.position = "absolute";
         el.style.boxSizing = "border-box";
         el.style.margin = "0";
@@ -246,10 +246,10 @@ function createLukeJs(getMemory, opts) {
         root.appendChild(el);
       }
     },
-    render_frame: function (idPtr, idLen, x, y, w, h, opacity) {
+    argus_frame: function (idPtr, idLen, x, y, w, h, opacity) {
       const id = readText(idPtr, idLen);
       if (typeof document === "undefined") {
-        console.log("[render_frame]", id, x, y, w, h, opacity);
+        console.log("[argus_frame]", id, x, y, w, h, opacity);
         return;
       }
       var el = document.getElementById(id);
@@ -260,22 +260,22 @@ function createLukeJs(getMemory, opts) {
       el.style.height = h + "px";
       el.style.opacity = String(opacity);
     },
-    render_text: function (idPtr, idLen, textPtr, textLen) {
+    argus_text: function (idPtr, idLen, textPtr, textLen) {
       const id = readText(idPtr, idLen);
       const text = readText(textPtr, textLen);
       if (typeof document === "undefined") {
-        console.log("[render_text]", id, text);
+        console.log("[argus_text]", id, text);
         return;
       }
       var el = document.getElementById(id);
       if (!el) return;
       el.textContent = text;
     },
-    render_image: function (idPtr, idLen, srcPtr, srcLen) {
+    argus_image: function (idPtr, idLen, srcPtr, srcLen) {
       const id = readText(idPtr, idLen);
       const src = readText(srcPtr, srcLen);
       if (typeof document === "undefined") {
-        console.log("[render_image]", id, src);
+        console.log("[argus_image]", id, src);
         return;
       }
       var el = document.getElementById(id);

@@ -249,17 +249,17 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 
 ### Rendering / layout (engine track)
 
-- **Rendering engine (now):** [`RENDERING_ENGINE.md`](./RENDERING_ENGINE.md) — `PLACE` / `PAINT THE SCREEN`, Luke scene → DOM presentment (`luke-render`).
+- **Argus (rendering engine, now):** [`ARGUS.md`](./ARGUS.md) — `PLACE` / `PAINT THE SCREEN`, Luke scene → DOM presentment.
 - **Layout engine (future):** [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md) — parked; do not build until paint/dirty path is solid.
 
 ```luke
-IMPORT std/render
+IMPORT std/argus
 PLACE "brand" AS TEXT AT 48, 420 SIZE 900, 80 SAY "LukeLang"
 PAINT THE SCREEN
 ```
 
 ```bash
-luke BUILD examples/build/render_demo.luke -target browser -o build/render_demo
+luke BUILD examples/build/argus_demo.luke -target browser -o build/argus_demo
 ```
 
 ## Philosophy

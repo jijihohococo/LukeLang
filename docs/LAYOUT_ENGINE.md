@@ -2,7 +2,7 @@
 
 > **Status:** Not started. Parked on purpose.  
 > **Do not build yet.** Rendering engine lands first (DOM presentment + Luke scene terms).  
-> **Owner path:** after `luke-render` can mount/paint/dirty-update nodes.
+> **Owner path:** after Argus can mount/paint/dirty-update nodes.
 
 ## Intent
 
@@ -10,7 +10,7 @@ Luke owns **layout numbers** (x, y, w, h).
 Browser flex/grid is **not** the source of truth.
 
 ```text
-Luke UI terms → Layout Engine (future) → frames → Rendering Engine (now) → DOM
+Luke UI terms → Layout Engine (future) → frames → Argus (now) → DOM
 ```
 
 Pixel-perfect + speed requires this split. Rendering can proceed with **explicit frames**
@@ -56,10 +56,10 @@ Layout emits frames; render paints them.
 
 1. Same Luke UI tree lays out deterministically at a given viewport
 2. No dependency on CSS flex for app layout
-3. Frames feed existing `luke-render` without HTML string rebuilds
+3. Frames feed existing Argus without HTML string rebuilds
 4. Docs + tests for Column/Row/Stack
 
 ## Related
 
-- Current work: [`RENDERING_ENGINE.md`](./RENDERING_ENGINE.md)
+- Current work: [`ARGUS.md`](./ARGUS.md)
 - Doctrine: Build AOT + arena; speed first; DOM presentment (not Skia)

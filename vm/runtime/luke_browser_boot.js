@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Minimal browser / Node loader for Luke Build WASM (WASI + optional lukejs).
  * Usage:
@@ -202,6 +201,15 @@ function createLukeJs(getMemory, opts) {
       else if (opts.onJsSetTitle) opts.onJsSetTitle(title);
       else console.log("[jsSetTitle] " + title);
     },
+    route_go: function (pathPtr, pathLen) {
+      var path = readText(pathPtr, pathLen).replace(/^\//, "");
+      if (typeof location !== "undefined") {
+        var next = "#/" + path;
+        if (location.hash !== next) location.hash = next;
+        else if (typeof globalThis.__lukeDispatchRoute === "function")
+          globalThis.__lukeDispatchRoute();
+      } else console.log("[route_go]", path);
+    },
     argus_clear: function () {
       if (typeof document === "undefined") return;
       var root = document.getElementById("root");
@@ -226,7 +234,8 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) {
         var k = kind | 0;
-        el = document.createElement(k === 2 ? "button" : "div");
+        var tag = k === 2 ? "button" : k === 4 ? "input" : "div";
+        el = document.createElement(tag);
         el.id = id;
         el.setAttribute("data-argus-node", String(k));
         el.style.position = "absolute";
@@ -242,6 +251,11 @@ function createLukeJs(getMemory, opts) {
           el.style.backgroundSize = "cover";
           el.style.backgroundPosition = "center";
           el.style.backgroundRepeat = "no-repeat";
+        }
+        if (k === 4) {
+          el.type = "text";
+          el.style.font = "inherit";
+          el.style.padding = "0 12px";
         }
         root.appendChild(el);
       }
@@ -282,6 +296,17 @@ function createLukeJs(getMemory, opts) {
       if (!el) return;
       el.style.backgroundImage = src ? 'url("' + src.replace(/"/g, '\\"') + '")' : "";
     },
+    argus_input: function (idPtr, idLen, phPtr, phLen) {
+      const id = readText(idPtr, idLen);
+      const ph = readText(phPtr, phLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_input]", id, ph);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.placeholder = ph;
+    },
   };
 }
 
@@ -313,22 +338,70 @@ function runLukeWasm(wasmBytes, opts) {
   });
 }
 
+function lukeCurrentRoute() {
+  if (typeof location === "undefined") return "home";
+  var h = (location.hash || "").replace(/^#\/?/, "");
+  return h || "home";
+}
+
 function wireLukeWhens(instance, whens) {
-  if (!instance || !whens || !whens.length || typeof document === "undefined") return;
-  for (var i = 0; i < whens.length; i++) {
-    (function (w) {
-      var el = document.getElementById(w.id);
-      var fn = instance.exports[w.export];
-      if (!el || typeof fn !== "function") return;
-      el.addEventListener("click", function () {
-        try {
-          fn();
-        } catch (e) {
-          console.error(e);
-        }
-      });
-    })(whens[i]);
+  if (!instance || !whens || !whens.length) return;
+  globalThis.__lukeInstance = instance;
+  globalThis.__lukeWhens = whens;
+
+  function runExport(name) {
+    var fn = instance.exports[name];
+    if (typeof fn !== "function") return;
+    try {
+      fn();
+    } catch (e) {
+      console.error(e);
+    }
   }
+
+  function dispatch(id, event) {
+    for (var i = 0; i < whens.length; i++) {
+      var w = whens[i];
+      var ev = w.event || "click";
+      if (w.id === id && ev === event) runExport(w.export);
+    }
+  }
+
+  function dispatchRoute() {
+    var route = lukeCurrentRoute();
+    console.log("[route]", route);
+    dispatch(route, "route");
+  }
+  globalThis.__lukeDispatchRoute = dispatchRoute;
+
+  if (typeof document === "undefined") {
+    /* Node smoke: run home route handler if present */
+    dispatch("home", "route");
+    return;
+  }
+
+  var root = document.getElementById("root");
+  if (root && !root.getAttribute("data-luke-events")) {
+    root.setAttribute("data-luke-events", "1");
+    root.addEventListener("click", function (e) {
+      var t = e.target;
+      while (t && t !== root) {
+        if (t.id) dispatch(t.id, "click");
+        t = t.parentNode;
+      }
+    });
+    root.addEventListener("change", function (e) {
+      if (e.target && e.target.id) dispatch(e.target.id, "change");
+    });
+    root.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target && e.target.id) dispatch(e.target.id, "submit");
+    });
+  }
+  if (typeof window !== "undefined" && !window.__lukeHashWired) {
+    window.__lukeHashWired = true;
+    window.addEventListener("hashchange", dispatchRoute);
+  }
+  dispatchRoute();
 }
 
 function browserBootstrap(wasmUrl, opts) {

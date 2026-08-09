@@ -792,6 +792,14 @@ static inline int luke_js_set_title(LukeText title) {
   luke_js_set_title_raw(title.ptr, title.len);
   return 1;
 }
+
+__attribute__((import_module("lukejs"), import_name("route_go"))) void
+luke_js_route_go_raw(const char *path, size_t path_len);
+
+static inline int luke_js_route_go(LukeText path) {
+  luke_js_route_go_raw(path.ptr, path.len);
+  return 1;
+}
 #else
 static inline int luke_js_set_text(LukeText id, LukeText text) {
   (void)id;
@@ -829,6 +837,10 @@ static inline int luke_js_load_font(LukeText href) {
 }
 static inline int luke_js_set_title(LukeText title) {
   (void)title;
+  return 0;
+}
+static inline int luke_js_route_go(LukeText path) {
+  (void)path;
   return 0;
 }
 #endif

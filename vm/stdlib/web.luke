@@ -1,0 +1,11 @@
+// IMPORT std/web — production web helpers (routes + field reads)
+
+IMPORT std/js
+
+THIS IS FUNCTION goTo WITH path AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_route_go(path)
+END FUNCTION
+
+THIS IS FUNCTION readField WITH id AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_js_get_value(id)
+END FUNCTION

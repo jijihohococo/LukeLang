@@ -441,12 +441,14 @@ Expr BC::primary(std::string e, size_t line) {
         return mapCall("argus_place_image", Ty::flag(), true);
       if (callee == "__argus_place_box" || callee == "__luke_render_place_box")
         return mapCall("argus_place_box", Ty::flag(), true);
+      if (callee == "__argus_place_input") return mapCall("argus_place_input", Ty::flag(), true);
       if (callee == "__argus_paint" || callee == "__luke_render_paint") {
         return {"(argus_paint(arena), 1)", Ty::flag()};
       }
       if (callee == "__argus_clear") {
         return {"(argus_clear(arena), 1)", Ty::flag()};
       }
+      if (callee == "__luke_js_route_go") return mapCall("luke_js_route_go", Ty::flag(), false);
       if (callee == "__hanka_begin_column")
         return mapCall("hanka_begin_column", Ty::flag(), true);
       if (callee == "__hanka_begin_row") return mapCall("hanka_begin_row", Ty::flag(), true);
@@ -454,6 +456,7 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__hanka_slot_text") return mapCall("hanka_slot_text", Ty::flag(), true);
       if (callee == "__hanka_slot_button") return mapCall("hanka_slot_button", Ty::flag(), true);
       if (callee == "__hanka_slot_image") return mapCall("hanka_slot_image", Ty::flag(), true);
+      if (callee == "__hanka_slot_input") return mapCall("hanka_slot_input", Ty::flag(), true);
       if (callee == "__hanka_end") return {"(hanka_end(arena), 1)", Ty::flag()};
       if (callee == "__hanka_layout") return {"(hanka_layout(arena), 1)", Ty::flag()};
       fail(line, "Unknown native helper '" + callee +
@@ -534,6 +537,11 @@ Expr BC::primary(std::string e, size_t line) {
 Expr BC::expr(std::string e, size_t line) {
   e = trim(e);
   if (e.empty()) return {"0", Ty::num()};
+
+  if (startsWithCI(e, "THE VALUE OF ")) {
+    auto id = coerceText(expr(trim(e.substr(13)), line));
+    return {"luke_js_get_value(arena, " + id.code + ")", Ty::text()};
+  }
 
   if (startsWithCI(e, "ASK ")) {
     auto rest = trim(e.substr(4));
@@ -1282,6 +1290,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
+  /* Production web — hash routing */
+  if (startsWithCI(text, "GO TO ")) {
+    auto path = bc.coerceText(bc.expr(trim(text.substr(6)), line));
+    o << "  luke_js_route_go(" << path.code << ");\n";
+    return;
+  }
+
   /* Hanka — layout boxes → Argus frames */
   if (toUpper(text) == "LAY OUT THE SCREEN" || toUpper(text) == "LAYOUT THE SCREEN" ||
       toUpper(text) == "LAY OUT" || toUpper(text) == "LAYOUT") {
@@ -1377,7 +1392,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto U = toUpper(rest);
     auto kindEnd = rest.find(' ');
     if (kindEnd == std::string::npos) {
-      bc.fail(line, "SLOT needs TEXT|BUTTON|IMAGE|BOX \"id\" …");
+      bc.fail(line, "SLOT needs TEXT|BUTTON|IMAGE|BOX|INPUT \"id\" …");
       return;
     }
     auto kindRaw = toUpper(trim(rest.substr(0, kindEnd)));
@@ -1464,8 +1479,16 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           << w.code << ", " << h.code << ");\n";
       else
         o << "  hanka_slot_box(arena, " << idE.code << ", " << w.code << ", " << h.code << ");\n";
+    } else if (kindRaw == "INPUT") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      if (hasAt)
+        o << "  hanka_slot_input_at(arena, " << idE.code << ", " << ox.code << ", " << oy.code
+          << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+      else
+        o << "  hanka_slot_input(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+          << t.code << ");\n";
     } else {
-      bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, or BOX — got " + kindRaw);
+      bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, BOX, or INPUT — got " + kindRaw);
     }
     return;
   }
@@ -1488,7 +1511,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
     if (asPos == std::string::npos || atPos == std::string::npos || sizePos == std::string::npos ||
         !(asPos < atPos && atPos < sizePos)) {
-      bc.fail(line, "PLACE needs: PLACE \"id\" AS TEXT|BUTTON|IMAGE|BOX AT x, y SIZE w, h …");
+      bc.fail(line, "PLACE needs: PLACE \"id\" AS TEXT|BUTTON|IMAGE|BOX|INPUT AT x, y SIZE w, h …");
       return;
     }
     auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, asPos)), line));
@@ -1537,8 +1560,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     } else if (kindRaw == "BOX") {
       o << "  argus_place_box(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
         << w.code << ", " << h.code << ");\n";
+    } else if (kindRaw == "INPUT") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  argus_place_input(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
     } else {
-      bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, or BOX — got " + kindRaw);
+      bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, BOX, or INPUT — got " + kindRaw);
     }
     return;
   }
@@ -1719,21 +1746,38 @@ bool parse(BC &bc, const std::string &source) {
         mode = InBp;
         continue;
       }
-      if (startsWithCI(text, "WHEN ") && toUpper(text).find(" IS CLICKED") != std::string::npos) {
+      if (startsWithCI(text, "WHEN ")) {
         curWhen = {};
         auto rest = trim(text.substr(5));
         stripDo(rest);
         auto U = toUpper(rest);
-        auto clicked = U.find(" IS CLICKED");
-        if (clicked == std::string::npos) {
-          bc.fail(lineNo, "WHEN … IS CLICKED — tell me which element");
-          return false;
+        if (startsWithCI(rest, "THE ROUTE IS ")) {
+          curWhen.event = "route";
+          curWhen.elementId = unquoteText(trim(rest.substr(13)));
+          if (curWhen.elementId.empty()) {
+            bc.fail(lineNo, "WHEN THE ROUTE IS needs a name — WHEN THE ROUTE IS \"home\" DO");
+            return false;
+          }
+        } else {
+          size_t evPos = std::string::npos;
+          if ((evPos = U.find(" IS CLICKED")) != std::string::npos)
+            curWhen.event = "click";
+          else if ((evPos = U.find(" IS CHANGED")) != std::string::npos)
+            curWhen.event = "change";
+          else if ((evPos = U.find(" IS SUBMITTED")) != std::string::npos)
+            curWhen.event = "submit";
+          else {
+            bc.fail(lineNo,
+                    "WHEN needs IS CLICKED|CHANGED|SUBMITTED or THE ROUTE IS \"name\"");
+            return false;
+          }
+          curWhen.elementId = unquoteText(trim(rest.substr(0, evPos)));
+          if (curWhen.elementId.empty()) {
+            bc.fail(lineNo, "WHEN needs an element id — WHEN \"cta\" IS CLICKED DO");
+            return false;
+          }
         }
-        curWhen.elementId = unquoteText(trim(rest.substr(0, clicked)));
-        if (curWhen.elementId.empty()) {
-          bc.fail(lineNo, "WHEN needs an element id — WHEN \"cta\" IS CLICKED DO");
-          return false;
-        }
+        if (curWhen.event.empty()) curWhen.event = "click";
         curWhen.exportName = "luke_when_" + std::to_string(bc.whenSeq++);
         mode = InWhen;
         continue;

@@ -26,6 +26,7 @@ struct BrowserFont {
 struct BrowserWhen {
   std::string elementId;
   std::string exportName; // luke_when_0
+  std::string event;      // click | change | submit | route
   std::vector<std::string> body;
   std::vector<size_t> lines;
 };

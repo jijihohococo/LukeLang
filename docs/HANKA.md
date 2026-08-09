@@ -41,7 +41,7 @@ PAINT THE SCREEN
 | Term | Meaning |
 | --- | --- |
 | `BEGIN COLUMN\|ROW\|STACK AT x, y SIZE w, h [PAD n] [GAP n]` | Open a layout box |
-| `SLOT TEXT\|BUTTON\|IMAGE\|BOX "id" [AT ox, oy] SIZE w, h …` | Add a leaf |
+| `SLOT TEXT\|BUTTON\|IMAGE\|BOX\|INPUT "id" [AT ox, oy] SIZE w, h …` | Add a leaf |
 | `END COLUMN\|ROW\|STACK` | Close the open box |
 | `LAY OUT THE SCREEN` | Resolve boxes → Argus frames |
 

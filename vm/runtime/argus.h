@@ -15,7 +15,8 @@ typedef enum ArgusKind {
   ARGUS_BOX = 0,
   ARGUS_TEXT = 1,
   ARGUS_BUTTON = 2,
-  ARGUS_IMAGE = 3
+  ARGUS_IMAGE = 3,
+  ARGUS_INPUT = 4
 } ArgusKind;
 
 typedef struct ArgusNode {
@@ -51,6 +52,9 @@ argus_js_text_raw(const char *id, size_t id_len, const char *text, size_t text_l
 __attribute__((import_module("lukejs"), import_name("argus_image"))) void
 argus_js_image_raw(const char *id, size_t id_len, const char *src, size_t src_len);
 
+__attribute__((import_module("lukejs"), import_name("argus_input"))) void
+argus_js_input_raw(const char *id, size_t id_len, const char *placeholder, size_t placeholder_len);
+
 __attribute__((import_module("lukejs"), import_name("argus_clear"))) void
 argus_js_clear_raw(void);
 
@@ -66,6 +70,9 @@ static inline void argus_js_text(LukeText id, LukeText text) {
 }
 static inline void argus_js_image(LukeText id, LukeText src) {
   argus_js_image_raw(id.ptr, id.len, src.ptr, src.len);
+}
+static inline void argus_js_input(LukeText id, LukeText placeholder) {
+  argus_js_input_raw(id.ptr, id.len, placeholder.ptr, placeholder.len);
 }
 static inline void argus_js_clear(void) { argus_js_clear_raw(); }
 #else
@@ -89,6 +96,10 @@ static inline void argus_js_text(LukeText id, LukeText text) {
 static inline void argus_js_image(LukeText id, LukeText src) {
   (void)id;
   (void)src;
+}
+static inline void argus_js_input(LukeText id, LukeText placeholder) {
+  (void)id;
+  (void)placeholder;
 }
 static inline void argus_js_clear(void) {}
 #endif
@@ -182,6 +193,8 @@ static inline void argus_paint(LukeArena *a) {
     argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
     if (n->kind == ARGUS_IMAGE)
       argus_js_image(id, n->src);
+    else if (n->kind == ARGUS_INPUT)
+      argus_js_input(id, n->text);
     else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON)
       argus_js_text(id, n->text);
     n->dirty = 0;
@@ -226,6 +239,14 @@ static inline int argus_place_box(LukeArena *a, LukeText id, double x, double y,
                                   double h) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
   argus_set_frame(n, x, y, w, h);
+  return 1;
+}
+
+static inline int argus_place_input(LukeArena *a, LukeText id, double x, double y, double w,
+                                    double h, LukeText placeholder) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_INPUT);
+  argus_set_frame(n, x, y, w, h);
+  argus_set_text(n, placeholder);
   return 1;
 }
 

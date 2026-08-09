@@ -21,7 +21,8 @@ typedef enum HankaLeafKind {
   HANKA_LEAF_BOX = 0,
   HANKA_LEAF_TEXT = 1,
   HANKA_LEAF_BUTTON = 2,
-  HANKA_LEAF_IMAGE = 3
+  HANKA_LEAF_IMAGE = 3,
+  HANKA_LEAF_INPUT = 4
 } HankaLeafKind;
 
 typedef struct HankaLeaf {
@@ -169,6 +170,25 @@ static inline int hanka_slot_box(LukeArena *a, LukeText id, double w, double h) 
   return hanka_add_leaf(a, id, HANKA_LEAF_BOX, w, h) ? 1 : 0;
 }
 
+static inline int hanka_slot_input(LukeArena *a, LukeText id, double w, double h,
+                                   LukeText placeholder) {
+  HankaLeaf *leaf = hanka_add_leaf(a, id, HANKA_LEAF_INPUT, w, h);
+  if (!leaf) return 0;
+  leaf->text = placeholder;
+  return 1;
+}
+
+static inline int hanka_slot_input_at(LukeArena *a, LukeText id, double ox, double oy, double w,
+                                      double h, LukeText placeholder) {
+  HankaLeaf *leaf = hanka_add_leaf(a, id, HANKA_LEAF_INPUT, w, h);
+  if (!leaf) return 0;
+  leaf->ox = ox;
+  leaf->oy = oy;
+  leaf->has_offset = 1;
+  leaf->text = placeholder;
+  return 1;
+}
+
 static inline int hanka_slot_text_at(LukeArena *a, LukeText id, double ox, double oy, double w,
                                      double h, LukeText text) {
   HankaLeaf *leaf = hanka_add_leaf(a, id, HANKA_LEAF_TEXT, w, h);
@@ -227,6 +247,8 @@ static inline void hanka_place_leaf(LukeArena *a, const HankaLeaf *leaf, double 
     argus_place_button(a, id, x, y, leaf->w, leaf->h, leaf->text);
   else if (leaf->kind == HANKA_LEAF_IMAGE)
     argus_place_image(a, id, x, y, leaf->w, leaf->h, leaf->src);
+  else if (leaf->kind == HANKA_LEAF_INPUT)
+    argus_place_input(a, id, x, y, leaf->w, leaf->h, leaf->text);
   else
     argus_place_box(a, id, x, y, leaf->w, leaf->h);
 }

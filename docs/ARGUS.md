@@ -31,6 +31,7 @@ Hanka / PLACE  →  Argus tree  →  paint  →  thin JS embedder  →  DOM
 | `TEXT` | label |
 | `BUTTON` | clickable text host |
 | `IMAGE` | full-bleed / framed image |
+| `INPUT` | text field (`SAY` = placeholder; read with `THE VALUE OF`) |
 
 Each node: `id`, frame `(x,y,w,h)`, `opacity`, optional `text` / `src`, dirty flags.
 

@@ -214,8 +214,10 @@ std::string makeBrowserHtml(const std::string &wasmFile, const luke::BuildResult
   o << "var LUKE_WHENS = [";
   for (size_t i = 0; i < page.pageWhens.size(); ++i) {
     if (i) o << ",";
+    std::string ev = page.pageWhens[i].event.empty() ? "click" : page.pageWhens[i].event;
     o << "{id:" << jsonQuote(page.pageWhens[i].elementId)
-      << ",export:" << jsonQuote(page.pageWhens[i].exportName) << "}";
+      << ",export:" << jsonQuote(page.pageWhens[i].exportName) << ",event:" << jsonQuote(ev)
+      << "}";
   }
   o << "];\n";
   o << "browserBootstrap(\"./" << escapeHtml(wasmFile) << "\", { whens: LUKE_WHENS })"

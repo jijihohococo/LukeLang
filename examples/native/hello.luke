@@ -1,0 +1,15 @@
+// Native LukeLang — runs on the Luke VM, not JavaScript.
+
+LET'S START
+
+SPEAK "Hello from native LukeLang"
+SPEAK "No Node. No JS host. Own heap + GC."
+
+MY NAME IS name SET TO "Luke"
+SPEAK "My name is " AND name
+
+MY NAME IS a SET TO 21
+MY NAME IS b SET TO 21
+SPEAK ADD a AND b
+
+GET OUTTA HERE

@@ -1,0 +1,29 @@
+// IMPORT std/server — conversational HTTP server (native Build; stubbed on WASI)
+
+THIS IS FUNCTION httpListen WITH port AS NUMBER GIVES BACK SERVER DO
+  GIVE BACK __luke_http_listen(port)
+END FUNCTION
+
+THIS IS FUNCTION httpAccept WITH server AS SERVER GIVES BACK REQUEST DO
+  GIVE BACK __luke_http_accept(server)
+END FUNCTION
+
+THIS IS FUNCTION httpReply WITH req AS REQUEST, status AS NUMBER, contentType AS TEXT, body AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_reply(req, status, contentType, body)
+END FUNCTION
+
+THIS IS FUNCTION httpPath WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_path(req)
+END FUNCTION
+
+THIS IS FUNCTION httpMethod WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_method(req)
+END FUNCTION
+
+THIS IS FUNCTION httpQuery WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_query(req)
+END FUNCTION
+
+THIS IS FUNCTION httpBody WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_body(req)
+END FUNCTION

@@ -1,0 +1,22 @@
+// Privacy: outside code must not read PRIVATE fields or call SECRET methods.
+
+BLUEPRINT Vault DO
+  PRIVATE secret
+  HAS label SET TO "vault"
+
+  WHEN BORN WITH secret DO
+    SET SELF.secret TO secret
+  END BORN
+
+  SECRET METHOD raw DO
+    GIVE BACK SELF.secret
+  END METHOD
+
+  METHOD reveal DO
+    GIVE BACK ASK SELF TO raw
+  END METHOD
+END CLASS
+
+SET v TO NEW Vault WITH "gold"
+SPEAK "label: " AND v.label
+SPEAK "reveal: " AND ASK v TO reveal

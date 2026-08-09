@@ -32,7 +32,13 @@ This documentation serves as a comprehensive guide for learners and developers, 
     *   [Error Handling](./advanced_topics.md#error-handling)
     *   [Modules and Code Organization](./advanced_topics.md#modules-and-code-organization)
 
-5.  **[Contributor Guide](./contributor_guide.md)**
+5.  **Engine track**
+    *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
+    *   [Argus](./ARGUS.md) — rendering engine (DOM presentment)
+    *   [Hanka](./HANKA.md) — layout engine (frames → Argus)
+    *   [Production Web](./PRODUCTION_WEB.md) — forms, routes, deploy stack
+
+6.  **[Contributor Guide](./contributor_guide.md)**
     *   [Code Style](./contributor_guide.md#code-style)
     *   [Submitting Pull Requests](./contributor_guide.md#submitting-pull-requests)
 

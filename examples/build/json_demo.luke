@@ -1,0 +1,37 @@
+IMPORT std/json
+
+SPEAK "=== Build JSON ==="
+
+MY NAME IS raw AS TEXT SET TO "{\"name\":\"Luke\",\"version\":2,\"ok\":true,\"tags\":[\"build\",\"native\"],\"meta\":{\"role\":\"builder\"}}"
+
+MY NAME IS doc AS JSON SET TO ASK jsonParse WITH raw
+
+MY NAME IS nameNode AS JSON SET TO ASK jsonGet WITH doc, "name"
+SPEAK "name = " AND ASK jsonAsText WITH nameNode
+
+MY NAME IS verNode AS JSON SET TO ASK jsonGet WITH doc, "version"
+SPEAK "version ="
+SPEAK ASK jsonAsNumber WITH verNode
+
+MY NAME IS okNode AS JSON SET TO ASK jsonGet WITH doc, "ok"
+IF ASK jsonAsFlag WITH okNode DO
+  SPEAK "ok is true"
+END IF
+
+MY NAME IS tags AS JSON SET TO ASK jsonGet WITH doc, "tags"
+MY NAME IS tag0 AS JSON SET TO ASK jsonIndex WITH tags, 0
+SPEAK "tag0 = " AND ASK jsonAsText WITH tag0
+SPEAK "tag count ="
+SPEAK ASK jsonLen WITH tags
+
+MY NAME IS meta AS JSON SET TO ASK jsonGet WITH doc, "meta"
+MY NAME IS roleNode AS JSON SET TO ASK jsonGet WITH meta, "role"
+SPEAK "role = " AND ASK jsonAsText WITH roleNode
+
+SPEAK "round-trip = " AND ASK jsonStringify WITH doc
+
+IF ASK jsonHas WITH doc, "name" DO
+  SPEAK "has name"
+END IF
+
+SPEAK "JSON tree lives in the Build arena — no GC."

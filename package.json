@@ -1,14 +1,17 @@
 {
   "name": "lukelang",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "private": true,
+  "description": "LukeLang — conversational language. Native VM is in vm/; JS scripts are legacy.",
   "bin": {
     "luke": "./luke.js"
   },
   "scripts": {
+    "build:native": "make -C vm",
+    "show:native": "make -C vm && vm/build/luke SHOW examples/native/hello.luke",
     "build": "node main.js",
     "run": "node examples/hello.js",
-    "show": "node main.js SHOW examples/hello.luke"
+    "show": "node main.js SHOW examples/oop_full.luke"
   }
 }

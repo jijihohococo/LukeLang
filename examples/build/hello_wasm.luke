@@ -1,0 +1,3 @@
+SPEAK "Hello from Luke WASM"
+MY NAME IS n SET TO 7
+SPEAK ADD n AND 35

@@ -1,0 +1,124 @@
+// sample/landing.luke — full LukeLang landing page
+// Fonts are local packs. Markup/CSS/title/events are Luke. Boot is Luke runtime.
+//
+//   cd vm && ./build/luke BUILD ../sample/landing.luke -target browser -o ../sample/dist/landing
+
+IMPORT std/js
+
+NAME THE PAGE "LukeLang"
+
+BRING FONT "Syne" FROM "./fonts/syne-700.woff2"
+BRING FONT "Literata" FROM "./fonts/literata-400.woff2"
+BRING FONT "Literata" FROM "./fonts/literata-600.woff2"
+
+WEAR STYLE """
+:root {
+  --ink: #101820;
+  --fog: #e8eef2;
+  --sea: #0e7c7b;
+  --flare: #f4a259;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--ink);
+  background: var(--fog);
+  font-family: "Literata", Georgia, serif;
+}
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  align-content: end;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  padding-bottom: clamp(2.5rem, 8vh, 5rem);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(16,24,32,0.15) 0%, rgba(16,24,32,0.72) 55%, rgba(16,24,32,0.88) 100%),
+    url("https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=2400&q=80")
+      center / cover no-repeat;
+  color: #f7faf8;
+  animation: hero-in 1s ease-out both;
+}
+.brand {
+  font-family: "Syne", sans-serif;
+  font-weight: 700;
+  font-size: clamp(3.4rem, 12vw, 7.5rem);
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+  margin: 0 0 0.85rem;
+  max-width: 12ch;
+  animation: rise 0.85s ease-out 0.08s both;
+}
+.lead {
+  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  line-height: 1.45;
+  max-width: 28rem;
+  margin: 0 0 1.5rem;
+  opacity: 0.92;
+  animation: rise 0.85s ease-out 0.16s both;
+}
+.cta {
+  appearance: none;
+  border: 0;
+  background: var(--flare);
+  color: var(--ink);
+  font-family: "Syne", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  width: fit-content;
+  animation: rise 0.85s ease-out 0.24s both;
+}
+.cta:hover { filter: brightness(1.05); }
+.note {
+  margin-top: 1rem;
+  min-height: 1.4em;
+  font-size: 0.95rem;
+  opacity: 0.9;
+  animation: rise 0.85s ease-out 0.3s both;
+}
+.below {
+  padding: clamp(2.5rem, 7vw, 5rem) clamp(1.5rem, 4vw, 3rem);
+  max-width: 40rem;
+}
+.below h2 {
+  font-family: "Syne", sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+}
+.below p {
+  margin: 0;
+  line-height: 1.55;
+  color: rgba(16,24,32,0.82);
+  font-weight: 400;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(0.7rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hero-in {
+  from { opacity: 0.4; transform: scale(1.02); }
+  to { opacity: 1; transform: none; }
+}
+"""
+
+FILL "root" WITH """
+<section class="hero" aria-label="LukeLang">
+  <p class="brand">LukeLang</p>
+  <p class="lead">Speak programs out loud. Ship native code. Not JavaScript, not Python, not Rust — LukeLang.</p>
+  <button type="button" class="cta" id="cta">Build something real</button>
+  <p class="note" id="cta-out"></p>
+</section>
+<section class="below">
+  <h2>One spine. Many packs.</h2>
+  <p>Build is AOT and arena-backed. The words stay conversational. The runtime stays light.</p>
+</section>
+"""
+
+WHEN "cta" IS CLICKED DO
+  FILL "cta-out" WITH "Still LukeLang — Build mode, arena memory, no GC."
+END WHEN

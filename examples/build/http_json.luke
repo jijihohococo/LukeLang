@@ -1,0 +1,19 @@
+IMPORT std/http
+IMPORT std/json
+
+SPEAK "=== Build HTTP + JSON (local) ==="
+
+MY NAME IS body AS TEXT SET TO ASK httpGet WITH "http://127.0.0.1:8765/luke.json"
+MY NAME IS empty AS FLAG SET TO body EQUALS ""
+
+IF empty DO
+  SPEAK "local server not running — skip"
+END IF
+
+IF NOT empty DO
+  MY NAME IS doc AS JSON SET TO ASK jsonParse WITH body
+  MY NAME IS greet AS JSON SET TO ASK jsonGet WITH doc, "hello"
+  SPEAK "json hello = " AND ASK jsonAsText WITH greet
+END IF
+
+SPEAK "done"

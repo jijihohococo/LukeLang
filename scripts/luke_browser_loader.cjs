@@ -175,6 +175,33 @@ function createLukeJs(getMemory, opts) {
         console.log("[jsOnClick #" + id + " -> #" + target + "] " + message);
       }
     },
+    add_style: function (cssPtr, cssLen) {
+      const css = readText(cssPtr, cssLen);
+      if (typeof document !== "undefined") {
+        const style = document.createElement("style");
+        style.setAttribute("data-luke", "wear-style");
+        style.textContent = css;
+        document.head.appendChild(style);
+      } else if (opts.onJsAddStyle) opts.onJsAddStyle(css);
+      else console.log("[jsAddStyle] " + css.slice(0, 120) + (css.length > 120 ? "…" : ""));
+    },
+    load_font: function (hrefPtr, hrefLen) {
+      const href = readText(hrefPtr, hrefLen);
+      if (typeof document !== "undefined") {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = href;
+        link.setAttribute("data-luke", "bring-font");
+        document.head.appendChild(link);
+      } else if (opts.onJsLoadFont) opts.onJsLoadFont(href);
+      else console.log("[jsLoadFont] " + href);
+    },
+    set_title: function (titlePtr, titleLen) {
+      const title = readText(titlePtr, titleLen);
+      if (typeof document !== "undefined") document.title = title;
+      else if (opts.onJsSetTitle) opts.onJsSetTitle(title);
+      else console.log("[jsSetTitle] " + title);
+    },
   };
 }
 

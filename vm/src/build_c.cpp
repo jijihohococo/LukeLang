@@ -84,6 +84,27 @@ std::vector<std::string> splitArgs(const std::string &s) {
   return out;
 }
 
+/* Find needle in haystack (already uppercased) but ignore quoted spans in original. */
+size_t findOutsideQuotes(const std::string &orig, const std::string &origUpper,
+                         const std::string &needleUpper) {
+  bool q = false;
+  char qc = 0;
+  for (size_t i = 0; i + needleUpper.size() <= origUpper.size(); ++i) {
+    char c = orig[i];
+    if (q) {
+      if (c == qc) q = false;
+      continue;
+    }
+    if (c == '"' || c == '\'') {
+      q = true;
+      qc = c;
+      continue;
+    }
+    if (origUpper.compare(i, needleUpper.size(), needleUpper) == 0) return i;
+  }
+  return std::string::npos;
+}
+
 enum class K { Num, Flag, Text, Json, List, Map, Void, Ptr };
 struct Ty {
   K k = K::Void;
@@ -378,6 +399,9 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_js_set_text") return mapCall("luke_js_set_text", Ty::flag(), false);
       if (callee == "__luke_js_set_html") return mapCall("luke_js_set_html", Ty::flag(), false);
       if (callee == "__luke_js_get_value") return mapCall("luke_js_get_value", Ty::text(), true);
+      if (callee == "__luke_js_add_style") return mapCall("luke_js_add_style", Ty::flag(), false);
+      if (callee == "__luke_js_load_font") return mapCall("luke_js_load_font", Ty::flag(), false);
+      if (callee == "__luke_js_set_title") return mapCall("luke_js_set_title", Ty::flag(), false);
       fail(line, "Unknown native helper '" + callee +
                      "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
                      "std/args, std/env, std/paths, std/process, or std/js");
@@ -625,7 +649,7 @@ Expr BC::expr(std::string e, size_t line) {
 
   auto cmp = [&](const std::string &needle, const char *op) -> Expr * {
     static Expr r;
-    auto pos = U.find(needle);
+    auto pos = findOutsideQuotes(e, U, needle);
     if (pos == std::string::npos) return nullptr;
     auto L = expr(trim(e.substr(0, pos)), line);
     auto R = expr(trim(e.substr(pos + needle.size())), line);
@@ -668,13 +692,13 @@ Expr BC::expr(std::string e, size_t line) {
       r = {"(" + L.code + op + R.code + ")", Ty::num()};
       return &r;
     };
-    auto pos = U.find(mid);
+    auto pos = findOutsideQuotes(e, U, mid);
     if (pos != std::string::npos) {
       return finish(expr(trim(e.substr(0, pos)), line), expr(trim(e.substr(pos + mid.size())), line));
     }
     if (startsWithCI(e, pref)) {
       auto rest = trim(e.substr(pref.size()));
-      auto ap = toUpper(rest).find(" AND ");
+      auto ap = findOutsideQuotes(rest, toUpper(rest), " AND ");
       if (ap != std::string::npos) {
         return finish(expr(trim(rest.substr(0, ap)), line), expr(trim(rest.substr(ap + 5)), line));
       }
@@ -682,7 +706,7 @@ Expr BC::expr(std::string e, size_t line) {
     return nullptr;
   };
   {
-    auto pos = U.find(" MULTIPLY BY ");
+    auto pos = findOutsideQuotes(e, U, " MULTIPLY BY ");
     if (pos != std::string::npos) {
       auto L = expr(trim(e.substr(0, pos)), line);
       auto R = expr(trim(e.substr(pos + 13)), line);
@@ -697,7 +721,7 @@ Expr BC::expr(std::string e, size_t line) {
   if (auto *r = arith(" DIVIDE ", "DIVIDE ", '/')) return *r;
 
   {
-    auto pos = U.find(" AND ");
+    auto pos = findOutsideQuotes(e, U, " AND ");
     if (pos != std::string::npos) {
       auto L = coerceText(expr(trim(e.substr(0, pos)), line));
       auto R = coerceText(expr(trim(e.substr(pos + 5)), line));
@@ -1115,13 +1139,83 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
+  /* Browser page ownership — conversational */
+  if (startsWithCI(text, "BRING FONT FROM ")) {
+    auto href = bc.coerceText(bc.expr(trim(text.substr(16)), line));
+    o << "  luke_js_load_font(" << href.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "BRING FONT ")) {
+    /* BRING FONT "Name" FROM "url" — name is documentary; URL loads the face */
+    auto rest = trim(text.substr(11));
+    auto U = toUpper(rest);
+    auto fr = U.find(" FROM ");
+    if (fr != std::string::npos) {
+      auto href = bc.coerceText(bc.expr(trim(rest.substr(fr + 6)), line));
+      o << "  luke_js_load_font(" << href.code << ");\n";
+      return;
+    }
+  }
+  if (startsWithCI(text, "WEAR STYLE ")) {
+    auto css = bc.coerceText(bc.expr(trim(text.substr(11)), line));
+    o << "  luke_js_add_style(" << css.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "NAME THE PAGE ")) {
+    auto title = bc.coerceText(bc.expr(trim(text.substr(14)), line));
+    o << "  luke_js_set_title(" << title.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "FILL ") && findOutsideQuotes(text, toUpper(text), " WITH ") != std::string::npos) {
+    auto rest = trim(text.substr(5));
+    auto w = findOutsideQuotes(rest, toUpper(rest), " WITH ");
+    auto id = bc.coerceText(bc.expr(trim(rest.substr(0, w)), line));
+    auto html = bc.coerceText(bc.expr(trim(rest.substr(w + 6)), line));
+    o << "  luke_js_set_html(" << id.code << ", " << html.code << ");\n";
+    return;
+  }
+
   bc.fail(line, "Unsupported Build statement: " + text +
                     " — Build doesn't understand this yet (Play-only feature?)");
   bc.unsupportedHint = true;
 }
 
 bool parse(BC &bc, const std::string &source) {
-  std::istringstream in(source);
+  /* Triple-quoted TEXT: """ … """ may span lines → single "…" with \n */
+  std::string src;
+  {
+    size_t i = 0;
+    while (i < source.size()) {
+      if (i + 2 < source.size() && source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"') {
+        i += 3;
+        std::string body;
+        while (i + 2 < source.size() &&
+               !(source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"')) {
+          char c = source[i++];
+          if (c == '\\') {
+            body.push_back('\\');
+            if (i < source.size()) body.push_back(source[i++]);
+          } else if (c == '"') {
+            body += "\\\"";
+          } else if (c == '\n') {
+            body += "\\n";
+          } else if (c == '\r') {
+            /* skip */
+          } else {
+            body.push_back(c);
+          }
+        }
+        if (i + 2 < source.size()) i += 3;
+        src.push_back('"');
+        src += body;
+        src.push_back('"');
+        continue;
+      }
+      src.push_back(source[i++]);
+    }
+  }
+
+  std::istringstream in(src);
   std::string raw;
   size_t lineNo = 0;
   enum Mode { Top, InFn, InBp, InMeth };

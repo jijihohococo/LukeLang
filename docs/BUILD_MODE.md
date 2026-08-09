@@ -60,8 +60,24 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 | `std/env` | `getEnv`, `setEnv` |
 | `std/paths` | `cwd`, `pathJoin`, `pathBasename`, `pathDirname` |
 | `std/process` | `shell`, `exitWith` |
-| `std/js` | `jsSetText`, `jsSetHtml`, `jsGetValue`, `jsFetch`, `jsOnClick` (browser) |
+| `std/js` | `jsSetText`, `jsSetHtml`, `jsGetValue`, `jsFetch`, `jsOnClick`, `jsLoadFont`, `jsAddStyle`, `jsSetTitle` |
 | `luke/…` | Your packages under `luke_modules/` (`luke PKG init <name>`) |
+
+### Browser page ownership (conversational)
+
+```luke
+NAME THE PAGE "LukeLang"
+BRING FONT "Syne" FROM "https://fonts.googleapis.com/css2?family=Syne:wght@700&display=swap"
+WEAR STYLE """
+  body { font-family: Syne, sans-serif; }
+"""
+FILL "root" WITH """
+  <h1>LukeLang</h1>
+"""
+```
+
+Host HTML is a blank `#root` canvas — fonts/CSS/markup must come from Luke.
+See `sample/` (currently **non-pitchable**: WASM boot glue is still JS).
 
 ### Collections + problems (conversational)
 

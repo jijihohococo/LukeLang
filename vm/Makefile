@@ -98,6 +98,9 @@ test-build: build/luke
 	@node ../scripts/luke_browser_loader.cjs build/ex_browser.wasm | grep -q "Hello from Luke in the browser"
 	./build/luke BUILD ../examples/build/hello_js.luke -target browser -o build/ex_js
 	@node ../scripts/luke_browser_loader.cjs build/ex_js.wasm | grep -q "jsSetText"
+	@mkdir -p ../sample/dist
+	./build/luke BUILD ../sample/landing.luke -target browser -o ../sample/dist/landing
+	@node ../scripts/luke_browser_loader.cjs ../sample/dist/landing.wasm | grep -q "jsLoadFont"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

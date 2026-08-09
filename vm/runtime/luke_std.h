@@ -766,6 +766,30 @@ static inline int luke_js_on_click(LukeText id, LukeText target, LukeText messag
   luke_js_on_click_raw(id.ptr, id.len, target.ptr, target.len, message.ptr, message.len);
   return 1;
 }
+
+__attribute__((import_module("lukejs"), import_name("add_style"))) void
+luke_js_add_style_raw(const char *css, size_t css_len);
+
+__attribute__((import_module("lukejs"), import_name("load_font"))) void
+luke_js_load_font_raw(const char *href, size_t href_len);
+
+__attribute__((import_module("lukejs"), import_name("set_title"))) void
+luke_js_set_title_raw(const char *title, size_t title_len);
+
+static inline int luke_js_add_style(LukeText css) {
+  luke_js_add_style_raw(css.ptr, css.len);
+  return 1;
+}
+
+static inline int luke_js_load_font(LukeText href) {
+  luke_js_load_font_raw(href.ptr, href.len);
+  return 1;
+}
+
+static inline int luke_js_set_title(LukeText title) {
+  luke_js_set_title_raw(title.ptr, title.len);
+  return 1;
+}
 #else
 static inline int luke_js_set_text(LukeText id, LukeText text) {
   (void)id;
@@ -791,6 +815,18 @@ static inline int luke_js_on_click(LukeText id, LukeText target, LukeText messag
   (void)id;
   (void)target;
   (void)message;
+  return 0;
+}
+static inline int luke_js_add_style(LukeText css) {
+  (void)css;
+  return 0;
+}
+static inline int luke_js_load_font(LukeText href) {
+  (void)href;
+  return 0;
+}
+static inline int luke_js_set_title(LukeText title) {
+  (void)title;
   return 0;
 }
 #endif

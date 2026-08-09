@@ -19,3 +19,15 @@ END FUNCTION
 THIS IS FUNCTION jsOnClick WITH id AS TEXT, target AS TEXT, message AS TEXT GIVES BACK FLAG DO
   GIVE BACK __luke_js_on_click(id, target, message)
 END FUNCTION
+
+THIS IS FUNCTION jsAddStyle WITH css AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_add_style(css)
+END FUNCTION
+
+THIS IS FUNCTION jsLoadFont WITH href AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_load_font(href)
+END FUNCTION
+
+THIS IS FUNCTION jsSetTitle WITH title AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_js_set_title(title)
+END FUNCTION

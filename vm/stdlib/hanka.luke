@@ -1,0 +1,33 @@
+// IMPORT std/hanka — Hanka layout engine (frames → Argus)
+
+THIS IS FUNCTION hankaBeginColumn WITH x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, pad AS NUMBER, gap AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __hanka_begin_column(x, y, w, h, pad, gap)
+END FUNCTION
+
+THIS IS FUNCTION hankaBeginRow WITH x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, pad AS NUMBER, gap AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __hanka_begin_row(x, y, w, h, pad, gap)
+END FUNCTION
+
+THIS IS FUNCTION hankaBeginStack WITH x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, pad AS NUMBER, gap AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __hanka_begin_stack(x, y, w, h, pad, gap)
+END FUNCTION
+
+THIS IS FUNCTION hankaSlotText WITH id AS TEXT, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __hanka_slot_text(id, w, h, text)
+END FUNCTION
+
+THIS IS FUNCTION hankaSlotButton WITH id AS TEXT, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __hanka_slot_button(id, w, h, text)
+END FUNCTION
+
+THIS IS FUNCTION hankaSlotImage WITH id AS TEXT, w AS NUMBER, h AS NUMBER, src AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __hanka_slot_image(id, w, h, src)
+END FUNCTION
+
+THIS IS FUNCTION hankaEnd GIVES BACK FLAG DO
+  GIVE BACK __hanka_end()
+END FUNCTION
+
+THIS IS FUNCTION hankaLayout GIVES BACK FLAG DO
+  GIVE BACK __hanka_layout()
+END FUNCTION

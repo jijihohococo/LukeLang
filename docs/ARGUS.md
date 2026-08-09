@@ -3,7 +3,7 @@
 > **Status:** Started (v0 beachhead)  
 > **Name:** Argus  
 > **Backend:** DOM presentment (not Skia)  
-> **Layout:** explicit frames for now — see [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md) (future)
+> **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames
 
 ## What Argus is
 
@@ -12,13 +12,13 @@ Browser DOM is only the host surface.
 Fast path: dirty nodes → patch DOM (no full `innerHTML` rebuild).
 
 ```text
-PLACE / scene API  →  Argus tree  →  paint  →  thin JS embedder  →  DOM
+Hanka / PLACE  →  Argus tree  →  paint  →  thin JS embedder  →  DOM
 ```
 
 ## Principles
 
 1. **Not Skia** — no pixel raster engine in-core  
-2. **Not browser layout** — frames come from Luke (explicit today; layout engine later)  
+2. **Not browser layout** — frames come from Luke / Hanka (not CSS flex)  
 3. **Speed** — transform/opacity friendly; arena-friendly node storage  
 4. **Pixel-aimed** — absolute frames + local fonts; DPR handling follows  
 5. **Conversational surface** — `PLACE`, `PAINT THE SCREEN`
@@ -61,7 +61,7 @@ END WHEN
 
 ## Non-goals (v0)
 
-- Flex/column layout (future layout engine)
+- Owning layout math (that's **Hanka**)
 - WebGL/Skia
 - CSS-as-source-of-truth
 - Full a11y tree mapping (button/text roles come next)

@@ -223,6 +223,7 @@ struct BC {
   int attemptSeq = 0;
   int whenSeq = 0;
   std::vector<std::string> arenaMarks;
+  std::vector<std::string> hankaStack; /* "COLUMN" | "ROW" | "STACK" */
   std::vector<std::string> attemptLabels;
   std::vector<bool> attemptHasOtherwise;
   std::map<std::string, BP> bps;
@@ -446,6 +447,15 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__argus_clear") {
         return {"(argus_clear(arena), 1)", Ty::flag()};
       }
+      if (callee == "__hanka_begin_column")
+        return mapCall("hanka_begin_column", Ty::flag(), true);
+      if (callee == "__hanka_begin_row") return mapCall("hanka_begin_row", Ty::flag(), true);
+      if (callee == "__hanka_begin_stack") return mapCall("hanka_begin_stack", Ty::flag(), true);
+      if (callee == "__hanka_slot_text") return mapCall("hanka_slot_text", Ty::flag(), true);
+      if (callee == "__hanka_slot_button") return mapCall("hanka_slot_button", Ty::flag(), true);
+      if (callee == "__hanka_slot_image") return mapCall("hanka_slot_image", Ty::flag(), true);
+      if (callee == "__hanka_end") return {"(hanka_end(arena), 1)", Ty::flag()};
+      if (callee == "__hanka_layout") return {"(hanka_layout(arena), 1)", Ty::flag()};
       fail(line, "Unknown native helper '" + callee +
                      "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
                      "std/args, std/env, std/paths, std/process, or std/js");
@@ -1272,12 +1282,201 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
+  /* Hanka — layout boxes → Argus frames */
+  if (toUpper(text) == "LAY OUT THE SCREEN" || toUpper(text) == "LAYOUT THE SCREEN" ||
+      toUpper(text) == "LAY OUT" || toUpper(text) == "LAYOUT") {
+    o << "  hanka_layout(arena);\n";
+    return;
+  }
+  if (startsWithCI(text, "BEGIN COLUMN") || startsWithCI(text, "BEGIN ROW") ||
+      startsWithCI(text, "BEGIN STACK")) {
+    std::string axis =
+        startsWithCI(text, "BEGIN COLUMN") ? "COLUMN" : startsWithCI(text, "BEGIN ROW") ? "ROW" : "STACK";
+    /* "BEGIN COLUMN"=12, "BEGIN ROW"=9, "BEGIN STACK"=11 */
+    auto rest = trim(text.substr(axis == "COLUMN" ? 12 : axis == "ROW" ? 9 : 11));
+    stripDo(rest);
+    auto U = toUpper(rest);
+    size_t atPos = std::string::npos;
+    size_t atLen = 4;
+    if (startsWithCI(rest, "AT ")) {
+      atPos = 0;
+      atLen = 3;
+    } else {
+      atPos = findOutsideQuotes(rest, U, " AT ");
+    }
+    auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
+    if (atPos == std::string::npos || sizePos == std::string::npos || atPos > sizePos) {
+      bc.fail(line, "BEGIN " + axis + " needs AT x, y SIZE w, h [PAD n] [GAP n]");
+      return;
+    }
+    auto atPart = trim(rest.substr(atPos + atLen, sizePos - (atPos + atLen)));
+    auto afterSize = trim(rest.substr(sizePos + 6));
+    auto padPos = findOutsideQuotes(afterSize, toUpper(afterSize), " PAD ");
+    auto gapPos = findOutsideQuotes(afterSize, toUpper(afterSize), " GAP ");
+    std::string sizePart = afterSize;
+    std::string padRaw = "0";
+    std::string gapRaw = "0";
+    size_t cut = afterSize.size();
+    if (padPos != std::string::npos) cut = padPos;
+    if (gapPos != std::string::npos && gapPos < cut) cut = gapPos;
+    sizePart = trim(afterSize.substr(0, cut));
+    if (padPos != std::string::npos) {
+      size_t padEnd = afterSize.size();
+      if (gapPos != std::string::npos && gapPos > padPos) padEnd = gapPos;
+      padRaw = trim(afterSize.substr(padPos + 5, padEnd - (padPos + 5)));
+    }
+    if (gapPos != std::string::npos) {
+      size_t gapEnd = afterSize.size();
+      if (padPos != std::string::npos && padPos > gapPos) gapEnd = padPos;
+      gapRaw = trim(afterSize.substr(gapPos + 5, gapEnd - (gapPos + 5)));
+    }
+    auto commaAt = findOutsideQuotes(atPart, toUpper(atPart), ",");
+    auto commaSz = findOutsideQuotes(sizePart, toUpper(sizePart), ",");
+    if (commaAt == std::string::npos || commaSz == std::string::npos) {
+      bc.fail(line, "BEGIN " + axis + " AT needs x, y and SIZE needs w, h");
+      return;
+    }
+    auto x = bc.expr(trim(atPart.substr(0, commaAt)), line);
+    auto y = bc.expr(trim(atPart.substr(commaAt + 1)), line);
+    auto w = bc.expr(trim(sizePart.substr(0, commaSz)), line);
+    auto h = bc.expr(trim(sizePart.substr(commaSz + 1)), line);
+    auto pad = bc.expr(padRaw, line);
+    auto gap = bc.expr(gapRaw, line);
+    bc.expectTy(line, x.ty, Ty::num(), "BEGIN AT x");
+    bc.expectTy(line, y.ty, Ty::num(), "BEGIN AT y");
+    bc.expectTy(line, w.ty, Ty::num(), "BEGIN SIZE w");
+    bc.expectTy(line, h.ty, Ty::num(), "BEGIN SIZE h");
+    bc.expectTy(line, pad.ty, Ty::num(), "BEGIN PAD");
+    bc.expectTy(line, gap.ty, Ty::num(), "BEGIN GAP");
+    const char *fn = axis == "COLUMN"   ? "hanka_begin_column"
+                     : axis == "ROW"    ? "hanka_begin_row"
+                                        : "hanka_begin_stack";
+    o << "  " << fn << "(arena, " << x.code << ", " << y.code << ", " << w.code << ", " << h.code
+      << ", " << pad.code << ", " << gap.code << ");\n";
+    bc.hankaStack.push_back(axis);
+    return;
+  }
+  if (toUpper(text) == "END COLUMN" || toUpper(text) == "END ROW" || toUpper(text) == "END STACK" ||
+      toUpper(text) == "END HANKA") {
+    if (bc.hankaStack.empty()) {
+      bc.fail(line, "END without matching BEGIN COLUMN|ROW|STACK");
+      return;
+    }
+    std::string want = bc.hankaStack.back();
+    std::string got = toUpper(text) == "END HANKA" ? want : trim(toUpper(text).substr(4));
+    if (got != want) {
+      bc.fail(line, "END " + got + " but open box is " + want);
+      return;
+    }
+    bc.hankaStack.pop_back();
+    o << "  hanka_end(arena);\n";
+    return;
+  }
+  if (startsWithCI(text, "SLOT ")) {
+    auto rest = trim(text.substr(5));
+    auto U = toUpper(rest);
+    auto kindEnd = rest.find(' ');
+    if (kindEnd == std::string::npos) {
+      bc.fail(line, "SLOT needs TEXT|BUTTON|IMAGE|BOX \"id\" …");
+      return;
+    }
+    auto kindRaw = toUpper(trim(rest.substr(0, kindEnd)));
+    rest = trim(rest.substr(kindEnd));
+    U = toUpper(rest);
+    auto atPos = findOutsideQuotes(rest, U, " AT ");
+    auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
+    if (sizePos == std::string::npos) {
+      bc.fail(line, "SLOT needs SIZE w, h");
+      return;
+    }
+    std::string idPart;
+    bool hasAt = atPos != std::string::npos && atPos < sizePos;
+    if (hasAt) {
+      idPart = trim(rest.substr(0, atPos));
+    } else {
+      idPart = trim(rest.substr(0, sizePos));
+    }
+    auto idE = bc.coerceText(bc.expr(idPart, line));
+    std::string atPart;
+    if (hasAt) atPart = trim(rest.substr(atPos + 4, sizePos - (atPos + 4)));
+    auto afterSize = trim(rest.substr(sizePos + 6));
+    auto sayPos = findOutsideQuotes(afterSize, toUpper(afterSize), " SAY ");
+    auto fromPos = findOutsideQuotes(afterSize, toUpper(afterSize), " FROM ");
+    std::string sizePart;
+    std::string trail;
+    if (sayPos != std::string::npos) {
+      sizePart = trim(afterSize.substr(0, sayPos));
+      trail = trim(afterSize.substr(sayPos + 5));
+    } else if (fromPos != std::string::npos) {
+      sizePart = trim(afterSize.substr(0, fromPos));
+      trail = trim(afterSize.substr(fromPos + 6));
+    } else {
+      sizePart = afterSize;
+    }
+    auto commaSz = findOutsideQuotes(sizePart, toUpper(sizePart), ",");
+    if (commaSz == std::string::npos) {
+      bc.fail(line, "SLOT SIZE needs w, h");
+      return;
+    }
+    auto w = bc.expr(trim(sizePart.substr(0, commaSz)), line);
+    auto h = bc.expr(trim(sizePart.substr(commaSz + 1)), line);
+    bc.expectTy(line, w.ty, Ty::num(), "SLOT SIZE w");
+    bc.expectTy(line, h.ty, Ty::num(), "SLOT SIZE h");
+    Expr ox{"0", Ty::num()}, oy{"0", Ty::num()};
+    if (hasAt) {
+      auto commaAt = findOutsideQuotes(atPart, toUpper(atPart), ",");
+      if (commaAt == std::string::npos) {
+        bc.fail(line, "SLOT AT needs ox, oy");
+        return;
+      }
+      ox = bc.expr(trim(atPart.substr(0, commaAt)), line);
+      oy = bc.expr(trim(atPart.substr(commaAt + 1)), line);
+      bc.expectTy(line, ox.ty, Ty::num(), "SLOT AT ox");
+      bc.expectTy(line, oy.ty, Ty::num(), "SLOT AT oy");
+    }
+    if (kindRaw == "TEXT") {
+      auto t = bc.coerceText(bc.expr(trail, line));
+      if (hasAt)
+        o << "  hanka_slot_text_at(arena, " << idE.code << ", " << ox.code << ", " << oy.code << ", "
+          << w.code << ", " << h.code << ", " << t.code << ");\n";
+      else
+        o << "  hanka_slot_text(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+          << t.code << ");\n";
+    } else if (kindRaw == "BUTTON") {
+      auto t = bc.coerceText(bc.expr(trail, line));
+      if (hasAt)
+        o << "  hanka_slot_button_at(arena, " << idE.code << ", " << ox.code << ", " << oy.code
+          << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+      else
+        o << "  hanka_slot_button(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+          << t.code << ");\n";
+    } else if (kindRaw == "IMAGE") {
+      auto t = bc.coerceText(bc.expr(trail, line));
+      if (hasAt)
+        o << "  hanka_slot_image_at(arena, " << idE.code << ", " << ox.code << ", " << oy.code
+          << ", " << w.code << ", " << h.code << ", " << t.code << ");\n";
+      else
+        o << "  hanka_slot_image(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+          << t.code << ");\n";
+    } else if (kindRaw == "BOX") {
+      if (hasAt)
+        o << "  hanka_slot_box_at(arena, " << idE.code << ", " << ox.code << ", " << oy.code << ", "
+          << w.code << ", " << h.code << ");\n";
+      else
+        o << "  hanka_slot_box(arena, " << idE.code << ", " << w.code << ", " << h.code << ");\n";
+    } else {
+      bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, or BOX — got " + kindRaw);
+    }
+    return;
+  }
+
   /* Argus — conversational scene presentment (DOM backend) */
   if (toUpper(text) == "PAINT THE SCREEN" || toUpper(text) == "PAINT SCREEN") {
     o << "  argus_paint(arena);\n";
     return;
   }
   if (toUpper(text) == "CLEAR THE SCREEN" || toUpper(text) == "CLEAR SCREEN") {
+    o << "  hanka_clear(arena);\n";
     o << "  argus_clear(arena);\n";
     return;
   }
@@ -1733,6 +1932,7 @@ std::string emit(BC &bc) {
   o << "#include \"luke_rt.h\"\n";
   o << "#include \"luke_std.h\"\n";
   o << "#include \"argus.h\"\n";
+  o << "#include \"hanka.h\"\n";
   o << "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n";
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";
@@ -1906,6 +2106,10 @@ std::string emit(BC &bc) {
         stmt(bc, w.body[i], w.lines[i], o);
         if (bc.bad) return {};
       }
+      if (!bc.hankaStack.empty()) {
+        bc.fail(1, "Unclosed BEGIN " + bc.hankaStack.back() + " in WHEN handler");
+        return {};
+      }
       o << "}\n\n";
     }
   }
@@ -1922,6 +2126,10 @@ std::string emit(BC &bc) {
   }
   if (!bc.arenaMarks.empty()) {
     bc.fail(1, "Unclosed IN ARENA — missing END ARENA");
+    return {};
+  }
+  if (!bc.hankaStack.empty()) {
+    bc.fail(1, "Unclosed BEGIN " + bc.hankaStack.back() + " — missing END " + bc.hankaStack.back());
     return {};
   }
   if (bc.forBrowser || !bc.pageWhens.empty()) {

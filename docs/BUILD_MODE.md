@@ -249,17 +249,21 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 
 ### Rendering / layout (engine track)
 
-- **Argus (rendering engine, now):** [`ARGUS.md`](./ARGUS.md) — `PLACE` / `PAINT THE SCREEN`, Luke scene → DOM presentment.
-- **Layout engine (future):** [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md) — parked; do not build until paint/dirty path is solid.
+- **Argus (rendering):** [`ARGUS.md`](./ARGUS.md) — scene paint → DOM presentment.
+- **Hanka (layout):** [`HANKA.md`](./HANKA.md) — `COLUMN` / `ROW` / `STACK` → frames → Argus.
 
 ```luke
+IMPORT std/hanka
 IMPORT std/argus
-PLACE "brand" AS TEXT AT 48, 420 SIZE 900, 80 SAY "LukeLang"
+BEGIN COLUMN AT 48, 420 SIZE 1184, 280 PAD 0 GAP 16
+  SLOT TEXT "brand" SIZE 900, 80 SAY "LukeLang"
+END COLUMN
+LAY OUT THE SCREEN
 PAINT THE SCREEN
 ```
 
 ```bash
-luke BUILD examples/build/argus_demo.luke -target browser -o build/argus_demo
+luke BUILD examples/build/hanka_demo.luke -target browser -o build/hanka_demo
 ```
 
 ## Philosophy

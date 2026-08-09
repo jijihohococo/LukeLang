@@ -106,6 +106,8 @@ test-build: build/luke
 	@node ../scripts/luke_browser_loader.cjs ../sample/dist/landing.wasm >/tmp/luke_sample_boot.txt
 	./build/luke BUILD ../examples/build/argus_demo.luke -target browser -o build/argus_demo
 	@node ../scripts/luke_browser_loader.cjs build/argus_demo.wasm 2>&1 | grep -q "argus_upsert"
+	./build/luke BUILD ../examples/build/hanka_demo.luke -target browser -o build/hanka_demo
+	@node ../scripts/luke_browser_loader.cjs build/hanka_demo.wasm 2>&1 | grep -q "argus_upsert"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

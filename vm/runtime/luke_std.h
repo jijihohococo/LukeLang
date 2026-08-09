@@ -5,6 +5,8 @@
  * Linked by including this header after luke_rt.h in generated C. */
 
 #include "luke_rt.h"
+#include "luke_net.h"
+#include "luke_db.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -148,6 +148,7 @@ static inline LukeText luke_text_concat(LukeArena *a, LukeText x, LukeText y) {
 static inline void luke_speak_text(LukeText t) {
   fwrite(t.ptr, 1, t.len, stdout);
   fputc('\n', stdout);
+  fflush(stdout);
 }
 
 static inline void luke_speak_number(double n) {
@@ -155,10 +156,28 @@ static inline void luke_speak_number(double n) {
   char buf[64];
   snprintf(buf, sizeof(buf), "%.10g", n);
   puts(buf);
+  fflush(stdout);
+}
+
+static inline void luke_speak_integer(int64_t n) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%lld", (long long)n);
+  puts(buf);
+  fflush(stdout);
+}
+
+static inline LukeText luke_integer_to_text(LukeArena *a, int64_t n) {
+  char buf[32];
+  int k = snprintf(buf, sizeof(buf), "%lld", (long long)n);
+  if (k < 0) k = 0;
+  char *p = (char *)luke_arena_alloc(a, (size_t)k + 1, 1);
+  memcpy(p, buf, (size_t)k + 1);
+  return luke_text_n(p, (size_t)k);
 }
 
 static inline void luke_speak_flag(int f) {
   puts(f ? "true" : "false");
+  fflush(stdout);
 }
 
 /* ---------- Micro-benchmark sample buffer (median / min) ---------- */

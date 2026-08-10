@@ -88,7 +88,7 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **Flagship (push + fluid):** `examples/build/dashboard_push_{server,client}.luke` — SSE `SUBSCRIBE`, `SIZE AUTO` flex-grow, zero glue; `region=1` per push (`make test`).
 - **Benchmark baseline:** `examples/build/reactive_benchmark.luke` + [`BENCHMARKS.md`](./BENCHMARKS.md) — granular vs full rebuild at 1K / 10K with **warmup + median/min** samples; `make test` asserts.
 - **Mount path:** Argus id hash index (was O(N²)); arena grows by **block chain** (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.
-- Next ceilings: true integer type; backend concurrency (opens Backend track).
+- Next ceilings: richer JSON integer round-trip; worker-pool serve; Backend track expansion.
 
 ### Phase 3 — Expand from strength
 - Resume reactive engine phases (roadmap in [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)).

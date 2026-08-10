@@ -24,7 +24,7 @@ html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Georgi
 REMEMBER server_count AS ""
 REMEMBER status AS 0
 REMEMBER ready AS 0
-REMEMBER tick AS 0
+REMEMBER tick AS NUMBER SET TO 0
 REMEMBER region_now AS 0
 REMEMBER granular_before AS 0
 REMEMBER granular_now AS 0

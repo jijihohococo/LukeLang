@@ -1,0 +1,26 @@
+// True INTEGER — exact int64 (IDs / money cents / counters). Build mode.
+// Build: luke BUILD examples/build/integer_exact.luke -o build/integer_exact
+
+MY NAME IS cents AS INTEGER SET TO 199
+MY NAME IS id AS INTEGER SET TO 9007199254740993
+MY NAME IS n AS INTEGER SET TO 0
+
+SET n TO n ADD 1
+SET cents TO cents ADD 1
+SET id TO id ADD 1
+
+SPEAK "cents=" AND cents
+SPEAK "id=" AND id
+SPEAK "n=" AND n
+
+IF id EQUALS 9007199254740994 DO
+  SPEAK "exact=1"
+END IF
+
+REMEMBER rx_count AS INTEGER SET TO 10
+CHANGE rx_count TO rx_count ADD 5
+SPEAK "rx=" AND rx_count
+
+MAKE SURE cents EQUALS 200
+MAKE SURE n EQUALS 1
+MAKE SURE rx_count EQUALS 15

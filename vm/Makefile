@@ -86,7 +86,7 @@ test-build: build/luke
 	@test -f ../luke.lock
 	@# negative typechecks must fail
 	@./build/luke BUILD ../examples/build/bad_types.luke -o build/bad_types 2>/tmp/luke_bad_types.txt; test $$? -ne 0
-	@grep -q "wants TEXT but got NUMBER" /tmp/luke_bad_types.txt
+	@grep -qE "wants TEXT but got (NUMBER|INTEGER)" /tmp/luke_bad_types.txt
 	@./build/luke BUILD ../examples/build/bad_arity.luke -o build/bad_arity 2>/tmp/luke_bad_arity.txt; test $$? -ne 0
 	@grep -q "expects 2 arguments" /tmp/luke_bad_arity.txt
 	./build/luke BUILD ../examples/build/hello_wasm.luke -target wasm -o build/ex_hello.wasm
@@ -339,6 +339,26 @@ test-build: build/luke
 	@grep -q "\[argus_flow_frame\]" /tmp/luke_dash_push.txt
 	@test $$(grep -c 'region=1' /tmp/luke_dash_push.txt) -ge 3
 	@if [ -f /tmp/luke_dash_push_server.pid ]; then kill $$(cat /tmp/luke_dash_push_server.pid) 2>/dev/null || true; fi
+	./build/luke BUILD ../examples/build/integer_exact.luke -o build/integer_exact
+	@grep -q 'int64_t\|luke_rx_cell_int\|luke_speak_integer' build/integer_exact.luke.c
+	@./build/integer_exact | tee /tmp/luke_integer.txt | grep -q "exact=1"
+	@grep -q "cents=200" /tmp/luke_integer.txt
+	@grep -q "id=9007199254740994" /tmp/luke_integer.txt
+	@grep -q "rx=15" /tmp/luke_integer.txt
+	./build/luke BUILD ../examples/build/concurrent_server.luke -o build/concurrent_server
+	@grep -q 'luke_http_serve\|luke_http_wrap_' build/concurrent_server.luke.c
+	@set -e; \
+	  rm -f /tmp/luke_conc_server.pid /tmp/luke_conc_fast.txt /tmp/luke_conc_slow.txt; \
+	  ./build/concurrent_server > /tmp/luke_conc_server.log 2>&1 & echo $$! > /tmp/luke_conc_server.pid; \
+	  sleep 0.35; \
+	  curl -s -m 3 http://127.0.0.1:8797/slow -o /tmp/luke_conc_slow.txt & echo $$! > /tmp/luke_conc_slow.pid; \
+	  sleep 0.08; \
+	  curl -s -m 2 http://127.0.0.1:8797/fast -o /tmp/luke_conc_fast.txt; \
+	  wait $$(cat /tmp/luke_conc_slow.pid); \
+	  test -f /tmp/luke_conc_fast.txt && grep -q '^fast$$' /tmp/luke_conc_fast.txt; \
+	  test -f /tmp/luke_conc_slow.txt && grep -q '^slow$$' /tmp/luke_conc_slow.txt; \
+	  kill $$(cat /tmp/luke_conc_server.pid) 2>/dev/null || true; \
+	  wait $$(cat /tmp/luke_conc_server.pid) 2>/dev/null || true
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

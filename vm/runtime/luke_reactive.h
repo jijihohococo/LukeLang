@@ -51,7 +51,8 @@ typedef enum LukeRxValKind {
   LUKE_RX_VAL_NUM = 0,
   LUKE_RX_VAL_TEXT = 1,
   LUKE_RX_VAL_LIST = 2,
-  LUKE_RX_VAL_MAP = 3
+  LUKE_RX_VAL_MAP = 3,
+  LUKE_RX_VAL_INT = 4
 } LukeRxValKind;
 
 typedef struct LukeRxNode {
@@ -69,6 +70,7 @@ typedef struct LukeRxNode {
   uint32_t scope_id; /* owning scope frame (0 = global) */
   uint32_t boundary_scope_id; /* error boundary scope (0 = none) */
   double num;
+  int64_t i64; /* exact INTEGER cells (IDs / money cents / counters) */
   LukeText text;
   LukeList *list;
   LukeMap *map;
@@ -312,6 +314,18 @@ static inline LukeRxId luke_rx_cell(LukeRxGraph *g, double initial) {
   if (n) {
     n->vkind = LUKE_RX_VAL_NUM;
     n->num = initial;
+    n->dirty = 0;
+  }
+  return id;
+}
+
+static inline LukeRxId luke_rx_cell_int(LukeRxGraph *g, int64_t initial) {
+  LukeRxId id = luke_rx_alloc(g, LUKE_RX_CELL);
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (n) {
+    n->vkind = LUKE_RX_VAL_INT;
+    n->i64 = initial;
+    n->num = 0.0;
     n->dirty = 0;
   }
   return id;
@@ -751,9 +765,25 @@ static inline void luke_rx_batch_end(LukeRxGraph *g) {
 static inline void luke_rx_write_num(LukeRxGraph *g, LukeRxId id, double v) {
   LukeRxNode *n = luke_rx_node(g, id);
   if (!n || n->kind != LUKE_RX_CELL) return;
-  if (n->vkind == LUKE_RX_VAL_TEXT) return;
+  if (n->vkind == LUKE_RX_VAL_TEXT || n->vkind == LUKE_RX_VAL_INT) return;
   if (n->num == v && !n->dirty) return;
   n->num = v;
+  n->version++;
+  g->last_write_id = id;
+  luke_rx_mark_dirty(g, id);
+  luke_rx_invalidate_subs(g, id);
+  if (!g->batching) luke_rx_request_flush(g);
+}
+
+static inline void luke_rx_write_int(LukeRxGraph *g, LukeRxId id, int64_t v) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_CELL) return;
+  if (n->vkind != LUKE_RX_VAL_INT) {
+    if (n->vkind == LUKE_RX_VAL_TEXT) return;
+    n->vkind = LUKE_RX_VAL_INT;
+  }
+  if (n->i64 == v && !n->dirty) return;
+  n->i64 = v;
   n->version++;
   g->last_write_id = id;
   luke_rx_mark_dirty(g, id);
@@ -883,7 +913,27 @@ static inline double luke_rx_read_num(LukeRxGraph *g, LukeRxId id) {
   }
   if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
   n = luke_rx_node(g, id);
-  return n ? n->num : 0.0;
+  if (!n) return 0.0;
+  if (n->vkind == LUKE_RX_VAL_INT) return (double)n->i64;
+  return n->num;
+}
+
+static inline int64_t luke_rx_read_int(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return 0;
+  if (g->computing) {
+    if (luke_rx_computing_weak(g))
+      g->weak_read_count++;
+    else {
+      luke_rx_link(g, g->computing, id);
+      if (n->dirty && n->kind == LUKE_RX_DERIVED) g->stale_read = 1;
+    }
+  }
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
+  n = luke_rx_node(g, id);
+  if (!n) return 0;
+  if (n->vkind == LUKE_RX_VAL_INT) return n->i64;
+  return (int64_t)n->num;
 }
 
 /* Weak read — observe value without registering a dependency edge. */
@@ -893,7 +943,20 @@ static inline double luke_rx_read_num_weak(LukeRxGraph *g, LukeRxId id) {
   if (g->computing) g->weak_read_count++;
   if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
   n = luke_rx_node(g, id);
-  return n ? n->num : 0.0;
+  if (!n) return 0.0;
+  if (n->vkind == LUKE_RX_VAL_INT) return (double)n->i64;
+  return n->num;
+}
+
+static inline int64_t luke_rx_read_int_weak(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return 0;
+  if (g->computing) g->weak_read_count++;
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
+  n = luke_rx_node(g, id);
+  if (!n) return 0;
+  if (n->vkind == LUKE_RX_VAL_INT) return n->i64;
+  return (int64_t)n->num;
 }
 
 static inline LukeText luke_rx_read_text_weak(LukeRxGraph *g, LukeRxId id) {

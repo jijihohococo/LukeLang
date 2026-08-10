@@ -20,7 +20,7 @@ html, body { margin: 0; background: #101820; }
 }
 """
 
-REMEMBER fade AS 0
+REMEMBER fade AS NUMBER SET TO 0
 
 BEGIN COLUMN AT 48, 48 SIZE 720, 320 PAD 0 GAP 16
   SLOT TEXT "brand" SIZE 640, 56 SAY "LukeLang"

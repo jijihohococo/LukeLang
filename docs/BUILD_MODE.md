@@ -151,6 +151,7 @@ Bump pointer is restored at `END ARENA` — request/frame-scoped memory without 
 | Luke | Build representation |
 | --- | --- |
 | `NUMBER` | `double` |
+| `INTEGER` | `int64_t` (exact IDs / money cents / counters) |
 | `FLAG` | `int` (0/1) |
 | `TEXT` | `LukeText { ptr, len }` (arena or literal) |
 | `JSON` | `LukeJson *` (arena tree — parse / get / stringify) |
@@ -161,16 +162,17 @@ Bump pointer is restored at `END ARENA` — request/frame-scoped memory without 
 | `BLUEPRINT Foo` | `typedef struct Foo { ... } Foo` |
 
 Inference (v0):
-- `42` → `NUMBER`
+- `42` → `INTEGER` (no `.` / exponent); `3.14` → `NUMBER`
 - `"hi"` / wordy strings → `TEXT`
 - `TRUE` / `FALSE` → `FLAG`
 - `ASK jsonParse WITH …` → `JSON`
 - `HAS name SET TO "..."` → field `TEXT`
-- `HAS count SET TO 0` → field `NUMBER`
-- `HAS x AS NUMBER` / `AS TEXT` / `AS FLAG` / `AS JSON` — explicit when needed
-- First assignment to a local fixes its type; later `SET` must match
+- `HAS count SET TO 0` → field `INTEGER`
+- `HAS x AS NUMBER` / `AS INTEGER` / `AS TEXT` / `AS FLAG` / `AS JSON` — explicit when needed
+- First assignment to a local fixes its type; later `SET` must match (`INTEGER` widens to `NUMBER`)
 - Function args/arity and `GIVE BACK` types are checked
 - Optional: `THIS IS FUNCTION f … GIVES BACK TEXT DO`
+- Concurrent HTTP: `ASK httpServe WITH server, handler, maxConn` (thread-per-connection; links `-lpthread`)
 
 ## Memory (Luke words)
 

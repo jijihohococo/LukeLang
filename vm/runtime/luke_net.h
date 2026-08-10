@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -65,6 +66,14 @@ static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
 
 static inline int luke_http_close(LukeHttpRequest *req) {
   (void)req;
+  return 0;
+}
+
+static inline int luke_http_serve(LukeHttpServer *s, void (*handler)(LukeArena *, LukeHttpRequest *),
+                                  double max_conn) {
+  (void)s;
+  (void)handler;
+  (void)max_conn;
   return 0;
 }
 
@@ -357,6 +366,93 @@ static inline int luke_http_close(LukeHttpRequest *req) {
   close(req->client_fd);
   req->client_fd = -1;
   return 1;
+}
+
+/* ---------- Concurrent serve (thread-per-connection) ---------- */
+
+typedef void (*LukeHttpHandler)(LukeArena *arena, LukeHttpRequest *req);
+
+typedef struct LukeHttpServeJob {
+  LukeHttpHandler handler;
+  LukeArena *arena;
+  LukeHttpRequest *req;
+} LukeHttpServeJob;
+
+static inline void *luke_http__serve_worker(void *arg) {
+  LukeHttpServeJob *job = (LukeHttpServeJob *)arg;
+  if (job && job->handler && job->arena && job->req) job->handler(job->arena, job->req);
+  if (job) {
+    if (job->req && job->req->client_fd >= 0) {
+      close(job->req->client_fd);
+      job->req->client_fd = -1;
+    }
+    if (job->arena) {
+      luke_arena_free(job->arena);
+      free(job->arena);
+    }
+    free(job);
+  }
+  return NULL;
+}
+
+/* Accept up to max_conn connections (max_conn<=0 → forever until accept fails).
+ * Each connection runs `handler` on its own thread with a private arena.
+ * When max_conn > 0, joins workers before returning so the process stays alive. */
+static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
+  if (!s || s->fd < 0 || !handler) return 0;
+  int left = (int)max_conn;
+  int unlimited = left <= 0;
+  int started = 0;
+  pthread_t *ths = NULL;
+  int th_cap = 0;
+  if (!unlimited) {
+    th_cap = left;
+    ths = (pthread_t *)calloc((size_t)th_cap, sizeof(pthread_t));
+    if (!ths) return 0;
+  }
+  while (unlimited || left > 0) {
+    LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
+    if (!arena) break;
+    luke_arena_init(arena, 1u << 16);
+    LukeHttpRequest *req = luke_http_accept(arena, s);
+    if (!req) {
+      luke_arena_free(arena);
+      free(arena);
+      break;
+    }
+    LukeHttpServeJob *job = (LukeHttpServeJob *)calloc(1, sizeof(LukeHttpServeJob));
+    if (!job) {
+      close(req->client_fd);
+      req->client_fd = -1;
+      luke_arena_free(arena);
+      free(arena);
+      break;
+    }
+    job->handler = handler;
+    job->arena = arena;
+    job->req = req;
+    pthread_t th;
+    if (pthread_create(&th, NULL, luke_http__serve_worker, job) != 0) {
+      close(req->client_fd);
+      req->client_fd = -1;
+      luke_arena_free(arena);
+      free(arena);
+      free(job);
+      break;
+    }
+    if (unlimited) {
+      pthread_detach(th);
+    } else {
+      ths[started] = th;
+    }
+    started++;
+    if (!unlimited) left--;
+  }
+  if (ths) {
+    for (int i = 0; i < started; ++i) pthread_join(ths[i], NULL);
+    free(ths);
+  }
+  return started > 0 ? 1 : 0;
 }
 
 #endif /* !__wasi__ */

@@ -148,11 +148,12 @@ std::string unquoteText(std::string s) {
   return s;
 }
 
-enum class K { Num, Flag, Text, Json, List, Map, Void, Ptr };
+enum class K { Num, Int, Flag, Text, Json, List, Map, Void, Ptr };
 struct Ty {
   K k = K::Void;
   std::string klass;
   static Ty num() { return {K::Num, ""}; }
+  static Ty integer() { return {K::Int, ""}; }
   static Ty flag() { return {K::Flag, ""}; }
   static Ty text() { return {K::Text, ""}; }
   static Ty json() { return {K::Json, ""}; }
@@ -164,6 +165,7 @@ struct Ty {
 std::string cTy(const Ty &t) {
   switch (t.k) {
     case K::Num: return "double";
+    case K::Int: return "int64_t";
     case K::Flag: return "int";
     case K::Text: return "LukeText";
     case K::Json: return "LukeJson *";
@@ -180,6 +182,7 @@ std::string cTy(const Ty &t) {
 std::string tyName(const Ty &t) {
   switch (t.k) {
     case K::Num: return "NUMBER";
+    case K::Int: return "INTEGER";
     case K::Flag: return "FLAG";
     case K::Text: return "TEXT";
     case K::Json: return "JSON";
@@ -355,6 +358,8 @@ struct BC {
     size_t line = 0;
   };
   std::vector<RxSubscribeBind> rxSubscribeBinds;
+  std::vector<std::string> httpServeHandlers;
+  bool needsPthread = false;
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -364,10 +369,25 @@ struct BC {
 
   void expectTy(size_t line, const Ty &got, const Ty &want, const std::string &what) {
     if (want.k == K::Void || got.k == K::Void) return;
-    if (!typesEqual(got, want)) {
-      fail(line, what + " wants " + tyName(want) + " but got " + tyName(got));
-    }
+    if (typesEqual(got, want)) return;
+    if (want.k == K::Num && got.k == K::Int) return;
+    if (want.k == K::Int && got.k == K::Num) return;
+    fail(line, what + " wants " + tyName(want) + " but got " + tyName(got));
   }
+
+  Expr coerceTo(size_t line, const Expr &e, const Ty &want, const std::string &what) {
+    expectTy(line, e.ty, want, what);
+    if (bad) return e;
+    if (want.k == K::Num && e.ty.k == K::Int)
+      return {"((double)(" + e.code + "))", Ty::num()};
+    if (want.k == K::Int && e.ty.k == K::Num)
+      return {"((int64_t)(" + e.code + "))", Ty::integer()};
+    Expr out = e;
+    if (want.k != K::Void) out.ty = want;
+    return out;
+  }
+
+  bool isNumeric(const Ty &t) { return t.k == K::Num || t.k == K::Int; }
 
   std::vector<Expr> checkCallArgs(size_t line, const std::string &callee,
                                   const std::vector<Param> &params,
@@ -386,9 +406,8 @@ struct BC {
                        "' has an unknown type — use AS NUMBER/TEXT/FLAG/JSON or a blueprint name");
         return out;
       }
-      expectTy(line, e.ty, params[i].ty,
-               "'" + callee + "' argument '" + params[i].name + "'");
-      out.push_back(e);
+      out.push_back(coerceTo(line, e, params[i].ty,
+                             "'" + callee + "' argument '" + params[i].name + "'"));
     }
     return out;
   }
@@ -401,6 +420,7 @@ struct BC {
   Ty parseTy(const std::string &t) {
     auto U = toUpper(t);
     if (U == "NUMBER" || U == "NUM") return Ty::num();
+    if (U == "INTEGER" || U == "INT") return Ty::integer();
     if (U == "FLAG" || U == "BOOL") return Ty::flag();
     if (U == "TEXT" || U == "STRING") return Ty::text();
     if (U == "JSON") return Ty::json();
@@ -459,6 +479,7 @@ struct BC {
   Expr coerceText(const Expr &e) {
     if (e.ty.k == K::Text) return e;
     if (e.ty.k == K::Num) return {"luke_number_to_text(arena, (" + e.code + "))", Ty::text()};
+    if (e.ty.k == K::Int) return {"luke_integer_to_text(arena, (" + e.code + "))", Ty::text()};
     if (e.ty.k == K::Flag)
       return {"luke_text((" + e.code + ") ? \"true\" : \"false\")", Ty::text()};
     return {"luke_text(\"\")", Ty::text()};
@@ -632,7 +653,14 @@ Expr BC::primary(std::string e, size_t line) {
   }
   char *end = nullptr;
   std::strtod(e.c_str(), &end);
-  if (end && end != e.c_str() && *end == '\0') return {e, Ty::num()};
+  if (end && end != e.c_str() && *end == '\0') {
+    bool isIntLit = true;
+    for (char c : e) {
+      if (c == '.' || c == 'e' || c == 'E') { isIntLit = false; break; }
+    }
+    if (isIntLit) return {e + "LL", Ty::integer()};
+    return {e, Ty::num()};
+  }
 
   /* "THE price" → local/reactive "price" when declared. */
   if (startsWithCI(e, "THE ")) {
@@ -670,6 +698,8 @@ Expr BC::primary(std::string e, size_t line) {
       return {"luke_rx_map_ptr(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::map()};
     if (ty.k == K::Text)
       return {"luke_rx_read_text(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::text()};
+    if (ty.k == K::Int)
+      return {"luke_rx_read_int(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::integer()};
     return {"luke_rx_read_num(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::num()};
   }
   if (locals.count(e)) return {cIdent(e), locals[e]};
@@ -686,7 +716,7 @@ Expr BC::primary(std::string e, size_t line) {
   }
 
   fail(line, "I don't know '" + e + "' yet — declare it with MY NAME IS … SET TO … "
-             "(or AS NUMBER/TEXT/FLAG)");
+             "(or AS NUMBER/INTEGER/TEXT/FLAG)");
   return {"0", Ty::num()};
 }
 
@@ -902,6 +932,10 @@ Expr BC::expr(std::string e, size_t line) {
       w.replace(pos, 17, "luke_rx_read_num_weak(");
       pos += 22;
     }
+    for (size_t pos = 0; (pos = w.find("luke_rx_read_int(", pos)) != std::string::npos;) {
+      w.replace(pos, 17, "luke_rx_read_int_weak(");
+      pos += 22;
+    }
     for (size_t pos = 0; (pos = w.find("luke_rx_read_text(", pos)) != std::string::npos;) {
       w.replace(pos, 18, "luke_rx_read_text_weak(");
       pos += 23;
@@ -988,6 +1022,36 @@ Expr BC::expr(std::string e, size_t line) {
     else {
       name = trim(rest.substr(0, w));
       args = splitArgs(trim(rest.substr(w + 6)));
+    }
+    /* Backend concurrency: ASK httpServe WITH server, handlerFn, maxConn */
+    if (name == "httpServe") {
+      if (args.size() != 3) {
+        fail(line, "httpServe needs: ASK httpServe WITH server, handler, maxConn");
+        return {"0", Ty::flag()};
+      }
+      auto serverE = expr(args[0], line);
+      expectTy(line, serverE.ty, Ty::ptr("__HttpServer"), "httpServe server");
+      auto handlerName = trim(args[1]);
+      if (!fns.count(handlerName)) {
+        fail(line, "httpServe handler '" + handlerName +
+                       "' — define THIS IS FUNCTION " + handlerName + " WITH req AS REQUEST");
+        return {"0", Ty::flag()};
+      }
+      auto &hfn = fns[handlerName];
+      if (hfn.params.size() != 1 || hfn.params[0].ty.k != K::Ptr ||
+          hfn.params[0].ty.klass != "__HttpReq") {
+        fail(line, "httpServe handler must take one REQUEST argument");
+        return {"0", Ty::flag()};
+      }
+      auto maxE = coerceTo(line, expr(args[2], line), Ty::num(), "httpServe maxConn");
+      needsPthread = true;
+      bool seen = false;
+      for (auto &h : httpServeHandlers)
+        if (h == handlerName) seen = true;
+      if (!seen) httpServeHandlers.push_back(handlerName);
+      return {"luke_http_serve(" + serverE.code + ", luke_http_wrap_" + cIdent(handlerName) + ", " +
+                  maxE.code + ")",
+              Ty::flag()};
     }
     if (!fns.count(name)) {
       fail(line, "Unknown function '" + name + "' — define it with THIS IS FUNCTION, or IMPORT it");
@@ -1101,8 +1165,8 @@ Expr BC::expr(std::string e, size_t line) {
     if (pos == std::string::npos) return nullptr;
     auto L = expr(trim(e.substr(0, pos)), line);
     auto R = expr(trim(e.substr(pos + needle.size())), line);
-    if (!typesEqual(L.ty, R.ty) && !(L.ty.k == K::Num && R.ty.k == K::Num)) {
-      // Allow num comparisons; otherwise require matching types.
+    if (!typesEqual(L.ty, R.ty) && !(isNumeric(L.ty) && isNumeric(R.ty))) {
+      // Allow numeric comparisons; otherwise require matching types.
       if (L.ty.k != R.ty.k) {
         fail(line, "Cannot compare " + tyName(L.ty) + " with " + tyName(R.ty));
         r = {"0", Ty::flag()};
@@ -1119,9 +1183,15 @@ Expr BC::expr(std::string e, size_t line) {
       r = {"0", Ty::flag()};
       return &r;
     }
-    if (L.ty.k != K::Num && L.ty.k != K::Flag) {
-      fail(line, "Can only compare NUMBER or FLAG values here (got " + tyName(L.ty) + ")");
+    if (!isNumeric(L.ty) && L.ty.k != K::Flag) {
+      fail(line, "Can only compare NUMBER, INTEGER, or FLAG values here (got " + tyName(L.ty) + ")");
       r = {"0", Ty::flag()};
+      return &r;
+    }
+    if (isNumeric(L.ty) && isNumeric(R.ty) && L.ty.k != R.ty.k) {
+      Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
+      Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
+      r = {Lc.code + op + Rc.code, Ty::flag()};
       return &r;
     }
     r = {L.code + op + R.code, Ty::flag()};
@@ -1137,9 +1207,24 @@ Expr BC::expr(std::string e, size_t line) {
   auto arith = [&](const std::string &mid, const std::string &pref, char op) -> Expr * {
     static Expr r;
     auto finish = [&](Expr L, Expr R) {
-      expectTy(line, L.ty, Ty::num(), "Arithmetic");
-      expectTy(line, R.ty, Ty::num(), "Arithmetic");
-      r = {"(" + L.code + op + R.code + ")", Ty::num()};
+      if (!isNumeric(L.ty) || !isNumeric(R.ty)) {
+        fail(line, "Arithmetic wants NUMBER or INTEGER");
+        r = {"0", Ty::num()};
+        return &r;
+      }
+      if (op == '/') {
+        Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
+        Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
+        r = {"(" + Lc.code + "/" + Rc.code + ")", Ty::num()};
+        return &r;
+      }
+      if (L.ty.k == K::Int && R.ty.k == K::Int) {
+        r = {"(" + L.code + op + R.code + ")", Ty::integer()};
+        return &r;
+      }
+      Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
+      Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
+      r = {"(" + Lc.code + op + Rc.code + ")", Ty::num()};
       return &r;
     };
     auto pos = findOutsideQuotes(e, U, mid);
@@ -1165,9 +1250,15 @@ Expr BC::expr(std::string e, size_t line) {
     if (pos != std::string::npos) {
       auto L = expr(trim(e.substr(0, pos)), line);
       auto R = expr(trim(e.substr(pos + mid)), line);
-      expectTy(line, L.ty, Ty::num(), "Arithmetic");
-      expectTy(line, R.ty, Ty::num(), "Arithmetic");
-      return {"(" + L.code + "*" + R.code + ")", Ty::num()};
+      if (!isNumeric(L.ty) || !isNumeric(R.ty)) {
+        fail(line, "Arithmetic wants NUMBER or INTEGER");
+        return {"0", Ty::num()};
+      }
+      if (L.ty.k == K::Int && R.ty.k == K::Int)
+        return {"(" + L.code + "*" + R.code + ")", Ty::integer()};
+      Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
+      Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
+      return {"(" + Lc.code + "*" + Rc.code + ")", Ty::num()};
     }
   }
   if (auto *r = arith(" ADD ", "ADD ", '+')) return *r;
@@ -1179,9 +1270,13 @@ Expr BC::expr(std::string e, size_t line) {
     if (pos != std::string::npos) {
       auto L = expr(trim(e.substr(0, pos)), line);
       auto R = expr(trim(e.substr(pos + 12)), line);
-      expectTy(line, L.ty, Ty::num(), "Arithmetic");
-      expectTy(line, R.ty, Ty::num(), "Arithmetic");
-      return {"(" + L.code + "/" + R.code + ")", Ty::num()};
+      if (!isNumeric(L.ty) || !isNumeric(R.ty)) {
+        fail(line, "Arithmetic wants NUMBER or INTEGER");
+        return {"0", Ty::num()};
+      }
+      Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
+      Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
+      return {"(" + Lc.code + "/" + Rc.code + ")", Ty::num()};
     }
   }
 
@@ -1207,11 +1302,13 @@ Expr BC::expr(std::string e, size_t line) {
       auto cond = expr(trim(rest.substr(0, thenPos)), line);
       auto thenE = expr(trim(rest.substr(thenPos + 6, otherwisePos - (thenPos + 6))), line);
       auto elseE = expr(trim(rest.substr(otherwisePos + 11)), line);
-      if (cond.ty.k != K::Flag && cond.ty.k != K::Num)
-        fail(line, "IF … THEN … OTHERWISE needs a FLAG or NUMBER condition");
+      if (cond.ty.k != K::Flag && cond.ty.k != K::Num && cond.ty.k != K::Int)
+        fail(line, "IF … THEN … OTHERWISE needs a FLAG, NUMBER, or INTEGER condition");
       expectTy(line, thenE.ty, Ty::num(), "IF … THEN … OTHERWISE");
       expectTy(line, elseE.ty, Ty::num(), "IF … THEN … OTHERWISE");
-      return {"((" + cond.code + ") ? (" + thenE.code + ") : (" + elseE.code + "))", Ty::num()};
+      Expr thenC = coerceTo(line, thenE, Ty::num(), "IF … THEN … OTHERWISE");
+      Expr elseC = coerceTo(line, elseE, Ty::num(), "IF … THEN … OTHERWISE");
+      return {"((" + cond.code + ") ? (" + thenC.code + ") : (" + elseC.code + "))", Ty::num()};
     }
   }
   return primary(e, line);
@@ -1220,6 +1317,7 @@ Expr BC::expr(std::string e, size_t line) {
 void speak(const Expr &e, std::ostringstream &o) {
   if (e.ty.k == K::Text) o << "  luke_speak_text(" << e.code << ");\n";
   else if (e.ty.k == K::Flag) o << "  luke_speak_flag(" << e.code << ");\n";
+  else if (e.ty.k == K::Int) o << "  luke_speak_integer(" << e.code << ");\n";
   else if (e.ty.k == K::Num) o << "  luke_speak_number(" << e.code << ");\n";
   else if (e.ty.k == K::Json)
     o << "  luke_speak_text(luke_json_stringify(arena, " << e.code << "));\n";
@@ -1286,7 +1384,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto U = toUpper(text);
     auto b = U.find(" BACK ");
     auto e = bc.expr(trim(text.substr(b + 6)), line);
-    if (bc.hasCurRet) bc.expectTy(line, e.ty, bc.curRet, "GIVE BACK");
+    if (bc.hasCurRet) e = bc.coerceTo(line, e, bc.curRet, "GIVE BACK");
     o << "  return " << e.code << ";\n";
     return;
   }
@@ -1379,17 +1477,17 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     if (valRaw.empty()) {
       if (forced.k == K::Text) e = {"luke_text(\"\")", Ty::text()};
       else if (forced.k == K::Flag) e = {"0", Ty::flag()};
+      else if (forced.k == K::Int) e = {"0LL", Ty::integer()};
       else e = {"0.0", Ty::num()};
       if (forced.k != K::Void) e.ty = forced;
     } else {
       e = bc.expr(valRaw, line);
       if (forced.k != K::Void) {
-        bc.expectTy(line, e.ty, forced, "REMEMBER " + name);
-        e.ty = forced;
+        e = bc.coerceTo(line, e, forced, "REMEMBER " + name);
       }
     }
-    if (e.ty.k != K::Num && e.ty.k != K::Text) {
-      bc.fail(line, "REMEMBER supports NUMBER, TEXT, LIST, or MAP — got " + tyName(e.ty));
+    if (e.ty.k != K::Num && e.ty.k != K::Int && e.ty.k != K::Text) {
+      bc.fail(line, "REMEMBER supports NUMBER, INTEGER, TEXT, LIST, or MAP — got " + tyName(e.ty));
       return;
     }
     bc.usesRx = true;
@@ -1399,6 +1497,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     bc.rxCells[cellKey] = true;
     if (e.ty.k == K::Text)
       o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell_text(_luke_rx, " << e.code
+        << ");\n";
+    else if (e.ty.k == K::Int)
+      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell_int(_luke_rx, " << e.code
         << ");\n";
     else
       o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell(_luke_rx, " << e.code << ");\n";
@@ -1427,10 +1528,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "Cannot CHANGE a LIST/MAP — use ADD / SET ITEM / PUT");
       return;
     }
-    bc.expectTy(line, e.ty, want, "CHANGE " + name);
+    e = bc.coerceTo(line, e, want, "CHANGE " + name);
     bc.usesRx = true;
     if (want.k == K::Text)
       o << "  luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(name) << ", " << e.code << ");\n";
+    else if (want.k == K::Int)
+      o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(name) << ", " << e.code << ");\n";
     else
       o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(name) << ", " << e.code << ");\n";
     return;
@@ -1446,13 +1549,30 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto name = resolveRxCellName(bc.rxCells, bc.rxEntityStack, trim(rest.substr(0, by)));
     auto e = bc.expr(trim(rest.substr(by + 4)), line);
     if (!bc.rxCells.count(name) || bc.rxDerived.count(name)) {
-      bc.fail(line, "INCREASE needs a REMEMBER'd NUMBER cell — not '" + name + "'");
+      bc.fail(line, "INCREASE needs a REMEMBER'd NUMBER/INTEGER cell — not '" + name + "'");
       return;
     }
-    bc.expectTy(line, e.ty, Ty::num(), "INCREASE " + name);
+    Ty want = bc.rxCellTy.count(name) ? bc.rxCellTy[name] : Ty::num();
+    if (!bc.isNumeric(want)) {
+      bc.fail(line, "INCREASE needs a NUMBER or INTEGER cell — not '" + name + "'");
+      return;
+    }
+    if (!bc.isNumeric(e.ty)) {
+      bc.fail(line, "INCREASE BY wants NUMBER or INTEGER");
+      return;
+    }
     bc.usesRx = true;
-    o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(name) << ", luke_rx_read_num(_luke_rx, _luke_rx_id_"
-      << cIdent(name) << ") + (" << e.code << "));\n";
+    if (want.k == K::Int) {
+      Expr amt = e.ty.k == K::Num ? Expr{"((int64_t)(" + e.code + "))", Ty::integer()} : e;
+      o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(name)
+        << ", luke_rx_read_int(_luke_rx, _luke_rx_id_" << cIdent(name) << ") + (" << amt.code
+        << "));\n";
+    } else {
+      Expr amt = e.ty.k == K::Int ? Expr{"((double)(" + e.code + "))", Ty::num()} : e;
+      o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(name)
+        << ", luke_rx_read_num(_luke_rx, _luke_rx_id_" << cIdent(name) << ") + (" << amt.code
+        << "));\n";
+    }
     return;
   }
   if (toUpper(text) == "BEGIN REACTIVE BATCH" || toUpper(text) == "BEGIN BATCH") {
@@ -1873,6 +1993,18 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "TIMELINE INTO needs a REMEMBER'd NUMBER cell — '" + intoName + "'");
       return;
     }
+    {
+      Ty ity = bc.rxCellTy.count(intoName) ? bc.rxCellTy[intoName] : Ty::num();
+      if (ity.k == K::Int) {
+        bc.fail(line, "TIMELINE INTO '" + intoName +
+                          "' is INTEGER — use REMEMBER " + intoName + " AS NUMBER for fractional progress");
+        return;
+      }
+      if (ity.k != K::Num) {
+        bc.fail(line, "TIMELINE INTO needs a NUMBER cell — '" + intoName + "'");
+        return;
+      }
+    }
     if (idLit.empty()) idLit = idRaw;
     bc.usesRx = true;
     bc.usesTimeline = true;
@@ -1943,7 +2075,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         forced = bc.parseTy(tyRaw);
         if (forced.k == K::Void) {
           bc.fail(line, "Unknown type '" + tyRaw +
-                            "' — use NUMBER, TEXT, FLAG, JSON, LIST, MAP, SERVER, "
+                            "' — use NUMBER, INTEGER, TEXT, FLAG, JSON, LIST, MAP, SERVER, "
                             "REQUEST, DATABASE, or a blueprint name");
           return;
         }
@@ -1954,7 +2086,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         forced = bc.parseTy(after);
         if (forced.k == K::Void) {
           bc.fail(line, "Unknown type '" + after +
-                            "' — use NUMBER, TEXT, FLAG, JSON, LIST, MAP, SERVER, "
+                            "' — use NUMBER, INTEGER, TEXT, FLAG, JSON, LIST, MAP, SERVER, "
                             "REQUEST, DATABASE, or a blueprint name");
           return;
         }
@@ -1967,6 +2099,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       name = trim(rest);
       if (forced.k == K::Text) e = {"luke_text(\"\")", Ty::text()};
       else if (forced.k == K::Flag) e = {"0", Ty::flag()};
+      else if (forced.k == K::Int) e = {"0LL", Ty::integer()};
       else if (forced.k == K::Json) e = {"((LukeJson*)0)", Ty::json()};
       else if (forced.k == K::List) e = {"luke_list_new(arena)", Ty::list()};
       else if (forced.k == K::Map) e = {"luke_map_new(arena)", Ty::map()};
@@ -1986,15 +2119,14 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       name = trim(rest.substr(0, setPos));
       e = bc.expr(trim(rest.substr(setPos + 8)), line);
       if (forced.k != K::Void) {
-        bc.expectTy(line, e.ty, forced, "MY NAME IS " + name + " AS " + tyName(forced));
-        e.ty = forced;
+        e = bc.coerceTo(line, e, forced, "MY NAME IS " + name + " AS " + tyName(forced));
       }
     }
     if (!bc.locals.count(name)) {
       bc.locals[name] = e.ty;
       o << "  " << cTy(e.ty) << " " << cIdent(name) << " = " << e.code << ";\n";
     } else {
-      bc.expectTy(line, e.ty, bc.locals[name], "MY NAME IS " + name);
+      e = bc.coerceTo(line, e, bc.locals[name], "MY NAME IS " + name);
       o << "  " << cIdent(name) << " = " << e.code << ";\n";
     }
     return;
@@ -2072,7 +2204,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.locals[target] = e.ty;
       o << "  " << cTy(e.ty) << " " << cIdent(target) << " = " << e.code << ";\n";
     } else {
-      bc.expectTy(line, e.ty, bc.locals[target], "SET " + target);
+      e = bc.coerceTo(line, e, bc.locals[target], "SET " + target);
       o << "  " << cIdent(target) << " = " << e.code << ";\n";
     }
     return;
@@ -2081,8 +2213,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto rest = trim(text.substr(3));
     stripDo(rest);
     auto cond = bc.expr(rest, line);
-    if (cond.ty.k != K::Flag && cond.ty.k != K::Num)
-      bc.fail(line, "IF needs a FLAG (or NUMBER) condition — got " + tyName(cond.ty));
+    if (cond.ty.k != K::Flag && cond.ty.k != K::Num && cond.ty.k != K::Int)
+      bc.fail(line, "IF needs a FLAG (or NUMBER/INTEGER) condition — got " + tyName(cond.ty));
     o << "  if (" << cond.code << ") {\n";
     return;
   }
@@ -2094,8 +2226,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto rest = trim(text.substr(6));
     stripDo(rest);
     auto cond = bc.expr(rest, line);
-    if (cond.ty.k != K::Flag && cond.ty.k != K::Num)
-      bc.fail(line, "WHILE needs a FLAG (or NUMBER) condition — got " + tyName(cond.ty));
+    if (cond.ty.k != K::Flag && cond.ty.k != K::Num && cond.ty.k != K::Int)
+      bc.fail(line, "WHILE needs a FLAG (or NUMBER/INTEGER) condition — got " + tyName(cond.ty));
     o << "  while (" << cond.code << ") {\n";
     return;
   }
@@ -2321,6 +2453,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       auto Lt = bc.coerceText(L);
       auto Rt = bc.coerceText(R);
       cond = "luke_text_eq((" + Lt.code + "),(" + Rt.code + "))";
+    } else if (bc.isNumeric(L.ty) && bc.isNumeric(R.ty)) {
+      Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
+      Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
+      cond = "((" + Lc.code + ") == (" + Rc.code + "))";
     } else {
       bc.expectTy(line, L.ty, R.ty, "MAKE SURE");
       cond = "((" + L.code + ") == (" + R.code + "))";
@@ -2498,8 +2634,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       Ty ty = bc.rxCellTy.count(name) ? bc.rxCellTy[name] : Ty::num();
       if (wantText)
         bc.expectTy(line, ty, Ty::text(), std::string("START FETCH ") + clause);
-      else if (ty.k != K::Num && ty.k != K::Flag)
-        bc.fail(line, std::string("START FETCH ") + clause + " wants NUMBER/FLAG cell");
+      else if (ty.k != K::Num && ty.k != K::Flag && ty.k != K::Int)
+        bc.fail(line, std::string("START FETCH ") + clause + " wants NUMBER/INTEGER/FLAG cell");
       return name;
     };
 
@@ -2519,8 +2655,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
 
     o << "  luke_js_fetch_start(" << idE.code << ", luke_text(\"" << (isPost ? "POST" : "GET")
       << "\"), " << urlE.code << ", " << bodyE.code << ");\n";
-    if (!readyCell.empty())
-      o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+    if (!readyCell.empty()) {
+      Ty rty = bc.rxCellTy.count(readyCell) ? bc.rxCellTy[readyCell] : Ty::num();
+      if (rty.k == K::Int)
+        o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+      else
+        o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+    }
     return;
   }
 
@@ -2573,8 +2714,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       Ty ty = bc.rxCellTy.count(name) ? bc.rxCellTy[name] : Ty::num();
       if (wantText)
         bc.expectTy(line, ty, Ty::text(), std::string("START SUBSCRIBE ") + clause);
-      else if (ty.k != K::Num && ty.k != K::Flag)
-        bc.fail(line, std::string("START SUBSCRIBE ") + clause + " wants NUMBER/FLAG cell");
+      else if (ty.k != K::Num && ty.k != K::Flag && ty.k != K::Int)
+        bc.fail(line, std::string("START SUBSCRIBE ") + clause + " wants NUMBER/INTEGER/FLAG cell");
       return name;
     };
 
@@ -2591,8 +2732,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
 
     o << "  luke_js_subscribe_start(" << idE.code << ", " << urlE.code << ");\n";
-    if (!readyCell.empty())
-      o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+    if (!readyCell.empty()) {
+      Ty rty = bc.rxCellTy.count(readyCell) ? bc.rxCellTy[readyCell] : Ty::num();
+      if (rty.k == K::Int)
+        o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+      else
+        o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+    }
     return;
   }
 
@@ -3563,6 +3709,7 @@ std::string defInit(BC &bc, const Field &f) {
   if (f.defRaw.empty()) {
     if (f.ty.k == K::Text) return "luke_text(\"\")";
     if (f.ty.k == K::Flag) return "0";
+    if (f.ty.k == K::Int) return "0LL";
     return "0.0";
   }
   return bc.expr(f.defRaw, 1).code;
@@ -3576,13 +3723,18 @@ std::string emit(BC &bc) {
   o << "#include \"luke_std.h\"\n";
   o << "#include \"argus.h\"\n";
   o << "#include \"hanka.h\"\n";
-  o << "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n";
+  o << "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n\n";
   o << "static LukeText luke_number_to_text(LukeArena *arena, double n) {\n";
   o << "  char buf[64]; int k = snprintf(buf, sizeof(buf), \"%.10g\", n); if (k<0) k=0;\n";
   o << "  char *p=(char*)luke_arena_alloc(arena,(size_t)k+1,1); memcpy(p,buf,(size_t)k+1);\n";
   o << "  return luke_text_n(p,(size_t)k);\n}\n";
   o << "static int luke_text_eq(LukeText a, LukeText b) {\n";
   o << "  return a.len == b.len && (a.len == 0 || memcmp(a.ptr, b.ptr, a.len) == 0);\n}\n\n";
+
+  for (auto &h : bc.httpServeHandlers) {
+    o << "static void luke_http_wrap_" << cIdent(h)
+      << "(LukeArena *arena, LukeHttpRequest *req);\n";
+  }
 
   for (auto &n : bc.bpOrder) o << "typedef struct " << cIdent(n) << " " << cIdent(n) << ";\n";
   o << "\n";
@@ -4042,11 +4194,20 @@ std::string emit(BC &bc) {
               << ", luke_js_fetch_body(arena, luke_text(\"" << esc(fb.jobId) << "\")));\n";
           }
           if (!fb.statusCell.empty()) {
-            o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.statusCell)
-              << ", luke_js_fetch_status(luke_text(\"" << esc(fb.jobId) << "\")));\n";
+            Ty sty = bc.rxCellTy.count(fb.statusCell) ? bc.rxCellTy[fb.statusCell] : Ty::num();
+            if (sty.k == K::Int)
+              o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(fb.statusCell)
+                << ", (int64_t)luke_js_fetch_status(luke_text(\"" << esc(fb.jobId) << "\")));\n";
+            else
+              o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.statusCell)
+                << ", luke_js_fetch_status(luke_text(\"" << esc(fb.jobId) << "\")));\n";
           }
           if (!fb.readyCell.empty()) {
-            o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.readyCell) << ", 1);\n";
+            Ty rty = bc.rxCellTy.count(fb.readyCell) ? bc.rxCellTy[fb.readyCell] : Ty::num();
+            if (rty.k == K::Int)
+              o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(fb.readyCell) << ", 1);\n";
+            else
+              o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.readyCell) << ", 1);\n";
           }
           o << "  if (_luke_rx) luke_rx_batch_end(_luke_rx);\n";
         }
@@ -4060,7 +4221,11 @@ std::string emit(BC &bc) {
               << ", luke_js_subscribe_body(arena, luke_text(\"" << esc(sb.jobId) << "\")));\n";
           }
           if (!sb.readyCell.empty()) {
-            o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(sb.readyCell) << ", 1);\n";
+            Ty rty = bc.rxCellTy.count(sb.readyCell) ? bc.rxCellTy[sb.readyCell] : Ty::num();
+            if (rty.k == K::Int)
+              o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(sb.readyCell) << ", 1);\n";
+            else
+              o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(sb.readyCell) << ", 1);\n";
           }
           o << "  if (_luke_rx) luke_rx_batch_end(_luke_rx);\n";
         }
@@ -4068,6 +4233,13 @@ std::string emit(BC &bc) {
       o << whenBodies[wi];
       o << "}\n\n";
     }
+  }
+
+  for (auto &h : bc.httpServeHandlers) {
+    o << "static void luke_http_wrap_" << cIdent(h)
+      << "(LukeArena *arena, LukeHttpRequest *req) {\n";
+    o << "  " << cIdent(h) << "(arena, req);\n";
+    o << "}\n\n";
   }
 
   o << "int main(int argc, char **argv) {\n";
@@ -4093,6 +4265,12 @@ std::string emit(BC &bc) {
 }
 
 static void fillIrSummary(BuildResult &r, BC &bc) {
+  if (bc.needsPthread) {
+    bool has = false;
+    for (auto &l : r.linkLibs)
+      if (l == "pthread") has = true;
+    if (!has) r.linkLibs.push_back("pthread");
+  }
   std::ostringstream ir;
   ir << "luke-build-ir 1\n";
   ir << "imports " << r.importedFiles.size() << "\n";

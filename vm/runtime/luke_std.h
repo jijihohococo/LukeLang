@@ -9,6 +9,7 @@
 #include "luke_db.h"
 #include "argus.h"
 #include "hanka.h"
+#include "luke_reactive.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

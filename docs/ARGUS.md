@@ -71,4 +71,5 @@ END WHEN
 
 A browser demo paints via `PLACE` / Hanka + `PAINT THE SCREEN` without `FILL "root" WITH """…html…"""`.
 
-Production path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md).
+Production path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md).  
+Change model: [`REACTIVE.md`](./REACTIVE.md) (Argus consumes paint invalidation).

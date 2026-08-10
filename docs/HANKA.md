@@ -70,4 +70,5 @@ PAINT THE SCREEN
 ## Related
 
 - Paint: [`ARGUS.md`](./ARGUS.md)  
-- History note: [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md)
+- History note: [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md)  
+- Change model: [`REACTIVE.md`](./REACTIVE.md) (Hanka consumes layout invalidation)

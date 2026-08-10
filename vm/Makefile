@@ -151,11 +151,11 @@ test-build: build/luke
 	@grep -q 'luke_rx_ui_set_text\|luke_rx_ui_enable' build/reactive_greeting.luke.c
 	@grep -q 'luke_rx_write_text\|luke_rx_cell_text' build/reactive_greeting.luke.c
 	@! grep -q 'argus_clear' build/reactive_greeting.luke.c || ! grep -A20 'luke_when_' build/reactive_greeting.luke.c | grep -q 'argus_clear'
-	@node ../scripts/luke_browser_loader.cjs build/reactive_greeting.wasm --dispatch go:click 2>&1 | tee /tmp/luke_rx_ui.txt | grep -q 'Welcome, Alex'
+	@node ../scripts/luke_browser_loader.cjs build/reactive_greeting.wasm --dispatch go:click 2>&1 | tee /tmp/luke_rx_ui.txt | grep -q 'region=1'
+	@grep -q 'Welcome, Alex' /tmp/luke_rx_ui.txt
 	@grep -q '\[argus_flex\]' /tmp/luke_rx_ui.txt
 	@grep -q '\[argus_flow_frame\]' /tmp/luke_rx_ui.txt
 	@grep -q '\[argus_parent\].*greeting' /tmp/luke_rx_ui.txt
-	@grep -q 'region=1' /tmp/luke_rx_ui.txt
 	@! grep -q '\[argus_clear\]' /tmp/luke_rx_ui.txt
 	./build/luke BUILD ../examples/build/reactive_counter_scope.luke -o build/ex_rx_scope
 	./build/ex_rx_scope | grep -q "count=3"
@@ -317,7 +317,8 @@ test-build: build/luke
 	@rm -f /tmp/luke_sub_server.pid /tmp/luke_sub.txt
 	@./build/subscribe_cell_server > /tmp/luke_sub_server.log 2>&1 & echo $$! > /tmp/luke_sub_server.pid
 	@sleep 0.15
-	@node ../scripts/luke_browser_loader.cjs build/subscribe_cell_client.wasm --wait-ms 900 2>&1 | tee /tmp/luke_sub.txt | grep -q "region=1"
+	@node ../scripts/luke_browser_loader.cjs build/subscribe_cell_client.wasm --wait-ms 900 > /tmp/luke_sub.txt 2>&1
+	@grep -q "region=1" /tmp/luke_sub.txt
 	@grep -q "cell=" /tmp/luke_sub.txt
 	@grep -q "events=" /tmp/luke_sub.txt
 	@grep -q "\[subscribe_start\]" /tmp/luke_sub.txt
@@ -331,7 +332,8 @@ test-build: build/luke
 	@rm -f /tmp/luke_dash_push_server.pid /tmp/luke_dash_push.txt
 	@./build/dashboard_push_server > /tmp/luke_dash_push_server.log 2>&1 & echo $$! > /tmp/luke_dash_push_server.pid
 	@sleep 0.15
-	@node ../scripts/luke_browser_loader.cjs build/dashboard_push_client.wasm --wait-ms 1000 2>&1 | tee /tmp/luke_dash_push.txt | grep -q "region=1"
+	@node ../scripts/luke_browser_loader.cjs build/dashboard_push_client.wasm --wait-ms 1000 > /tmp/luke_dash_push.txt 2>&1
+	@grep -q "region=1" /tmp/luke_dash_push.txt
 	@grep -q "reqs=" /tmp/luke_dash_push.txt
 	@grep -q "\[argus_flex\]" /tmp/luke_dash_push.txt
 	@grep -q "\[argus_flow_frame\]" /tmp/luke_dash_push.txt

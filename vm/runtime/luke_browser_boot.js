@@ -390,7 +390,8 @@ function createLukeJs(getMemory, opts) {
       const id = readText(idPtr, idLen);
       const ph = readText(phPtr, phLen);
       var t = inputType | 0;
-      var type = t === 1 ? "password" : t === 2 ? "email" : "text";
+      var type =
+        t === 1 ? "password" : t === 2 ? "email" : t === 3 ? "checkbox" : t === 4 ? "radio" : "text";
       if (typeof document === "undefined") {
         console.log("[argus_input]", id, type, ph);
         return;
@@ -398,8 +399,13 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) return;
       el.type = type;
-      el.placeholder = ph;
-      if (ph) el.setAttribute("aria-label", ph);
+      if (t === 3 || t === 4) {
+        if (ph) el.setAttribute("aria-label", ph);
+        el.removeAttribute("placeholder");
+      } else {
+        el.placeholder = ph;
+        if (ph) el.setAttribute("aria-label", ph);
+      }
     },
     argus_a11y: function (idPtr, idLen, rolePtr, roleLen, labelPtr, labelLen) {
       const id = readText(idPtr, idLen);
@@ -473,6 +479,41 @@ function createLukeJs(getMemory, opts) {
       if (typeof window === "undefined") return 1280;
       return window.innerWidth || 1280;
     },
+    viewport_height: function () {
+      if (typeof window === "undefined") return 720;
+      return window.innerHeight || 720;
+    },
+    now_ms: function () {
+      if (typeof performance !== "undefined" && performance.now) return performance.now();
+      return Date.now();
+    },
+    argus_fade: function (idPtr, idLen, from, to, ms) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_fade]", id, from, to, ms);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      var startFrom = from;
+      if (!(startFrom >= 0)) {
+        startFrom = parseFloat(el.style.opacity || "1");
+        if (!(startFrom >= 0)) startFrom = 1;
+      }
+      var dur = ms > 0 ? ms : 1;
+      var start = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+      function tick(now) {
+        var t = Math.min(1, (now - start) / dur);
+        el.style.opacity = String(startFrom + (to - startFrom) * easeOutCubic(t));
+        if (t < 1 && typeof requestAnimationFrame !== "undefined") requestAnimationFrame(tick);
+        else el.style.opacity = String(to);
+      }
+      if (typeof requestAnimationFrame !== "undefined") requestAnimationFrame(tick);
+      else el.style.opacity = String(to);
+    },
   };
 }
 
@@ -542,8 +583,15 @@ function wireLukeWhens(instance, whens) {
     console.log("[fetch_dispatch]", jobId);
     dispatch(jobId, "fetch");
   }
+  function dispatchViewport() {
+    for (var i = 0; i < whens.length; i++) {
+      var w = whens[i];
+      if ((w.event || "") === "viewport") runExport(w.export);
+    }
+  }
   globalThis.__lukeDispatchRoute = dispatchRoute;
   globalThis.__lukeDispatchFetch = dispatchFetch;
+  globalThis.__lukeDispatchViewport = dispatchViewport;
 
   if (typeof document === "undefined") {
     /* Node smoke: run home route handler if present */
@@ -571,6 +619,14 @@ function wireLukeWhens(instance, whens) {
   if (typeof window !== "undefined" && !window.__lukeHashWired) {
     window.__lukeHashWired = true;
     window.addEventListener("hashchange", dispatchRoute);
+  }
+  if (typeof window !== "undefined" && !window.__lukeViewportWired) {
+    window.__lukeViewportWired = true;
+    var resizeTimer = null;
+    window.addEventListener("resize", function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(dispatchViewport, 80);
+    });
   }
   dispatchRoute();
 }

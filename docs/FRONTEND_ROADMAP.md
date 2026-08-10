@@ -29,16 +29,16 @@ Do **not** pull later tracks into Frontend PRs unless they unblock ship.
 |-----|--------|-----------|
 | Layout ALIGN START/CENTER/END | ✅ | `BEGIN ROW … ALIGN CENTER` |
 | Text measure / SIZE AUTO | ✅ | `SIZE AUTO,h` · `THE TEXT WIDTH OF` |
-| Breakpoints / viewport | 🟡 | `THE VIEWPORT WIDTH` (resize events next) |
+| Breakpoints / viewport | ✅ | `THE VIEWPORT WIDTH/HEIGHT` · `WRAP` · `WHEN THE VIEWPORT CHANGES` |
 | Widget: SELECT/dropdown | ✅ | `SLOT SELECT` · options `a\|b\|c` |
 | Widget: TABLE | ✅ | `SLOT TABLE` · cells `h\|h;r\|r` |
 | Widget: MODAL | ✅ | `SLOT MODAL` · `role=dialog` |
-| Rich form controls | 🟡 | email/password + select; checkbox/radio next |
+| Rich form controls | ✅ | email/password + select + checkbox/radio |
 | a11y roles / labels | ✅ | `argus_a11y` defaults + aria-label |
-| Motion polish | 🟡 | opacity timelines exist; rAF/easing next |
+| Motion polish | ✅ | `SET THE OPACITY OF` · `FADE … OVER ms` (rAF + ease-out) |
 | `luke PUBLISH WEB` | ✅ | alias of browser BUILD + ship checklist |
-| Production stress app | 🟡 | `frontend_widgets.luke` beachhead |
-| Benchmarks / CI matrix | ⬜ | next |
+| Production stress app | ✅ | `frontend_stress.luke` (100 nodes + `THE CLOCK`) |
+| Benchmarks / CI matrix | 🟡 | native `ms=` in stress; CI matrix next |
 | Live DevTools UI / time-travel | ⬜ | after Reactive DevTools APIs merge |
 
 ---
@@ -46,15 +46,24 @@ Do **not** pull later tracks into Frontend PRs unless they unblock ship.
 ## Surface cheat sheet
 
 ```luke
-BEGIN ROW AT 0, 0 SIZE 640, 48 PAD 0 GAP 12 ALIGN CENTER
-  SLOT TEXT "t" SIZE AUTO, 32 SAY "Hello"
-  SLOT SELECT "plan" SIZE 200, 40 SAY "Free|Pro|Team"
-  SLOT TABLE "g" SIZE 400, 120 SAY "A|B;1|2"
-  SLOT MODAL "dlg" SIZE 320, 96 SAY "Saved"
+BEGIN ROW AT 0, 0 SIZE 220, 120 PAD 4 GAP 8 WRAP
+  SLOT BUTTON "a" SIZE 90, 36 SAY "One"
+  SLOT BUTTON "b" SIZE 90, 36 SAY "Two"
+  SLOT BUTTON "c" SIZE 90, 36 SAY "Three"
 END ROW
 
-SPEAK THE VIEWPORT WIDTH
-SPEAK THE TEXT WIDTH OF "Hello"
+SLOT INPUT AS CHECKBOX "agree" SIZE 24, 24 SAY "I agree"
+SLOT INPUT AS RADIO "plan" SIZE 24, 24 SAY "Pro"
+
+SET THE OPACITY OF "a" TO 0
+FADE "a" FROM 0 TO 1 OVER 300
+
+WHEN THE VIEWPORT CHANGES DO
+  SPEAK THE VIEWPORT WIDTH
+END WHEN
+
+SPEAK THE VIEWPORT HEIGHT
+SPEAK THE CLOCK
 
 luke PUBLISH WEB app.luke -o dist/app
 ```

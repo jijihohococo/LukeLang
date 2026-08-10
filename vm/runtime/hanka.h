@@ -40,7 +40,7 @@ typedef struct HankaLeaf {
   double w, h;
   double ox, oy;
   int has_offset;
-  int input_type; /* 0 text, 1 password, 2 email */
+  int input_type; /* 0 text, 1 password, 2 email, 3 checkbox, 4 radio */
   LukeText text;
   LukeText src;
 } HankaLeaf;
@@ -63,6 +63,7 @@ struct HankaBox {
   double x, y, w, h;
   double pad, gap;
   int align; /* 0=start, 1=center, 2=end */
+  int wrap;  /* 1 = wrap main axis onto next cross line/column */
   HankaChild *children;
   size_t len;
   size_t cap;
@@ -172,6 +173,13 @@ static inline int hanka_set_align(LukeArena *a, double align) {
   if (v < 0) v = 0;
   if (v > 2) v = 2;
   b->align = v;
+  return 1;
+}
+
+static inline int hanka_set_wrap(LukeArena *a, double wrap) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  b->wrap = wrap != 0.0 ? 1 : 0;
   return 1;
 }
 
@@ -383,6 +391,45 @@ static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, 
   }
 
   int row = b->axis == HANKA_ROW;
+  if (b->wrap) {
+    double main_limit = row ? inner_w : inner_h;
+    double cx = abs_x + b->pad;
+    double cy = abs_y + b->pad;
+    double used_main = 0;
+    double max_cross = 0;
+    for (size_t i = 0; i < b->len; ++i) {
+      HankaChild *ch = &b->children[i];
+      double main = hanka_child_main(ch, row);
+      double cross = hanka_child_cross(ch, row);
+      if (used_main > 0 && used_main + b->gap + main > main_limit + 0.5) {
+        if (row) {
+          cy += max_cross + b->gap;
+          cx = abs_x + b->pad;
+        } else {
+          cx += max_cross + b->gap;
+          cy = abs_y + b->pad;
+        }
+        used_main = 0;
+        max_cross = 0;
+      }
+      if (used_main > 0) {
+        if (row) cx += b->gap;
+        else cy += b->gap;
+        used_main += b->gap;
+      }
+      if (ch->kind == HANKA_CHILD_LEAF) {
+        hanka_place_leaf(a, &ch->leaf, cx, cy);
+      } else if (ch->box) {
+        hanka_layout_box_at(a, ch->box, cx, cy);
+      }
+      if (row) cx += main;
+      else cy += main;
+      used_main += main;
+      if (cross > max_cross) max_cross = cross;
+    }
+    return;
+  }
+
   double main_total = 0;
   for (size_t i = 0; i < b->len; ++i) {
     main_total += hanka_child_main(&b->children[i], row);

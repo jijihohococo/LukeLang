@@ -7,6 +7,10 @@
 
 #include "luke_rt.h"
 
+#if !defined(LUKE_BROWSER) && !defined(_WIN32)
+#include <time.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,7 +35,7 @@ typedef struct ArgusNode {
   LukeText src;
   LukeText role;      /* a11y role override (empty = default) */
   LukeText aria_label; /* a11y label */
-  int input_type; /* 0 text, 1 password, 2 email */
+  int input_type; /* 0 text, 1 password, 2 email, 3 checkbox, 4 radio */
   int dirty;
   int mounted;
 } ArgusNode;
@@ -78,6 +82,15 @@ luke_js_measure_text_raw(const char *text, size_t text_len);
 __attribute__((import_module("lukejs"), import_name("viewport_width"))) double
 luke_js_viewport_width_raw(void);
 
+__attribute__((import_module("lukejs"), import_name("viewport_height"))) double
+luke_js_viewport_height_raw(void);
+
+__attribute__((import_module("lukejs"), import_name("now_ms"))) double
+luke_js_now_ms_raw(void);
+
+__attribute__((import_module("lukejs"), import_name("argus_fade"))) void
+argus_js_fade_raw(const char *id, size_t id_len, double from, double to, double ms);
+
 __attribute__((import_module("lukejs"), import_name("argus_clear"))) void
 argus_js_clear_raw(void);
 
@@ -110,6 +123,11 @@ static inline double luke_js_measure_text(LukeText text) {
   return luke_js_measure_text_raw(text.ptr, text.len);
 }
 static inline double luke_js_viewport_width(void) { return luke_js_viewport_width_raw(); }
+static inline double luke_js_viewport_height(void) { return luke_js_viewport_height_raw(); }
+static inline double luke_js_now_ms(void) { return luke_js_now_ms_raw(); }
+static inline void argus_js_fade(LukeText id, double from, double to, double ms) {
+  argus_js_fade_raw(id.ptr, id.len, from, to, ms);
+}
 static inline void argus_js_clear(void) { argus_js_clear_raw(); }
 #else
 static inline void argus_js_upsert(LukeText id, double kind) {
@@ -156,6 +174,22 @@ static inline double luke_js_measure_text(LukeText text) {
   return text.len ? (double)text.len * 8.0 : 0.0;
 }
 static inline double luke_js_viewport_width(void) { return 1280.0; }
+static inline double luke_js_viewport_height(void) { return 720.0; }
+static inline double luke_js_now_ms(void) {
+#if defined(_WIN32)
+  return 0.0;
+#else
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0.0;
+  return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
+#endif
+}
+static inline void argus_js_fade(LukeText id, double from, double to, double ms) {
+  (void)id;
+  (void)from;
+  (void)to;
+  (void)ms;
+}
 static inline void argus_js_clear(void) {}
 #endif
 
@@ -245,13 +279,18 @@ static inline void argus_set_a11y(ArgusNode *n, LukeText role, LukeText label) {
   n->dirty = 1;
 }
 
-static inline LukeText argus_default_role(ArgusKind kind) {
-  if (kind == ARGUS_BUTTON) return luke_text("button");
-  if (kind == ARGUS_INPUT) return luke_text("textbox");
-  if (kind == ARGUS_IMAGE) return luke_text("img");
-  if (kind == ARGUS_SELECT) return luke_text("listbox");
-  if (kind == ARGUS_TABLE) return luke_text("table");
-  if (kind == ARGUS_MODAL) return luke_text("dialog");
+static inline LukeText argus_default_role(const ArgusNode *n) {
+  if (!n) return luke_text("");
+  if (n->kind == ARGUS_BUTTON) return luke_text("button");
+  if (n->kind == ARGUS_INPUT) {
+    if (n->input_type == 3) return luke_text("checkbox");
+    if (n->input_type == 4) return luke_text("radio");
+    return luke_text("textbox");
+  }
+  if (n->kind == ARGUS_IMAGE) return luke_text("img");
+  if (n->kind == ARGUS_SELECT) return luke_text("listbox");
+  if (n->kind == ARGUS_TABLE) return luke_text("table");
+  if (n->kind == ARGUS_MODAL) return luke_text("dialog");
   return luke_text("");
 }
 
@@ -263,7 +302,7 @@ static inline void argus_paint(LukeArena *a) {
     LukeText id = luke_text(n->id);
     argus_js_upsert(id, (double)n->kind);
     argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
-    LukeText role = n->role.len ? n->role : argus_default_role(n->kind);
+    LukeText role = n->role.len ? n->role : argus_default_role(n);
     if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
     if (n->kind == ARGUS_IMAGE)
       argus_js_image(id, n->src);
@@ -357,6 +396,51 @@ static inline int argus_place_modal(LukeArena *a, LukeText id, double x, double 
 static inline double argus_measure_text(LukeText text) { return luke_js_measure_text(text); }
 
 static inline double argus_viewport_width(void) { return luke_js_viewport_width(); }
+
+static inline double argus_viewport_height(void) { return luke_js_viewport_height(); }
+
+static inline double argus_now_ms(void) { return luke_js_now_ms(); }
+
+static inline int argus_set_opacity_id(LukeArena *a, LukeText id, double opacity) {
+  ArgusNode *n = argus_find(argus_tree(a), id);
+  if (!n) return 0;
+  if (opacity < 0) opacity = 0;
+  if (opacity > 1) opacity = 1;
+  argus_set_opacity(n, opacity);
+  return 1;
+}
+
+static inline double argus_ease_out_cubic(double t) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  double u = 1.0 - t;
+  return 1.0 - u * u * u;
+}
+
+/* Browser: rAF + ease-out via lukejs. Native: stepped sync paint. */
+static inline int argus_fade_to(LukeArena *a, LukeText id, double from, double to, double ms) {
+  ArgusNode *n = argus_find(argus_tree(a), id);
+  if (from < 0 && n) from = n->opacity;
+  if (from < 0) from = 0;
+  if (to < 0) to = 0;
+  if (to > 1) to = 1;
+#if defined(LUKE_BROWSER)
+  argus_js_fade(id, from, to, ms);
+  if (n) argus_set_opacity(n, to);
+  return n ? 1 : 0;
+#else
+  if (!n) return 0;
+  int steps = (int)(ms / 16.0);
+  if (steps < 1) steps = 1;
+  if (steps > 48) steps = 48;
+  for (int i = 0; i <= steps; ++i) {
+    double t = (double)i / (double)steps;
+    argus_set_opacity(n, from + (to - from) * argus_ease_out_cubic(t));
+    argus_paint(a);
+  }
+  return 1;
+#endif
+}
 
 #ifdef __cplusplus
 }

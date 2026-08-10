@@ -127,6 +127,20 @@ test-build: build/luke
 	@test -f build/frontend_widgets_pub.html
 	@test -f build/frontend_widgets_pub.wasm
 	@grep -q 'argus_a11y\|measure_text\|argus_select' build/frontend_widgets_pub.html
+	./build/luke BUILD ../examples/build/frontend_wrap_forms.luke -o build/ex_frontend_wrap_forms
+	./build/ex_frontend_wrap_forms | grep -q "wrap=1"
+	./build/ex_frontend_wrap_forms | grep -q "vh="
+	@grep -q 'hanka_set_wrap' build/ex_frontend_wrap_forms.luke.c
+	@grep -qE 'inputType|, 3\)|, 4\)' build/ex_frontend_wrap_forms.luke.c
+	@grep -q 'argus_fade_to' build/ex_frontend_wrap_forms.luke.c
+	./build/luke BUILD ../examples/build/frontend_wrap_forms.luke -target browser -o build/frontend_wrap_forms
+	@grep -q 'event:"viewport"' build/frontend_wrap_forms.html
+	@grep -q 'viewport_height\|argus_fade\|now_ms' build/frontend_wrap_forms.html
+	@node ../scripts/luke_browser_loader.cjs build/frontend_wrap_forms.wasm 2>&1 | grep -q "argus_upsert\|ok=1\|wrap=1"
+	./build/luke BUILD ../examples/build/frontend_stress.luke -o build/ex_frontend_stress
+	./build/ex_frontend_stress | grep -q "nodes=100"
+	./build/ex_frontend_stress | grep -q "ms="
+	./build/ex_frontend_stress | grep -q "ok=1"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

@@ -1,6 +1,6 @@
 # Argus — LukeLang Rendering Engine
 
-> **Status:** v0.2 — widgets + a11y beachhead  
+> **Status:** v0.3 — widgets + a11y + motion beachhead  
 > **Name:** Argus  
 > **Backend:** DOM presentment (not Skia)  
 > **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames  
@@ -24,7 +24,7 @@ Hanka / PLACE  →  Argus tree  →  paint  →  thin JS embedder  →  DOM
 | `TEXT` | label | `div` |
 | `BUTTON` | clickable | `button` |
 | `IMAGE` | framed image | `div` + bg |
-| `INPUT` | text field | `input` |
+| `INPUT` | text / email / password / checkbox / radio | `input` |
 | `SELECT` | dropdown | `select` (options `a\|b\|c`) |
 | `TABLE` | simple table | `table` (cells `h\|h;r\|r`) |
 | `MODAL` | dialog surface | `div role=dialog` |
@@ -38,23 +38,34 @@ PLACE "cta" AS BUTTON AT 48, 700 SIZE 240, 48 SAY "Build something real"
 PLACE "plan" AS SELECT AT 48, 760 SIZE 200, 40 SAY "Free|Pro|Team"
 PLACE "grid" AS TABLE AT 48, 820 SIZE 400, 120 SAY "Name|Role;Ada|Builder"
 PLACE "dlg" AS MODAL AT 200, 200 SIZE 320, 96 SAY "Saved"
+SLOT INPUT AS CHECKBOX "agree" SIZE 24, 24 SAY "I agree"
 PAINT THE SCREEN
+
+SET THE OPACITY OF "cta" TO 0
+FADE "cta" FROM 0 TO 1 OVER 300
 
 SPEAK THE TEXT WIDTH OF "Hello"
 SPEAK THE VIEWPORT WIDTH
+SPEAK THE VIEWPORT HEIGHT
+SPEAK THE CLOCK
 ```
 
 ## Runtime files
 
-- `vm/runtime/argus.h` — scene tree + paint  
-- `lukejs` embedder: upsert/frame/text/image/input/a11y/select/table/measure_text/viewport_width  
-- Demo: `argus_demo.luke`, `frontend_widgets.luke`
+- `vm/runtime/argus.h` — scene tree + paint + fade  
+- `lukejs` embedder: upsert/frame/text/image/input/a11y/select/table/measure_text/viewport_*/now_ms/argus_fade  
+- Demo: `argus_demo.luke`, `frontend_widgets.luke`, `frontend_wrap_forms.luke`
 
 ## a11y (beachhead)
 
-Paint applies default roles (`button`, `textbox`, `img`, `listbox`, `table`, `dialog`)  
+Paint applies default roles (`button`, `textbox`, `checkbox`, `radio`, `img`, `listbox`, `table`, `dialog`)  
 plus `aria-label` from placeholder/text when present.  
 Full focus-trap / live regions still open.
+
+## Motion (beachhead)
+
+- `SET THE OPACITY OF "id" TO n` — immediate  
+- `FADE "id" [FROM a] TO b [OVER ms]` — ease-out cubic (browser rAF; native stepped)
 
 ## Non-goals
 

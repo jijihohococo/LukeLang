@@ -1,6 +1,6 @@
 # Hanka — LukeLang Layout Engine
 
-> **Status:** v1.1 — nested boxes + ALIGN + AUTO measure  
+> **Status:** v1.2 — nested boxes + ALIGN + WRAP + AUTO measure  
 > **Name:** Hanka  
 > **Role:** Own layout numbers → feed Argus frames  
 > **Not:** browser flex/grid as source of truth  
@@ -25,9 +25,10 @@ Luke UI terms → Hanka (layout) → frames → Argus (paint) → DOM
 IMPORT std/hanka
 IMPORT std/argus
 
-BEGIN ROW AT 48, 48 SIZE 720, 48 PAD 0 GAP 12 ALIGN CENTER
+BEGIN ROW AT 48, 48 SIZE 220, 120 PAD 0 GAP 12 ALIGN START WRAP
   SLOT TEXT "brand" SIZE AUTO, 40 SAY "LukeLang"
   SLOT BUTTON "cta" SIZE 160, 44 SAY "Build"
+  SLOT BUTTON "more" SIZE 120, 44 SAY "Docs"
 END ROW
 
 LAY OUT THE SCREEN
@@ -36,25 +37,26 @@ PAINT THE SCREEN
 
 | Term | Meaning |
 | --- | --- |
-| `BEGIN COLUMN\|ROW\|STACK AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START\|CENTER\|END]` | Open a layout box |
+| `BEGIN COLUMN\|ROW\|STACK AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START\|CENTER\|END] [WRAP]` | Open a layout box |
 | `SLOT TEXT\|BUTTON\|IMAGE\|BOX\|INPUT\|SELECT\|TABLE\|MODAL "id" … SIZE w, h` | Add a leaf (`AUTO` ok for text width) |
 | `END COLUMN\|ROW\|STACK` | Close the open box |
 | `LAY OUT THE SCREEN` | Resolve boxes → Argus frames |
 
-`ALIGN` packs leftover main-axis space and cross-aligns children (start/center/end).  
+`ALIGN` packs leftover main-axis space and cross-aligns children (start/center/end) when not wrapping.  
+`WRAP` flows children onto the next cross line/column when the main axis fills.  
 `AT` on `SLOT` is for `STACK` (relative to the stack origin).
 
 ## Runtime
 
 - `vm/runtime/hanka.h` — boxes, slots, layout → `argus_place_*`  
 - `vm/stdlib/hanka.luke` — thin wrappers  
-- Demos: `hanka_demo.luke`, `hanka_align.luke`, `frontend_widgets.luke`
+- Demos: `hanka_demo.luke`, `hanka_align.luke`, `frontend_wrap_forms.luke`, `frontend_widgets.luke`
 
 ## Still open
 
-- Wrap / flex-grow  
-- Breakpoint rebuild sugar  
-- Align start/center/end **per-axis** (main vs cross independently)
+- Flex-grow / shrink  
+- Align start/center/end **per-axis** (main vs cross independently)  
+- Breakpoint rebuild sugar (`WHEN THE VIEWPORT CHANGES` + re-`LAY OUT` patterns)
 
 ## Related
 

@@ -464,6 +464,7 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__hanka_begin_row") return mapCall("hanka_begin_row", Ty::flag(), true);
       if (callee == "__hanka_begin_stack") return mapCall("hanka_begin_stack", Ty::flag(), true);
       if (callee == "__hanka_set_align") return mapCall("hanka_set_align", Ty::flag(), true);
+      if (callee == "__hanka_set_wrap") return mapCall("hanka_set_wrap", Ty::flag(), true);
       if (callee == "__hanka_slot_text") return mapCall("hanka_slot_text", Ty::flag(), true);
       if (callee == "__hanka_slot_button") return mapCall("hanka_slot_button", Ty::flag(), true);
       if (callee == "__hanka_slot_image") return mapCall("hanka_slot_image", Ty::flag(), true);
@@ -553,6 +554,10 @@ Expr BC::expr(std::string e, size_t line) {
     auto U0 = toUpper(e);
     if (U0 == "THE VIEWPORT WIDTH" || U0 == "THE WINDOW WIDTH")
       return {"argus_viewport_width()", Ty::num()};
+    if (U0 == "THE VIEWPORT HEIGHT" || U0 == "THE WINDOW HEIGHT")
+      return {"argus_viewport_height()", Ty::num()};
+    if (U0 == "THE CLOCK" || U0 == "THE TIME IN MILLISECONDS" || U0 == "THE CLOCK IN MILLISECONDS")
+      return {"argus_now_ms()", Ty::num()};
   }
   if (startsWithCI(e, "THE TEXT WIDTH OF ") || startsWithCI(e, "THE MEASURED WIDTH OF ")) {
     size_t prefix = startsWithCI(e, "THE TEXT WIDTH OF ") ? 18 : 22;
@@ -1418,7 +1423,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
     if (atPos == std::string::npos || sizePos == std::string::npos || atPos > sizePos) {
-      bc.fail(line, "BEGIN " + axis + " needs AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START|CENTER|END]");
+      bc.fail(line, "BEGIN " + axis + " needs AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START|CENTER|END] [WRAP]");
       return;
     }
     auto atPart = trim(rest.substr(atPos + atLen, sizePos - (atPos + atLen)));
@@ -1426,31 +1431,41 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto padPos = findOutsideQuotes(afterSize, toUpper(afterSize), " PAD ");
     auto gapPos = findOutsideQuotes(afterSize, toUpper(afterSize), " GAP ");
     auto alignPos = findOutsideQuotes(afterSize, toUpper(afterSize), " ALIGN ");
+    auto wrapPos = findOutsideQuotes(afterSize, toUpper(afterSize), " WRAP");
     std::string sizePart = afterSize;
     std::string padRaw = "0";
     std::string gapRaw = "0";
     int alignVal = 0; /* start */
+    int wrapVal = 0;
     size_t cut = afterSize.size();
     if (padPos != std::string::npos) cut = padPos;
     if (gapPos != std::string::npos && gapPos < cut) cut = gapPos;
     if (alignPos != std::string::npos && alignPos < cut) cut = alignPos;
+    if (wrapPos != std::string::npos && wrapPos < cut) cut = wrapPos;
     sizePart = trim(afterSize.substr(0, cut));
+    if (wrapPos != std::string::npos) {
+      /* WRAP is a flag token; allow trailing keywords after it */
+      wrapVal = 1;
+    }
     if (padPos != std::string::npos) {
       size_t padEnd = afterSize.size();
       if (gapPos != std::string::npos && gapPos > padPos) padEnd = gapPos;
       if (alignPos != std::string::npos && alignPos > padPos && alignPos < padEnd) padEnd = alignPos;
+      if (wrapPos != std::string::npos && wrapPos > padPos && wrapPos < padEnd) padEnd = wrapPos;
       padRaw = trim(afterSize.substr(padPos + 5, padEnd - (padPos + 5)));
     }
     if (gapPos != std::string::npos) {
       size_t gapEnd = afterSize.size();
       if (padPos != std::string::npos && padPos > gapPos) gapEnd = padPos;
       if (alignPos != std::string::npos && alignPos > gapPos && alignPos < gapEnd) gapEnd = alignPos;
+      if (wrapPos != std::string::npos && wrapPos > gapPos && wrapPos < gapEnd) gapEnd = wrapPos;
       gapRaw = trim(afterSize.substr(gapPos + 5, gapEnd - (gapPos + 5)));
     }
     if (alignPos != std::string::npos) {
       size_t alignEnd = afterSize.size();
       if (padPos != std::string::npos && padPos > alignPos) alignEnd = padPos;
       if (gapPos != std::string::npos && gapPos > alignPos && gapPos < alignEnd) alignEnd = gapPos;
+      if (wrapPos != std::string::npos && wrapPos > alignPos && wrapPos < alignEnd) alignEnd = wrapPos;
       auto alignTok = toUpper(trim(afterSize.substr(alignPos + 7, alignEnd - (alignPos + 7))));
       if (alignTok == "CENTER" || alignTok == "MIDDLE") alignVal = 1;
       else if (alignTok == "END" || alignTok == "RIGHT" || alignTok == "BOTTOM") alignVal = 2;
@@ -1485,6 +1500,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  " << fn << "(arena, " << x.code << ", " << y.code << ", " << w.code << ", " << h.code
       << ", " << pad.code << ", " << gap.code << ");\n";
     if (alignVal != 0) o << "  hanka_set_align(arena, " << alignVal << ");\n";
+    if (wrapVal != 0) o << "  hanka_set_wrap(arena, 1);\n";
     bc.hankaStack.push_back(axis);
     return;
   }
@@ -1531,18 +1547,45 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     int inputType = 0;
     {
       auto idU = toUpper(idPart);
-      auto asTy = findOutsideQuotes(idPart, idU, " AS ");
-      if (asTy != std::string::npos) {
-        auto ty = toUpper(trim(idPart.substr(asTy + 4)));
-        idPart = trim(idPart.substr(0, asTy));
+      if (startsWithCI(idPart, "AS ")) {
+        /* SLOT INPUT AS CHECKBOX "id" */
+        auto afterAs = trim(idPart.substr(3));
+        auto sp = afterAs.find(' ');
+        if (sp == std::string::npos) {
+          bc.fail(line, "INPUT AS needs a type and id — SLOT INPUT AS CHECKBOX \"agree\" …");
+          return;
+        }
+        auto ty = toUpper(trim(afterAs.substr(0, sp)));
+        idPart = trim(afterAs.substr(sp));
         if (ty == "PASSWORD") inputType = 1;
         else if (ty == "EMAIL") inputType = 2;
         else if (ty == "TEXT") inputType = 0;
+        else if (ty == "CHECKBOX" || ty == "CHECK") inputType = 3;
+        else if (ty == "RADIO") inputType = 4;
         else {
-          bc.fail(line, "INPUT AS needs TEXT, EMAIL, or PASSWORD — got " + ty);
+          bc.fail(line, "INPUT AS needs TEXT, EMAIL, PASSWORD, CHECKBOX, or RADIO — got " + ty);
           return;
         }
+      } else {
+        auto asTy = findOutsideQuotes(idPart, idU, " AS ");
+        if (asTy != std::string::npos) {
+          auto ty = toUpper(trim(idPart.substr(asTy + 4)));
+          idPart = trim(idPart.substr(0, asTy));
+          if (ty == "PASSWORD") inputType = 1;
+          else if (ty == "EMAIL") inputType = 2;
+          else if (ty == "TEXT") inputType = 0;
+          else if (ty == "CHECKBOX" || ty == "CHECK") inputType = 3;
+          else if (ty == "RADIO") inputType = 4;
+          else {
+            bc.fail(line, "INPUT AS needs TEXT, EMAIL, PASSWORD, CHECKBOX, or RADIO — got " + ty);
+            return;
+          }
+        }
       }
+    }
+    if (idPart.empty()) {
+      bc.fail(line, "SLOT needs an element id after the kind");
+      return;
     }
     auto idE = bc.coerceText(bc.expr(idPart, line));
     std::string atPart;
@@ -1556,6 +1599,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 12)));
       } else if ((p = findOutsideQuotes(afterSize, aU, " AS EMAIL")) != std::string::npos) {
         inputType = 2;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 9)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS CHECKBOX")) != std::string::npos) {
+        inputType = 3;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 12)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS RADIO")) != std::string::npos) {
+        inputType = 4;
         afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 9)));
       } else if ((p = findOutsideQuotes(afterSize, aU, " AS TEXT")) != std::string::npos) {
         inputType = 0;
@@ -1665,6 +1714,61 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  argus_clear(arena);\n";
     return;
   }
+  if (startsWithCI(text, "SET THE OPACITY OF ") || startsWithCI(text, "SET OPACITY OF ")) {
+    auto rest = startsWithCI(text, "SET THE OPACITY OF ") ? trim(text.substr(18))
+                                                          : trim(text.substr(14));
+    auto U = toUpper(rest);
+    auto toPos = findOutsideQuotes(rest, U, " TO ");
+    if (toPos == std::string::npos) {
+      bc.fail(line, "SET THE OPACITY OF needs: SET THE OPACITY OF \"id\" TO 0.5");
+      return;
+    }
+    auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, toPos)), line));
+    auto opE = bc.expr(trim(rest.substr(toPos + 4)), line);
+    bc.expectTy(line, opE.ty, Ty::num(), "SET THE OPACITY OF … TO");
+    o << "  argus_set_opacity_id(arena, " << idE.code << ", " << opE.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "FADE ")) {
+    auto rest = trim(text.substr(5));
+    auto U = toUpper(rest);
+    auto fromPos = findOutsideQuotes(rest, U, " FROM ");
+    auto toPos = findOutsideQuotes(rest, U, " TO ");
+    auto overPos = findOutsideQuotes(rest, U, " OVER ");
+    if (toPos == std::string::npos) {
+      bc.fail(line, "FADE needs: FADE \"id\" [FROM 0] TO 1 [OVER 300]");
+      return;
+    }
+    std::string idRaw = trim(rest.substr(0, fromPos != std::string::npos && fromPos < toPos
+                                                ? fromPos
+                                                : toPos));
+    auto idE = bc.coerceText(bc.expr(idRaw, line));
+    Expr fromE{"-1.0", Ty::num()};
+    if (fromPos != std::string::npos && fromPos < toPos) {
+      fromE = bc.expr(trim(rest.substr(fromPos + 6, toPos - (fromPos + 6))), line);
+      bc.expectTy(line, fromE.ty, Ty::num(), "FADE FROM");
+    }
+    std::string afterTo =
+        overPos != std::string::npos && overPos > toPos
+            ? trim(rest.substr(toPos + 4, overPos - (toPos + 4)))
+            : trim(rest.substr(toPos + 4));
+    auto toE = bc.expr(afterTo, line);
+    bc.expectTy(line, toE.ty, Ty::num(), "FADE TO");
+    Expr msE{"300.0", Ty::num()};
+    if (overPos != std::string::npos && overPos > toPos) {
+      auto overRest = trim(rest.substr(overPos + 6));
+      auto ou = toUpper(overRest);
+      if (ou.size() >= 3 && ou.compare(ou.size() - 3, 3, " MS") == 0)
+        overRest = trim(overRest.substr(0, overRest.size() - 3));
+      else if (ou.size() >= 13 && ou.compare(ou.size() - 13, 13, " MILLISECONDS") == 0)
+        overRest = trim(overRest.substr(0, overRest.size() - 13));
+      msE = bc.expr(overRest, line);
+      bc.expectTy(line, msE.ty, Ty::num(), "FADE OVER");
+    }
+    o << "  argus_fade_to(arena, " << idE.code << ", " << fromE.code << ", " << toE.code << ", "
+      << msE.code << ");\n";
+    return;
+  }
   if (startsWithCI(text, "PLACE ")) {
     auto rest = trim(text.substr(6));
     auto U = toUpper(rest);
@@ -1691,6 +1795,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 12)));
       } else if ((p = findOutsideQuotes(afterSize, aU, " AS EMAIL")) != std::string::npos) {
         inputType = 2;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 9)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS CHECKBOX")) != std::string::npos) {
+        inputType = 3;
+        afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 12)));
+      } else if ((p = findOutsideQuotes(afterSize, aU, " AS RADIO")) != std::string::npos) {
+        inputType = 4;
         afterSize = trim(trim(afterSize.substr(0, p)) + " " + trim(afterSize.substr(p + 9)));
       } else if ((p = findOutsideQuotes(afterSize, aU, " AS TEXT")) != std::string::npos) {
         inputType = 0;
@@ -1959,6 +2069,12 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN THE ROUTE IS needs a name — WHEN THE ROUTE IS \"home\" DO");
             return false;
           }
+        } else if (startsWithCI(rest, "THE VIEWPORT CHANGES") ||
+                   startsWithCI(rest, "THE WINDOW CHANGES") ||
+                   toUpper(rest) == "THE VIEWPORT CHANGES" ||
+                   startsWithCI(rest, "THE VIEWPORT IS CHANGED")) {
+          curWhen.event = "viewport";
+          curWhen.elementId = "";
         } else if (startsWithCI(rest, "FETCH ") && U.find(" IS READY") != std::string::npos) {
           curWhen.event = "fetch";
           auto ready = U.find(" IS READY");
@@ -1977,7 +2093,7 @@ bool parse(BC &bc, const std::string &source) {
             curWhen.event = "submit";
           else {
             bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
-                            "or FETCH … IS READY");
+                            "THE VIEWPORT CHANGES, or FETCH … IS READY");
             return false;
           }
           curWhen.elementId = unquoteText(trim(rest.substr(0, evPos)));
@@ -2350,7 +2466,7 @@ std::string emit(BC &bc) {
 
   if (!bc.pageWhens.empty()) {
     for (auto &w : bc.pageWhens) {
-      o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
+      if (bc.forBrowser) o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
       o << "void " << w.exportName << "(void) {\n";
       o << "  LukeArena *arena = luke_page_arena;\n";
       o << "  if (!arena) return;\n";

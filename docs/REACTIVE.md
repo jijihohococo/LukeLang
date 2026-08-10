@@ -490,17 +490,19 @@ Partial layout/paint and component subtree invalidation.
 - Introspection: `THE REGION PAINT COUNT`, `THE REGION LAYOUT COUNT`
 - Conformance: `reactive_conformance_subtree.luke`
 
-### Phase 12 — Memory *(in progress)*
+### Phase 12 — Memory *(shipped v0.4)*
 
-Dead nodes, weak reads, leak audit.
+Dead nodes, weak reads, leak audit, weak effects, scope GC.
 
 **Deliverables**
 
 - `luke_rx_audit_graph` + leak edge repair
 - Weak reads: `THE WEAK VALUE OF x` (no dependency edge)
-- Introspection: `THE ALIVE NODE COUNT`, `THE DEAD NODE COUNT`, `THE DISPOSED COUNT`, `THE LEAK EDGE COUNT`
-- `AUDIT REACTIVE` statement
-- Conformance: `reactive_conformance_{memory,weak}.luke`
+- Weak effects: `WHEN REACTIVE WEAK x CHANGES DO` (effect reads don't subscribe)
+- Auto scope GC on `DESTROY` / `UNMOUNT COMPONENT` (`THE SCOPE GC COUNT`)
+- Introspection: `THE ALIVE NODE COUNT`, `THE DEAD NODE COUNT`, `THE DISPOSED COUNT`, `THE LEAK EDGE COUNT`, `THE SCOPE FRAME COUNT`
+- `AUDIT REACTIVE` statement · `UNMOUNT COMPONENT` (UI dispose alias)
+- Conformance: `reactive_conformance_{memory,weak,scope_gc,weak_effect}.luke`
 
 ---
 

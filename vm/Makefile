@@ -204,6 +204,16 @@ test-build: build/luke
 	./build/ex_rx_conf_weak | grep -q "snap=10"
 	./build/ex_rx_conf_weak | grep -q "live=15"
 	./build/ex_rx_conf_weak | grep -q "weak_reads=1"
+	./build/luke BUILD ../examples/build/reactive_conformance_scope_gc.luke -o build/ex_rx_conf_scope_gc
+	./build/ex_rx_conf_scope_gc | grep -q "scopes=0"
+	./build/ex_rx_conf_scope_gc | grep -q "gc=2"
+	./build/ex_rx_conf_scope_gc | grep -q "alive=0"
+	./build/ex_rx_conf_scope_gc | grep -q "dead=2"
+	./build/luke BUILD ../examples/build/reactive_conformance_weak_effect.luke -o build/ex_rx_conf_weak_fx
+	./build/ex_rx_conf_weak_fx | grep -q "tick"
+	./build/ex_rx_conf_weak_fx | grep -q "leaks=0"
+	./build/ex_rx_conf_weak_fx | grep -q "alive=1"
+	./build/ex_rx_conf_weak_fx | grep -q "weak_reads=1"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

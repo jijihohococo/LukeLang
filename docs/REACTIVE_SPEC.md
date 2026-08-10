@@ -203,8 +203,42 @@ On `scope_end`, external subscribers of owned nodes are marked dirty before disp
 
 ---
 
-## 9. Non-normative (future)
+## 9. Memory management (v0.4)
 
-Not yet specified: macrotask queues, parallel reactions, time-travel, weak refs, field-level object tracking, Hanka region invalidation spec.
+### 9.1 Disposal
+
+`DESTROY COMPONENT` disposes owned nodes (`dead = 1`), unlinks all edges, clears compute/effect fns.  
+Dead nodes are skipped in flush/reads (default values returned).
+
+### 9.2 Weak reads
+
+`THE WEAK VALUE OF cell` reads without registering a dependency edge during derived/effect compute.
+
+### 9.3 Leak audit
+
+`luke_rx_audit_graph` scans alive nodes for deps pointing at dead nodes, repairs them, and updates counters.
+
+```luke
+AUDIT REACTIVE
+THE ALIVE NODE COUNT
+THE DEAD NODE COUNT
+THE DISPOSED COUNT
+THE LEAK EDGE COUNT
+THE WEAK READ COUNT
+```
+
+### 9.4 Weak effects
+
+`WHEN REACTIVE WEAK cell CHANGES DO` registers an effect whose reads do not create dependency edges (same as weak reads for the whole effect body).
+
+### 9.5 Scope GC
+
+On `scope_end` / `UNMOUNT COMPONENT`, closed scope frames with no owned nodes are compacted from the scope table (`THE SCOPE GC COUNT`, `THE SCOPE FRAME COUNT`).
+
+---
+
+## 10. Non-normative (future)
+
+Not yet specified: macrotask queues, parallel reactions, time-travel, field-level object tracking, Hanka region invalidation spec.
 
 See [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md).

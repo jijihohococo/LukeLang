@@ -15,7 +15,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 | 1 | **Reactive correctness** | Stale dep cleanup, deterministic order, cycle spec, nested rules | 🟡 v0.1 |
 | 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 |
 | 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 |
-| 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | 🟡 v0.4 started |
+| 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ✅ v0.4 |
 | 5 | **Error system** | Isolation, async failure, boundaries, retry | ⬜ |
 | 6 | **DevTools** | Live graph, why changed/repaint, timelines | ⬜ |
 | 7 | **Time-travel** | Snapshots, replay, deterministic replay | ⬜ |
@@ -67,7 +67,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone E — Memory management *(current)*
+## Milestone E — Memory management *(shipped v0.4)*
 
 - [x] Dead node disposal + `THE DISPOSED COUNT`
 - [x] Graph audit + leak edge repair (`luke_rx_audit_graph`, `THE LEAK EDGE COUNT`)
@@ -75,7 +75,9 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 - [x] Weak reads (`THE WEAK VALUE OF`, `THE WEAK READ COUNT`)
 - [x] `AUDIT REACTIVE` statement
 - [x] Conformance: `reactive_conformance_{memory,weak}.luke`
-- [ ] Weak effect refs / auto scope GC for unmounted UI
+- [x] Weak effect refs (`WHEN REACTIVE WEAK`, `luke_rx_effect_weak`)
+- [x] Auto scope GC (`luke_rx_scope_gc`, `UNMOUNT COMPONENT`, `THE SCOPE GC COUNT`)
+- [x] Conformance: `reactive_conformance_{scope_gc,weak_effect}.luke`
 
 ---
 

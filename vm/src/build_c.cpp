@@ -332,6 +332,7 @@ struct BC {
     size_t line = 0;
     int seq = 0;
     bool background = false;
+    bool weak = false;
   };
   std::vector<RxWhenDef> rxWhenDefs;
   int rxWhenSeq = 0;
@@ -746,6 +747,10 @@ Expr BC::expr(std::string e, size_t line) {
     }
     if (U0 == "THE WEAK READ COUNT")
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->weak_read_count : 0.0)", Ty::num()};
+    if (U0 == "THE SCOPE GC COUNT" || U0 == "THE SCOPE FRAMES GC'D")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->scope_gc_count : 0.0)", Ty::num()};
+    if (U0 == "THE SCOPE FRAME COUNT" || U0 == "THE OPEN SCOPE COUNT")
+      return {"(double)luke_rx_scope_frame_count(" + rxGraphVar + ")", Ty::num()};
   }
 
   if (startsWithCI(e, "THE WEAK VALUE OF ")) {
@@ -1347,9 +1352,14 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       return;
     }
     bc.usesRx = true;
-    o << "  _luke_rx_id_when_" << seq << " = luke_rx_effect_prio(_luke_rx, _luke_rx_when_" << seq
-      << ", NULL, "
-      << (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") << ");\n";
+    if (wd->weak)
+      o << "  _luke_rx_id_when_" << seq << " = luke_rx_effect_weak(_luke_rx, _luke_rx_when_" << seq
+        << ", NULL, "
+        << (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") << ");\n";
+    else
+      o << "  _luke_rx_id_when_" << seq << " = luke_rx_effect_prio(_luke_rx, _luke_rx_when_" << seq
+        << ", NULL, "
+        << (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") << ");\n";
     return;
   }
   /* BIND BACKGROUND "tag" TO expr — low-priority reactive effect (Scheduler 2.0). */
@@ -1543,12 +1553,17 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
   if (startsWithCI(text, "DESTROY COMPONENT ") || startsWithCI(text, "DESTROY ENTITY ") ||
+      startsWithCI(text, "UNMOUNT COMPONENT ") || startsWithCI(text, "UNMOUNT ENTITY ") ||
       (startsWithCI(text, "DESTROY ") && !startsWithCI(text, "DESTROY COMPONENT ") &&
        !startsWithCI(text, "DESTROY ENTITY "))) {
     std::string rest;
     if (startsWithCI(text, "DESTROY COMPONENT "))
       rest = trim(text.substr(18));
     else if (startsWithCI(text, "DESTROY ENTITY "))
+      rest = trim(text.substr(15));
+    else if (startsWithCI(text, "UNMOUNT COMPONENT "))
+      rest = trim(text.substr(18));
+    else if (startsWithCI(text, "UNMOUNT ENTITY "))
       rest = trim(text.substr(15));
     else
       rest = trim(text.substr(8));
@@ -2750,9 +2765,14 @@ bool parse(BC &bc, const std::string &source) {
         continue;
       }
       if (startsWithCI(text, "WHEN BACKGROUND REACTIVE ") ||
+          startsWithCI(text, "WHEN REACTIVE WEAK ") ||
+          startsWithCI(text, "WHEN WEAK REACTIVE ") ||
           startsWithCI(text, "WHEN REACTIVE ")) {
         bool bg = startsWithCI(text, "WHEN BACKGROUND REACTIVE ");
-        auto rest = trim(text.substr(bg ? 25 : 14));
+        bool weak = startsWithCI(text, "WHEN REACTIVE WEAK ") ||
+                    startsWithCI(text, "WHEN WEAK REACTIVE ");
+        size_t prefix = bg ? 25 : (weak ? (startsWithCI(text, "WHEN REACTIVE WEAK ") ? 19 : 18) : 14);
+        auto rest = trim(text.substr(prefix));
         stripDo(rest);
         auto U = toUpper(rest);
         auto chPos = U.find(" CHANGES");
@@ -2768,6 +2788,7 @@ bool parse(BC &bc, const std::string &source) {
         curRxWhen = {};
         curRxWhen.cellName = cellName;
         curRxWhen.background = bg;
+        curRxWhen.weak = weak;
         curRxWhen.line = lineNo;
         mode = InRxWhen;
         continue;

@@ -85,8 +85,9 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 
 ### Phase 2 — The proof point *(done — beachhead)*
 - **Reference app:** `examples/build/dashboard_{server,client}.luke` — live metrics, Path A flex, `region=1` per server tick.
-- **Benchmark baseline:** `examples/build/reactive_benchmark.luke` + [`BENCHMARKS.md`](./BENCHMARKS.md) — granular vs full rebuild at 1K / 10K nodes; `make test` asserts `region=1`.
-- Push transport + richer dashboard polish remain open; the signature property is measured.
+- **Benchmark baseline:** `examples/build/reactive_benchmark.luke` + [`BENCHMARKS.md`](./BENCHMARKS.md) — granular vs full rebuild at 1K / 10K with **warmup + median/min** samples; `make test` asserts.
+- **Mount path:** Argus id hash index (was O(N²)); arena grows by **block chain** (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.
+- Push transport + richer dashboard polish remain open.
 
 ### Phase 3 — Expand from strength
 - Resume reactive engine phases (roadmap in [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)).

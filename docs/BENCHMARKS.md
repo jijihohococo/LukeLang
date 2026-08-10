@@ -1,7 +1,7 @@
 # LukeLang Reactive Benchmarks
 
-> **Status:** Phase 2 baseline (Track 12 beachhead)  
-> **Machine note:** numbers below are from CI/dev hosts; re-run locally with the command at the bottom.
+> **Status:** Phase 2 baseline (Track 12) — method-aware  
+> Re-run locally; quote **median / min**, not a single sample.
 
 ## What we measure
 
@@ -9,23 +9,30 @@ Among **N** mounted Argus text nodes:
 
 | Path | Work |
 | --- | --- |
-| **Granular** | `UPDATE` one node → `argus_paint_one` (Spike A/B path). Assert `region` delta == 1. |
-| **Full rebuild** | `CLEAR THE SCREEN` + recreate all N nodes + `PAINT THE SCREEN` (naive remount). |
+| **Granular** | Warmup ×5, then `UPDATE` one node ×**100** → median / min ms. Assert region Δ == 100. |
+| **Full rebuild** | `CLEAR` + recreate N + `PAINT` ×**20** → median / min ms. |
 
-Program: [`examples/build/reactive_benchmark.luke`](../examples/build/reactive_benchmark.luke)
+Program: [`examples/build/reactive_benchmark.luke`](../examples/build/reactive_benchmark.luke)  
+Harness: `RESET THE BENCH` / `RECORD BENCH SAMPLE` / `THE BENCH MEDIAN` / `THE BENCH MIN`
 
-## Baseline (native Build)
+## Production fixes behind these numbers
 
-| Nodes | build_ms | granular_ms | full_ms | region Δ |
+1. **O(1) id lookup** — Argus `id → node` open-addressed hash (mount was O(N²) via linear `argus_find` + `strlen`).
+2. **Stable arena growth** — bump allocator **chains blocks** instead of `realloc` (old pointers stay valid; default start remains **1 MiB**).
+3. **Owned ids** — node id/parent strings are malloc-backed and freed on `CLEAR` (not `char id[64]` in the node).
+
+## Baseline (native Build, this host)
+
+| Nodes | build_ms | granular median (min) | full median (min) | region Δ |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 000 | ~4 | ~0.001 | ~4 | **1** |
-| 10 000 | ~370 | ~0.016 | ~380 | **1** |
+| 1 000 | ~0.3 | ~0.001 (~0.001) | ~0.14 (~0.14) | 100 |
+| 10 000 | ~2.7 | ~0.009 (~0.008) | ~1.6 (~1.6) | 100 |
 
-Headline: **one cell change stays ~O(1) paint work** while a full rebuild scales with N. At 10K nodes the granular path is on the order of **10⁴× faster** than clear+rebuild on this host.
+Headline: **one-cell updates stay ~µs**; mount/rebuild is ~linear after the index fix (10K build ~3 ms, not ~370 ms).
 
 ## Reference app
 
-[`examples/build/dashboard_{server,client}.luke`](../examples/build/dashboard_client.luke) — live `/reqs` feed on Path A flex; each poll prints `region=1` / `granular_delta=1`.
+[`examples/build/dashboard_{server,client}.luke`](../examples/build/dashboard_client.luke) — live `/reqs` on Path A flex; each poll prints `region=1`.
 
 ## Re-run
 
@@ -35,4 +42,4 @@ cd vm
 ./build/reactive_benchmark
 ```
 
-Also covered by `make test` (asserts `region=1` and `benchmark_ok=1`).
+Also covered by `make test` (`benchmark_ok=1`, `region=100`, sample counts).

@@ -691,6 +691,12 @@ Expr BC::expr(std::string e, size_t line) {
       return {"argus_viewport_height()", Ty::num()};
     if (U0 == "THE CLOCK" || U0 == "THE TIME IN MILLISECONDS" || U0 == "THE CLOCK IN MILLISECONDS")
       return {"argus_now_ms()", Ty::num()};
+    if (U0 == "THE BENCH MEDIAN" || U0 == "THE BENCHMARK MEDIAN")
+      return {"luke_bench_median()", Ty::num()};
+    if (U0 == "THE BENCH MIN" || U0 == "THE BENCHMARK MIN")
+      return {"luke_bench_min()", Ty::num()};
+    if (U0 == "THE BENCH SAMPLE COUNT" || U0 == "THE BENCHMARK SAMPLE COUNT")
+      return {"luke_bench_sample_count()", Ty::num()};
     if (U0 == "THE GRANULAR PAINT COUNT" || U0 == "GRANULAR PAINTS" ||
         U0 == "THE GRANULAR PAINTS") {
       usesRx = true;
@@ -2823,6 +2829,19 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  argus_clear(arena);\n";
     return;
   }
+  if (toUpper(text) == "RESET THE BENCH" || toUpper(text) == "RESET BENCH" ||
+      toUpper(text) == "RESET THE BENCHMARK") {
+    o << "  luke_bench_reset();\n";
+    return;
+  }
+  if (startsWithCI(text, "RECORD BENCH SAMPLE ") || startsWithCI(text, "RECORD BENCHMARK SAMPLE ")) {
+    auto rest = startsWithCI(text, "RECORD BENCH SAMPLE ") ? trim(text.substr(20))
+                                                           : trim(text.substr(25));
+    auto e = bc.expr(rest, line);
+    bc.expectTy(line, e.ty, Ty::num(), "RECORD BENCH SAMPLE");
+    o << "  luke_bench_push(" << e.code << ");\n";
+    return;
+  }
   if (startsWithCI(text, "SET THE OPACITY OF ") || startsWithCI(text, "SET OPACITY OF ")) {
     auto rest = startsWithCI(text, "SET THE OPACITY OF ") ? trim(text.substr(18))
                                                           : trim(text.substr(14));
@@ -3925,8 +3944,8 @@ std::string emit(BC &bc) {
   o << "int main(int argc, char **argv) {\n";
   o << "  luke_runtime_set_args(argc, argv);\n";
   o << "  LukeArena arena_storage; LukeArena *arena = &arena_storage;\n";
-  /* 16MiB — enough for Track 12 10K-node benches; tiny demos ignore the slack. */
-  o << "  luke_arena_init(arena, 1u<<24);\n";
+  /* 1MiB start; luke_arena_alloc grows on demand. Argus nodes are malloc'd separately. */
+  o << "  luke_arena_init(arena, 1u<<20);\n";
   if (bc.forBrowser || !bc.pageWhens.empty())
     o << "  luke_page_arena = arena;\n";
   if (bc.usesRx) {

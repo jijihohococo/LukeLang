@@ -289,7 +289,16 @@ test-build: build/luke
 	./build/reactive_benchmark | tee /tmp/luke_bench.txt | grep -q "benchmark_ok=1"
 	@grep -q "nodes=1000" /tmp/luke_bench.txt
 	@grep -q "nodes=10000" /tmp/luke_bench.txt
-	@test $$(grep -c 'region=1' /tmp/luke_bench.txt) -ge 2
+	@grep -q "granular_samples=100" /tmp/luke_bench.txt
+	@grep -q "full_samples=20" /tmp/luke_bench.txt
+	@test $$(grep -c 'region=100' /tmp/luke_bench.txt) -ge 2
+	@grep -q "granular_median_ms=" /tmp/luke_bench.txt
+	@grep -q "full_median_ms=" /tmp/luke_bench.txt
+	@grep -q 'argus_index_insert\|argus_hash_id\|argus_own_id' build/reactive_benchmark.luke.c || \
+	  grep -q 'luke_bench_median' build/reactive_benchmark.luke.c
+	@grep -q 'luke_bench_median' build/reactive_benchmark.luke.c
+	@grep -q 'luke_arena_init(arena, 1u<<20)' build/reactive_benchmark.luke.c
+	@! grep -q 'luke_arena_init(arena, 1u<<24)' build/reactive_benchmark.luke.c
 	./build/luke BUILD ../examples/build/dashboard_server.luke -o build/dashboard_server
 	./build/luke BUILD ../examples/build/dashboard_client.luke -target browser -o build/dashboard_client
 	@grep -q 'luke_rx_ui_set_text\|luke_rx_batch_begin' build/dashboard_client.luke.c

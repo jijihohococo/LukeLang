@@ -19,10 +19,18 @@ typedef struct LukeText {
   size_t len;
 } LukeText;
 
-typedef struct LukeArena {
-  char *buf;
+typedef struct LukeArenaBlock {
+  struct LukeArenaBlock *next;
   size_t cap;
   size_t len;
+  char *data;
+} LukeArenaBlock;
+
+typedef struct LukeArena {
+  LukeArenaBlock *block; /* current bump block */
+  LukeArenaBlock *first; /* oldest block (for free) */
+  size_t len;            /* total bytes allocated across blocks (stats) */
+  size_t cap;            /* sum of block caps (stats) */
 } LukeArena;
 
 /* Process argv — set once from main(). */
@@ -50,57 +58,91 @@ static inline LukeText luke_text_n(const char *s, size_t n) {
   return t;
 }
 
-static inline void luke_arena_init(LukeArena *a, size_t cap) {
-  a->cap = cap ? cap : (1u << 20);
-  a->len = 0;
-  a->buf = (char *)malloc(a->cap);
-  if (!a->buf) {
+static inline LukeArenaBlock *luke_arena_new_block(size_t cap) {
+  if (cap < 4096) cap = 4096;
+  LukeArenaBlock *b = (LukeArenaBlock *)malloc(sizeof(LukeArenaBlock));
+  if (!b) {
     fprintf(stderr, "Luke arena: out of memory\n");
     abort();
   }
+  b->next = NULL;
+  b->cap = cap;
+  b->len = 0;
+  b->data = (char *)malloc(cap);
+  if (!b->data) {
+    fprintf(stderr, "Luke arena: out of memory\n");
+    abort();
+  }
+  return b;
+}
+
+static inline void luke_arena_init(LukeArena *a, size_t cap) {
+  LukeArenaBlock *b = luke_arena_new_block(cap ? cap : (1u << 20));
+  a->block = b;
+  a->first = b;
+  a->len = 0;
+  a->cap = b->cap;
 }
 
 static inline void luke_arena_free(LukeArena *a) {
-  free(a->buf);
-  a->buf = NULL;
+  LukeArenaBlock *b = a->first;
+  while (b) {
+    LukeArenaBlock *n = b->next;
+    free(b->data);
+    free(b);
+    b = n;
+  }
+  a->block = a->first = NULL;
   a->cap = a->len = 0;
 }
 
-/* Checkpoint / restore — IN ARENA scopes (bulk free back to mark). */
+/* Checkpoint / restore — IN ARENA scopes (bulk free back to mark).
+ * Mark is total bytes allocated; reset only supports rewind within the
+ * current block (scopes that didn't cross a block boundary). */
 typedef size_t LukeArenaMark;
 
 static inline LukeArenaMark luke_arena_mark(LukeArena *a) { return a->len; }
 
 static inline void luke_arena_reset(LukeArena *a, LukeArenaMark m) {
-  if (m <= a->len) a->len = m;
+  if (m > a->len) return;
+  /* Best-effort: rewind current block if mark lies inside it. */
+  size_t before = a->len - a->block->len;
+  if (m >= before && m <= a->len) {
+    a->block->len = m - before;
+    a->len = m;
+  }
 }
 
 static inline void *luke_arena_alloc(LukeArena *a, size_t n, size_t align) {
   size_t mask = align - 1;
-  size_t off = (a->len + mask) & ~mask;
-  if (off + n > a->cap) {
-    size_t need = off + n;
-    size_t ncap = a->cap ? a->cap : 1024;
-    while (ncap < need) ncap *= 2;
-    char *nb = (char *)realloc(a->buf, ncap);
-    if (!nb) {
-      fprintf(stderr, "Luke arena: out of memory\n");
-      abort();
-    }
-    a->buf = nb;
-    a->cap = ncap;
+  LukeArenaBlock *b = a->block;
+  size_t off = (b->len + mask) & ~mask;
+  if (off + n > b->cap) {
+    /* Chain a new block — never realloc, so existing pointers stay valid. */
+    size_t need = n + align + 64;
+    size_t ncap = b->cap ? b->cap * 2 : (1u << 20);
+    if (ncap < need) ncap = need;
+    LukeArenaBlock *nb = luke_arena_new_block(ncap);
+    b->next = nb;
+    a->block = nb;
+    a->cap += nb->cap;
+    b = nb;
+    off = (b->len + mask) & ~mask;
   }
-  void *p = a->buf + off;
-  a->len = off + n;
+  size_t old_len = b->len;
+  void *p = b->data + off;
+  b->len = off + n;
+  a->len += b->len - old_len;
   return p;
 }
 
 static inline LukeText luke_text_concat(LukeArena *a, LukeText x, LukeText y) {
-  char *p = (char *)luke_arena_alloc(a, x.len + y.len + 1, 1);
-  memcpy(p, x.ptr, x.len);
-  memcpy(p + x.len, y.ptr, y.len);
-  p[x.len + y.len] = '\0';
-  return luke_text_n(p, x.len + y.len);
+  size_t xl = x.len, yl = y.len;
+  char *p = (char *)luke_arena_alloc(a, xl + yl + 1, 1);
+  if (xl && x.ptr) memcpy(p, x.ptr, xl);
+  if (yl && y.ptr) memcpy(p + xl, y.ptr, yl);
+  p[xl + yl] = '\0';
+  return luke_text_n(p, xl + yl);
 }
 
 static inline void luke_speak_text(LukeText t) {
@@ -117,6 +159,43 @@ static inline void luke_speak_number(double n) {
 
 static inline void luke_speak_flag(int f) {
   puts(f ? "true" : "false");
+}
+
+/* ---------- Micro-benchmark sample buffer (median / min) ---------- */
+#define LUKE_BENCH_MAX 256
+static double luke_bench_buf[LUKE_BENCH_MAX];
+static size_t luke_bench_len = 0;
+
+static inline void luke_bench_reset(void) { luke_bench_len = 0; }
+
+static inline void luke_bench_push(double ms) {
+  if (luke_bench_len < LUKE_BENCH_MAX) luke_bench_buf[luke_bench_len++] = ms;
+}
+
+static inline double luke_bench_sample_count(void) { return (double)luke_bench_len; }
+
+static inline double luke_bench_min(void) {
+  if (!luke_bench_len) return 0.0;
+  double m = luke_bench_buf[0];
+  for (size_t i = 1; i < luke_bench_len; ++i)
+    if (luke_bench_buf[i] < m) m = luke_bench_buf[i];
+  return m;
+}
+
+static inline double luke_bench_median(void) {
+  if (!luke_bench_len) return 0.0;
+  double tmp[LUKE_BENCH_MAX];
+  memcpy(tmp, luke_bench_buf, luke_bench_len * sizeof(double));
+  for (size_t i = 1; i < luke_bench_len; ++i) {
+    double v = tmp[i];
+    size_t j = i;
+    while (j > 0 && tmp[j - 1] > v) {
+      tmp[j] = tmp[j - 1];
+      j--;
+    }
+    tmp[j] = v;
+  }
+  return tmp[luke_bench_len / 2];
 }
 
 /* ---------- collections (arena-backed; Luke LIST / MAP) ---------- */

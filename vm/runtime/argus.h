@@ -3,7 +3,10 @@
 
 /* Argus — LukeLang rendering engine.
  * DOM presentment (not Skia). Path A: reactive patcher over CSS flex flow;
- * absolute frames remain for STACK / explicit PLACE. See docs/ARGUS.md */
+ * absolute frames remain for STACK / explicit PLACE. See docs/ARGUS.md
+ *
+ * Scene nodes + id index are malloc-backed (stable across bump-arena growth).
+ * Ids are owned copies freed on CLEAR — not pointers into the bump arena. */
 
 #include "luke_rt.h"
 
@@ -27,7 +30,8 @@ typedef enum ArgusKind {
 } ArgusKind;
 
 typedef struct ArgusNode {
-  char id[64];
+  LukeText id;        /* malloc-owned; freed on CLEAR */
+  LukeText parent_id; /* malloc-owned or empty; freed on CLEAR */
   ArgusKind kind;
   double x, y, w, h;
   double opacity;
@@ -37,7 +41,6 @@ typedef struct ArgusNode {
   LukeText aria_label; /* a11y label */
   int input_type; /* 0 text, 1 password, 2 email, 3 checkbox, 4 radio */
   /* Path A — CSS flow / flex (0 = classic absolute frame) */
-  char parent_id[64];
   int flow;      /* 1 = normal-flow child (no left/top) */
   int flex_dir;  /* 0 none, 1 column, 2 row */
   double flex_gap;
@@ -48,11 +51,21 @@ typedef struct ArgusNode {
   int mounted;
 } ArgusNode;
 
+/* Open-addressed id → node-index map (O(1) find). Nodes live in malloc, not the bump
+ * arena — arena realloc must not invalidate the scene table. */
+typedef struct ArgusIdSlot {
+  uint32_t hash;
+  uint32_t index; /* 1-based into nodes[]; 0 = empty */
+} ArgusIdSlot;
+
 typedef struct ArgusTree {
   LukeArena *arena;
-  ArgusNode *nodes;
+  ArgusNode *nodes; /* malloc/realloc */
   size_t len;
   size_t cap;
+  ArgusIdSlot *slots; /* malloc/realloc, power-of-two */
+  size_t slot_cap;
+  size_t slot_used;
   int painted;
 } ArgusTree;
 
@@ -242,10 +255,71 @@ static inline void argus_js_clear(void) {}
 
 static ArgusTree argus_global = {0};
 
-static inline void argus_id_copy(char *dst, size_t cap, LukeText id) {
-  size_t n = id.len < cap - 1 ? id.len : cap - 1;
-  if (n && id.ptr) memcpy(dst, id.ptr, n);
-  dst[n] = '\0';
+static inline LukeText argus_own_id(LukeText id) {
+  char *p = (char *)malloc(id.len + 1);
+  if (!p) {
+    fprintf(stderr, "Argus: out of memory (id)\n");
+    abort();
+  }
+  if (id.len && id.ptr) memcpy(p, id.ptr, id.len);
+  p[id.len] = '\0';
+  return luke_text_n(p, id.len);
+}
+
+static inline void argus_release_id(LukeText *t) {
+  if (!t) return;
+  if (t->ptr && t->len) free((void *)(uintptr_t)t->ptr);
+  t->ptr = "";
+  t->len = 0;
+}
+
+static inline uint32_t argus_hash_id(LukeText id) {
+  uint32_t h = 2166136261u;
+  for (size_t i = 0; i < id.len; ++i) {
+    h ^= (uint8_t)(id.ptr ? id.ptr[i] : 0);
+    h *= 16777619u;
+  }
+  return h;
+}
+
+static inline void argus_index_clear(ArgusTree *t) {
+  if (t->slots && t->slot_cap) memset(t->slots, 0, t->slot_cap * sizeof(ArgusIdSlot));
+  t->slot_used = 0;
+}
+
+static inline void argus_index_insert(ArgusTree *t, LukeText id, size_t node_index) {
+  uint32_t h = argus_hash_id(id);
+  size_t mask = t->slot_cap - 1;
+  size_t i = (size_t)h & mask;
+  for (;;) {
+    if (t->slots[i].index == 0) {
+      t->slots[i].hash = h;
+      t->slots[i].index = (uint32_t)(node_index + 1);
+      t->slot_used++;
+      return;
+    }
+    i = (i + 1) & mask;
+  }
+}
+
+static inline void argus_index_grow(ArgusTree *t) {
+  size_t ncap = t->slot_cap ? t->slot_cap * 2 : 64;
+  ArgusIdSlot *old = t->slots;
+  size_t old_cap = t->slot_cap;
+  ArgusIdSlot *ns = (ArgusIdSlot *)calloc(ncap, sizeof(ArgusIdSlot));
+  if (!ns) {
+    fprintf(stderr, "Argus: out of memory (id index)\n");
+    abort();
+  }
+  t->slots = ns;
+  t->slot_cap = ncap;
+  t->slot_used = 0;
+  for (size_t i = 0; i < old_cap; ++i) {
+    if (!old[i].index) continue;
+    size_t ni = (size_t)old[i].index - 1;
+    argus_index_insert(t, t->nodes[ni].id, ni);
+  }
+  free(old);
 }
 
 static inline ArgusTree *argus_tree(LukeArena *a) {
@@ -254,14 +328,27 @@ static inline ArgusTree *argus_tree(LukeArena *a) {
     argus_global.nodes = NULL;
     argus_global.len = 0;
     argus_global.cap = 0;
+    argus_global.slots = NULL;
+    argus_global.slot_cap = 0;
+    argus_global.slot_used = 0;
   }
   return &argus_global;
 }
 
 static inline ArgusNode *argus_find(ArgusTree *t, LukeText id) {
-  for (size_t i = 0; i < t->len; ++i) {
-    size_t n = strlen(t->nodes[i].id);
-    if (n == id.len && (n == 0 || memcmp(t->nodes[i].id, id.ptr, n) == 0)) return &t->nodes[i];
+  if (!t || !t->slots || !t->slot_cap || !t->len) return NULL;
+  uint32_t h = argus_hash_id(id);
+  size_t mask = t->slot_cap - 1;
+  size_t i = (size_t)h & mask;
+  for (size_t n = 0; n < t->slot_cap; ++n) {
+    if (t->slots[i].index == 0) return NULL;
+    if (t->slots[i].hash == h) {
+      ArgusNode *node = &t->nodes[t->slots[i].index - 1];
+      if (node->id.len == id.len &&
+          (id.len == 0 || (id.ptr && node->id.ptr && memcmp(node->id.ptr, id.ptr, id.len) == 0)))
+        return node;
+    }
+    i = (i + 1) & mask;
   }
   return NULL;
 }
@@ -276,19 +363,26 @@ static inline ArgusNode *argus_upsert(LukeArena *a, LukeText id, ArgusKind kind)
   }
   if (t->len + 1 > t->cap) {
     size_t ncap = t->cap ? t->cap * 2 : 16;
-    ArgusNode *nn = (ArgusNode *)luke_arena_alloc(a, ncap * sizeof(ArgusNode), sizeof(void *));
-    if (t->nodes && t->len) memcpy(nn, t->nodes, t->len * sizeof(ArgusNode));
+    ArgusNode *nn = (ArgusNode *)realloc(t->nodes, ncap * sizeof(ArgusNode));
+    if (!nn) {
+      fprintf(stderr, "Argus: out of memory (nodes)\n");
+      abort();
+    }
     t->nodes = nn;
     t->cap = ncap;
   }
-  n = &t->nodes[t->len++];
+  if (t->slot_cap == 0 || t->slot_used * 10 >= t->slot_cap * 7) argus_index_grow(t);
+  size_t idx = t->len++;
+  n = &t->nodes[idx];
   memset(n, 0, sizeof(*n));
-  argus_id_copy(n->id, sizeof(n->id), id);
+  n->id = argus_own_id(id);
+  n->parent_id = luke_text_n("", 0);
   n->kind = kind;
   n->opacity = 1.0;
   n->w = 100;
   n->h = 40;
   n->dirty = 1;
+  argus_index_insert(t, n->id, idx);
   return n;
 }
 
@@ -328,10 +422,11 @@ static inline void argus_set_a11y(ArgusNode *n, LukeText role, LukeText label) {
 
 static inline void argus_set_parent(ArgusNode *n, LukeText parent) {
   if (!n) return;
+  argus_release_id(&n->parent_id);
   if (parent.len && parent.ptr)
-    argus_id_copy(n->parent_id, sizeof(n->parent_id), parent);
+    n->parent_id = argus_own_id(parent);
   else
-    n->parent_id[0] = '\0';
+    n->parent_id = luke_text_n("", 0);
   n->dirty = 1;
 }
 
@@ -373,7 +468,7 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
   ArgusNode *n = argus_find(t, id);
   if (!n || (!n->dirty && n->mounted)) return 0;
   argus_js_upsert(id, (double)n->kind);
-  if (n->parent_id[0]) argus_js_parent(id, luke_text(n->parent_id));
+  if (n->parent_id.len) argus_js_parent(id, n->parent_id);
   if (n->flex_dir)
     argus_js_flex(id, (double)n->flex_dir, n->flex_gap, n->flex_pad, (double)n->flex_align,
                   (double)n->flex_wrap);
@@ -405,16 +500,20 @@ static inline int argus_paint(LukeArena *a) {
   for (size_t i = 0; i < t->len; ++i) {
     ArgusNode *n = &t->nodes[i];
     if (!n->dirty && n->mounted) continue;
-    LukeText id = luke_text(n->id);
-    if (argus_paint_one(a, id)) count++;
+    if (argus_paint_one(a, n->id)) count++;
   }
   return count;
 }
 
 static inline void argus_clear(LukeArena *a) {
   ArgusTree *t = argus_tree(a);
+  for (size_t i = 0; i < t->len; ++i) {
+    argus_release_id(&t->nodes[i].id);
+    argus_release_id(&t->nodes[i].parent_id);
+  }
   t->len = 0;
   t->painted = 0;
+  argus_index_clear(t);
   argus_js_clear();
 }
 
@@ -458,7 +557,7 @@ static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, i
   if (absolute) {
     argus_set_frame(n, x, y, w, h);
     argus_set_flow(n, 0);
-    n->parent_id[0] = '\0';
+    argus_set_parent(n, luke_text_n("", 0));
   } else {
     argus_set_frame(n, 0, 0, w, h);
     argus_set_flow(n, 1);

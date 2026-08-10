@@ -237,7 +237,35 @@ On `scope_end` / `UNMOUNT COMPONENT`, closed scope frames with no owned nodes ar
 
 ---
 
-## 10. Non-normative (future)
+## 10. DevTools (v0.5)
+
+### 10.1 Why-changed
+
+`THE WHY ROOT OF derived` walks deps to the nearest source cell (BFS, min id tie-break).  
+`THE WHY DEPTH OF derived` is hop count to that root.  
+`TRACE WHY cell` logs the chain to stderr and increments `THE WHY TRACE COUNT`.
+
+`THE LAST WRITE ID` records the most recent cell/collection write.
+
+### 10.2 Live graph
+
+`DUMP REACTIVE GRAPH` prints alive nodes to stderr (`THE GRAPH DUMP COUNT`).  
+Counters: `THE GRAPH CELL COUNT`, `THE GRAPH DERIVED COUNT`, `THE GRAPH EFFECT COUNT`, `THE GRAPH EDGE COUNT`.
+
+### 10.3 Timeline export
+
+After flush, scheduler steps are readable via:
+
+```luke
+THE TIMELINE STEP ID AT 0
+THE TIMELINE STEP WAVE AT 0
+```
+
+Wave `2` = derived, `3` = effect.
+
+---
+
+## 11. Non-normative (future)
 
 Not yet specified: macrotask queues, parallel reactions, time-travel, field-level object tracking, Hanka region invalidation spec.
 

@@ -504,6 +504,18 @@ Dead nodes, weak reads, leak audit, weak effects, scope GC.
 - `AUDIT REACTIVE` statement · `UNMOUNT COMPONENT` (UI dispose alias)
 - Conformance: `reactive_conformance_{memory,weak,scope_gc,weak_effect}.luke`
 
+### Phase 13 — DevTools *(shipped v0.5)*
+
+Graph introspection, why-changed tracing, timeline export.
+
+**Deliverables**
+
+- `luke_rx_why_root` / `luke_rx_why_depth` — dependency chain to source cells
+- `luke_rx_dump_graph` + `DUMP REACTIVE GRAPH`
+- `TRACE WHY cell` / `WHY DID cell CHANGE`
+- Introspection: `THE DEP COUNT OF`, `THE WHY ROOT OF`, `THE GRAPH EDGE COUNT`, `THE TIMELINE STEP ID AT n`
+- Conformance: `reactive_conformance_devtools.luke`
+
 ---
 
 ## Relation to current engines

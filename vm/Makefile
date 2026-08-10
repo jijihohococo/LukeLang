@@ -214,6 +214,19 @@ test-build: build/luke
 	./build/ex_rx_conf_weak_fx | grep -q "leaks=0"
 	./build/ex_rx_conf_weak_fx | grep -q "alive=1"
 	./build/ex_rx_conf_weak_fx | grep -q "weak_reads=1"
+	./build/luke BUILD ../examples/build/reactive_conformance_devtools.luke -o build/ex_rx_conf_devtools
+	./build/ex_rx_conf_devtools | grep -q "write=1"
+	./build/ex_rx_conf_devtools | grep -q "root=1"
+	./build/ex_rx_conf_devtools | grep -q "depth=1"
+	./build/ex_rx_conf_devtools | grep -q "deps=2"
+	./build/ex_rx_conf_devtools | grep -q "subs=1"
+	./build/ex_rx_conf_devtools | grep -q "cells=2"
+	./build/ex_rx_conf_devtools | grep -q "derived=1"
+	./build/ex_rx_conf_devtools | grep -q "edges=2"
+	./build/ex_rx_conf_devtools | grep -q "step0=3"
+	./build/ex_rx_conf_devtools | grep -q "wave0=2"
+	./build/ex_rx_conf_devtools | grep -q "traces=1"
+	./build/ex_rx_conf_devtools | grep -q "dumps=1"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

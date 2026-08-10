@@ -128,6 +128,10 @@ struct LukeRxGraph {
   int last_leak_edges;  /* alive nodes with deps on dead nodes */
   int weak_read_count;  /* cumulative weak reads (no dep edge) */
   int scope_gc_count;   /* closed scope frames compacted */
+  /* Phase 13 — DevTools */
+  LukeRxId last_write_id; /* last cell/collection write (why-changed root hint) */
+  int graph_dump_count;
+  int why_trace_count;
   /* Phase 6 — timelines */
 #define LUKE_RX_MAX_TIMELINES 16
   struct {
@@ -603,6 +607,7 @@ static inline void luke_rx_write_num(LukeRxGraph *g, LukeRxId id, double v) {
   if (n->num == v && !n->dirty) return;
   n->num = v;
   n->version++;
+  g->last_write_id = id;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
   if (!g->batching) luke_rx_request_flush(g);
@@ -618,6 +623,7 @@ static inline void luke_rx_touch_coll(LukeRxGraph *g, LukeRxId id, int change_ki
   n->change_kind = change_kind;
   n->last_index = last_index;
   n->version++;
+  g->last_write_id = id;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
   if (!g->batching) luke_rx_request_flush(g);
@@ -710,6 +716,7 @@ static inline void luke_rx_write_text(LukeRxGraph *g, LukeRxId id, LukeText v) {
   if (luke_rx_text_eq(n->text, v) && !n->dirty) return;
   n->text = v;
   n->version++;
+  g->last_write_id = id;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
   if (!g->batching) luke_rx_request_flush(g);
@@ -1013,6 +1020,134 @@ static inline size_t luke_rx_scope_owned(LukeRxGraph *g, const char *name) {
 
 static inline size_t luke_rx_scope_frame_count(LukeRxGraph *g) {
   return g ? g->scope_len : 0;
+}
+
+/* ---------- Phase 13 DevTools ---------- */
+
+static inline int luke_rx_is_source_kind(LukeRxKind k) {
+  return k == LUKE_RX_CELL || k == LUKE_RX_LIST || k == LUKE_RX_MAP;
+}
+
+static inline size_t luke_rx_dep_count(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  return n ? n->dep_len : 0;
+}
+
+static inline size_t luke_rx_sub_count(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  return n ? n->sub_len : 0;
+}
+
+static inline int luke_rx_count_kind(LukeRxGraph *g, LukeRxKind kind) {
+  if (!g) return 0;
+  int c = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *n = luke_rx_node(g, id);
+    if (n && n->kind == kind) c++;
+  }
+  return c;
+}
+
+static inline int luke_rx_edge_count(LukeRxGraph *g) {
+  if (!g) return 0;
+  int c = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *n = luke_rx_node(g, id);
+    if (n) c += (int)n->dep_len;
+  }
+  return c;
+}
+
+static inline LukeRxId luke_rx_timeline_step_id(LukeRxGraph *g, size_t index) {
+  if (!g || index >= g->sched_timeline_len) return 0;
+  return g->timeline[index].id;
+}
+
+static inline int luke_rx_timeline_step_wave(LukeRxGraph *g, size_t index) {
+  if (!g || index >= g->sched_timeline_len) return 0;
+  return (int)g->timeline[index].wave;
+}
+
+/* Nearest source cell/collection upstream (BFS, min id tie-break). */
+static inline LukeRxId luke_rx_why_root(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *start = luke_rx_node(g, id);
+  if (!start) return 0;
+  if (luke_rx_is_source_kind(start->kind)) return id;
+  LukeRxId q[64];
+  int depth[64];
+  size_t head = 0, tail = 0;
+  q[tail] = id;
+  depth[tail++] = 0;
+  LukeRxId best = 0;
+  int best_depth = 999999;
+  while (head < tail && head < 64) {
+    LukeRxId cur = q[head];
+    int d = depth[head++];
+    LukeRxNode *n = luke_rx_node(g, cur);
+    if (!n) continue;
+    if (luke_rx_is_source_kind(n->kind)) {
+      if (d < best_depth || (d == best_depth && (best == 0 || cur < best))) {
+        best = cur;
+        best_depth = d;
+      }
+      continue;
+    }
+    for (size_t i = 0; i < n->dep_len && tail < 64; ++i) {
+      LukeRxId dep = n->deps[i];
+      if (!luke_rx_node(g, dep)) continue;
+      q[tail] = dep;
+      depth[tail++] = d + 1;
+    }
+  }
+  return best ? best : id;
+}
+
+static inline int luke_rx_why_depth(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *start = luke_rx_node(g, id);
+  if (!start) return 0;
+  if (luke_rx_is_source_kind(start->kind)) return 0;
+  LukeRxId root = luke_rx_why_root(g, id);
+  if (root == 0 || root == id) return 0;
+  LukeRxId q[64];
+  int depth[64];
+  size_t head = 0, tail = 0;
+  q[tail] = id;
+  depth[tail++] = 0;
+  while (head < tail && head < 64) {
+    LukeRxId cur = q[head];
+    int d = depth[head++];
+    if (cur == root) return d;
+    LukeRxNode *n = luke_rx_node(g, cur);
+    if (!n) continue;
+    for (size_t i = 0; i < n->dep_len && tail < 64; ++i) {
+      LukeRxId dep = n->deps[i];
+      if (!luke_rx_node(g, dep)) continue;
+      q[tail] = dep;
+      depth[tail++] = d + 1;
+    }
+  }
+  return 0;
+}
+
+static inline void luke_rx_dump_graph(LukeRxGraph *g) {
+  if (!g) return;
+  g->graph_dump_count++;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *n = luke_rx_node(g, id);
+    if (!n) continue;
+    fprintf(stderr, "rx#%u kind=%d deps=%zu subs=%zu dirty=%d v=%.10g\n", (unsigned)id,
+            (int)n->kind, n->dep_len, n->sub_len, n->dirty, n->num);
+  }
+}
+
+static inline int luke_rx_trace_why(LukeRxGraph *g, LukeRxId id) {
+  if (!g) return 0;
+  g->why_trace_count++;
+  LukeRxId root = luke_rx_why_root(g, id);
+  fprintf(stderr, "why#%u root=%u depth=%d last_write=%u deps=%zu subs=%zu\n",
+          (unsigned)id, (unsigned)root, luke_rx_why_depth(g, id),
+          (unsigned)g->last_write_id, luke_rx_dep_count(g, id), luke_rx_sub_count(g, id));
+  return g->why_trace_count;
 }
 
 #ifdef __cplusplus

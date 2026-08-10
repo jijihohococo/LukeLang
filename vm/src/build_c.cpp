@@ -751,6 +751,87 @@ Expr BC::expr(std::string e, size_t line) {
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->scope_gc_count : 0.0)", Ty::num()};
     if (U0 == "THE SCOPE FRAME COUNT" || U0 == "THE OPEN SCOPE COUNT")
       return {"(double)luke_rx_scope_frame_count(" + rxGraphVar + ")", Ty::num()};
+    if (U0 == "THE GRAPH CELL COUNT" || U0 == "THE REACTIVE CELL COUNT")
+      return {"(double)luke_rx_count_kind(" + rxGraphVar + ", LUKE_RX_CELL)", Ty::num()};
+    if (U0 == "THE GRAPH DERIVED COUNT" || U0 == "THE REACTIVE DERIVED COUNT")
+      return {"(double)luke_rx_count_kind(" + rxGraphVar + ", LUKE_RX_DERIVED)", Ty::num()};
+    if (U0 == "THE GRAPH EFFECT COUNT" || U0 == "THE REACTIVE EFFECT COUNT")
+      return {"(double)luke_rx_count_kind(" + rxGraphVar + ", LUKE_RX_EFFECT)", Ty::num()};
+    if (U0 == "THE GRAPH EDGE COUNT" || U0 == "THE REACTIVE EDGE COUNT")
+      return {"(double)luke_rx_edge_count(" + rxGraphVar + ")", Ty::num()};
+    if (U0 == "THE LAST WRITE ID" || U0 == "THE LAST WRITE NODE")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_write_id : 0.0)", Ty::num()};
+    if (U0 == "THE GRAPH DUMP COUNT" || U0 == "THE REACTIVE DUMP COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->graph_dump_count : 0.0)", Ty::num()};
+    if (U0 == "THE WHY TRACE COUNT" || U0 == "THE REACTIVE TRACE COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->why_trace_count : 0.0)", Ty::num()};
+    if (U0 == "THE NEED PAINT FLAG" || U0 == "THE NEED PAINT COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->need_paint : 0.0)", Ty::num()};
+    if (U0 == "THE NEED LAYOUT FLAG" || U0 == "THE NEED LAYOUT COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->need_layout : 0.0)", Ty::num()};
+  }
+
+  if (startsWithCI(e, "THE TIMELINE STEP ID AT ") || startsWithCI(e, "THE TIMELINE STEP WAVE AT ")) {
+    usesRx = true;
+    bool wave = startsWithCI(e, "THE TIMELINE STEP WAVE AT ");
+    size_t prefix = wave ? 26 : 24;
+    auto idxE = expr(trim(e.substr(prefix)), line);
+    expectTy(line, idxE.ty, Ty::num(), wave ? "THE TIMELINE STEP WAVE AT" : "THE TIMELINE STEP ID AT");
+    if (wave)
+      return {"(double)luke_rx_timeline_step_wave(" + rxGraphVar + ", (size_t)(" + idxE.code + "))",
+              Ty::num()};
+    return {"(double)luke_rx_timeline_step_id(" + rxGraphVar + ", (size_t)(" + idxE.code + "))",
+            Ty::num()};
+  }
+
+  if (startsWithCI(e, "THE NODE ID OF ")) {
+    usesRx = true;
+    auto name = resolveRxCellName(rxCells, rxEntityStack, stripThe(trim(e.substr(15))));
+    if (!rxCells.count(name)) {
+      fail(line, "THE NODE ID OF needs a reactive cell — not '" + trim(e.substr(15)) + "'");
+      return {"0", Ty::num()};
+    }
+    return {"(double)_luke_rx_id_" + cIdent(name), Ty::num()};
+  }
+  if (startsWithCI(e, "THE DEP COUNT OF ")) {
+    usesRx = true;
+    auto name = resolveRxCellName(rxCells, rxEntityStack, stripThe(trim(e.substr(17))));
+    if (!rxCells.count(name)) {
+      fail(line, "THE DEP COUNT OF needs a reactive cell — not '" + trim(e.substr(17)) + "'");
+      return {"0", Ty::num()};
+    }
+    return {"(double)luke_rx_dep_count(" + rxGraphVar + ", _luke_rx_id_" + cIdent(name) + ")",
+            Ty::num()};
+  }
+  if (startsWithCI(e, "THE SUB COUNT OF ")) {
+    usesRx = true;
+    auto name = resolveRxCellName(rxCells, rxEntityStack, stripThe(trim(e.substr(17))));
+    if (!rxCells.count(name)) {
+      fail(line, "THE SUB COUNT OF needs a reactive cell — not '" + trim(e.substr(17)) + "'");
+      return {"0", Ty::num()};
+    }
+    return {"(double)luke_rx_sub_count(" + rxGraphVar + ", _luke_rx_id_" + cIdent(name) + ")",
+            Ty::num()};
+  }
+  if (startsWithCI(e, "THE WHY ROOT OF ")) {
+    usesRx = true;
+    auto name = resolveRxCellName(rxCells, rxEntityStack, stripThe(trim(e.substr(16))));
+    if (!rxCells.count(name)) {
+      fail(line, "THE WHY ROOT OF needs a reactive cell — not '" + trim(e.substr(16)) + "'");
+      return {"0", Ty::num()};
+    }
+    return {"(double)luke_rx_why_root(" + rxGraphVar + ", _luke_rx_id_" + cIdent(name) + ")",
+            Ty::num()};
+  }
+  if (startsWithCI(e, "THE WHY DEPTH OF ")) {
+    usesRx = true;
+    auto name = resolveRxCellName(rxCells, rxEntityStack, stripThe(trim(e.substr(17))));
+    if (!rxCells.count(name)) {
+      fail(line, "THE WHY DEPTH OF needs a reactive cell — not '" + trim(e.substr(17)) + "'");
+      return {"0", Ty::num()};
+    }
+    return {"(double)luke_rx_why_depth(" + rxGraphVar + ", _luke_rx_id_" + cIdent(name) + ")",
+            Ty::num()};
   }
 
   if (startsWithCI(e, "THE WEAK VALUE OF ")) {
@@ -1335,6 +1416,30 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  luke_rx_audit_graph(_luke_rx);\n";
     return;
   }
+  if (toUpper(text) == "DUMP REACTIVE GRAPH" || toUpper(text) == "DUMP THE REACTIVE GRAPH") {
+    bc.usesRx = true;
+    o << "  luke_rx_dump_graph(_luke_rx);\n";
+    return;
+  }
+  if (startsWithCI(text, "TRACE WHY ") || startsWithCI(text, "WHY DID ")) {
+    std::string nameRaw;
+    if (startsWithCI(text, "TRACE WHY "))
+      nameRaw = trim(text.substr(10));
+    else {
+      auto rest = trim(text.substr(8));
+      auto U = toUpper(rest);
+      auto ch = U.find(" CHANGE");
+      nameRaw = ch != std::string::npos ? trim(rest.substr(0, ch)) : rest;
+    }
+    auto name = resolveRxCellName(bc.rxCells, bc.rxEntityStack, stripThe(nameRaw));
+    if (!bc.rxCells.count(name)) {
+      bc.fail(line, "TRACE WHY needs a reactive cell — not '" + nameRaw + "'");
+      return;
+    }
+    bc.usesRx = true;
+    o << "  luke_rx_trace_why(_luke_rx, _luke_rx_id_" << cIdent(name) << ");\n";
+    return;
+  }
   if (toUpper(text) == "PAINT DIRTY" || toUpper(text) == "PAINT THE DIRTY NODES") {
     o << "  argus_paint(arena);\n";
     return;
@@ -1639,6 +1744,11 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   }
   if (startsWithCI(text, "THE ") && !startsWithCI(text, "THE VALUE OF ") &&
       !startsWithCI(text, "THE WEAK VALUE OF ") &&
+      !startsWithCI(text, "THE NODE ID OF ") && !startsWithCI(text, "THE DEP COUNT OF ") &&
+      !startsWithCI(text, "THE SUB COUNT OF ") && !startsWithCI(text, "THE WHY ROOT OF ") &&
+      !startsWithCI(text, "THE WHY DEPTH OF ") &&
+      !startsWithCI(text, "THE TIMELINE STEP ID AT ") &&
+      !startsWithCI(text, "THE TIMELINE STEP WAVE AT ") &&
       !startsWithCI(text, "THE BODY OF ") && !startsWithCI(text, "THE STATUS OF ")) {
     auto rest = trim(text.substr(4));
     auto U = toUpper(rest);

@@ -17,7 +17,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 | 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 |
 | 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ✅ v0.4 |
 | 5 | **Error system** | Isolation, async failure, boundaries, retry | ⬜ |
-| 6 | **DevTools** | Live graph, why changed/repaint, timelines | ⬜ |
+| 6 | **DevTools** | Live graph, why changed/repaint, timelines | 🟡 v0.5 started |
 | 7 | **Time-travel** | Snapshots, replay, deterministic replay | ⬜ |
 | 8 | **Compiler optimization** | Static graph, dead reaction elimination | ⬜ |
 | 9 | **Concurrency** | Parallel reactions, workers, race-safe cells | ⬜ |
@@ -78,6 +78,17 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 - [x] Weak effect refs (`WHEN REACTIVE WEAK`, `luke_rx_effect_weak`)
 - [x] Auto scope GC (`luke_rx_scope_gc`, `UNMOUNT COMPONENT`, `THE SCOPE GC COUNT`)
 - [x] Conformance: `reactive_conformance_{scope_gc,weak_effect}.luke`
+
+---
+
+## Milestone F — DevTools *(current)*
+
+- [x] Graph stats (`THE GRAPH CELL COUNT`, `THE GRAPH EDGE COUNT`)
+- [x] Why-changed trace (`THE WHY ROOT OF`, `THE WHY DEPTH OF`, `TRACE WHY`)
+- [x] Last write id + dep/sub counts per node
+- [x] Timeline step export (`THE TIMELINE STEP ID AT n`)
+- [x] `DUMP REACTIVE GRAPH` live snapshot (stderr)
+- [x] Conformance: `reactive_conformance_devtools.luke`
 
 ---
 

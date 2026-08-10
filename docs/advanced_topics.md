@@ -1,39 +1,26 @@
 # Advanced Topics in LukeLang
 
-This guide covers advanced features and concepts in LukeLang, including interoperability with JavaScript, error handling, and code organization.
+Prefer [`BUILD_MODE.md`](./BUILD_MODE.md) for the language of record. This page is a short pointer — older JS-transpile guidance was removed with the legacy emitters ([`LEGACY.md`](./LEGACY.md)).
 
-## 1. Interoperability with JavaScript
+## Browser / JS host
 
-Since LukeLang transpiles to JavaScript, you can seamlessly interoperate with existing JavaScript code and libraries.
+Build `-target browser` ships WASM + a thin DOM boot (`scripts/luke_browser_loader.cjs`). Luke owns layout/paint (Hanka → Argus); the page is a host surface, not the source of truth.
 
-### Calling JavaScript Functions
+## Errors
 
-You can call any JavaScript function directly from your LukeLang code.
+- Build: `ATTEMPT` / `GIVE UP` / `OTHERWISE`, plus reactive isolation when using the reactive runtime.
+- Play VM: runtime errors surface through the SHOW path.
+
+## Modules
 
 ```luke
-// Assuming you have a JS file with:
-// function greet(name) { console.log(`Hello, ${name}!`); }
-
-// In your LukeLang code:
-greet("Luke")
+IMPORT "./critter.luke"
+IMPORT std/json
+IMPORT luke/greeter
 ```
 
-### Using JavaScript Libraries
+See BUILD_MODE for packages (`luke PKG …`).
 
-To use an external JavaScript library, simply include it in your project and call its functions as you would in regular JavaScript.
+## Contributing
 
-## 2. Error Handling
-
-LukeLang does not yet have a dedicated error handling mechanism (e.g., `try-catch` blocks). However, since it transpiles to JavaScript, you can rely on JavaScript's native error handling when needed.
-
-Future versions of LukeLang will introduce more robust error handling features.
-
-## 3. Modules and Code Organization
-
-Currently, LukeLang does not have a built-in module system. For larger projects, it is recommended to organize your code into multiple `.luke` files and transpile them separately.
-
-We are actively working on a module system that will allow you to import and export code between files, making it easier to manage large codebases.
-
-## What's Next?
-
-LukeLang is a growing language, and we are committed to adding more features and improvements. If you are interested in contributing, please see our **[Contributor Guide](./contributor_guide.md)**.
+[`contributor_guide.md`](./contributor_guide.md) — work in `vm/`, land on `main`, run `make test`.

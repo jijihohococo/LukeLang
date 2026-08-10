@@ -273,3 +273,17 @@ luke BUILD examples/build/hanka_demo.luke -target browser -o build/hanka_demo
 Conversational syntax is the **UI**.  
 Build-mode layouts, types, and arenas are the **truth**.  
 That split is how Luke can feel like Python and weigh like Rust.
+
+## Parser ceiling (known limit)
+
+Build codegen (`vm/src/build_c.cpp`) is **line-based**: one statement per line, `startsWithCI` / keyword scans, not a full lexer + AST.
+
+That is why today’s surface is productive and conversational — and also why multi-line expressions, richer nesting, and flexible punctuation will eventually need a real parse pipeline.
+
+| Today | Ceiling |
+| --- | --- |
+| Prefix/`findOutsideQuotes` stmt match | Awkward multi-line constructs |
+| One line ≈ one stmt | Soft line-wrap / continued statements |
+| Hand-rolled expression splits (`AND`, `ADD`, …) | Precedence tables / proper AST |
+
+**Roadmap:** keep shipping features on the line-based front-end until a shared tokenize → AST → Build-IR path can replace `stmt(...)` without breaking demos. Do not invent a second parallel parser in `mimo/` or `main.js`.

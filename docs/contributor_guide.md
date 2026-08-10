@@ -1,45 +1,33 @@
 # LukeLang Contributor Guide
 
-Thank you for your interest in contributing to LukeLang! This guide provides information on how to contribute to the project, including our code style guidelines and pull request process.
+Thanks for contributing. The **canonical codebase is `vm/`**.
 
-## Code Style
+## Where to work
 
-To maintain consistency across the codebase, we follow these style guidelines:
+| Do | Don’t |
+| --- | --- |
+| Change `vm/`, `docs/`, `examples/build/`, `scripts/` (browser/WASI loaders) | Grow `main.js`, `luke.js`, or `mimo/` |
+| Run `cd vm && make test` before landing | Commit `*.obj` / build products |
 
--   **Indentation**: Use 2 spaces for indentation.
--   **Naming Conventions**:
-    -   Use `camelCase` for variables and functions.
-    -   Use `PascalCase` for classes.
--   **Comments**: Write clear and concise comments to explain complex logic.
+Legacy JS paths are deprecated — see [`LEGACY.md`](./LEGACY.md).
 
-## Submitting Pull Requests
+## Workflow
 
-We welcome contributions in the form of pull requests. To submit a pull request, please follow these steps:
+Land work **directly on `main`** (this repo’s preferred flow). Keep commits small and green.
 
-1.  **Fork the Repository**:
-    Create a fork of the official LukeLang repository on GitHub.
+```bash
+cd vm && make test
+```
 
-2.  **Create a New Branch**:
-    Create a new branch for your feature or bug fix.
-    ```bash
-    git checkout -b my-new-feature
-    ```
+CI (GitHub Actions) runs the same `make test` target, including frontend demos and the reactive conformance suite.
 
-3.  **Make Your Changes**:
-    Implement your changes, following the code style guidelines.
+## Code style (vm/)
 
-4.  **Commit Your Changes**:
-    Write a clear and descriptive commit message.
-    ```bash
-    git commit -m "Add new feature: XYZ"
-    ```
+- C++17 in `vm/src/`
+- Prefer clear conversational Luke surfaces over clever C++
+- Match existing formatting in the file you touch
 
-5.  **Push to Your Fork**:
-    ```bash
-    git push origin my-new-feature
-    ```
+## Docs
 
-6.  **Open a Pull Request**:
-    Go to the LukeLang repository on GitHub and open a pull request from your forked branch.
-
-Our team will review your pull request and provide feedback. We appreciate your contributions to making LukeLang a better language.
+- Build truth: [`BUILD_MODE.md`](./BUILD_MODE.md)
+- Getting started must teach `vm/build/luke`, never `node main.js`

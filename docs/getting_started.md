@@ -1,58 +1,55 @@
 # Getting Started with LukeLang
 
-This guide will walk you through setting up your development environment, writing your first LukeLang program, and running it.
+LukeLang is **Build-first**: conversational syntax → native / WASM via `vm/`.
 
-## Installation
+## Install
 
-LukeLang is built on Node.js and can be run from the command line. To get started, you will need to have Node.js and npm (Node Package Manager) installed on your system.
+1. Clone the repo and enter it:
+   ```bash
+   git clone https://github.com/lucasdmarshall/LukeLang.git
+   cd LukeLang
+   ```
+2. Build the Luke toolchain (needs a C++17 compiler + `make`):
+   ```bash
+   cd vm && make
+   ```
+3. Optional: for `-target wasm|browser`, install [WASI SDK](https://github.com/WebAssembly/wasi-sdk) under `.tools/wasi-sdk` (or set `LUKE_WASI_SDK`).
 
-1.  **Install Node.js and npm**:
-    If you don't have Node.js installed, download it from the [official Node.js website](https://nodejs.org/). npm is included with the Node.js installation.
+Node is only required for headless browser/WASI smoke tests (`scripts/*.cjs`), not for native `BUILD`.
 
-2.  **Clone the LukeLang Repository**:
-    Open your terminal and run the following command to clone the LukeLang repository from GitHub:
-    ```bash
-    git clone https://github.com/your-username/lukelang.git
-    cd lukelang
-    ```
+## Your first program
 
-3.  **Install Dependencies**:
-    Install the required npm packages by running:
-    ```bash
-    npm install
-    ```
-
-## Your First Program
-
-Let's write a classic "Hello, World!" program in LukeLang. Create a new file named `hello.luke` and add the following code:
+Create `hello.luke`:
 
 ```luke
-// This is your first LukeLang program
 SPEAK "Hello, World!"
 ```
 
-This simple program uses the `SPEAK` keyword to print the message "Hello, World!" to the console.
+## Run it
 
-## Running LukeLang Code
+From `vm/`:
 
-To run your LukeLang program, you will use the `main.js` transpiler, which converts your `.luke` file into a `.js` file that can be executed by Node.js.
+```bash
+./build/luke BUILD ../path/to/hello.luke -o hello && ./hello
+# or:
+./build/luke SHOW ../path/to/hello.luke
+```
 
-1.  **Transpile the Code**:
-    In your terminal, run the following command:
-    ```bash
-    node main.js hello.luke
-    ```
-    This will generate a `hello.js` file in the same directory.
+You should see:
 
-2.  **Run the JavaScript File**:
-    Now, execute the generated JavaScript file using Node.js:
-    ```bash
-    node hello.js
-    ```
+```text
+Hello, World!
+```
 
-    You should see the following output in your console:
-    ```
-    Hello, World!
-    ```
+Browser ship:
 
-Congratulations! You have successfully written and executed your first LukeLang program. You are now ready to explore more advanced features in the **[Language Reference](./language_reference.md)**.
+```bash
+./build/luke PUBLISH WEB ../examples/build/frontend_widgets.luke -o /tmp/luke_web
+```
+
+## Next
+
+- Language of record: [`BUILD_MODE.md`](./BUILD_MODE.md)
+- Frontend stack: [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
+- Reactive: [`REACTIVE.md`](./REACTIVE.md)
+- Legacy JS paths (`main.js` / `mimo/`): [`LEGACY.md`](./LEGACY.md) — do not use for new work

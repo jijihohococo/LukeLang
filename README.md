@@ -28,10 +28,10 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 | Build stdlib | files, json, http, server, sqlite, args, env, paths, process, js |
 | Packages | `IMPORT luke/<name>` + `luke PKG init|install|publish|lock` |
 | Collections | `LIST` / `MAP` + `ATTEMPT` / `GIVE UP` / `OTHERWISE` |
-| Tests | `luke TEST` + `MAKE SURE` / `TEST … END TEST` |
+| Tests | `luke TEST` + `MAKE SURE` / `TEST … END TEST` + GitHub Actions CI |
 | Arena scopes | `IN ARENA` / `END ARENA` |
 | Show | Prefers Build; Play VM is `--vm` / fallback |
-| Legacy `main.js` / `mimo/` | Old JS emit — reference only |
+| Legacy `main.js` / `mimo/` | Deprecated — see [`docs/LEGACY.md`](docs/LEGACY.md) |
 
 ## Quick examples
 
@@ -51,7 +51,9 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 - Richer remote registry (versions, signing)
 - Explicit Python bridges (beyond C FFI)
 - Emit Play bytecode opcodes directly from Build IR nodes
+- Replace line-based Build stmt matching with a real lexer/AST (see BUILD_MODE)
 
 ## Legacy JS path
 
-`node luke.js SHOW …` still exists for historical demos. Prefer `vm/build/luke`.
+`main.js` / `luke.js` / `mimo/` are **deprecated**. Do not teach or extend them.  
+Deletion plan: [`docs/LEGACY.md`](docs/LEGACY.md). Prefer `vm/build/luke`.

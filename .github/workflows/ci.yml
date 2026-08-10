@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make python3 libsqlite3-dev curl ca-certificates
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install WASI SDK
+        run: |
+          set -euo pipefail
+          VER=22.0
+          curl -fsSL "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-22/wasi-sdk-${VER}-x86_64-linux.tar.gz" \
+            -o /tmp/wasi-sdk.tgz
+          mkdir -p .tools
+          tar -xzf /tmp/wasi-sdk.tgz -C /tmp
+          mv "/tmp/wasi-sdk-${VER}" .tools/wasi-sdk
+          test -x .tools/wasi-sdk/bin/clang
+          echo "LUKE_WASI_SDK=$PWD/.tools/wasi-sdk" >> "$GITHUB_ENV"
+
+      - name: Build + test (Play, Build, Frontend, Reactive)
+        working-directory: vm
+        run: make test
+        env:
+          LUKE_WASI_SDK: ${{ github.workspace }}/.tools/wasi-sdk

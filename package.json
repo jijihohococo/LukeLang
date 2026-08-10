@@ -3,15 +3,15 @@
   "version": "0.2.0",
   "type": "module",
   "private": true,
-  "description": "LukeLang — conversational language. Native VM is in vm/; JS scripts are legacy.",
+  "description": "LukeLang — conversational language. Canonical toolchain is vm/; JS bin/scripts are deprecated (see docs/LEGACY.md).",
   "bin": {
     "luke": "./luke.js"
   },
   "scripts": {
     "build:native": "make -C vm",
-    "show:native": "make -C vm && vm/build/luke SHOW examples/native/hello.luke",
-    "build": "node main.js",
-    "run": "node examples/hello.js",
-    "show": "node main.js SHOW examples/oop_full.luke"
+    "test:native": "make -C vm test",
+    "show:native": "make -C vm && vm/build/luke SHOW examples/build/hello.luke",
+    "build:legacy-js": "node main.js",
+    "show:legacy-js": "node main.js SHOW examples/oop_full.luke"
   }
 }

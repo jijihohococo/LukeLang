@@ -53,6 +53,15 @@ bool writeFile(const std::string &path, const std::string &data) {
   return true;
 }
 
+/* std::system return must be checked — failed mkdir/cp otherwise go unnoticed. */
+int runSystem(const std::string &cmd, const char *what) {
+  int rc = std::system(cmd.c_str());
+  if (rc != 0) {
+    std::cerr << "Error: " << what << " failed (exit " << rc << "): " << cmd << "\n";
+  }
+  return rc;
+}
+
 std::string upper(std::string s) {
   for (char &c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
   return s;
@@ -313,7 +322,7 @@ int emitBrowserGlue(const std::string &stem, const std::string &wasmBasename,
     if (f.local) needFontsDir = true;
   if (needFontsDir) {
     std::string mk = "mkdir -p \"" + outDir + "/fonts\"";
-    std::system(mk.c_str());
+    if (runSystem(mk, "mkdir fonts dir") != 0) return 1;
   }
   luke::BuildResult page = built;
   for (auto &f : page.pageFonts) {
@@ -328,10 +337,7 @@ int emitBrowserGlue(const std::string &stem, const std::string &wasmBasename,
     }
     std::string to = outDir + "/" + f.outRelPath;
     std::string cp = "cp -f \"" + from + "\" \"" + to + "\"";
-    if (std::system(cp.c_str()) != 0) {
-      std::cerr << "Error: could not copy font pack " << from << " → " << to << "\n";
-      return 1;
-    }
+    if (runSystem(cp, "copy font pack") != 0) return 1;
     std::cerr << "  font pack " << f.family << " → " << to << "\n";
   }
 
@@ -519,8 +525,10 @@ int main(int argc, char **argv) {
       return 1;
     }
     auto slash = out.find_last_of("/\\");
-    if (slash != std::string::npos)
-      std::system(("mkdir -p \"" + out.substr(0, slash) + "\"").c_str());
+    if (slash != std::string::npos) {
+      if (runSystem("mkdir -p \"" + out.substr(0, slash) + "\"", "mkdir PUBLISH WEB out dir") != 0)
+        return 1;
+    }
     int rc = runBuild(path, out, "browser");
     if (rc != 0) return rc;
     std::cerr << "PUBLISH WEB ok — ship:\n";
@@ -607,10 +615,7 @@ int main(int argc, char **argv) {
         return 1;
       }
       std::string mk = "mkdir -p \"" + dir + "\"";
-      if (std::system(mk.c_str()) != 0) {
-        std::cerr << "Error: could not create " << dir << "\n";
-        return 1;
-      }
+      if (runSystem(mk, "mkdir package dir") != 0) return 1;
       std::string pkg = "name=" + name + "\nentry=main.luke\ndescription=Luke package " + name + "\n";
       std::string mainLuke = "// Package: luke/" + name +
                              "\n\nTHIS IS FUNCTION hello GIVES BACK TEXT DO\n"
@@ -677,7 +682,7 @@ int main(int argc, char **argv) {
         root = "../luke_modules";
       std::string dest = root + "/" + name;
       std::string mk = "mkdir -p \"" + root + "\"";
-      std::system(mk.c_str());
+      if (runSystem(mk, "mkdir luke_modules") != 0) return 1;
       if (!path.empty()) {
         // Resolve path relative to registry file directory
         std::string regDir = dirnameOf(indexPath);
@@ -692,19 +697,13 @@ int main(int argc, char **argv) {
           srcDir = regDir + "/" + path;
         std::string cmd = "rm -rf \"" + dest + "\" && cp -R \"" + srcDir + "\" \"" + dest + "\"";
         std::cerr << "PKG install: " << cmd << "\n";
-        if (std::system(cmd.c_str()) != 0) {
-          std::cerr << "Error: copy failed from " << srcDir << "\n";
-          return 1;
-        }
+        if (runSystem(cmd, "PKG install copy") != 0) return 1;
       } else if (!url.empty()) {
         std::string cmd = "rm -rf \"" + dest + "\" && mkdir -p \"" + dest +
                           "\" && curl -fsSL \"" + url + "\" -o /tmp/luke_pkg.tgz && "
                           "tar -xzf /tmp/luke_pkg.tgz -C \"" + dest + "\" --strip-components=1";
         std::cerr << "PKG install from url...\n";
-        if (std::system(cmd.c_str()) != 0) {
-          std::cerr << "Error: download/extract failed\n";
-          return 1;
-        }
+        if (runSystem(cmd, "PKG install download") != 0) return 1;
       } else {
         std::cerr << "Error: registry entry needs path or url\n";
         return 1;
@@ -740,7 +739,8 @@ int main(int argc, char **argv) {
       }
       if (indexPath.empty()) {
         std::string regDir = (root == "../luke_modules") ? "../registry" : "registry";
-        std::system(("mkdir -p \"" + regDir + "/packages\"").c_str());
+        if (runSystem("mkdir -p \"" + regDir + "/packages\"", "mkdir registry packages") != 0)
+          return 1;
         indexPath = regDir + "/index.json";
         writeFile(indexPath,
                   "{\n  \"name\": \"luke-registry\",\n  \"version\": \"0.1.0\",\n  "
@@ -748,12 +748,10 @@ int main(int argc, char **argv) {
       }
       std::string regDir = dirnameOf(indexPath);
       std::string dest = regDir + "/packages/" + name;
-      std::system(("mkdir -p \"" + regDir + "/packages\"").c_str());
-      std::string copy = "rm -rf \"" + dest + "\" && cp -R \"" + src + "\" \"" + dest + "\"";
-      if (std::system(copy.c_str()) != 0) {
-        std::cerr << "Error: could not copy package to " << dest << "\n";
+      if (runSystem("mkdir -p \"" + regDir + "/packages\"", "mkdir registry packages") != 0)
         return 1;
-      }
+      std::string copy = "rm -rf \"" + dest + "\" && cp -R \"" + src + "\" \"" + dest + "\"";
+      if (runSystem(copy, "PKG publish copy") != 0) return 1;
       std::string version = "0.1.0";
       std::string pkgMeta = readFile(src + "/luke.pkg");
       auto vp = pkgMeta.find("version=");

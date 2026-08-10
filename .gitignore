@@ -3,10 +3,7 @@ vm/build/
 *.obj
 *.exe
 *.luke.c
+*.luke.ir.txt
 node_modules/
 .tools/
 sample/dist/
-*.luke.c
-*.luke.ir.txt
-
-*.luke.ir.txt

@@ -91,9 +91,11 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **INTEGER:** exact `int64_t` with checked overflow + documented conversion rules ([`INTEGER.md`](./INTEGER.md)).
 - **SSE hardening:** heartbeats (`httpSseComment`), SIGPIPE-safe sends, Node reconnect + idle timeout (browser EventSource still owns reconnect).
 - **Concurrency ceiling (honest):** `httpServe` is thread-per-connection — correct for dozens of clients, not C10K. Next: bounded worker pool / event-driven I/O. See [`BUILD_MODE.md`](./BUILD_MODE.md).
-- Next ceilings: richer JSON integer round-trip; worker-pool serve; Backend track expansion; ecosystem / LSP.
+- **Live Graph spike 1:** DB row → SSE (server CDC poll) → `WATCH` → `BIND` → `region=1`. External `UPDATE` (separate process) repaints one node; client has **no** fetch / subscribe / poll / query. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md); `live_graph_{server,client,updater}.luke` in `make test`.
+- Next ceilings: richer JSON integer round-trip; worker-pool serve; Live Graph tier 2 (server `WATCH … FROM db WHERE`); Backend track expansion; ecosystem / LSP.
 
 ### Phase 3 — Expand from strength
+- Grow the **Live Graph** one tier at a time ([`LIVE_GRAPH.md`](./LIVE_GRAPH.md)): server-declared watches, then incremental view maintenance, then distributed time-travel / graph-parallelism as consequences — not separate products.
 - Resume reactive engine phases (roadmap in [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)).
 - Formalize the **syntax stress-test** (#2): hand-write one genuinely complex screen; compare readability against JSX at that size.
 - Grow the frontend track ([`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)), then open the **Backend** track for full-stack reactivity.
@@ -117,3 +119,5 @@ These are **not cancelled** — they are sequenced after the beachhead is won, a
 ## The wall sentence
 
 > **Win reactive full-stack first. Keep the syntax. Let the browser render. Prove it with one app. Earn the rest later.**
+>
+> **Live Graph war cry:** never fetch, never invalidate, never subscribe, never diff — declare dependencies once, and change finds its own way from row to pixel.

@@ -368,6 +368,31 @@ test-build: build/luke
 	  test -f /tmp/luke_conc_slow.txt && grep -q '^slow$$' /tmp/luke_conc_slow.txt; \
 	  kill $$(cat /tmp/luke_conc_server.pid) 2>/dev/null || true; \
 	  wait $$(cat /tmp/luke_conc_server.pid) 2>/dev/null || true
+	./build/luke BUILD ../examples/build/live_graph_server.luke -o build/live_graph_server
+	./build/luke BUILD ../examples/build/live_graph_client.luke -target browser -o build/live_graph_client
+	./build/luke BUILD ../examples/build/live_graph_updater.luke -o build/live_graph_updater
+	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/live_graph_client.luke.c
+	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
+	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke
+	@set -e; \
+	  pkill -9 -f '/build/live_graph_server' 2>/dev/null || true; \
+	  fuser -k 8798/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_live_graph.db /tmp/luke_live_graph.db-wal /tmp/luke_live_graph.db-shm \
+	    /tmp/luke_lg_server.pid /tmp/luke_lg_client.pid /tmp/luke_lg.txt; \
+	  stdbuf -oL -eL ./build/live_graph_server > /tmp/luke_lg_server.log 2>&1 & echo $$! > /tmp/luke_lg_server.pid; \
+	  sleep 0.25; \
+	  node ../scripts/luke_browser_loader.cjs build/live_graph_client.wasm --wait-ms 2800 > /tmp/luke_lg.txt 2>&1 & echo $$! > /tmp/luke_lg_client.pid; \
+	  sleep 0.55; \
+	  ./build/live_graph_updater | tee /tmp/luke_lg_updater.txt | grep -q "updated=Ada"; \
+	  wait $$(cat /tmp/luke_lg_client.pid); \
+	  grep -q "region=1" /tmp/luke_lg.txt; \
+	  grep -q "name=Ada" /tmp/luke_lg.txt; \
+	  grep -q "name=seed" /tmp/luke_lg.txt; \
+	  grep -q "\[subscribe_start\]" /tmp/luke_lg.txt; \
+	  test $$(grep -c 'region=1' /tmp/luke_lg.txt) -ge 2; \
+	  kill $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; \
+	  wait $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; \
+	  pkill -9 -f '/build/live_graph_server' 2>/dev/null || true
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

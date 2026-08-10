@@ -2686,6 +2686,46 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
+  /* WATCH cell FROM url [READY ready] — Live Graph sugar over START SUBSCRIBE.
+   * Job id = cell name. App programs declare deps once; no FETCH / SUBSCRIBE / poll. */
+  if (startsWithCI(text, "WATCH ")) {
+    auto rest = trim(text.substr(6));
+    stripDo(rest);
+    auto U = toUpper(rest);
+    auto fromPos = findOutsideQuotes(rest, U, " FROM ");
+    if (fromPos == std::string::npos) {
+      bc.fail(line, "WATCH needs FROM — WATCH user FROM \"http://…/watch\"");
+      return;
+    }
+    auto cellName = stripThe(trim(rest.substr(0, fromPos)));
+    if (cellName.empty()) {
+      bc.fail(line, "WATCH needs a cell name — WATCH user FROM \"url\"");
+      return;
+    }
+    if (!bc.rxCells.count(cellName)) {
+      bc.fail(line, "WATCH '" + cellName + "' — REMEMBER it first as a reactive TEXT cell");
+      return;
+    }
+    Ty cty = bc.rxCellTy.count(cellName) ? bc.rxCellTy[cellName] : Ty::num();
+    bc.expectTy(line, cty, Ty::text(), "WATCH");
+    if (bc.bad) return;
+    auto after = trim(rest.substr(fromPos + 6));
+    auto aU = toUpper(after);
+    size_t readyPos = findOutsideQuotes(after, aU, " READY ");
+    std::string urlPart =
+        readyPos == std::string::npos ? after : trim(after.substr(0, readyPos));
+    if (startsWithCI(urlPart, "GET ")) urlPart = trim(urlPart.substr(4));
+    if (urlPart.empty()) {
+      bc.fail(line, "WATCH needs a url — WATCH user FROM \"http://…/watch\"");
+      return;
+    }
+    std::string synth = "START SUBSCRIBE \"" + cellName + "\" GET " + urlPart + " INTO " + cellName;
+    if (readyPos != std::string::npos)
+      synth += " READY " + trim(after.substr(readyPos + 7));
+    stmt(bc, synth, line, o);
+    return;
+  }
+
   /* START SUBSCRIBE "feed" GET "url" [INTO body] [READY ready] — SSE → cell (Spike A push) */
   if (startsWithCI(text, "START SUBSCRIBE ")) {
     auto rest = trim(text.substr(16));
@@ -3510,6 +3550,15 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN SUBSCRIBE … IS READY needs a job id");
             return false;
           }
+        } else if (startsWithCI(rest, "WATCH ") && U.find(" IS READY") != std::string::npos) {
+          /* Live Graph: WHEN WATCH cell IS READY → same continuation as SUBSCRIBE job=cell */
+          curWhen.event = "subscribe";
+          auto ready = U.find(" IS READY");
+          curWhen.elementId = unquoteText(trim(rest.substr(6, ready - 6)));
+          if (curWhen.elementId.empty()) {
+            bc.fail(lineNo, "WHEN WATCH … IS READY needs a cell name");
+            return false;
+          }
         } else {
           size_t evPos = std::string::npos;
           if ((evPos = U.find(" IS CLICKED")) != std::string::npos)
@@ -3521,7 +3570,7 @@ bool parse(BC &bc, const std::string &source) {
           else {
             bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
                             "THE VIEWPORT CHANGES, TIMELINE … IS FINISHED, FETCH … IS READY, "
-                            "or SUBSCRIBE … IS READY");
+                            "SUBSCRIBE … IS READY, or WATCH … IS READY");
             return false;
           }
           curWhen.elementId = unquoteText(trim(rest.substr(0, evPos)));

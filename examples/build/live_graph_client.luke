@@ -1,0 +1,44 @@
+// Live Graph spike 1 — client half (browser)
+// WATCH + BIND only. No FETCH, no SUBSCRIBE, no TIMELINE, no poll in this program.
+// External DB UPDATE → SSE → cell → one region paint.
+// Build: luke BUILD examples/build/live_graph_client.luke -target browser -o build/live_graph_client
+// Needs: live_graph_server on :8798
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "Luke Live Graph"
+
+WEAR STYLE """
+html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 40px; font-weight: 700; }
+#name { font-size: 28px; }
+#hint { font-size: 14px; opacity: 0.7; }
+"""
+
+REMEMBER user AS ""
+REMEMBER region_now AS 0
+REMEMBER events AS 0
+
+BEGIN COLUMN AT 40, 40 SIZE 720, 200 PAD 0 GAP 14
+  SLOT TEXT "brand" SIZE AUTO, 48 SAY "LukeLang"
+  SLOT TEXT "name" SIZE AUTO, 40 SAY "name: —"
+  SLOT TEXT "hint" SIZE AUTO, 32 SAY "Live Graph — DB row to pixel, zero glue."
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND "name" TO user
+
+WATCH user FROM "http://127.0.0.1:8798/watch"
+
+WHEN WATCH user IS READY DO
+  CHANGE region_now TO THE REGION PAINT COUNT
+  CHANGE events TO events ADD 1
+  SPEAK "name=" AND user
+  SPEAK "region=" AND region_now
+  SPEAK "events=" AND events
+  UPDATE "hint" WITH "live — region paints: " AND region_now
+END WHEN

@@ -117,6 +117,12 @@ struct LukeRxGraph {
     int active;
   } timelines[LUKE_RX_MAX_TIMELINES];
   size_t timeline_len;
+  /* Phase 9 — correctness / scheduler instrumentation (DevTools prep) */
+  int flush_count;           /* completed flush passes */
+  int last_flush_derived;    /* derived recomputes in last flush */
+  int last_flush_effects;    /* effect runs in last flush */
+  int last_flush_deps_cleared; /* stale dep edges removed in last flush */
+  int total_deps_cleared;    /* cumulative stale-edge cleanup */
 };
 
 static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {
@@ -301,6 +307,29 @@ static inline LukeRxId luke_rx_effect(LukeRxGraph *g, LukeRxEffectFn fn, void *c
   return id;
 }
 
+static inline void luke_rx_remove_id(LukeRxId *arr, size_t *len, LukeRxId v) {
+  if (!arr || !len) return;
+  size_t w = 0;
+  for (size_t i = 0; i < *len; ++i) {
+    if (arr[i] == v) continue;
+    arr[w++] = arr[i];
+  }
+  *len = w;
+}
+
+/* Drop dynamic deps for `from` and unlink from each dependency's subs list. */
+static inline void luke_rx_clear_deps(LukeRxGraph *g, LukeRxId from) {
+  LukeRxNode *n = luke_rx_node_raw(g, from);
+  if (!n || !g) return;
+  for (size_t i = 0; i < n->dep_len; ++i) {
+    LukeRxNode *d = luke_rx_node_raw(g, n->deps[i]);
+    if (d) luke_rx_remove_id(d->subs, &d->sub_len, from);
+    g->last_flush_deps_cleared++;
+    g->total_deps_cleared++;
+  }
+  n->dep_len = 0;
+}
+
 static inline void luke_rx_invalidate_subs(LukeRxGraph *g, LukeRxId id) {
   LukeRxNode *n = luke_rx_node(g, id);
   if (!n) return;
@@ -318,12 +347,15 @@ static inline void luke_rx_invalidate_subs(LukeRxGraph *g, LukeRxId id) {
 static inline int luke_rx_flush(LukeRxGraph *g) {
   if (!g || g->dirty_len == 0) return 0;
   g->cycle_tripped = 0;
+  g->last_flush_derived = 0;
+  g->last_flush_effects = 0;
+  g->last_flush_deps_cleared = 0;
 
   /* Wave 1 — invalidate already queued; ensure transitive dirty marks. */
   for (size_t i = 0; i < g->dirty_len; ++i)
     luke_rx_invalidate_subs(g, g->dirty_q[i]);
 
-  /* Wave 2 — recompute pure derived (iterate; prefer nodes whose deps are clean). */
+  /* Wave 2 — recompute pure derived (ascending id order = deterministic). */
   int guard = (int)(g->len * 4 + 8);
   while (guard-- > 0) {
     int progressed = 0;
@@ -346,27 +378,25 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
         progressed = 1;
         continue;
       }
-      /* Drop prior dynamic edges — re-register on read during compute. */
-      n->dep_len = 0;
+      luke_rx_clear_deps(g, id);
       g->computing = id;
       g->stale_read = 0;
       double v = n->compute(g, n->ctx);
       g->computing = 0;
       if (g->stale_read) {
-        /* Deps not ready (or cycle) — keep dirty; try again later this wave. */
         g->stale_read = 0;
         continue;
       }
       n->num = v;
       n->version++;
       n->dirty = 0;
+      g->last_flush_derived++;
       progressed = 1;
     }
     if (!pending_derived) break;
     if (!progressed) {
       g->cycle_tripped = 1;
       fprintf(stderr, "Luke Reactive: cycle detected in derived graph (epoch %d)\n", g->epoch);
-      /* Force-clear to avoid infinite loops at the call site. */
       for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
         if (!g->nodes[id].dead && g->nodes[id].kind == LUKE_RX_DERIVED)
           g->nodes[id].dirty = 0;
@@ -375,16 +405,17 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
     }
   }
 
-  /* Wave 3 — effects (after pure recompute). */
+  /* Wave 3 — effects (ascending id order). */
   for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
     LukeRxNode *n = &g->nodes[id];
     if (n->dead || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
-    n->dep_len = 0;
+    luke_rx_clear_deps(g, id);
     g->computing = id;
     if (n->effect) n->effect(g, n->ctx);
     g->computing = 0;
     n->version++;
     n->dirty = 0;
+    g->last_flush_effects++;
   }
 
   /* Clear remaining value dirty flags (cells / collections hold values already). */
@@ -395,6 +426,7 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
   }
   g->dirty_len = 0;
   g->epoch++;
+  g->flush_count++;
   /* Waves 4–5 — layout/paint consumers (Hanka / Argus). Text-only UI binds
    * set need_paint; size/structure changes may set need_layout. */
   if (g->after_flush) g->after_flush(g);
@@ -577,16 +609,6 @@ static inline int luke_rx_is_dirty(LukeRxGraph *g, LukeRxId id) {
 
 static inline int luke_rx_is_alive(LukeRxGraph *g, LukeRxId id) {
   return luke_rx_node(g, id) != NULL;
-}
-
-static inline void luke_rx_remove_id(LukeRxId *arr, size_t *len, LukeRxId v) {
-  if (!arr || !len) return;
-  size_t w = 0;
-  for (size_t i = 0; i < *len; ++i) {
-    if (arr[i] == v) continue;
-    arr[w++] = arr[i];
-  }
-  *len = w;
 }
 
 static inline void luke_rx_dispose_node(LukeRxGraph *g, LukeRxId id) {

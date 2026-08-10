@@ -167,6 +167,18 @@ test-build: build/luke
 	./build/ex_rx_query | grep -q "alpha"
 	./build/ex_rx_query | grep -q "gamma"
 	@grep -q 'luke_rx_query_refresh' build/ex_rx_query.luke.c
+	./build/luke BUILD ../examples/build/reactive_conformance_batch.luke -o build/ex_rx_conf_batch
+	./build/ex_rx_conf_batch | grep -q "flush1=1"
+	./build/ex_rx_conf_batch | grep -q "flush2=2"
+	./build/ex_rx_conf_batch | grep -q "flush3=3"
+	./build/luke BUILD ../examples/build/reactive_conformance_stale.luke -o build/ex_rx_conf_stale
+	./build/ex_rx_conf_stale | grep -q "stale=2"
+	./build/ex_rx_conf_stale | grep -q "total_stale=4"
+	./build/ex_rx_conf_stale | grep -q "sum_stale=2"
+	./build/luke BUILD ../examples/build/reactive_conformance_order.luke -o build/ex_rx_conf_order
+	./build/ex_rx_conf_order | grep -q "chain=4"
+	./build/ex_rx_conf_order | grep -q "chain=14"
+	./build/ex_rx_conf_order | grep -q "derived_runs=3"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

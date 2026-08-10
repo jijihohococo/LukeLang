@@ -1,6 +1,7 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phases 1–8 shipped (animation, game entities, backend queries)  
+> **Status:** Phases 1–8 shipped; Phase 9 correctness foundation in progress  
+> **Normative spec:** [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md) · **Roadmap:** [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -452,6 +453,18 @@ Query result TEXT cells; `REFRESH QUERY` re-runs SQL and invalidates dependents.
 - `REMEMBER x AS QUERY ON db AS "sql"` · `REFRESH QUERY x`
 - `luke_rx_query_refresh` over `luke_db_query_text`
 - Demo: `reactive_query.luke`
+
+### Phase 9 — Correctness *(in progress)*
+
+Production-grade scheduler guarantees before new features.
+
+**Deliverables**
+
+- Normative [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md) v0.1 (flush waves, stale-edge cleanup, batch coalescing)
+- Scheduler instrumentation: `THE FLUSH COUNT`, `THE STALE EDGE COUNT`, `THE DERIVED RUN COUNT`, …
+- `luke_rx_clear_deps` — unlink superseded dynamic edges before derived/effect rerun
+- Conformance programs: `examples/build/reactive_conformance_*.luke`
+- Roadmap: [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
 
 ---
 

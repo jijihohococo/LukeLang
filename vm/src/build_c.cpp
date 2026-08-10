@@ -676,6 +676,23 @@ Expr BC::expr(std::string e, size_t line) {
       usesRx = true;
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->granular_paints : 0.0)", Ty::num()};
     }
+    if (U0 == "THE EPOCH" || U0 == "THE REACTIVE EPOCH")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->epoch : 0.0)", Ty::num()};
+    if (U0 == "THE FLUSH COUNT" || U0 == "THE REACTIVE FLUSH COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->flush_count : 0.0)", Ty::num()};
+    if (U0 == "THE DERIVED RUN COUNT" || U0 == "THE LAST DERIVED RUN COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_flush_derived : 0.0)",
+              Ty::num()};
+    if (U0 == "THE EFFECT RUN COUNT" || U0 == "THE LAST EFFECT RUN COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_flush_effects : 0.0)",
+              Ty::num()};
+    if (U0 == "THE STALE EDGE COUNT" || U0 == "THE STALE EDGES CLEARED" ||
+        U0 == "THE LAST STALE EDGE COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_flush_deps_cleared : 0.0)",
+              Ty::num()};
+    if (U0 == "THE TOTAL STALE EDGE COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->total_deps_cleared : 0.0)",
+              Ty::num()};
   }
 
   if (startsWithCI(e, "THE VALUE OF ")) {
@@ -964,6 +981,23 @@ Expr BC::expr(std::string e, size_t line) {
   if (startsWithCI(e, "NOT ")) {
     auto x = expr(trim(e.substr(4)), line);
     return {"(!(" + x.code + "))", Ty::flag()};
+  }
+  if (startsWithCI(e, "IF ")) {
+    auto rest = trim(e.substr(3));
+    auto rU = toUpper(rest);
+    auto thenPos = rU.find(" THEN ");
+    auto otherwisePos = rU.find(" OTHERWISE ");
+    if (thenPos != std::string::npos && otherwisePos != std::string::npos &&
+        otherwisePos > thenPos + 6) {
+      auto cond = expr(trim(rest.substr(0, thenPos)), line);
+      auto thenE = expr(trim(rest.substr(thenPos + 6, otherwisePos - (thenPos + 6))), line);
+      auto elseE = expr(trim(rest.substr(otherwisePos + 11)), line);
+      if (cond.ty.k != K::Flag && cond.ty.k != K::Num)
+        fail(line, "IF … THEN … OTHERWISE needs a FLAG or NUMBER condition");
+      expectTy(line, thenE.ty, Ty::num(), "IF … THEN … OTHERWISE");
+      expectTy(line, elseE.ty, Ty::num(), "IF … THEN … OTHERWISE");
+      return {"((" + cond.code + ") ? (" + thenE.code + ") : (" + elseE.code + "))", Ty::num()};
+    }
   }
   return primary(e, line);
 }

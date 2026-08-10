@@ -375,7 +375,6 @@ test-build: build/luke
 	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
 	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke
 	@set -e; \
-	  pkill -9 -f '/build/live_graph_server' 2>/dev/null || true; \
 	  fuser -k 8798/tcp 2>/dev/null || true; \
 	  rm -f /tmp/luke_live_graph.db /tmp/luke_live_graph.db-wal /tmp/luke_live_graph.db-shm \
 	    /tmp/luke_lg_server.pid /tmp/luke_lg_client.pid /tmp/luke_lg.txt; \
@@ -390,9 +389,9 @@ test-build: build/luke
 	  grep -q "name=seed" /tmp/luke_lg.txt; \
 	  grep -q "\[subscribe_start\]" /tmp/luke_lg.txt; \
 	  test $$(grep -c 'region=1' /tmp/luke_lg.txt) -ge 2; \
-	  kill $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; \
-	  wait $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; \
-	  pkill -9 -f '/build/live_graph_server' 2>/dev/null || true
+	  if [ -f /tmp/luke_lg_server.pid ]; then kill $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; fi; \
+	  if [ -f /tmp/luke_lg_server.pid ]; then wait $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; fi; \
+	  fuser -k 8798/tcp 2>/dev/null || true
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

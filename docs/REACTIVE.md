@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phase 4 async-in-graph shipped (FETCH → cells → BIND)  
+> **Status:** Phase 5 collections shipped (LIST/MAP + BIND LIST granular paint)  
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -111,9 +111,20 @@ FETCH READY  → set loading false → GO TO dashboard | show error
 
 Async work is **not** Promise-shaped in user code; it is event → work → result cell → dependents.
 
-### 5. Reactive collections (later phase)
+### 5. Reactive collections
 
-Structural change (add/remove/replace item) invalidates **granular** dependents, not the whole list paint by default.
+Structural change (add) vs item/slot change (set/put) — dependents and Argus consumers
+can paint **per index**, not the whole list by default.
+
+```luke
+REMEMBER players AS LIST
+BIND LIST players AS "row"   // paints row_0, row_1, …
+ADD "Ada" TO players
+SET ITEM 1 OF players TO "Zoe"   // only that row dirty-paints
+```
+
+`change_kind` / `last_index` on the collection node drive `luke_rx_ui_paint_list`.
+Maps use the same touch model via `PUT` / `GET`.
 
 ### 6. Reactive scopes / components
 
@@ -399,9 +410,17 @@ Counter component: local cells, handlers, auto cleanup on scope end.
 - `luke://` stub fetch for offline/deterministic tests  
 - Demo: `examples/build/reactive_fetch.luke`
 
-### Phase 5 — Collections *(next)*
+### Phase 5 — Collections *(shipped)*
 
-Granular list/map invalidation; `FOR EACH` consumers subscribe per-index where possible.
+Granular list/map invalidation; `BIND LIST` paints `{prefix}_{index}` using `change_kind`.
+
+**Deliverables**
+
+- `REMEMBER name AS LIST|MAP`
+- `ADD` / `SET ITEM n OF list TO v` / `PUT` → `luke_rx_list_*` / `luke_rx_map_*`
+- `BIND LIST name AS "prefix"` — item updates paint one Argus row
+- `THE GRANULAR PAINT COUNT` for tests
+- Demos: `examples/build/reactive_list.luke`, `reactive_list_ui.luke`
 
 ### Phase 6 — Animation
 

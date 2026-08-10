@@ -958,6 +958,45 @@ static inline void luke_rx_ui_enable(LukeRxGraph *g) {
   g->after_flush = luke_rx_ui_after_flush;
 }
 
+/* Phase 5 — BIND LIST: granular Argus row paints via change_kind / last_index.
+ * Element ids are "{prefix}_{index}" (e.g. row_0, row_1). */
+static inline LukeText luke_rx_ui_row_id(LukeArena *a, LukeText prefix, int index) {
+  char num[32];
+  int n = snprintf(num, sizeof(num), "%d", index);
+  if (n < 0) n = 0;
+  char *p = (char *)luke_arena_alloc(a, (size_t)n + 1, 1);
+  memcpy(p, num, (size_t)n);
+  p[n] = '\0';
+  LukeText mid = luke_text_concat(a, prefix, luke_text("_"));
+  return luke_text_concat(a, mid, luke_text_n(p, (size_t)n));
+}
+
+static inline void luke_rx_ui_paint_list_row(LukeRxGraph *g, LukeText prefix, int index,
+                                            LukeText text) {
+  if (!g || !g->arena || index < 0) return;
+  LukeText id = luke_rx_ui_row_id(g->arena, prefix, index);
+  luke_rx_ui_set_text(g, id, text);
+  g->granular_paints++;
+}
+
+static inline void luke_rx_ui_paint_list(LukeRxGraph *g, LukeRxId list_id, LukeText prefix) {
+  LukeRxNode *n = luke_rx_node(g, list_id);
+  if (!n || n->kind != LUKE_RX_LIST || !n->list || !g->arena) return;
+  if (g->computing) luke_rx_link(g, g->computing, list_id);
+  int kind = n->change_kind;
+  int last = n->last_index;
+  LukeList *list = n->list;
+  size_t len = list->len;
+  /* Item update or structural add/remove tip → paint that index only. */
+  if ((kind == 1 || kind == 2) && last >= 0 && (size_t)last < len) {
+    luke_rx_ui_paint_list_row(g, prefix, last, luke_list_get(list, (double)last));
+    return;
+  }
+  /* Initial bind / full refresh */
+  for (size_t i = 0; i < len; ++i)
+    luke_rx_ui_paint_list_row(g, prefix, (int)i, luke_list_get(list, (double)i));
+}
+
 #ifdef __cplusplus
 }
 #endif

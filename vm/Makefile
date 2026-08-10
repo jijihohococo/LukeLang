@@ -140,6 +140,18 @@ test-build: build/luke
 	@grep -q 'luke_rx_batch_begin' build/reactive_fetch.luke.c
 	@node -e 'const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/reactive_fetch.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/reactive_fetch.wasm"),{whens}).then(()=>{globalThis.__lukeDispatch("load","click");return new Promise(r=>setTimeout(r,80));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_rx_fetch.txt | grep -q 'status: 200'
 	@grep -q 'stub/profile' /tmp/luke_rx_fetch.txt
+	./build/luke BUILD ../examples/build/reactive_list.luke -o build/ex_rx_list
+	./build/ex_rx_list | grep -q "n=2"
+	./build/ex_rx_list | grep -q "item=Zoe"
+	./build/ex_rx_list | grep -q "delta=1"
+	./build/ex_rx_list | grep -q "Ada=10"
+	./build/ex_rx_list | grep -q "fe=Zoe"
+	@grep -q 'luke_rx_list_set' build/ex_rx_list.luke.c
+	@grep -q 'luke_rx_ui_paint_list' build/ex_rx_list.luke.c
+	./build/luke BUILD ../examples/build/reactive_list_ui.luke -target browser -o build/reactive_list_ui
+	@grep -q 'luke_rx_ui_paint_list\|luke_rx_list_set' build/reactive_list_ui.luke.c
+	@node ../scripts/luke_browser_loader.cjs build/reactive_list_ui.wasm --dispatch rename:click 2>&1 | tee /tmp/luke_rx_list.txt | grep -q 'Zoe'
+	@! grep -q '\[argus_clear\]' /tmp/luke_rx_list.txt
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

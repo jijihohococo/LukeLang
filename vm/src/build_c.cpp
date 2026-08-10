@@ -275,6 +275,14 @@ struct BC {
   };
   std::vector<RxBindDef> rxBindDefs;
   int rxBindSeq = 0;
+  /* Phase 5 — BIND LIST name AS "prefix" */
+  struct RxListBindDef {
+    std::string listName;
+    std::string prefixRaw;
+    size_t line = 0;
+    int seq = 0;
+  };
+  std::vector<RxListBindDef> rxListBindDefs;
   std::vector<std::string> rxComponentStack; /* open BEGIN COMPONENT names */
   /* Phase 4 — async fetch → reactive cells */
   struct RxFetchBind {
@@ -573,6 +581,10 @@ Expr BC::primary(std::string e, size_t line) {
 
   if (rxCells.count(e)) {
     Ty ty = rxCellTy.count(e) ? rxCellTy[e] : (locals.count(e) ? locals[e] : Ty::num());
+    if (ty.k == K::List)
+      return {"luke_rx_list_ptr(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::list()};
+    if (ty.k == K::Map)
+      return {"luke_rx_map_ptr(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::map()};
     if (ty.k == K::Text)
       return {"luke_rx_read_text(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::text()};
     return {"luke_rx_read_num(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", Ty::num()};
@@ -598,6 +610,15 @@ Expr BC::primary(std::string e, size_t line) {
 Expr BC::expr(std::string e, size_t line) {
   e = trim(e);
   if (e.empty()) return {"0", Ty::num()};
+
+  {
+    auto U0 = toUpper(e);
+    if (U0 == "THE GRANULAR PAINT COUNT" || U0 == "GRANULAR PAINTS" ||
+        U0 == "THE GRANULAR PAINTS") {
+      usesRx = true;
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->granular_paints : 0.0)", Ty::num()};
+    }
+  }
 
   if (startsWithCI(e, "THE VALUE OF ")) {
     auto id = coerceText(expr(trim(e.substr(13)), line));
@@ -982,10 +1003,29 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       if (maybe.k != K::Void && valRaw.find(' ') == std::string::npos &&
           !std::isdigit((unsigned char)valRaw[0]) && valRaw[0] != '-' && valRaw[0] != '"' &&
           toUpper(valRaw) != "TRUE" && toUpper(valRaw) != "FALSE") {
-        /* REMEMBER x AS NUMBER — default 0 cell */
+        /* REMEMBER x AS NUMBER|TEXT|LIST|MAP — typed empty cell/collection */
         forced = maybe;
         valRaw.clear();
       }
+    }
+    /* Reactive collections */
+    if (forced.k == K::List || (valRaw.empty() && forced.k == K::List)) {
+      bc.usesRx = true;
+      bc.locals[name] = Ty::list();
+      bc.rxCellTy[name] = Ty::list();
+      if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
+      bc.rxCells[name] = true;
+      o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_list(_luke_rx);\n";
+      return;
+    }
+    if (forced.k == K::Map) {
+      bc.usesRx = true;
+      bc.locals[name] = Ty::map();
+      bc.rxCellTy[name] = Ty::map();
+      if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
+      bc.rxCells[name] = true;
+      o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_map(_luke_rx);\n";
+      return;
     }
     Expr e{"0.0", Ty::num()};
     if (valRaw.empty()) {
@@ -1001,7 +1041,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       }
     }
     if (e.ty.k != K::Num && e.ty.k != K::Text) {
-      bc.fail(line, "REMEMBER supports NUMBER or TEXT cells — got " + tyName(e.ty));
+      bc.fail(line, "REMEMBER supports NUMBER, TEXT, LIST, or MAP — got " + tyName(e.ty));
       return;
     }
     bc.usesRx = true;
@@ -1034,6 +1074,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       return;
     }
     Ty want = bc.rxCellTy.count(name) ? bc.rxCellTy[name] : Ty::num();
+    if (want.k == K::List || want.k == K::Map) {
+      bc.fail(line, "Cannot CHANGE a LIST/MAP — use ADD / SET ITEM / PUT");
+      return;
+    }
     bc.expectTy(line, e.ty, want, "CHANGE " + name);
     bc.usesRx = true;
     if (want.k == K::Text)
@@ -1079,6 +1123,33 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   }
   if (toUpper(text) == "PAINT DIRTY" || toUpper(text) == "PAINT THE DIRTY NODES") {
     o << "  argus_paint(arena);\n";
+    return;
+  }
+  /* BIND LIST players AS "row" — granular Argus row paints (prefix_index). */
+  if (startsWithCI(text, "BIND LIST ")) {
+    auto rest = trim(text.substr(10));
+    auto U = toUpper(rest);
+    auto asPos = U.find(" AS ");
+    if (asPos == std::string::npos) {
+      bc.fail(line, "BIND LIST needs: BIND LIST name AS \"prefix\"");
+      return;
+    }
+    auto listName = stripThe(trim(rest.substr(0, asPos)));
+    auto prefixRaw = trim(rest.substr(asPos + 4));
+    auto prefixE = bc.coerceText(bc.expr(prefixRaw, line));
+    (void)prefixE;
+    if (!bc.rxCells.count(listName) ||
+        (bc.rxCellTy.count(listName) && bc.rxCellTy[listName].k != K::List)) {
+      bc.fail(line, "BIND LIST needs a REMEMBER'd LIST — not '" + listName + "'");
+      return;
+    }
+    bc.usesRx = true;
+    bc.usesRxUi = true;
+    int seq = ++bc.rxBindSeq;
+    bc.rxListBindDefs.push_back({listName, prefixRaw, line, seq});
+    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect(_luke_rx, _luke_rx_bind_list_" << seq
+      << ", NULL);\n";
+    o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
   /* BIND "greeting" TO "Welcome, " AND username — reactive Argus text (no CLEAR). */
@@ -1285,6 +1356,33 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   if (startsWithCI(text, "SET ")) {
     auto rest = trim(text.substr(4));
     auto U = toUpper(rest);
+    /* SET ITEM n OF list TO v — reactive or plain list slot write */
+    if (startsWithCI(rest, "ITEM ")) {
+      auto itemRest = trim(rest.substr(5));
+      auto iU = toUpper(itemRest);
+      auto ofPos = iU.find(" OF ");
+      auto toPos = iU.find(" TO ");
+      if (ofPos != std::string::npos && toPos != std::string::npos && toPos > ofPos) {
+        auto idxE = bc.expr(trim(itemRest.substr(0, ofPos)), line);
+        auto listName = stripThe(trim(itemRest.substr(ofPos + 4, toPos - (ofPos + 4))));
+        auto valE = bc.coerceText(bc.expr(trim(itemRest.substr(toPos + 4)), line));
+        bc.expectTy(line, idxE.ty, Ty::num(), "SET ITEM … OF");
+        if (bc.rxCells.count(listName) && bc.rxCellTy.count(listName) &&
+            bc.rxCellTy[listName].k == K::List) {
+          bc.usesRx = true;
+          o << "  luke_rx_list_set(_luke_rx, _luke_rx_id_" << cIdent(listName) << ", " << idxE.code
+            << ", " << valE.code << ");\n";
+          return;
+        }
+        if (!bc.locals.count(listName) || bc.locals[listName].k != K::List) {
+          bc.fail(line, "SET ITEM … OF needs a LIST — not '" + listName + "'");
+          return;
+        }
+        o << "  luke_list_set(" << cIdent(listName) << ", " << idxE.code << ", " << valE.code
+          << ");\n";
+        return;
+      }
+    }
     auto to = U.find(" TO ");
     if (to == std::string::npos) {
       bc.fail(line, "Expected SET x TO v — tell me what to change and what to put there");
@@ -1424,12 +1522,20 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto to = U.find(" TO ");
     if (to != std::string::npos) {
       auto val = bc.expr(trim(rest.substr(0, to)), line);
-      auto listName = trim(rest.substr(to + 4));
-      if (!bc.locals.count(listName) || bc.locals[listName].k != K::List) {
-        bc.fail(line, "ADD … TO needs a LIST — declare MY NAME IS " + listName + " AS LIST");
+      auto listName = stripThe(trim(rest.substr(to + 4)));
+      auto v = bc.coerceText(val);
+      if (bc.rxCells.count(listName) && bc.rxCellTy.count(listName) &&
+          bc.rxCellTy[listName].k == K::List) {
+        bc.usesRx = true;
+        o << "  luke_rx_list_add(_luke_rx, _luke_rx_id_" << cIdent(listName) << ", " << v.code
+          << ");\n";
         return;
       }
-      auto v = bc.coerceText(val);
+      if (!bc.locals.count(listName) || bc.locals[listName].k != K::List) {
+        bc.fail(line, "ADD … TO needs a LIST — declare MY NAME IS " + listName +
+                          " AS LIST (or REMEMBER " + listName + " AS LIST)");
+        return;
+      }
       o << "  luke_list_add(arena, " << cIdent(listName) << ", " << v.code << ");\n";
       return;
     }
@@ -1442,13 +1548,21 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     if (to != std::string::npos && in != std::string::npos && in > to) {
       auto key = bc.expr(trim(rest.substr(0, to)), line);
       auto val = bc.expr(trim(rest.substr(to + 4, in - (to + 4))), line);
-      auto mapName = trim(rest.substr(in + 4));
-      if (!bc.locals.count(mapName) || bc.locals[mapName].k != K::Map) {
-        bc.fail(line, "PUT … IN needs a MAP — declare MY NAME IS " + mapName + " AS MAP");
-        return;
-      }
+      auto mapName = stripThe(trim(rest.substr(in + 4)));
       auto k = bc.coerceText(key);
       auto v = bc.coerceText(val);
+      if (bc.rxCells.count(mapName) && bc.rxCellTy.count(mapName) &&
+          bc.rxCellTy[mapName].k == K::Map) {
+        bc.usesRx = true;
+        o << "  luke_rx_map_put(_luke_rx, _luke_rx_id_" << cIdent(mapName) << ", " << k.code
+          << ", " << v.code << ");\n";
+        return;
+      }
+      if (!bc.locals.count(mapName) || bc.locals[mapName].k != K::Map) {
+        bc.fail(line, "PUT … IN needs a MAP — declare MY NAME IS " + mapName +
+                          " AS MAP (or REMEMBER " + mapName + " AS MAP)");
+        return;
+      }
       o << "  luke_map_put(arena, " << cIdent(mapName) << ", " << k.code << ", " << v.code
         << ");\n";
       return;
@@ -2669,11 +2783,20 @@ std::string emit(BC &bc) {
       if (asPos == std::string::npos) continue;
       auto name = stripThe(trim(rest.substr(0, asPos)));
       if (name.empty()) continue;
+      auto after = trim(rest.substr(asPos + 4));
+      auto aU = toUpper(after);
+      auto setPos = aU.find(" SET TO ");
+      std::string tyTok = setPos == std::string::npos ? after : trim(after.substr(0, setPos));
+      /* First token only for typed empty forms */
+      auto sp = tyTok.find(' ');
+      if (sp != std::string::npos) tyTok = trim(tyTok.substr(0, sp));
+      Ty hint = bc.parseTy(tyTok);
+      if (hint.k == K::Void) hint = Ty::num();
       bc.usesRx = true;
-      bc.locals[name] = Ty::num();
+      bc.locals[name] = hint;
       if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
       bc.rxCells[name] = true;
-      if (!bc.rxCellTy.count(name)) bc.rxCellTy[name] = Ty::num();
+      if (!bc.rxCellTy.count(name)) bc.rxCellTy[name] = hint;
     } else if (startsWithCI(text, "THE ") && !startsWithCI(text, "THE VALUE OF ") &&
                !startsWithCI(text, "THE BODY OF ") && !startsWithCI(text, "THE STATUS OF ")) {
       auto rest = trim(text.substr(4));
@@ -2735,6 +2858,8 @@ std::string emit(BC &bc) {
       o << "static LukeRxId _luke_rx_id_" << cIdent(name) << ";\n";
     for (auto &b : bc.rxBindDefs)
       o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
+    for (auto &b : bc.rxListBindDefs)
+      o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
     o << "\n";
     for (auto &d : bc.rxDerivedDefs) {
       bc.rxGraphVar = "g";
@@ -2756,6 +2881,18 @@ std::string emit(BC &bc) {
       o << "  LukeArena *arena = g->arena;\n";
       o << "  LukeText _luke_bind_t = " << te.code << ";\n";
       o << "  luke_rx_ui_set_text(g, " << b.argusId << ", _luke_bind_t);\n";
+      o << "}\n\n";
+    }
+    for (auto &b : bc.rxListBindDefs) {
+      bc.rxGraphVar = "g";
+      auto pe = bc.coerceText(bc.expr(b.prefixRaw, b.line));
+      if (bc.bad) return {};
+      o << "static void _luke_rx_bind_list_" << b.seq << "(LukeRxGraph *g, void *ctx) {\n";
+      o << "  (void)ctx;\n";
+      o << "  LukeArena *arena = g->arena;\n";
+      o << "  (void)arena;\n";
+      o << "  luke_rx_ui_paint_list(g, _luke_rx_id_" << cIdent(b.listName) << ", " << pe.code
+        << ");\n";
       o << "}\n\n";
     }
     bc.rxGraphVar = "_luke_rx";

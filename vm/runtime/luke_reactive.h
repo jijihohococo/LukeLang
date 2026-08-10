@@ -22,7 +22,9 @@ typedef uint32_t LukeRxId;
 typedef enum LukeRxKind {
   LUKE_RX_CELL = 1,
   LUKE_RX_DERIVED = 2,
-  LUKE_RX_EFFECT = 3
+  LUKE_RX_EFFECT = 3,
+  LUKE_RX_LIST = 4,
+  LUKE_RX_MAP = 5
 } LukeRxKind;
 
 typedef enum LukeRxWave {
@@ -41,7 +43,9 @@ typedef void (*LukeRxAfterFlushFn)(LukeRxGraph *g);
 
 typedef enum LukeRxValKind {
   LUKE_RX_VAL_NUM = 0,
-  LUKE_RX_VAL_TEXT = 1
+  LUKE_RX_VAL_TEXT = 1,
+  LUKE_RX_VAL_LIST = 2,
+  LUKE_RX_VAL_MAP = 3
 } LukeRxValKind;
 
 typedef struct LukeRxNode {
@@ -54,6 +58,10 @@ typedef struct LukeRxNode {
   uint32_t scope_id; /* owning scope frame (0 = global) */
   double num;
   LukeText text;
+  LukeList *list;
+  LukeMap *map;
+  int change_kind; /* 0 none, 1 structural (add/len), 2 item/slot */
+  int last_index;  /* index (or map slot) touched when change_kind==2; else new len-1 */
   LukeRxComputeFn compute;
   LukeRxEffectFn effect;
   void *ctx;
@@ -98,6 +106,7 @@ struct LukeRxGraph {
   uint32_t scope_seq;
   uint32_t active_scope; /* 0 = none */
   int disposed_count;
+  int granular_paints; /* Phase 5: count of row/slot paints (tests) */
 };
 
 static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {
@@ -233,6 +242,32 @@ static inline LukeRxId luke_rx_cell_text(LukeRxGraph *g, LukeText initial) {
   return id;
 }
 
+static inline LukeRxId luke_rx_list(LukeRxGraph *g) {
+  LukeRxId id = luke_rx_alloc(g, LUKE_RX_LIST);
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (n && g->arena) {
+    n->vkind = LUKE_RX_VAL_LIST;
+    n->list = luke_list_new(g->arena);
+    n->change_kind = 0;
+    n->last_index = -1;
+    n->dirty = 0;
+  }
+  return id;
+}
+
+static inline LukeRxId luke_rx_map(LukeRxGraph *g) {
+  LukeRxId id = luke_rx_alloc(g, LUKE_RX_MAP);
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (n && g->arena) {
+    n->vkind = LUKE_RX_VAL_MAP;
+    n->map = luke_map_new(g->arena);
+    n->change_kind = 0;
+    n->last_index = -1;
+    n->dirty = 0;
+  }
+  return id;
+}
+
 static inline LukeRxId luke_rx_derived(LukeRxGraph *g, LukeRxComputeFn fn, void *ctx) {
   LukeRxId id = luke_rx_alloc(g, LUKE_RX_DERIVED);
   LukeRxNode *n = luke_rx_node(g, id);
@@ -342,9 +377,11 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
     n->dirty = 0;
   }
 
-  /* Clear remaining cell dirty flags (cells hold values already). */
+  /* Clear remaining value dirty flags (cells / collections hold values already). */
   for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
-    if (!g->nodes[id].dead && g->nodes[id].kind == LUKE_RX_CELL) g->nodes[id].dirty = 0;
+    if (g->nodes[id].dead) continue;
+    LukeRxKind k = g->nodes[id].kind;
+    if (k == LUKE_RX_CELL || k == LUKE_RX_LIST || k == LUKE_RX_MAP) g->nodes[id].dirty = 0;
   }
   g->dirty_len = 0;
   g->epoch++;
@@ -378,6 +415,95 @@ static inline void luke_rx_write_num(LukeRxGraph *g, LukeRxId id, double v) {
 
 static inline int luke_rx_text_eq(LukeText a, LukeText b) {
   return a.len == b.len && (a.len == 0 || (a.ptr && b.ptr && memcmp(a.ptr, b.ptr, a.len) == 0));
+}
+
+static inline void luke_rx_touch_coll(LukeRxGraph *g, LukeRxId id, int change_kind, int last_index) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return;
+  n->change_kind = change_kind;
+  n->last_index = last_index;
+  n->version++;
+  luke_rx_mark_dirty(g, id);
+  luke_rx_invalidate_subs(g, id);
+  if (!g->batching) luke_rx_flush(g);
+}
+
+static inline void luke_rx_list_add(LukeRxGraph *g, LukeRxId id, LukeText v) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_LIST || !n->list || !g->arena) return;
+  luke_list_add(g->arena, n->list, v);
+  luke_rx_touch_coll(g, id, 1, (int)n->list->len - 1);
+}
+
+static inline void luke_rx_list_set(LukeRxGraph *g, LukeRxId id, double index, LukeText v) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_LIST || !n->list) return;
+  if (index < 0 || (size_t)index >= n->list->len) return;
+  LukeText cur = luke_list_get(n->list, index);
+  if (luke_rx_text_eq(cur, v)) return;
+  luke_list_set(n->list, index, v);
+  luke_rx_touch_coll(g, id, 2, (int)index);
+}
+
+static inline LukeText luke_rx_list_get(LukeRxGraph *g, LukeRxId id, double index) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_LIST) return luke_text("");
+  if (g->computing) luke_rx_link(g, g->computing, id);
+  return luke_list_get(n->list, index);
+}
+
+static inline double luke_rx_list_len(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_LIST) return 0;
+  if (g->computing) luke_rx_link(g, g->computing, id);
+  return luke_list_len(n->list);
+}
+
+static inline void luke_rx_map_put(LukeRxGraph *g, LukeRxId id, LukeText key, LukeText val) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_MAP || !n->map || !g->arena) return;
+  int existed = luke_map_has(n->map, key);
+  luke_map_put(g->arena, n->map, key, val);
+  if (!existed)
+    luke_rx_touch_coll(g, id, 1, (int)n->map->len - 1);
+  else {
+    int slot = -1;
+    for (size_t i = 0; i < n->map->len; ++i) {
+      if (luke_map_key_eq(n->map->keys[i], key)) {
+        slot = (int)i;
+        break;
+      }
+    }
+    luke_rx_touch_coll(g, id, 2, slot);
+  }
+}
+
+static inline LukeText luke_rx_map_get(LukeRxGraph *g, LukeRxId id, LukeText key) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_MAP) return luke_text("");
+  if (g->computing) luke_rx_link(g, g->computing, id);
+  return luke_map_get(n->map, key);
+}
+
+static inline double luke_rx_map_len(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_MAP) return 0;
+  if (g->computing) luke_rx_link(g, g->computing, id);
+  return luke_map_len(n->map);
+}
+
+static inline LukeList *luke_rx_list_ptr(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_LIST) return NULL;
+  if (g->computing) luke_rx_link(g, g->computing, id);
+  return n->list;
+}
+
+static inline LukeMap *luke_rx_map_ptr(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_MAP) return NULL;
+  if (g->computing) luke_rx_link(g, g->computing, id);
+  return n->map;
 }
 
 static inline void luke_rx_write_text(LukeRxGraph *g, LukeRxId id, LukeText v) {

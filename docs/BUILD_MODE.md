@@ -252,7 +252,7 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 - **Argus (rendering):** [`ARGUS.md`](./ARGUS.md) — scene paint → DOM presentment.
 - **Hanka (layout):** [`HANKA.md`](./HANKA.md) — `COLUMN` / `ROW` / `STACK` → frames → Argus.
 - **Production web:** [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md) — inputs, routes, deploy checklist.
-- **Reactive (Phase 4 async):** [`REACTIVE.md`](./REACTIVE.md) — language understands change; collections next.
+- **Reactive (Phase 5 collections):** [`REACTIVE.md`](./REACTIVE.md) — language understands change; animation next.
 
 ```luke
 IMPORT std/hanka

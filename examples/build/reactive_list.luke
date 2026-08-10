@@ -1,0 +1,34 @@
+// Phase 5 — Reactive collections
+// Granular list invalidation + BIND LIST row paints
+// Build: luke BUILD examples/build/reactive_list.luke -o build/ex_rx_list
+
+REMEMBER players AS LIST
+REMEMBER scores AS MAP
+
+BIND LIST players AS "row"
+
+ADD "Ada" TO players
+ADD "Bea" TO players
+
+SPEAK "n=" AND HOW MANY IN players
+SPEAK "i0=" AND ITEM 0 OF players
+SPEAK "i1=" AND ITEM 1 OF players
+
+REMEMBER paints_before AS 0
+CHANGE paints_before TO THE GRANULAR PAINT COUNT
+
+SET ITEM 1 OF players TO "Zoe"
+
+SPEAK "item=" AND ITEM 1 OF players
+REMEMBER paints_delta AS 0
+CHANGE paints_delta TO THE GRANULAR PAINT COUNT SUBTRACT paints_before
+SPEAK "delta=" AND paints_delta
+
+PUT "Ada" TO "10" IN scores
+PUT "Zoe" TO "12" IN scores
+SPEAK "Ada=" AND GET "Ada" FROM scores
+SPEAK "mapn=" AND HOW MANY IN scores
+
+FOR EACH name IN players DO
+  SPEAK "fe=" AND name
+END FOR

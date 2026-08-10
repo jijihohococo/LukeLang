@@ -528,6 +528,13 @@ Isolated failures, async reporting, retry.
 - Introspection: `THE REACTIVE ERROR COUNT`, `THE LAST ERROR NODE`, `THE ASYNC FAILURE COUNT`
 - Conformance: `reactive_conformance_error.luke`
 
+**Error boundaries**
+
+- `BEGIN ERROR BOUNDARY Name` … `END ERROR BOUNDARY Name` — contain failures to scoped nodes
+- `RESET ERROR BOUNDARY Name` — clear tripped state + re-schedule errored nodes
+- Introspection: `THE BOUNDARY TRIP COUNT`, `THE BOUNDARY TRIPPED FOR Name`
+- Conformance: `reactive_conformance_boundary.luke`
+
 ---
 
 ## Relation to current engines

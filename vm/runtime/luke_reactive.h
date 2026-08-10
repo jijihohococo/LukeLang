@@ -67,6 +67,7 @@ typedef struct LukeRxNode {
   uint8_t wait_epochs; /* starvation guard — epochs waiting to run */
   int version;
   uint32_t scope_id; /* owning scope frame (0 = global) */
+  uint32_t boundary_scope_id; /* error boundary scope (0 = none) */
   double num;
   LukeText text;
   LukeList *list;
@@ -92,6 +93,9 @@ typedef struct LukeRxScopeFrame {
   size_t owned_len;
   size_t owned_cap;
   int open;
+  int error_boundary; /* 1 = component-scoped error containment */
+  int boundary_tripped;
+  LukeRxId boundary_fault;
 } LukeRxScopeFrame;
 
 struct LukeRxGraph {
@@ -139,6 +143,9 @@ struct LukeRxGraph {
   int retry_count;
   int async_failure_count;
   LukeRxId last_error_node;
+  uint32_t active_boundary; /* innermost open error boundary scope_id */
+  int boundary_trip_count;
+  uint32_t last_boundary_tripped;
   /* Phase 6 — timelines */
 #define LUKE_RX_MAX_TIMELINES 16
   struct {
@@ -234,7 +241,10 @@ static inline void luke_rx_scope_track(LukeRxGraph *g, LukeRxId id) {
     if (!s->open || s->scope_id != g->active_scope) continue;
     luke_rx_push_id(g, &s->owned, &s->owned_len, &s->owned_cap, id);
     LukeRxNode *n = luke_rx_node_raw(g, id);
-    if (n) n->scope_id = s->scope_id;
+    if (n) {
+      n->scope_id = s->scope_id;
+      if (g->active_boundary) n->boundary_scope_id = g->active_boundary;
+    }
     return;
   }
 }
@@ -257,6 +267,10 @@ static inline LukeRxId luke_rx_alloc(LukeRxGraph *g, LukeRxKind kind) {
   n->dirty = 0;
   n->dead = 0;
   luke_rx_scope_track(g, id);
+  if (g->active_boundary) {
+    LukeRxNode *nn = luke_rx_node_raw(g, id);
+    if (nn) nn->boundary_scope_id = g->active_boundary;
+  }
   return id;
 }
 
@@ -432,6 +446,56 @@ static inline void luke_rx_timeline_push(LukeRxGraph *g, LukeRxId id, uint8_t wa
 
 static inline void luke_rx_request_flush(LukeRxGraph *g); /* forward */
 
+static inline LukeRxScopeFrame *luke_rx_boundary_frame(LukeRxGraph *g, uint32_t boundary_scope_id) {
+  if (!g || boundary_scope_id == 0) return NULL;
+  for (size_t i = 0; i < g->scope_len; ++i) {
+    LukeRxScopeFrame *s = &g->scopes[i];
+    if (s->scope_id == boundary_scope_id && s->error_boundary) return s;
+  }
+  return NULL;
+}
+
+static inline LukeRxScopeFrame *luke_rx_boundary_find(LukeRxGraph *g, const char *name) {
+  if (!g || !name) return NULL;
+  for (size_t i = g->scope_len; i > 0; --i) {
+    LukeRxScopeFrame *s = &g->scopes[i - 1];
+    if (s->error_boundary && strcmp(s->name, name) == 0) return s;
+  }
+  return NULL;
+}
+
+static inline void luke_rx_sync_active_boundary(LukeRxGraph *g) {
+  if (!g) return;
+  g->active_boundary = 0;
+  for (size_t i = g->scope_len; i > 0; --i) {
+    LukeRxScopeFrame *s = &g->scopes[i - 1];
+    if (s->open && s->error_boundary && !s->boundary_tripped) {
+      g->active_boundary = s->scope_id;
+      break;
+    }
+  }
+}
+
+static inline int luke_rx_boundary_blocks(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node_raw(g, id);
+  if (!n || n->boundary_scope_id == 0) return 0;
+  LukeRxScopeFrame *b = luke_rx_boundary_frame(g, n->boundary_scope_id);
+  return b && b->boundary_tripped ? 1 : 0;
+}
+
+static inline void luke_rx_trip_boundary(LukeRxGraph *g, LukeRxId fault_id) {
+  LukeRxNode *n = luke_rx_node_raw(g, fault_id);
+  if (!n || n->boundary_scope_id == 0) return;
+  LukeRxScopeFrame *b = luke_rx_boundary_frame(g, n->boundary_scope_id);
+  if (!b || b->boundary_tripped) return;
+  b->boundary_tripped = 1;
+  b->boundary_fault = fault_id;
+  g->boundary_trip_count++;
+  g->last_boundary_tripped = b->scope_id;
+  fprintf(stderr, "Luke Reactive: error boundary '%s' tripped on node #%u\n", b->name,
+          (unsigned)fault_id);
+}
+
 static inline void luke_rx_isolate_error(LukeRxGraph *g, LukeRxId id) {
   if (!g || id == 0) return;
   LukeRxNode *n = luke_rx_node_raw(g, id);
@@ -443,6 +507,7 @@ static inline void luke_rx_isolate_error(LukeRxGraph *g, LukeRxId id) {
   luke_rx_clear_deps(g, id);
   n->dirty = 0;
   n->queued = 0;
+  luke_rx_trip_boundary(g, id);
   fprintf(stderr, "Luke Reactive: isolated error on node #%u\n", (unsigned)id);
 }
 
@@ -504,6 +569,11 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
     for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
       LukeRxNode *n = &g->nodes[id];
       if (n->dead || n->errored || !n->dirty || n->kind != LUKE_RX_DERIVED) continue;
+      if (luke_rx_boundary_blocks(g, id)) {
+        n->dirty = 0;
+        n->queued = 0;
+        continue;
+      }
       pending_derived = 1;
       int deps_ready = 1;
       for (size_t d = 0; d < n->dep_len; ++d) {
@@ -563,6 +633,11 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
   for (LukeRxId id = 1; id < (LukeRxId)g->len && effect_n < LUKE_RX_MAX_EFFECT_BATCH; ++id) {
     LukeRxNode *n = &g->nodes[id];
     if (n->dead || n->errored || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    if (luke_rx_boundary_blocks(g, id)) {
+      n->dirty = 0;
+      n->queued = 0;
+      continue;
+    }
     n->wait_epochs++;
     effect_ids[effect_n] = id;
     effect_pri[effect_n] = (int)n->priority;
@@ -589,6 +664,11 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
     LukeRxId id = effect_ids[ei];
     LukeRxNode *n = &g->nodes[id];
     if (n->dead || n->errored || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    if (luke_rx_boundary_blocks(g, id)) {
+      n->dirty = 0;
+      n->queued = 0;
+      continue;
+    }
     if (n->priority == LUKE_RX_PRIO_BACKGROUND && saw_ui) g->ui_before_bg = 1;
     if (n->priority == LUKE_RX_PRIO_UI) saw_ui = 1;
     if (!g->last_first_effect) g->last_first_effect = id;
@@ -996,6 +1076,61 @@ static inline LukeRxScopeFrame *luke_rx_scope_find(LukeRxGraph *g, const char *n
     if (s->open && strcmp(s->name, name) == 0) return s;
   }
   return NULL;
+}
+
+static inline int luke_rx_boundary_begin(LukeRxGraph *g, const char *name) {
+  if (!luke_rx_scope_begin(g, name)) return 0;
+  LukeRxScopeFrame *s = luke_rx_scope_find(g, name);
+  if (!s) return 0;
+  s->error_boundary = 1;
+  g->active_boundary = s->scope_id;
+  return 1;
+}
+
+static inline void luke_rx_boundary_end(LukeRxGraph *g, const char *name) {
+  if (!g) return;
+  LukeRxScopeFrame *s = luke_rx_boundary_find(g, name);
+  if (!s || !s->open) return;
+  g->active_scope = 0;
+  for (size_t i = g->scope_len; i > 0; --i) {
+    LukeRxScopeFrame *f = &g->scopes[i - 1];
+    if (f->open && !f->error_boundary) {
+      g->active_scope = f->scope_id;
+      break;
+    }
+  }
+  g->active_boundary = 0;
+  for (size_t i = g->scope_len; i > 0; --i) {
+    LukeRxScopeFrame *f = &g->scopes[i - 1];
+    if (f->open && f->error_boundary && f->scope_id != s->scope_id && !f->boundary_tripped) {
+      g->active_boundary = f->scope_id;
+      break;
+    }
+  }
+}
+
+static inline int luke_rx_boundary_reset(LukeRxGraph *g, const char *name) {
+  if (!g) return 0;
+  LukeRxScopeFrame *s = luke_rx_boundary_find(g, name);
+  if (!s) return 0;
+  s->boundary_tripped = 0;
+  s->boundary_fault = 0;
+  if (g->last_boundary_tripped == s->scope_id) g->last_boundary_tripped = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *n = luke_rx_node_raw(g, id);
+    if (!n || n->dead || n->boundary_scope_id != s->scope_id) continue;
+    if (n->errored) {
+      n->errored = 0;
+      luke_rx_mark_dirty(g, id);
+    }
+  }
+  luke_rx_sync_active_boundary(g);
+  return 1;
+}
+
+static inline int luke_rx_boundary_tripped(LukeRxGraph *g, const char *name) {
+  LukeRxScopeFrame *s = luke_rx_boundary_find(g, name);
+  return s && s->boundary_tripped ? 1 : 0;
 }
 
 /* END COMPONENT — stop tracking new nodes in this scope; frame stays for DESTROY. */

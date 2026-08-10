@@ -16,7 +16,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 | 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 |
 | 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 |
 | 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ✅ v0.4 |
-| 5 | **Error system** | Isolation, async failure, boundaries, retry | 🟡 v0.6 started |
+| 5 | **Error system** | Isolation, async failure, boundaries, retry | ✅ v0.6 |
 | 6 | **DevTools** | Live graph, why changed/repaint, timelines | 🟡 v0.5 started |
 | 7 | **Time-travel** | Snapshots, replay, deterministic replay | ⬜ |
 | 8 | **Compiler optimization** | Static graph, dead reaction elimination | ⬜ |
@@ -92,15 +92,15 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone G — Error system *(current)*
+## Milestone G — Error system *(shipped v0.6)*
 
 - [x] Effect/derived error isolation (`luke_rx_isolate_error`, `errored` flag)
 - [x] Flush continues after isolated failure (sibling effects still run)
 - [x] Async failure reporting (`REPORT REACTIVE FAILURE FOR … WITH …`)
 - [x] Retry + clear (`RETRY REACTIVE ERROR`, `CLEAR REACTIVE ERROR`)
-- [x] Introspection: `THE REACTIVE ERROR COUNT`, `THE LAST ERROR NODE`, `THE ASYNC FAILURE COUNT`
-- [x] Conformance: `reactive_conformance_error.luke`
-- [ ] Error boundaries (component-scoped containment)
+- [x] Error boundaries (`BEGIN ERROR BOUNDARY`, `RESET ERROR BOUNDARY`)
+- [x] Introspection: error/boundary counters
+- [x] Conformance: `reactive_conformance_{error,boundary}.luke`
 
 ---
 

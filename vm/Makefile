@@ -234,6 +234,11 @@ test-build: build/luke
 	./build/ex_rx_conf_error 2>/dev/null | grep -q "async=1"
 	./build/ex_rx_conf_error 2>/dev/null | grep -q "errors2=2"
 	./build/ex_rx_conf_error 2>/dev/null | grep -q "retries=1"
+	./build/luke BUILD ../examples/build/reactive_conformance_boundary.luke -o build/ex_rx_conf_boundary
+	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "global=1"
+	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "trips=1"
+	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "tripped=1"
+	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "reset=0"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

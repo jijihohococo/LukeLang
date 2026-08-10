@@ -284,6 +284,14 @@ When a derived/effect run sets a problem (`GIVE UP` inside `ATTEMPT`), the runti
 `RETRY REACTIVE ERROR` clears `errored` on `last_error_node`, marks dirty, and flushes.  
 `CLEAR REACTIVE ERROR` clears the flag without re-scheduling.
 
+### 12.4 Error boundaries
+
+`BEGIN ERROR BOUNDARY Panel` tags nodes/effects created inside with `boundary_scope_id`.  
+When a node inside trips, the boundary is marked `tripped` and remaining nodes in that boundary are skipped for the flush turn.  
+Nodes outside the boundary continue normally.
+
+`RESET ERROR BOUNDARY Panel` clears the tripped flag and re-schedules errored nodes in that boundary.
+
 ---
 
 ## 13. Non-normative (future)

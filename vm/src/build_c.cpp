@@ -337,6 +337,7 @@ struct BC {
   std::vector<RxWhenDef> rxWhenDefs;
   int rxWhenSeq = 0;
   std::vector<std::string> rxComponentStack; /* open BEGIN COMPONENT names */
+  std::vector<std::string> rxBoundaryStack;  /* open BEGIN ERROR BOUNDARY names */
   /* Phase 4 — async fetch → reactive cells */
   struct RxFetchBind {
     std::string jobId;
@@ -781,6 +782,21 @@ Expr BC::expr(std::string e, size_t line) {
     if (U0 == "THE ASYNC FAILURE COUNT" || U0 == "THE FETCH FAILURE COUNT")
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->async_failure_count : 0.0)",
               Ty::num()};
+    if (U0 == "THE BOUNDARY TRIP COUNT" || U0 == "THE ERROR BOUNDARY TRIP COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->boundary_trip_count : 0.0)",
+              Ty::num()};
+    if (U0 == "THE LAST BOUNDARY TRIPPED" || U0 == "THE BOUNDARY TRIPPED ID")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_boundary_tripped : 0.0)",
+              Ty::num()};
+  }
+
+  if (startsWithCI(e, "THE BOUNDARY TRIPPED FOR ") ||
+      startsWithCI(e, "THE ERROR BOUNDARY TRIPPED FOR ")) {
+    usesRx = true;
+    size_t prefix = startsWithCI(e, "THE BOUNDARY TRIPPED FOR ") ? 25 : 31;
+    auto name = stripThe(trim(e.substr(prefix)));
+    return {"(double)luke_rx_boundary_tripped(" + rxGraphVar + ", \"" + esc(name) + "\")",
+            Ty::num()};
   }
 
   if (startsWithCI(e, "THE TIMELINE STEP ID AT ") || startsWithCI(e, "THE TIMELINE STEP WAVE AT ")) {
@@ -1631,6 +1647,60 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     bc.usesRxUi = true;
     o << "  luke_rx_ui_set_text(_luke_rx, " << idE.code << ", " << t.code << ");\n";
     o << "  if (_luke_rx) { _luke_rx->need_paint = 1; luke_rx_ui_after_flush(_luke_rx); }\n";
+    return;
+  }
+  /* Phase 14 — error boundaries (component-scoped containment) */
+  if (startsWithCI(text, "BEGIN ERROR BOUNDARY ") || startsWithCI(text, "ERROR BOUNDARY ")) {
+    std::string rest = startsWithCI(text, "BEGIN ERROR BOUNDARY ") ? trim(text.substr(21))
+                                                                   : trim(text.substr(15));
+    stripDo(rest);
+    auto name = stripThe(rest);
+    if (name.empty()) {
+      bc.fail(line, "ERROR BOUNDARY needs a name — BEGIN ERROR BOUNDARY Panel");
+      return;
+    }
+    bool simple = true;
+    for (char c : name)
+      if (!(isalnum((unsigned char)c) || c == '_')) simple = false;
+    if (!simple) {
+      bc.fail(line, "ERROR BOUNDARY name must be a simple identifier");
+      return;
+    }
+    bc.usesRx = true;
+    bc.rxBoundaryStack.push_back(name);
+    o << "  luke_rx_boundary_begin(_luke_rx, \"" << esc(name) << "\");\n";
+    return;
+  }
+  if (startsWithCI(text, "END ERROR BOUNDARY") || toUpper(text) == "ENDERROR BOUNDARY") {
+    std::string rest;
+    if (startsWithCI(text, "END ERROR BOUNDARY"))
+      rest = trim(text.substr(19));
+    else
+      rest = "";
+    if (bc.rxBoundaryStack.empty()) {
+      bc.fail(line, "END ERROR BOUNDARY without matching BEGIN ERROR BOUNDARY");
+      return;
+    }
+    std::string open = bc.rxBoundaryStack.back();
+    if (!rest.empty() && stripThe(rest) != open) {
+      bc.fail(line, "END ERROR BOUNDARY '" + stripThe(rest) + "' but open boundary is '" + open +
+                         "'");
+      return;
+    }
+    bc.rxBoundaryStack.pop_back();
+    bc.usesRx = true;
+    o << "  luke_rx_boundary_end(_luke_rx, \"" << esc(open) << "\");\n";
+    return;
+  }
+  if (startsWithCI(text, "RESET ERROR BOUNDARY ") || startsWithCI(text, "CLEAR ERROR BOUNDARY ")) {
+    size_t prefix = startsWithCI(text, "RESET ERROR BOUNDARY ") ? 21 : 21;
+    auto name = stripThe(trim(text.substr(prefix)));
+    if (name.empty()) {
+      bc.fail(line, "RESET ERROR BOUNDARY needs a name");
+      return;
+    }
+    bc.usesRx = true;
+    o << "  luke_rx_boundary_reset(_luke_rx, \"" << esc(name) << "\");\n";
     return;
   }
   /* Phase 3/7 — component / entity scopes */
@@ -3439,6 +3509,11 @@ std::string emit(BC &bc) {
   }
   if (!bc.rxComponentStack.empty()) {
     bc.fail(1, "Unclosed COMPONENT " + bc.rxComponentStack.back() + " — missing END COMPONENT");
+    return {};
+  }
+  if (!bc.rxBoundaryStack.empty()) {
+    bc.fail(1, "Unclosed ERROR BOUNDARY " + bc.rxBoundaryStack.back() +
+                   " — missing END ERROR BOUNDARY");
     return {};
   }
 

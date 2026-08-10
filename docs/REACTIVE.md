@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phases 1–8 shipped; Phase 9 correctness + Phase 10 Scheduler 2.0 in progress  
+> **Status:** Phases 1–8 shipped; Phases 9–11 production roadmap (correctness, scheduler, granularity)  
 > **Normative spec:** [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md) · **Roadmap:** [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
@@ -466,7 +466,7 @@ Production-grade scheduler guarantees before new features.
 - Conformance programs: `examples/build/reactive_conformance_{batch,stale,order}.luke`
 - Roadmap: [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
 
-### Phase 10 — Scheduler 2.0 *(in progress)*
+### Phase 10 — Scheduler 2.0 *(shipped v0.2)*
 
 Priority lanes, dirty dedup, nested flush coalescing, timeline export.
 
@@ -477,6 +477,18 @@ Priority lanes, dirty dedup, nested flush coalescing, timeline export.
 - Dirty dedup + queue instrumentation (`THE DIRTY DEDUP COUNT`)
 - Scheduler timeline counters (`THE SCHEDULER STEP COUNT`, `THE SCHEDULER UI BEFORE BACKGROUND`)
 - Conformance: `reactive_conformance_{priority,nested,dedup}.luke`
+
+### Phase 11 — Granularity *(in progress)*
+
+Partial layout/paint and component subtree invalidation.
+
+**Deliverables**
+
+- `argus_paint_one` — region-targeted Argus paint
+- `hanka_layout_dirty` / `hanka_mark_region` — partial Hanka relayout
+- Component subtree invalidation (`THE SUBTREE INVALID COUNT`)
+- Introspection: `THE REGION PAINT COUNT`, `THE REGION LAYOUT COUNT`
+- Conformance: `reactive_conformance_subtree.luke`
 
 ---
 

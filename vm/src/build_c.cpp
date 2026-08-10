@@ -726,6 +726,12 @@ Expr BC::expr(std::string e, size_t line) {
     if (U0 == "THE SCHEDULER LAST STEP" || U0 == "THE LAST EFFECT STEP")
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_last_effect : 0.0)",
               Ty::num()};
+    if (U0 == "THE REGION PAINT COUNT" || U0 == "THE GRANULAR REGION PAINTS")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->region_paints : 0.0)", Ty::num()};
+    if (U0 == "THE REGION LAYOUT COUNT" || U0 == "THE GRANULAR REGION LAYOUTS")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->region_layouts : 0.0)", Ty::num()};
+    if (U0 == "THE SUBTREE INVALID COUNT" || U0 == "THE SUBTREE INVALIDATIONS")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->subtree_invals : 0.0)", Ty::num()};
   }
 
   if (startsWithCI(e, "THE VALUE OF ")) {
@@ -1495,6 +1501,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     if (!bc.rxEntityStack.empty() && bc.rxEntityStack.back() == open) bc.rxEntityStack.pop_back();
     bc.rxComponentStack.pop_back();
+    bc.usesRx = true;
+    o << "  luke_rx_scope_pause(_luke_rx);\n";
     /* Scope stays alive until DESTROY COMPONENT — handlers can still touch cells. */
     return;
   }
@@ -2211,6 +2219,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   /* Hanka — layout boxes → Argus frames */
   if (toUpper(text) == "LAY OUT THE SCREEN" || toUpper(text) == "LAYOUT THE SCREEN" ||
       toUpper(text) == "LAY OUT" || toUpper(text) == "LAYOUT") {
+    if (bc.usesRxUi) o << "  hanka_set_keep_roots(arena, 1);\n";
     o << "  hanka_layout(arena);\n";
     return;
   }

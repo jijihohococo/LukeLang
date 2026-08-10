@@ -940,16 +940,33 @@ static inline void luke_rx_ui_set_text(LukeRxGraph *g, LukeText id, LukeText tex
   /* Text-only: frame unchanged → skip Hanka relayout. */
 }
 
+static inline void luke_rx_ui_set_text_granular(LukeRxGraph *g, LukeText id, LukeText text) {
+  if (!g || !g->arena) return;
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (!n) return;
+  if (n->mounted && luke_rx_text_eq(n->text, text)) return;
+  argus_set_text(n, text);
+  if (argus_paint_one(g->arena, id)) {
+    g->granular_paints++;
+    g->region_paints++;
+    g->last_region_paints_turn++;
+  }
+}
+
 static inline void luke_rx_ui_after_flush(LukeRxGraph *g) {
   if (!g || !g->arena) return;
+  g->last_region_paints_turn = 0;
   if (g->need_layout) {
-    /* Phase 2 beachhead: full Hanka relayout only when explicitly requested.
-     * Greeting / text binds leave need_layout clear. */
-    hanka_layout(g->arena);
+    int regions = hanka_layout_dirty(g->arena);
+    if (regions == 0) {
+      hanka_layout(g->arena);
+      regions = 1;
+    }
+    g->region_layouts = regions;
     g->need_layout = 0;
   }
   if (g->need_paint) {
-    argus_paint(g->arena); /* dirty nodes only */
+    argus_paint(g->arena);
     g->need_paint = 0;
   }
 }
@@ -957,6 +974,7 @@ static inline void luke_rx_ui_after_flush(LukeRxGraph *g) {
 static inline void luke_rx_ui_enable(LukeRxGraph *g) {
   if (!g) return;
   g->after_flush = luke_rx_ui_after_flush;
+  if (g->arena) hanka_set_keep_roots(g->arena, 1);
 }
 
 /* Phase 5 — BIND LIST: granular Argus row paints via change_kind / last_index.
@@ -976,8 +994,12 @@ static inline void luke_rx_ui_paint_list_row(LukeRxGraph *g, LukeText prefix, in
                                             LukeText text) {
   if (!g || !g->arena || index < 0) return;
   LukeText id = luke_rx_ui_row_id(g->arena, prefix, index);
-  luke_rx_ui_set_text(g, id, text);
-  g->granular_paints++;
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (n) {
+    luke_rx_ui_set_text_granular(g, id, text);
+  } else {
+    g->granular_paints++;
+  }
 }
 
 static inline void luke_rx_ui_paint_list(LukeRxGraph *g, LukeRxId list_id, LukeText prefix) {
@@ -1002,7 +1024,12 @@ static inline void luke_rx_ui_set_opacity(LukeRxGraph *g, LukeText id, double op
   if (!n) return;
   if (n->mounted && n->opacity == opacity) return;
   argus_set_opacity(n, opacity);
-  g->need_paint = 1;
+  hanka_mark_region(g->arena, id);
+  g->need_layout = 1;
+  if (argus_paint_one(g->arena, id)) {
+    g->region_paints++;
+    g->last_region_paints_turn++;
+  }
 }
 
 /* Phase 8 — refresh a QUERY TEXT cell from SQLite (native) or stub. */

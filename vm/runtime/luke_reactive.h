@@ -116,6 +116,11 @@ struct LukeRxGraph {
   uint32_t active_scope; /* 0 = none */
   int disposed_count;
   int granular_paints; /* Phase 5: count of row/slot paints (tests) */
+  /* Phase 11 — Granularity (Milestone C) */
+  int region_paints;
+  int region_layouts;
+  int subtree_invals;
+  int last_region_paints_turn;
   /* Phase 6 — timelines */
 #define LUKE_RX_MAX_TIMELINES 16
   struct {
@@ -540,6 +545,8 @@ static inline void luke_rx_request_flush(LukeRxGraph *g) {
 
 static inline int luke_rx_flush(LukeRxGraph *g) {
   if (!g || g->dirty_len == 0) return 0;
+  g->region_paints = 0;
+  g->region_layouts = 0;
   g->flushing = 1;
   int result = 1;
   int passes = 0;
@@ -795,6 +802,12 @@ static inline LukeRxScopeFrame *luke_rx_scope_find(LukeRxGraph *g, const char *n
   return NULL;
 }
 
+/* END COMPONENT — stop tracking new nodes in this scope; frame stays for DESTROY. */
+static inline void luke_rx_scope_pause(LukeRxGraph *g) {
+  if (!g) return;
+  g->active_scope = 0;
+}
+
 /* Destroy a named component scope: unsubscribe owned cells/effects. */
 static inline int luke_rx_scope_end(LukeRxGraph *g, const char *name) {
   if (!g) return 0;
@@ -810,6 +823,25 @@ static inline int luke_rx_scope_end(LukeRxGraph *g, const char *name) {
     }
   }
   if (!s || !s->open) return 0;
+  for (size_t i = 0; i < s->owned_len; ++i) {
+    LukeRxId oid = s->owned[i];
+    LukeRxNode *on = luke_rx_node_raw(g, oid);
+    if (!on) continue;
+    for (size_t j = 0; j < on->sub_len; ++j) {
+      LukeRxId sub = on->subs[j];
+      int owned = 0;
+      for (size_t k = 0; k < s->owned_len; ++k)
+        if (s->owned[k] == sub) {
+          owned = 1;
+          break;
+        }
+      if (owned) continue;
+      if (luke_rx_node(g, sub)) {
+        luke_rx_mark_dirty(g, sub);
+        g->subtree_invals++;
+      }
+    }
+  }
   for (size_t i = 0; i < s->owned_len; ++i)
     luke_rx_dispose_node(g, s->owned[i]);
   s->owned_len = 0;

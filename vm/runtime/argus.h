@@ -186,24 +186,35 @@ static inline void argus_set_opacity(ArgusNode *n, double opacity) {
   n->dirty = 1;
 }
 
-static inline void argus_paint(LukeArena *a) {
+/* Paint a single node if dirty (Granularity — region paint). Returns 1 if painted. */
+static inline int argus_paint_one(LukeArena *a, LukeText id) {
   ArgusTree *t = argus_tree(a);
+  ArgusNode *n = argus_find(t, id);
+  if (!n || (!n->dirty && n->mounted)) return 0;
+  argus_js_upsert(id, (double)n->kind);
+  argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
+  if (n->kind == ARGUS_IMAGE)
+    argus_js_image(id, n->src);
+  else if (n->kind == ARGUS_INPUT)
+    argus_js_input(id, n->text, (double)n->input_type);
+  else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON)
+    argus_js_text(id, n->text);
+  n->dirty = 0;
+  n->mounted = 1;
+  t->painted = 1;
+  return 1;
+}
+
+static inline int argus_paint(LukeArena *a) {
+  ArgusTree *t = argus_tree(a);
+  int count = 0;
   for (size_t i = 0; i < t->len; ++i) {
     ArgusNode *n = &t->nodes[i];
     if (!n->dirty && n->mounted) continue;
     LukeText id = luke_text(n->id);
-    argus_js_upsert(id, (double)n->kind);
-    argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
-    if (n->kind == ARGUS_IMAGE)
-      argus_js_image(id, n->src);
-    else if (n->kind == ARGUS_INPUT)
-      argus_js_input(id, n->text, (double)n->input_type);
-    else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON)
-      argus_js_text(id, n->text);
-    n->dirty = 0;
-    n->mounted = 1;
+    if (argus_paint_one(a, id)) count++;
   }
-  t->painted = 1;
+  return count;
 }
 
 static inline void argus_clear(LukeArena *a) {

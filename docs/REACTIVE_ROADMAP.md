@@ -13,8 +13,8 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 | # | Area | Phase 9+ focus | Status |
 |---|------|----------------|--------|
 | 1 | **Reactive correctness** | Stale dep cleanup, deterministic order, cycle spec, nested rules | 🟡 v0.1 |
-| 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 started |
-| 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | ⬜ |
+| 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 |
+| 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 started |
 | 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ⬜ |
 | 5 | **Error system** | Isolation, async failure, boundaries, retry | ⬜ |
 | 6 | **DevTools** | Live graph, why changed/repaint, timelines | ⬜ |
@@ -43,7 +43,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone B — Scheduler 2.0 *(current)*
+## Milestone B — Scheduler 2.0
 
 - [x] Priority lanes (UI effect before BACKGROUND)
 - [x] Dirty dedup counter + queue size instrumentation
@@ -56,11 +56,14 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone C — Granularity
+## Milestone C — Granularity *(current)*
 
-- Component subtree invalidation
-- Hanka layout-region dirty rects
-- Argus paint-region (not whole-node default)
+- [x] Argus region paint (`argus_paint_one`, `THE REGION PAINT COUNT`)
+- [x] Hanka partial relayout (`hanka_layout_dirty`, `hanka_mark_region`)
+- [x] Component subtree invalidation on scope dispose
+- [x] `reactive_conformance_subtree.luke`
+- [ ] Field-level object tracking
+- [ ] Paint/layout dirty rects (spatial index)
 
 ---
 

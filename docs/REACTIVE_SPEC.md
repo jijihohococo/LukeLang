@@ -185,7 +185,25 @@ THE SCHEDULER UI BEFORE BACKGROUND
 
 ---
 
-## 8. Non-normative (future)
+## 8. Granularity (v0.3)
+
+### 8.1 Region paint
+
+`luke_rx_ui_set_text_granular` and list row paints call `argus_paint_one` — only the touched Argus node is presented.  
+Full `argus_paint` runs when `need_paint` is set (e.g. generic `BIND`).
+
+### 8.2 Region layout
+
+When `need_layout` is set (e.g. `BIND OPACITY`), `hanka_mark_region` marks the root box containing the leaf.  
+`hanka_layout_dirty` relayouts only dirty roots when `keep_roots` is enabled (reactive UI).
+
+### 8.3 Component subtree invalidation
+
+On `scope_end`, external subscribers of owned nodes are marked dirty before disposal (`THE SUBTREE INVALID COUNT`).
+
+---
+
+## 9. Non-normative (future)
 
 Not yet specified: macrotask queues, parallel reactions, time-travel, weak refs, field-level object tracking, Hanka region invalidation spec.
 

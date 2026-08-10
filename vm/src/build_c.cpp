@@ -3894,7 +3894,7 @@ std::string emit(BC &bc) {
   if (!bc.pageWhens.empty()) {
     for (size_t wi = 0; wi < bc.pageWhens.size(); ++wi) {
       auto &w = bc.pageWhens[wi];
-      o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
+      if (bc.forBrowser) o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
       o << "void " << w.exportName << "(void) {\n";
       o << "  LukeArena *arena = luke_page_arena;\n";
       o << "  if (!arena) return;\n";

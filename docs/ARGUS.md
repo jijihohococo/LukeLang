@@ -6,9 +6,9 @@
 > **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames  
 > **Frontend track:** [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
 
-> **Direction (Path A, see [`STRATEGY.md`](./STRATEGY.md)):** long-term, Argus becomes a thin
-> **reactive patcher** — the browser lays out and paints; Argus only applies dirty-node → DOM
-> updates. The absolute-frame model below is the *current* implementation, not the destination.
+> **Direction (Path A, see [`STRATEGY.md`](./STRATEGY.md)):** Argus is a thin
+> **reactive patcher** — dirty node → surgical DOM update. ROW/COLUMN paint via CSS flex
+> (`argus_flex` / `argus_flow_frame` / parent attach); STACK/`PLACE` keep absolute frames.
 
 ## What Argus is
 

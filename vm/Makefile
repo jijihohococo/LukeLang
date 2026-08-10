@@ -152,6 +152,10 @@ test-build: build/luke
 	@grep -q 'luke_rx_write_text\|luke_rx_cell_text' build/reactive_greeting.luke.c
 	@! grep -q 'argus_clear' build/reactive_greeting.luke.c || ! grep -A20 'luke_when_' build/reactive_greeting.luke.c | grep -q 'argus_clear'
 	@node ../scripts/luke_browser_loader.cjs build/reactive_greeting.wasm --dispatch go:click 2>&1 | tee /tmp/luke_rx_ui.txt | grep -q 'Welcome, Alex'
+	@grep -q '\[argus_flex\]' /tmp/luke_rx_ui.txt
+	@grep -q '\[argus_flow_frame\]' /tmp/luke_rx_ui.txt
+	@grep -q '\[argus_parent\].*greeting' /tmp/luke_rx_ui.txt
+	@grep -q 'region=1' /tmp/luke_rx_ui.txt
 	@! grep -q '\[argus_clear\]' /tmp/luke_rx_ui.txt
 	./build/luke BUILD ../examples/build/reactive_counter_scope.luke -o build/ex_rx_scope
 	./build/ex_rx_scope | grep -q "count=3"

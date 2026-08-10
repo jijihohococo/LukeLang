@@ -2,8 +2,8 @@
 #define ARGUS_H
 
 /* Argus — LukeLang rendering engine.
- * DOM presentment (not Skia). Explicit frames until the layout engine lands.
- * See docs/ARGUS.md */
+ * DOM presentment (not Skia). Path A: reactive patcher over CSS flex flow;
+ * absolute frames remain for STACK / explicit PLACE. See docs/ARGUS.md */
 
 #include "luke_rt.h"
 
@@ -33,9 +33,17 @@ typedef struct ArgusNode {
   double opacity;
   LukeText text;
   LukeText src;
-  LukeText role;      /* a11y role override (empty = default) */
+  LukeText role;       /* a11y role override (empty = default) */
   LukeText aria_label; /* a11y label */
   int input_type; /* 0 text, 1 password, 2 email, 3 checkbox, 4 radio */
+  /* Path A — CSS flow / flex (0 = classic absolute frame) */
+  char parent_id[64];
+  int flow;      /* 1 = normal-flow child (no left/top) */
+  int flex_dir;  /* 0 none, 1 column, 2 row */
+  double flex_gap;
+  double flex_pad;
+  int flex_align; /* 0 start, 1 center, 2 end */
+  int flex_wrap;
   int dirty;
   int mounted;
 } ArgusNode;
@@ -94,12 +102,32 @@ argus_js_fade_raw(const char *id, size_t id_len, double from, double to, double 
 __attribute__((import_module("lukejs"), import_name("argus_clear"))) void
 argus_js_clear_raw(void);
 
+__attribute__((import_module("lukejs"), import_name("argus_parent"))) void
+argus_js_parent_raw(const char *id, size_t id_len, const char *parent, size_t parent_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_flex"))) void
+argus_js_flex_raw(const char *id, size_t id_len, double dir, double gap, double pad, double align,
+                  double wrap);
+
+__attribute__((import_module("lukejs"), import_name("argus_flow_frame"))) void
+argus_js_flow_frame_raw(const char *id, size_t id_len, double w, double h, double opacity);
+
 static inline void argus_js_upsert(LukeText id, double kind) {
   argus_js_upsert_raw(id.ptr, id.len, kind);
 }
 static inline void argus_js_frame(LukeText id, double x, double y, double w, double h,
                                   double opacity) {
   argus_js_frame_raw(id.ptr, id.len, x, y, w, h, opacity);
+}
+static inline void argus_js_parent(LukeText id, LukeText parent) {
+  argus_js_parent_raw(id.ptr, id.len, parent.ptr, parent.len);
+}
+static inline void argus_js_flex(LukeText id, double dir, double gap, double pad, double align,
+                                 double wrap) {
+  argus_js_flex_raw(id.ptr, id.len, dir, gap, pad, align, wrap);
+}
+static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity) {
+  argus_js_flow_frame_raw(id.ptr, id.len, w, h, opacity);
 }
 static inline void argus_js_text(LukeText id, LukeText text) {
   argus_js_text_raw(id.ptr, id.len, text.ptr, text.len);
@@ -139,6 +167,25 @@ static inline void argus_js_frame(LukeText id, double x, double y, double w, dou
   (void)id;
   (void)x;
   (void)y;
+  (void)w;
+  (void)h;
+  (void)opacity;
+}
+static inline void argus_js_parent(LukeText id, LukeText parent) {
+  (void)id;
+  (void)parent;
+}
+static inline void argus_js_flex(LukeText id, double dir, double gap, double pad, double align,
+                                 double wrap) {
+  (void)id;
+  (void)dir;
+  (void)gap;
+  (void)pad;
+  (void)align;
+  (void)wrap;
+}
+static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity) {
+  (void)id;
   (void)w;
   (void)h;
   (void)opacity;
@@ -279,6 +326,32 @@ static inline void argus_set_a11y(ArgusNode *n, LukeText role, LukeText label) {
   n->dirty = 1;
 }
 
+static inline void argus_set_parent(ArgusNode *n, LukeText parent) {
+  if (!n) return;
+  if (parent.len && parent.ptr)
+    argus_id_copy(n->parent_id, sizeof(n->parent_id), parent);
+  else
+    n->parent_id[0] = '\0';
+  n->dirty = 1;
+}
+
+static inline void argus_set_flow(ArgusNode *n, int flow) {
+  if (!n) return;
+  n->flow = flow ? 1 : 0;
+  n->dirty = 1;
+}
+
+static inline void argus_set_flex(ArgusNode *n, int dir, double gap, double pad, int align,
+                                  int wrap) {
+  if (!n) return;
+  n->flex_dir = dir;
+  n->flex_gap = gap;
+  n->flex_pad = pad;
+  n->flex_align = align;
+  n->flex_wrap = wrap ? 1 : 0;
+  n->dirty = 1;
+}
+
 static inline LukeText argus_default_role(const ArgusNode *n) {
   if (!n) return luke_text("");
   if (n->kind == ARGUS_BUTTON) return luke_text("button");
@@ -300,7 +373,14 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
   ArgusNode *n = argus_find(t, id);
   if (!n || (!n->dirty && n->mounted)) return 0;
   argus_js_upsert(id, (double)n->kind);
-  argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
+  if (n->parent_id[0]) argus_js_parent(id, luke_text(n->parent_id));
+  if (n->flex_dir)
+    argus_js_flex(id, (double)n->flex_dir, n->flex_gap, n->flex_pad, (double)n->flex_align,
+                  (double)n->flex_wrap);
+  if (n->flow)
+    argus_js_flow_frame(id, n->w, n->h, n->opacity);
+  else
+    argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
   LukeText role = n->role.len ? n->role : argus_default_role(n);
   if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
   if (n->kind == ARGUS_IMAGE)
@@ -367,6 +447,112 @@ static inline int argus_place_box(LukeArena *a, LukeText id, double x, double y,
                                   double h) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
   argus_set_frame(n, x, y, w, h);
+  return 1;
+}
+
+/* Path A — flex container (dir: 1=column, 2=row). absolute=1 → positioned frame; else flow child. */
+static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, int absolute,
+                                   double x, double y, double w, double h, int dir, double gap,
+                                   double pad, int align, int wrap) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
+  if (absolute) {
+    argus_set_frame(n, x, y, w, h);
+    argus_set_flow(n, 0);
+    n->parent_id[0] = '\0';
+  } else {
+    argus_set_frame(n, 0, 0, w, h);
+    argus_set_flow(n, 1);
+    argus_set_parent(n, parent);
+  }
+  argus_set_flex(n, dir, gap, pad, align, wrap);
+  return 1;
+}
+
+static inline int argus_place_flow_text(LukeArena *a, LukeText id, LukeText parent, double w,
+                                        double h, LukeText text) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_TEXT);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_text(n, text);
+  return 1;
+}
+
+static inline int argus_place_flow_button(LukeArena *a, LukeText id, LukeText parent, double w,
+                                          double h, LukeText text) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_BUTTON);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_text(n, text);
+  return 1;
+}
+
+static inline int argus_place_flow_image(LukeArena *a, LukeText id, LukeText parent, double w,
+                                         double h, LukeText src) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_IMAGE);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_src(n, src);
+  return 1;
+}
+
+static inline int argus_place_flow_box(LukeArena *a, LukeText id, LukeText parent, double w,
+                                       double h) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  return 1;
+}
+
+static inline int argus_place_flow_input(LukeArena *a, LukeText id, LukeText parent, double w,
+                                         double h, LukeText placeholder, double input_type) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_INPUT);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_text(n, placeholder);
+  n->input_type = (int)input_type;
+  return 1;
+}
+
+static inline int argus_place_flow_select(LukeArena *a, LukeText id, LukeText parent, double w,
+                                          double h, LukeText options) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_SELECT);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_text(n, options);
+  return 1;
+}
+
+static inline int argus_place_flow_table(LukeArena *a, LukeText id, LukeText parent, double w,
+                                         double h, LukeText cells) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_TABLE);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_text(n, cells);
+  return 1;
+}
+
+static inline int argus_place_flow_modal(LukeArena *a, LukeText id, LukeText parent, double w,
+                                         double h, LukeText text) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_MODAL);
+  argus_set_frame(n, 0, 0, w, h);
+  argus_set_flow(n, 1);
+  argus_set_parent(n, parent);
+  n->flex_dir = 0;
+  argus_set_text(n, text);
   return 1;
 }
 

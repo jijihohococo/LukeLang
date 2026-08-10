@@ -2,8 +2,8 @@
 #define HANKA_H
 
 /* Hanka — LukeLang layout engine.
- * Owns layout numbers (x,y,w,h). Nested COLUMN/ROW/STACK trees supported.
- * Emits frames into Argus for paint. See docs/HANKA.md */
+ * Path A: ROW/COLUMN emit CSS flex containers (browser lays out).
+ * STACK / explicit PLACE still use absolute frames into Argus. See docs/HANKA.md */
 
 #include "argus.h"
 
@@ -60,6 +60,7 @@ typedef struct HankaChild {
 
 struct HankaBox {
   HankaAxis axis;
+  char id[64]; /* Path A — stable flex container id (__hk_N) */
   double x, y, w, h;
   double pad, gap;
   int align; /* 0=start, 1=center, 2=end */
@@ -79,6 +80,7 @@ typedef struct HankaState {
   HankaBox *stack[32];
   size_t depth;
   int keep_roots; /* retain layout tree for partial relayout */
+  int next_box_id;
 } HankaState;
 
 static HankaState hanka_global = {0};
@@ -101,6 +103,7 @@ static inline void hanka_clear(LukeArena *a) {
   HankaState *s = hanka_state(a);
   s->root_len = 0;
   s->depth = 0;
+  s->next_box_id = 0;
 }
 
 static inline int hanka_add_child(LukeArena *a, HankaBox *b, HankaChild child) {
@@ -116,12 +119,22 @@ static inline int hanka_add_child(LukeArena *a, HankaBox *b, HankaChild child) {
   return 1;
 }
 
+static inline void hanka_assign_box_id(HankaState *s, HankaBox *b) {
+  char buf[64];
+  int n = snprintf(buf, sizeof(buf), "__hk_%d", s->next_box_id++);
+  if (n < 0) n = 0;
+  if (n >= (int)sizeof(b->id)) n = (int)sizeof(b->id) - 1;
+  memcpy(b->id, buf, (size_t)n);
+  b->id[n] = '\0';
+}
+
 static inline HankaBox *hanka_push_box(LukeArena *a, HankaAxis axis, double x, double y, double w,
                                        double h, double pad, double gap) {
   HankaState *s = hanka_state(a);
   HankaBox *b = (HankaBox *)luke_arena_alloc(a, sizeof(HankaBox), sizeof(void *));
   memset(b, 0, sizeof(*b));
   b->axis = axis;
+  hanka_assign_box_id(s, b);
   b->x = x;
   b->y = y;
   b->w = w;
@@ -378,6 +391,28 @@ static inline void hanka_place_leaf(LukeArena *a, const HankaLeaf *leaf, double 
     argus_place_box(a, id, x, y, w, h);
 }
 
+static inline void hanka_place_flow_leaf(LukeArena *a, const HankaLeaf *leaf, LukeText parent) {
+  LukeText id = luke_text(leaf->id);
+  double w = leaf->w;
+  double h = leaf->h;
+  if (leaf->kind == HANKA_LEAF_TEXT)
+    argus_place_flow_text(a, id, parent, w, h, leaf->text);
+  else if (leaf->kind == HANKA_LEAF_BUTTON)
+    argus_place_flow_button(a, id, parent, w, h, leaf->text);
+  else if (leaf->kind == HANKA_LEAF_IMAGE)
+    argus_place_flow_image(a, id, parent, w, h, leaf->src);
+  else if (leaf->kind == HANKA_LEAF_INPUT)
+    argus_place_flow_input(a, id, parent, w, h, leaf->text, (double)leaf->input_type);
+  else if (leaf->kind == HANKA_LEAF_SELECT)
+    argus_place_flow_select(a, id, parent, w, h, leaf->text);
+  else if (leaf->kind == HANKA_LEAF_TABLE)
+    argus_place_flow_table(a, id, parent, w, h, leaf->text);
+  else if (leaf->kind == HANKA_LEAF_MODAL)
+    argus_place_flow_modal(a, id, parent, w, h, leaf->text);
+  else
+    argus_place_flow_box(a, id, parent, w, h);
+}
+
 static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, double abs_y);
 
 static inline double hanka_child_main(const HankaChild *ch, int row) {
@@ -399,7 +434,34 @@ static inline double hanka_align_offset(int align, double free_space) {
   return 0;
 }
 
+/* Path A: ROW/COLUMN → flex container + normal-flow children (browser does layout). */
+static inline void hanka_layout_flex_box(LukeArena *a, HankaBox *b, double abs_x, double abs_y) {
+  for (size_t i = 0; i < b->len; ++i) {
+    if (b->children[i].kind == HANKA_CHILD_LEAF) hanka_resolve_leaf_size(&b->children[i].leaf);
+  }
+  LukeText box_id = luke_text(b->id);
+  int under_flex_parent = b->parent && b->parent->axis != HANKA_STACK;
+  int absolute = !under_flex_parent;
+  LukeText parent_id = under_flex_parent ? luke_text(b->parent->id) : luke_text("");
+  int dir = b->axis == HANKA_ROW ? 2 : 1;
+  argus_place_flex(a, box_id, parent_id, absolute, absolute ? abs_x : 0.0, absolute ? abs_y : 0.0,
+                   b->w, b->h, dir, b->gap, b->pad, b->align, b->wrap);
+  for (size_t i = 0; i < b->len; ++i) {
+    HankaChild *ch = &b->children[i];
+    if (ch->kind == HANKA_CHILD_LEAF) {
+      hanka_place_flow_leaf(a, &ch->leaf, box_id);
+    } else if (ch->box) {
+      hanka_layout_box_at(a, ch->box, 0, 0);
+    }
+  }
+}
+
 static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, double abs_y) {
+  if (b->axis == HANKA_COLUMN || b->axis == HANKA_ROW) {
+    hanka_layout_flex_box(a, b, abs_x, abs_y);
+    return;
+  }
+
   double inner_w = b->w - 2 * b->pad;
   double inner_h = b->h - 2 * b->pad;
   for (size_t i = 0; i < b->len; ++i) {
@@ -420,6 +482,7 @@ static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, 
     return;
   }
 
+  /* Unreachable: ROW/COLUMN handled above; keep classic absolute as fallback. */
   int row = b->axis == HANKA_ROW;
   if (b->wrap) {
     double main_limit = row ? inner_w : inner_h;

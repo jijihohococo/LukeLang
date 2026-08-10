@@ -392,11 +392,68 @@ function createLukeJs(getMemory, opts) {
       }
       var el = document.getElementById(id);
       if (!el) return;
+      el.style.position = "absolute";
       el.style.left = x + "px";
       el.style.top = y + "px";
       el.style.width = w + "px";
       el.style.height = h + "px";
       el.style.opacity = String(opacity);
+      el.style.flex = "";
+      el.style.minWidth = "";
+      el.style.minHeight = "";
+    },
+    argus_parent: function (idPtr, idLen, parentPtr, parentLen) {
+      const id = readText(idPtr, idLen);
+      const parentId = readText(parentPtr, parentLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_parent]", id, parentId);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      var parent = parentId ? document.getElementById(parentId) : document.getElementById("root");
+      if (!parent) parent = document.getElementById("root");
+      if (!parent) return;
+      if (el.parentNode !== parent) parent.appendChild(el);
+    },
+    argus_flex: function (idPtr, idLen, dir, gap, pad, align, wrap) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_flex]", id, dir, gap, pad, align, wrap);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      var axis = dir | 0;
+      var alignV = align | 0;
+      var justify =
+        alignV === 1 ? "center" : alignV === 2 ? "flex-end" : "flex-start";
+      el.style.display = "flex";
+      el.style.flexDirection = axis === 2 ? "row" : "column";
+      el.style.flexWrap = wrap ? "wrap" : "nowrap";
+      el.style.gap = (gap || 0) + "px";
+      el.style.padding = (pad || 0) + "px";
+      el.style.justifyContent = justify;
+      el.style.alignItems = justify;
+      el.style.boxSizing = "border-box";
+    },
+    argus_flow_frame: function (idPtr, idLen, w, h, opacity) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_flow_frame]", id, w, h, opacity);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.position = "relative";
+      el.style.left = "";
+      el.style.top = "";
+      el.style.width = w + "px";
+      el.style.height = h + "px";
+      el.style.opacity = String(opacity);
+      el.style.flex = "0 0 auto";
+      el.style.minWidth = "0";
+      el.style.boxSizing = "border-box";
     },
     argus_text: function (idPtr, idLen, textPtr, textLen) {
       const id = readText(idPtr, idLen);

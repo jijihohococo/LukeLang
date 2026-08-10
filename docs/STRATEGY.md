@@ -81,7 +81,7 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 
 ### Phase 1 — De-risk the two big bets *(next)*
 - **Spike a client↔server reactive cell** (#5): **poll variant green** — `examples/build/fullstack_cell_{server,client}.luke` + bind proof; server change → BIND → `THE REGION PAINT COUNT == 1` (wired in `make test`). Push/SSE variant still open.
-- **Spike Path A** (#3): take one existing demo and emit DOM + CSS instead of absolute frames; confirm Argus still does surgical updates. This proves the pivot is real before Hanka is rewritten to emit CSS.
+- **Spike Path A** (#3): **POC green** — ROW/COLUMN emit CSS flex (`argus_flex` / `argus_flow_frame` / parent attach); STACK/PLACE stay absolute; `reactive_greeting` still shows `region=1` on BIND. Full Hanka→CSS rewrite still open.
 
 ### Phase 2 — The proof point *(the real work)*
 - Build **one reference app** (reactive dashboard or todo) on the Path A renderer.

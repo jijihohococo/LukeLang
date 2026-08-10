@@ -2686,22 +2686,85 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
-  /* WATCH cell FROM url [READY ready] — Live Graph sugar over START SUBSCRIBE.
-   * Job id = cell name. App programs declare deps once; no FETCH / SUBSCRIBE / poll. */
+  /* Live Graph WATCH:
+   *   Server: WATCH user FROM db AS "SELECT …" | WHERE "id = 1"
+   *   Client: WATCH user FROM "http://…/watch"  [READY ready]
+   * Client form is sugar over START SUBSCRIBE (job id = cell name). */
   if (startsWithCI(text, "WATCH ")) {
     auto rest = trim(text.substr(6));
     stripDo(rest);
     auto U = toUpper(rest);
     auto fromPos = findOutsideQuotes(rest, U, " FROM ");
     if (fromPos == std::string::npos) {
-      bc.fail(line, "WATCH needs FROM — WATCH user FROM \"http://…/watch\"");
+      bc.fail(line, "WATCH needs FROM — WATCH user FROM db WHERE \"id = 1\" "
+                    "or WATCH user FROM \"http://…/watch\"");
       return;
     }
     auto cellName = stripThe(trim(rest.substr(0, fromPos)));
     if (cellName.empty()) {
-      bc.fail(line, "WATCH needs a cell name — WATCH user FROM \"url\"");
+      bc.fail(line, "WATCH needs a cell name — WATCH user FROM …");
       return;
     }
+    auto after = trim(rest.substr(fromPos + 6));
+    auto aU = toUpper(after);
+    size_t asPos = findOutsideQuotes(after, aU, " AS ");
+    size_t wherePos = findOutsideQuotes(after, aU, " WHERE ");
+    size_t readyPos = findOutsideQuotes(after, aU, " READY ");
+
+    /* First token after FROM — if unquoted identifier + AS/WHERE → server DB watch. */
+    size_t dbEnd = after.size();
+    auto limitDb = [&](size_t p) {
+      if (p != std::string::npos && p < dbEnd) dbEnd = p;
+    };
+    limitDb(asPos);
+    limitDb(wherePos);
+    limitDb(readyPos);
+    auto dbName = stripThe(trim(after.substr(0, dbEnd)));
+    bool dbWatch = !dbName.empty() && dbName[0] != '"' &&
+                   (asPos != std::string::npos || wherePos != std::string::npos);
+
+    if (dbWatch) {
+      if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+          bc.locals[dbName].klass != "__Db") {
+        bc.fail(line, "WATCH FROM needs a DATABASE — MY NAME IS " + dbName + " AS DATABASE");
+        return;
+      }
+      std::string sql;
+      if (asPos != std::string::npos) {
+        auto sqlRaw = trim(after.substr(asPos + 4));
+        sql = unquoteText(sqlRaw);
+        if (sql.empty()) sql = sqlRaw;
+      } else {
+        /* WATCH user FROM db WHERE "id = 1" → SELECT name FROM users WHERE id = 1 */
+        auto predRaw = trim(after.substr(wherePos + 7));
+        auto pred = unquoteText(predRaw);
+        if (pred.empty()) pred = predRaw;
+        if (pred.empty()) {
+          bc.fail(line, "WATCH WHERE needs a predicate — WHERE \"id = 1\"");
+          return;
+        }
+        std::string table = cellName;
+        if (table.empty() || table.back() != 's') table += "s";
+        sql = "SELECT name FROM " + table + " WHERE " + pred;
+      }
+      if (sql.empty()) {
+        bc.fail(line, "WATCH needs AS \"SELECT …\" or WHERE \"…\"");
+        return;
+      }
+      std::string key = rxScopedCellName(bc.rxEntityStack, cellName);
+      bc.usesRx = true;
+      bc.locals[cellName] = Ty::text();
+      bc.rxCellTy[key] = Ty::text();
+      if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
+      bc.rxCells[key] = true;
+      bc.rxQueryDefs.push_back({key, dbName, sql, line});
+      o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+      o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
+        << cIdent(dbName) << ", luke_text(\"" << esc(sql) << "\"));\n";
+      return;
+    }
+
+    /* Client wire watch — cell must already be REMEMBER'd. */
     if (!bc.rxCells.count(cellName)) {
       bc.fail(line, "WATCH '" + cellName + "' — REMEMBER it first as a reactive TEXT cell");
       return;
@@ -2709,9 +2772,6 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     Ty cty = bc.rxCellTy.count(cellName) ? bc.rxCellTy[cellName] : Ty::num();
     bc.expectTy(line, cty, Ty::text(), "WATCH");
     if (bc.bad) return;
-    auto after = trim(rest.substr(fromPos + 6));
-    auto aU = toUpper(after);
-    size_t readyPos = findOutsideQuotes(after, aU, " READY ");
     std::string urlPart =
         readyPos == std::string::npos ? after : trim(after.substr(0, readyPos));
     if (startsWithCI(urlPart, "GET ")) urlPart = trim(urlPart.substr(4));
@@ -2723,6 +2783,109 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     if (readyPos != std::string::npos)
       synth += " READY " + trim(after.substr(readyPos + 7));
     stmt(bc, synth, line, o);
+    return;
+  }
+
+  /* PUSH WATCH user ON req [FOR n BEATS] [EVERY ms MILLISECONDS]
+   * Live Graph tier 2: CDC-poll the WATCH'd query cell and SSE-push on change. */
+  if (startsWithCI(text, "PUSH WATCH ")) {
+    auto rest = trim(text.substr(11));
+    stripDo(rest);
+    auto U = toUpper(rest);
+    auto onPos = findOutsideQuotes(rest, U, " ON ");
+    if (onPos == std::string::npos) {
+      bc.fail(line, "PUSH WATCH needs ON — PUSH WATCH user ON req");
+      return;
+    }
+    auto cellName =
+        resolveRxCellName(bc.rxCells, bc.rxEntityStack, stripThe(trim(rest.substr(0, onPos))));
+    auto afterOn = trim(rest.substr(onPos + 4));
+    auto aU = toUpper(afterOn);
+    size_t forPos = findOutsideQuotes(afterOn, aU, " FOR ");
+    size_t everyPos = findOutsideQuotes(afterOn, aU, " EVERY ");
+    size_t reqEnd = afterOn.size();
+    if (forPos != std::string::npos && forPos < reqEnd) reqEnd = forPos;
+    if (everyPos != std::string::npos && everyPos < reqEnd) reqEnd = everyPos;
+    auto reqName = stripThe(trim(afterOn.substr(0, reqEnd)));
+    if (cellName.empty() || reqName.empty()) {
+      bc.fail(line, "PUSH WATCH needs cell and request — PUSH WATCH user ON req");
+      return;
+    }
+    const BC::RxQueryDef *qd = nullptr;
+    for (auto &q : bc.rxQueryDefs)
+      if (q.name == cellName) {
+        qd = &q;
+        break;
+      }
+    if (!qd) {
+      bc.fail(line, "PUSH WATCH '" + cellName + "' — WATCH it FROM a DATABASE first");
+      return;
+    }
+    if (!bc.locals.count(reqName) || bc.locals[reqName].k != K::Ptr ||
+        bc.locals[reqName].klass != "__HttpReq") {
+      bc.fail(line, "PUSH WATCH ON needs a REQUEST — MY NAME IS " + reqName + " AS REQUEST");
+      return;
+    }
+    double beats = 50;
+    double everyMs = 50;
+    if (forPos != std::string::npos) {
+      auto forClause = trim(afterOn.substr(forPos + 5));
+      auto fU = toUpper(forClause);
+      size_t beatWord = fU.find(" BEAT");
+      auto nPart = beatWord == std::string::npos ? forClause : trim(forClause.substr(0, beatWord));
+      /* Stop at EVERY if present in forClause remnant */
+      auto nU = toUpper(nPart);
+      size_t evIn = nU.find(" EVERY ");
+      if (evIn != std::string::npos) nPart = trim(nPart.substr(0, evIn));
+      auto nE = bc.expr(nPart, line);
+      if (!bc.isNumeric(nE.ty)) {
+        bc.fail(line, "PUSH WATCH FOR wants a NUMBER of beats");
+        return;
+      }
+      /* Prefer literal when possible; otherwise emit runtime expression via temp — use 50 default
+       * parse from literal text for CI simplicity. */
+      try {
+        beats = std::stod(nPart);
+      } catch (...) {
+        beats = 50;
+      }
+      if (beats < 1) beats = 1;
+    }
+    if (everyPos != std::string::npos) {
+      auto everyClause = trim(afterOn.substr(everyPos + 7));
+      auto eU = toUpper(everyClause);
+      size_t msWord = eU.find(" MILLISECOND");
+      auto msPart = msWord == std::string::npos ? everyClause : trim(everyClause.substr(0, msWord));
+      try {
+        everyMs = std::stod(msPart);
+      } catch (...) {
+        everyMs = 50;
+      }
+      if (everyMs < 1) everyMs = 1;
+    }
+    bc.usesRx = true;
+    o << "  httpSseOpen(arena, " << cIdent(reqName) << ");\n";
+    o << "  {\n";
+    o << "    LukeText _luke_watch_last = luke_text(\"\");\n";
+    o << "    double _luke_watch_beats = 0;\n";
+    o << "    while (_luke_watch_beats < " << beats << ") {\n";
+    o << "      _luke_watch_beats = _luke_watch_beats + 1;\n";
+    o << "      LukeText _luke_watch_now = luke_db_query_text(arena, " << cIdent(qd->dbLocal)
+      << ", luke_text(\"" << esc(qd->sql) << "\"));\n";
+    o << "      if (!luke_text_eq(_luke_watch_now, _luke_watch_last)) {\n";
+    o << "        _luke_watch_last = _luke_watch_now;\n";
+    o << "        luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
+      << ", _luke_watch_now);\n";
+    o << "        httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now);\n";
+    o << "        luke_speak_text(luke_text_concat(arena, luke_text(\"row=\"), _luke_watch_now));\n";
+    o << "      }\n";
+    o << "      httpSseComment(arena, " << cIdent(reqName) << ", luke_text(\"cdc\"));\n";
+    o << "      double _luke_watch_t0 = argus_now_ms();\n";
+    o << "      while ((argus_now_ms() - _luke_watch_t0) < " << everyMs << ") {\n";
+    o << "      }\n";
+    o << "    }\n";
+    o << "  }\n";
+    o << "  httpClose(arena, " << cIdent(reqName) << ");\n";
     return;
   }
 

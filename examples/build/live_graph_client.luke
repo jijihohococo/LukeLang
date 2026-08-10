@@ -1,6 +1,6 @@
-// Live Graph spike 1 — client half (browser)
+// Live Graph tier 2 — client half (browser)
 // WATCH + BIND only. No FETCH, no SUBSCRIBE, no TIMELINE, no poll in this program.
-// External DB UPDATE → SSE → cell → one region paint.
+// Server WATCH FROM db → PUSH WATCH → SSE → cell → one region paint.
 // Build: luke BUILD examples/build/live_graph_client.luke -target browser -o build/live_graph_client
 // Needs: live_graph_server on :8798
 

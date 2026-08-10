@@ -371,6 +371,10 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/live_graph_server.luke -o build/live_graph_server
 	./build/luke BUILD ../examples/build/live_graph_client.luke -target browser -o build/live_graph_client
 	./build/luke BUILD ../examples/build/live_graph_updater.luke -o build/live_graph_updater
+	@grep -q 'luke_rx_query_refresh\|httpSseData' build/live_graph_server.luke.c
+	@grep -qE 'WATCH user FROM db' ../examples/build/live_graph_server.luke
+	@grep -qE 'PUSH WATCH' ../examples/build/live_graph_server.luke
+	@! grep -qE 'dbQuery|httpSseData|httpSseOpen|REFRESH QUERY' ../examples/build/live_graph_server.luke
 	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/live_graph_client.luke.c
 	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
 	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke

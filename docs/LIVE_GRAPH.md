@@ -1,6 +1,6 @@
 # Live Graph — DB row → pixel
 
-> **Status:** spike 1 green (CDC poll)  
+> **Status:** tier 2 green (server `WATCH` + `PUSH WATCH`)  
 > **Thesis:** In LukeLang you never fetch, never invalidate, never subscribe, never diff. You declare dependencies once, and change finds its own way from row to pixel.
 
 ## One graph
@@ -12,29 +12,42 @@ DB row  →  server cell  →  [wire]  →  client cell  →  pixel
 
 Mainstream stacks glue three separate worlds (DB / server / client) with queries, cache invalidation, refetching, subscriptions, and diffing. LukeLang's reactive engine already answers "when X changes, what needs to update?" inside the client. The Live Graph answers it for the **whole stack**.
 
-## Spike 1 (this release)
+## Tier 2 (this release)
 
-**Acceptance:** `UPDATE users SET name='…' WHERE id=1` from any other process → client BIND repaints exactly one node → `THE REGION PAINT COUNT == 1` → client program has **no** query / fetch / subscribe / poll.
+**Acceptance (unchanged chain):** external `UPDATE users SET name='…' WHERE id=1` → client BIND repaints exactly one node → `THE REGION PAINT COUNT == 1`.
 
-| Piece | Role today |
+**New:** the **server** declares the live cell — no hand-rolled `dbQuery` / SSE poll loop in app code.
+
+| Piece | Role |
 | --- | --- |
-| SQLite row | Source of truth (`users.id = 1`) |
-| Server CDC poll | Tractable stand-in for incremental view maintenance — re-`dbQuery`, `httpSseData` on change |
-| `WATCH user FROM "url"` | Client sugar over SSE → reactive TEXT cell (hides `START SUBSCRIBE`) |
+| `WATCH user FROM db WHERE "id = 1"` | Server: DB row → reactive TEXT cell (`SELECT name FROM users WHERE …`) |
+| `PUSH WATCH user ON req FOR 50 BEATS EVERY 50 MILLISECONDS` | Compiler emits CDC poll + `httpSseData` on change |
+| `WATCH user FROM "http://…/watch"` | Client: wire → same cell name (hides `SUBSCRIBE`) |
 | `BIND "name" TO user` | Pixel depends on the cell |
-| `live_graph_updater.luke` | External writer — proves the graph spans process boundaries |
+| `live_graph_updater.luke` | External writer — graph spans processes |
+
+Also supported: `WATCH user FROM db AS "SELECT name FROM users WHERE id = 1"` (explicit SQL).
 
 Examples: `examples/build/live_graph_{server,client,updater}.luke` — asserted in `make test`.
 
-### Client surface (war cry)
+### War cry surface
 
 ```luke
+# server
+WATCH user FROM db WHERE "id = 1"
+PUSH WATCH user ON req FOR 50 BEATS EVERY 50 MILLISECONDS
+
+# client
 REMEMBER user AS ""
 BIND "name" TO user
 WATCH user FROM "http://127.0.0.1:8798/watch"
 ```
 
-Server-side `WATCH user FROM db WHERE "id = 1"` (compiler-known query → push) and true incremental view maintenance come later. Spike 1 keeps the **client** free of glue and proves the causal chain with polling CDC on the existing SSE plumbing.
+CDC poll remains the tractable stand-in for incremental view maintenance. True IVM / differential dataflow is the next research-grade tier.
+
+## Spike 1 (prior)
+
+Client `WATCH` + server hand-rolled poll — proved DB write → pixel with `region=1` and zero client glue.
 
 ## What falls out of the same graph (roadmap)
 
@@ -48,4 +61,4 @@ Prove one tier at a time. Distributed concerns (reconnect, ordering, partial fai
 
 - [`STRATEGY.md`](./STRATEGY.md) — identity and phased plan
 - [`REACTIVE.md`](./REACTIVE.md) — client reactive engine
-- Spike A push: `SUBSCRIBE` + SSE (`subscribe_cell_*`) — the wire primitive `WATCH` sits on
+- Spike A push: `SUBSCRIBE` + SSE (`subscribe_cell_*`) — the wire primitive client `WATCH` sits on

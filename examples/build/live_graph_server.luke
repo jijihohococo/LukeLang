@@ -1,5 +1,5 @@
-// Live Graph spike 1 — DB row → SSE (server-side CDC poll)
-// External UPDATE on SQLite → poll notices → httpSseData → wire.
+// Live Graph tier 2 — server declares WATCH FROM db; PUSH WATCH streams CDC.
+// No hand-rolled query / SSE poll loop in this program.
 // Build: luke BUILD examples/build/live_graph_server.luke -o build/live_graph_server
 
 IMPORT std/server
@@ -14,6 +14,8 @@ ASK dbExec WITH db, "CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, na
 ASK dbExec WITH db, "DELETE FROM users"
 ASK dbExec WITH db, "INSERT INTO users(id, name) VALUES(1, 'seed')"
 
+WATCH user FROM db WHERE "id = 1"
+
 MY NAME IS server SET TO ASK httpListen WITH 8798
 MY NAME IS left AS NUMBER SET TO 4
 
@@ -23,24 +25,7 @@ WHILE left IS GREATER THAN 0 DO
   MY NAME IS hit AS FLAG SET TO FALSE
   IF path EQUALS "/watch" DO
     SET hit TO TRUE
-    ASK httpSseOpen WITH req
-    MY NAME IS last AS TEXT SET TO ""
-    MY NAME IS beats AS NUMBER SET TO 0
-    WHILE beats IS LESS THAN 50 DO
-      SET beats TO beats ADD 1
-      MY NAME IS name SET TO ASK dbQuery WITH db, "SELECT name FROM users WHERE id = 1"
-      MY NAME IS same AS FLAG SET TO name EQUALS last
-      IF NOT same DO
-        SET last TO name
-        ASK httpSseData WITH req, name
-        SPEAK "row=" AND name
-      END IF
-      ASK httpSseComment WITH req, "cdc"
-      MY NAME IS t0 AS NUMBER SET TO THE CLOCK
-      WHILE THE CLOCK SUBTRACT t0 IS LESS THAN 50 DO
-      END WHILE
-    END WHILE
-    ASK httpClose WITH req
+    PUSH WATCH user ON req FOR 50 BEATS EVERY 50 MILLISECONDS
   END IF
   IF NOT hit DO
     ASK httpReply WITH req, 404, "text/plain", "not found"

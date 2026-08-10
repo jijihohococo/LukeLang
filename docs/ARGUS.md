@@ -1,9 +1,10 @@
 # Argus — LukeLang Rendering Engine
 
-> **Status:** Started (v0 beachhead)  
+> **Status:** v0.3 — widgets + a11y + motion beachhead  
 > **Name:** Argus  
 > **Backend:** DOM presentment (not Skia)  
-> **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames
+> **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames  
+> **Frontend track:** [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
 
 ## What Argus is
 
@@ -15,60 +16,67 @@ Fast path: dirty nodes → patch DOM (no full `innerHTML` rebuild).
 Hanka / PLACE  →  Argus tree  →  paint  →  thin JS embedder  →  DOM
 ```
 
-## Principles
+## Node kinds
 
-1. **Not Skia** — no pixel raster engine in-core  
-2. **Not browser layout** — frames come from Luke / Hanka (not CSS flex)  
-3. **Speed** — transform/opacity friendly; arena-friendly node storage  
-4. **Pixel-aimed** — absolute frames + local fonts; DPR handling follows  
-5. **Conversational surface** — `PLACE`, `PAINT THE SCREEN`
+| Kind | Role | DOM |
+| --- | --- | --- |
+| `BOX` | colored / empty region | `div` |
+| `TEXT` | label | `div` |
+| `BUTTON` | clickable | `button` |
+| `IMAGE` | framed image | `div` + bg |
+| `INPUT` | text / email / password / checkbox / radio | `input` |
+| `SELECT` | dropdown | `select` (options `a\|b\|c`) |
+| `TABLE` | simple table | `table` (cells `h\|h;r\|r`) |
+| `MODAL` | dialog surface | `div role=dialog` |
 
-## Node kinds (v0)
+Each node: `id`, frame `(x,y,w,h)`, `opacity`, optional `text` / `src`, a11y role/label, dirty flags.
 
-| Kind | Role |
-| --- | --- |
-| `BOX` | colored / empty region |
-| `TEXT` | label |
-| `BUTTON` | clickable text host |
-| `IMAGE` | full-bleed / framed image |
-| `INPUT` | text field (`SAY` = placeholder; read with `THE VALUE OF`) |
-
-Each node: `id`, frame `(x,y,w,h)`, `opacity`, optional `text` / `src`, dirty flags.
-
-## Luke surface (v0)
+## Luke surface
 
 ```luke
-IMPORT std/argus
-
-PLACE "hero" AS IMAGE AT 0, 0 SIZE 1440, 900 FROM "https://…"
-PLACE "brand" AS TEXT AT 48, 520 SIZE 900, 120 SAY "LukeLang"
 PLACE "cta" AS BUTTON AT 48, 700 SIZE 240, 48 SAY "Build something real"
+PLACE "plan" AS SELECT AT 48, 760 SIZE 200, 40 SAY "Free|Pro|Team"
+PLACE "grid" AS TABLE AT 48, 820 SIZE 400, 120 SAY "Name|Role;Ada|Builder"
+PLACE "dlg" AS MODAL AT 200, 200 SIZE 320, 96 SAY "Saved"
+SLOT INPUT AS CHECKBOX "agree" SIZE 24, 24 SAY "I agree"
 PAINT THE SCREEN
 
-WHEN "cta" IS CLICKED DO
-  PLACE "out" AS TEXT AT 48, 760 SIZE 900, 40 SAY "Still LukeLang."
-  PAINT THE SCREEN
-END WHEN
-```
+SET THE OPACITY OF "cta" TO 0
+FADE "cta" FROM 0 TO 1 OVER 300
 
-`IMPORT std/render` remains a thin alias; prefer `std/argus`.
+SPEAK THE TEXT WIDTH OF "Hello"
+SPEAK THE VIEWPORT WIDTH
+SPEAK THE VIEWPORT HEIGHT
+SPEAK THE CLOCK
+```
 
 ## Runtime files
 
-- `vm/runtime/argus.h` — scene tree + paint  
-- `lukejs` embedder ops: `argus_upsert`, `argus_frame`, `argus_text`, `argus_image`, `argus_clear`  
-- `vm/stdlib/argus.luke` — function wrappers  
-- Demo: `examples/build/argus_demo.luke`
+- `vm/runtime/argus.h` — scene tree + paint + fade  
+- `lukejs` embedder: upsert/frame/text/image/input/a11y/select/table/measure_text/viewport_*/now_ms/argus_fade  
+- Demo: `argus_demo.luke`, `frontend_widgets.luke`, `frontend_wrap_forms.luke`
 
-## Non-goals (v0)
+## a11y (beachhead)
+
+Paint applies default roles (`button`, `textbox`, `checkbox`, `radio`, `img`, `listbox`, `table`, `dialog`)  
+plus `aria-label` from placeholder/text when present.  
+Full focus-trap / live regions still open.
+
+## Motion (beachhead)
+
+- `SET THE OPACITY OF "id" TO n` — immediate  
+- `FADE "id" [FROM a] TO b [OVER ms]` — ease-out cubic (browser rAF; native stepped)
+
+## Non-goals
 
 - Owning layout math (that's **Hanka**)
 - WebGL/Skia
 - CSS-as-source-of-truth
-- Full a11y tree mapping (button/text roles come next)
 
-## Success metric
+## Related
 
 A browser demo paints via `PLACE` / Hanka + `PAINT THE SCREEN` without `FILL "root" WITH """…html…"""`.
 
-Production path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md).
+- Layout: [`HANKA.md`](./HANKA.md)  
+- Production: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)  
+- Change model: [`REACTIVE.md`](./REACTIVE.md) (Argus consumes paint invalidation)

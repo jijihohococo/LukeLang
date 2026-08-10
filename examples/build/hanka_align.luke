@@ -1,0 +1,20 @@
+// Layout ALIGN conformance (native)
+// Build: luke BUILD examples/build/hanka_align.luke -o build/ex_hanka_align
+
+IMPORT std/hanka
+IMPORT std/argus
+
+BEGIN ROW AT 0, 0 SIZE 400, 80 PAD 0 GAP 10 ALIGN CENTER
+  SLOT BUTTON "a" SIZE 40, 40 SAY "A"
+  SLOT BUTTON "b" SIZE 40, 40 SAY "B"
+END ROW
+
+BEGIN COLUMN AT 0, 100 SIZE 200, 200 PAD 0 GAP 8 ALIGN END
+  SLOT TEXT "t1" SIZE 80, 24 SAY "one"
+  SLOT TEXT "t2" SIZE 80, 24 SAY "two"
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+SPEAK "align=1"
+SPEAK "measure=" AND THE TEXT WIDTH OF "abcd"

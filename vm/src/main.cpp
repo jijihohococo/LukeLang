@@ -26,6 +26,7 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " PKG install <name>          Install from registry/index.json\n"
       << "  " << argv0 << " PKG publish <name>          Publish luke_modules/<name> to registry\n"
       << "  " << argv0 << " PKG lock                   Write luke.lock from luke_modules/\n"
+      << "  " << argv0 << " PUBLISH WEB <file.luke>    Build browser dist (html+wasm+fonts)\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
       << "\n"
       << "Build options:\n"
@@ -491,6 +492,41 @@ int main(int argc, char **argv) {
       return 1;
     }
     return runBuild(path, out, target);
+  }
+
+  if (cmd == "PUBLISH") {
+    if (argc < 3 || upper(argv[2]) != "WEB") {
+      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dist/app]\n";
+      std::cerr << "  (For packages: luke PKG publish <name>)\n";
+      return 1;
+    }
+    if (argc < 4) {
+      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dist/app]\n";
+      return 1;
+    }
+    std::string path = argv[3];
+    std::string out = "dist/app";
+    for (int i = 4; i < argc; ++i) {
+      std::string a = argv[i];
+      if (a == "-o" && i + 1 < argc) out = argv[++i];
+      else {
+        std::cerr << "Unknown PUBLISH WEB option: " << a << "\n";
+        return 1;
+      }
+    }
+    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
+      std::cerr << "Error: input must be a .luke file\n";
+      return 1;
+    }
+    auto slash = out.find_last_of("/\\");
+    if (slash != std::string::npos)
+      std::system(("mkdir -p \"" + out.substr(0, slash) + "\"").c_str());
+    int rc = runBuild(path, out, "browser");
+    if (rc != 0) return rc;
+    std::cerr << "PUBLISH WEB ok — ship:\n";
+    std::cerr << "  " << out << ".html\n";
+    std::cerr << "  " << out << ".wasm\n";
+    return 0;
   }
 
   if (cmd == "TEST") {

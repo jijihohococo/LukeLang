@@ -9,6 +9,8 @@
 #include "luke_db.h"
 #include "argus.h"
 #include "hanka.h"
+#include "luke_reactive.h"
+#include "luke_timeline.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -922,6 +924,134 @@ static inline int luke_looks_like_email(LukeText s) {
     if (s.ptr[i] == '.') dot = 1;
   return dot;
 }
+
+/* ---------- Reactive UI bridge (Phase 2) ----------
+ * Semantic cells/effects live in luke_reactive.h.
+ * Argus/Hanka only consume need_paint / text updates — no VDOM.
+ */
+
+static inline void luke_rx_ui_set_text(LukeRxGraph *g, LukeText id, LukeText text) {
+  if (!g || !g->arena) return;
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (!n) return;
+  if (n->mounted && luke_rx_text_eq(n->text, text)) return;
+  argus_set_text(n, text);
+  g->need_paint = 1;
+  /* Text-only: frame unchanged → skip Hanka relayout. */
+}
+
+static inline void luke_rx_ui_set_text_granular(LukeRxGraph *g, LukeText id, LukeText text) {
+  if (!g || !g->arena) return;
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (!n) return;
+  if (n->mounted && luke_rx_text_eq(n->text, text)) return;
+  argus_set_text(n, text);
+  if (argus_paint_one(g->arena, id)) {
+    g->granular_paints++;
+    g->region_paints++;
+    g->last_region_paints_turn++;
+  }
+}
+
+static inline void luke_rx_ui_after_flush(LukeRxGraph *g) {
+  if (!g || !g->arena) return;
+  g->last_region_paints_turn = 0;
+  if (g->need_layout) {
+    int regions = hanka_layout_dirty(g->arena);
+    if (regions == 0) {
+      hanka_layout(g->arena);
+      regions = 1;
+    }
+    g->region_layouts = regions;
+    g->need_layout = 0;
+  }
+  if (g->need_paint) {
+    argus_paint(g->arena);
+    g->need_paint = 0;
+  }
+}
+
+static inline void luke_rx_ui_enable(LukeRxGraph *g) {
+  if (!g) return;
+  g->after_flush = luke_rx_ui_after_flush;
+  if (g->arena) hanka_set_keep_roots(g->arena, 1);
+}
+
+/* Phase 5 — BIND LIST: granular Argus row paints via change_kind / last_index.
+ * Element ids are "{prefix}_{index}" (e.g. row_0, row_1). */
+static inline LukeText luke_rx_ui_row_id(LukeArena *a, LukeText prefix, int index) {
+  char num[32];
+  int n = snprintf(num, sizeof(num), "%d", index);
+  if (n < 0) n = 0;
+  char *p = (char *)luke_arena_alloc(a, (size_t)n + 1, 1);
+  memcpy(p, num, (size_t)n);
+  p[n] = '\0';
+  LukeText mid = luke_text_concat(a, prefix, luke_text("_"));
+  return luke_text_concat(a, mid, luke_text_n(p, (size_t)n));
+}
+
+static inline void luke_rx_ui_paint_list_row(LukeRxGraph *g, LukeText prefix, int index,
+                                            LukeText text) {
+  if (!g || !g->arena || index < 0) return;
+  LukeText id = luke_rx_ui_row_id(g->arena, prefix, index);
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (n) {
+    luke_rx_ui_set_text_granular(g, id, text);
+  } else {
+    g->granular_paints++;
+  }
+}
+
+static inline void luke_rx_ui_paint_list(LukeRxGraph *g, LukeRxId list_id, LukeText prefix) {
+  LukeRxNode *n = luke_rx_node(g, list_id);
+  if (!n || n->kind != LUKE_RX_LIST || !n->list || !g->arena) return;
+  if (g->computing) luke_rx_link(g, g->computing, list_id);
+  int kind = n->change_kind;
+  int last = n->last_index;
+  LukeList *list = n->list;
+  size_t len = list->len;
+  if ((kind == 1 || kind == 2) && last >= 0 && (size_t)last < len) {
+    luke_rx_ui_paint_list_row(g, prefix, last, luke_list_get(list, (double)last));
+    return;
+  }
+  for (size_t i = 0; i < len; ++i)
+    luke_rx_ui_paint_list_row(g, prefix, (int)i, luke_list_get(list, (double)i));
+}
+
+static inline void luke_rx_ui_set_opacity(LukeRxGraph *g, LukeText id, double opacity) {
+  if (!g || !g->arena) return;
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (!n) return;
+  if (n->mounted && n->opacity == opacity) return;
+  argus_set_opacity(n, opacity);
+  hanka_mark_region(g->arena, id);
+  g->need_layout = 1;
+  if (argus_paint_one(g->arena, id)) {
+    g->region_paints++;
+    g->last_region_paints_turn++;
+  }
+}
+
+/* Phase 8 — refresh a QUERY TEXT cell from SQLite (native) or stub. */
+static inline void luke_rx_query_refresh(LukeRxGraph *g, LukeRxId id, LukeDb *db, LukeText sql) {
+  if (!g || !g->arena) return;
+  LukeText row = luke_db_query_text(g->arena, db, sql);
+  luke_rx_write_text(g, id, row);
+}
+
+#if defined(LUKE_BROWSER)
+__attribute__((import_module("lukejs"), import_name("timeline_start"))) void
+luke_js_timeline_start_raw(const char *id, size_t id_len, double ms);
+
+static inline void luke_js_timeline_start(LukeText id, double ms) {
+  luke_js_timeline_start_raw(id.ptr, id.len, ms);
+}
+#else
+static inline void luke_js_timeline_start(LukeText id, double ms) {
+  (void)id;
+  (void)ms;
+}
+#endif
 
 #ifdef __cplusplus
 }

@@ -34,9 +34,13 @@ This documentation serves as a comprehensive guide for learners and developers, 
 
 5.  **Engine track**
     *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
+    *   [Reactive](./REACTIVE.md) — language understands change (Phases 1–9)
+    *   [Reactive Spec v0.1](./REACTIVE_SPEC.md) — normative scheduler contract
+    *   [Reactive Roadmap](./REACTIVE_ROADMAP.md) — production milestones
     *   [Argus](./ARGUS.md) — rendering engine (DOM presentment)
     *   [Hanka](./HANKA.md) — layout engine (frames → Argus)
     *   [Production Web](./PRODUCTION_WEB.md) — forms, routes, deploy stack
+    *   [Layout Engine note](./LAYOUT_ENGINE.md) — pointer → Hanka
 
 6.  **[Contributor Guide](./contributor_guide.md)**
     *   [Code Style](./contributor_guide.md#code-style)

@@ -224,6 +224,15 @@ function createLukeJs(getMemory, opts) {
         console.log("[fetch_ready]", id, status);
         if (typeof globalThis.__lukeDispatchFetch === "function") globalThis.__lukeDispatchFetch(id);
       };
+      /* Deterministic stub for tests / offline — luke://path */
+      if (url.indexOf("luke://") === 0) {
+        var path = url.slice("luke://".length);
+        var payload = '{"ok":true,"path":"' + path.replace(/"/g, '\\"') + '"}';
+        setTimeout(function () {
+          finish(200, payload);
+        }, 0);
+        return;
+      }
       if (typeof fetch === "function") {
         var opts = { method: method };
         if (method === "POST" || method === "PUT" || method === "PATCH") opts.body = body;
@@ -251,7 +260,9 @@ function createLukeJs(getMemory, opts) {
           finish(0, "");
         }
       } else {
-        finish(200, "[fetch stub] " + url);
+        setTimeout(function () {
+          finish(200, "[fetch stub] " + url);
+        }, 0);
       }
     },
     fetch_ready: function (idPtr, idLen) {
@@ -277,6 +288,30 @@ function createLukeJs(getMemory, opts) {
       if (outCap > 0) u8[outPtr + n] = 0;
       view.setUint32(outLenPtr, n, true);
     },
+    timeline_start: function (idPtr, idLen, ms) {
+      var id = readText(idPtr, idLen);
+      var dur = ms > 0 ? ms : 300;
+      console.log("[timeline_start]", id, dur);
+      setTimeout(function () {
+        var inst = globalThis.__lukeInstance;
+        if (!inst) return;
+        var start = Date.now();
+        function tick() {
+          var t = (Date.now() - start) / dur;
+          if (t >= 1) {
+            if (typeof inst.exports.luke_timeline_finish_export === "function")
+              inst.exports.luke_timeline_finish_export();
+            if (typeof globalThis.__lukeDispatch === "function")
+              globalThis.__lukeDispatch(id, "timeline");
+            return;
+          }
+          if (typeof inst.exports.luke_timeline_progress === "function")
+            inst.exports.luke_timeline_progress(t);
+          setTimeout(tick, 16);
+        }
+        tick();
+      }, 0);
+    },
     argus_clear: function () {
       if (typeof document === "undefined") return;
       var root = document.getElementById("root");
@@ -301,7 +336,12 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) {
         var k = kind | 0;
-        var tag = k === 2 ? "button" : k === 4 ? "input" : "div";
+        var tag = "div";
+        if (k === 2) tag = "button";
+        else if (k === 4) tag = "input";
+        else if (k === 5) tag = "select";
+        else if (k === 6) tag = "table";
+        else if (k === 7) tag = "div";
         el = document.createElement(tag);
         el.id = id;
         el.setAttribute("data-argus-node", String(k));
@@ -318,12 +358,29 @@ function createLukeJs(getMemory, opts) {
           el.style.backgroundSize = "cover";
           el.style.backgroundPosition = "center";
           el.style.backgroundRepeat = "no-repeat";
+          el.setAttribute("role", "img");
         }
         if (k === 4) {
           el.type = "text";
           el.style.font = "inherit";
           el.style.padding = "0 12px";
           el.setAttribute("data-argus-input", "1");
+        }
+        if (k === 5) {
+          el.style.font = "inherit";
+          el.style.padding = "0 8px";
+        }
+        if (k === 6) {
+          el.style.borderCollapse = "collapse";
+          el.style.background = "transparent";
+          el.style.color = "inherit";
+        }
+        if (k === 7) {
+          el.setAttribute("role", "dialog");
+          el.setAttribute("aria-modal", "true");
+          el.style.background = "rgba(16,24,32,0.96)";
+          el.style.padding = "16px";
+          el.style.zIndex = "1000";
         }
         root.appendChild(el);
       }
@@ -363,12 +420,14 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) return;
       el.style.backgroundImage = src ? 'url("' + src.replace(/"/g, '\\"') + '")' : "";
+      if (src) el.setAttribute("aria-label", src);
     },
     argus_input: function (idPtr, idLen, phPtr, phLen, inputType) {
       const id = readText(idPtr, idLen);
       const ph = readText(phPtr, phLen);
       var t = inputType | 0;
-      var type = t === 1 ? "password" : t === 2 ? "email" : "text";
+      var type =
+        t === 1 ? "password" : t === 2 ? "email" : t === 3 ? "checkbox" : t === 4 ? "radio" : "text";
       if (typeof document === "undefined") {
         console.log("[argus_input]", id, type, ph);
         return;
@@ -376,7 +435,120 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) return;
       el.type = type;
-      el.placeholder = ph;
+      if (t === 3 || t === 4) {
+        if (ph) el.setAttribute("aria-label", ph);
+        el.removeAttribute("placeholder");
+      } else {
+        el.placeholder = ph;
+        if (ph) el.setAttribute("aria-label", ph);
+      }
+    },
+    argus_a11y: function (idPtr, idLen, rolePtr, roleLen, labelPtr, labelLen) {
+      const id = readText(idPtr, idLen);
+      const role = readText(rolePtr, roleLen);
+      const label = readText(labelPtr, labelLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_a11y]", id, role, label);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (role) el.setAttribute("role", role);
+      if (label) el.setAttribute("aria-label", label);
+      if (role === "dialog") el.setAttribute("aria-modal", "true");
+    },
+    argus_select: function (idPtr, idLen, optPtr, optLen) {
+      const id = readText(idPtr, idLen);
+      const options = readText(optPtr, optLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_select]", id, options);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = "";
+      var parts = options.split("|");
+      for (var i = 0; i < parts.length; i++) {
+        var o = document.createElement("option");
+        o.value = parts[i];
+        o.textContent = parts[i];
+        el.appendChild(o);
+      }
+    },
+    argus_table: function (idPtr, idLen, cellPtr, cellLen) {
+      const id = readText(idPtr, idLen);
+      const cells = readText(cellPtr, cellLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_table]", id, cells);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = "";
+      var rows = cells.split(";");
+      for (var r = 0; r < rows.length; r++) {
+        if (!rows[r]) continue;
+        var tr = document.createElement("tr");
+        var cols = rows[r].split("|");
+        for (var c = 0; c < cols.length; c++) {
+          var cell = document.createElement(r === 0 ? "th" : "td");
+          cell.textContent = cols[c];
+          cell.style.padding = "6px 10px";
+          cell.style.borderBottom = "1px solid rgba(255,255,255,0.12)";
+          tr.appendChild(cell);
+        }
+        el.appendChild(tr);
+      }
+    },
+    measure_text: function (textPtr, textLen) {
+      const text = readText(textPtr, textLen);
+      if (typeof document === "undefined") return text.length * 8;
+      if (!measure_text._canvas) {
+        measure_text._canvas = document.createElement("canvas");
+        measure_text._ctx = measure_text._canvas.getContext("2d");
+      }
+      var ctx = measure_text._ctx;
+      ctx.font = "16px sans-serif";
+      return ctx.measureText(text || "").width || 0;
+    },
+    viewport_width: function () {
+      if (typeof window === "undefined") return 1280;
+      return window.innerWidth || 1280;
+    },
+    viewport_height: function () {
+      if (typeof window === "undefined") return 720;
+      return window.innerHeight || 720;
+    },
+    now_ms: function () {
+      if (typeof performance !== "undefined" && performance.now) return performance.now();
+      return Date.now();
+    },
+    argus_fade: function (idPtr, idLen, from, to, ms) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_fade]", id, from, to, ms);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      var startFrom = from;
+      if (!(startFrom >= 0)) {
+        startFrom = parseFloat(el.style.opacity || "1");
+        if (!(startFrom >= 0)) startFrom = 1;
+      }
+      var dur = ms > 0 ? ms : 1;
+      var start = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+      function tick(now) {
+        var t = Math.min(1, (now - start) / dur);
+        el.style.opacity = String(startFrom + (to - startFrom) * easeOutCubic(t));
+        if (t < 1 && typeof requestAnimationFrame !== "undefined") requestAnimationFrame(tick);
+        else el.style.opacity = String(to);
+      }
+      if (typeof requestAnimationFrame !== "undefined") requestAnimationFrame(tick);
+      else el.style.opacity = String(to);
     },
   };
 }
@@ -447,8 +619,16 @@ function wireLukeWhens(instance, whens) {
     console.log("[fetch_dispatch]", jobId);
     dispatch(jobId, "fetch");
   }
+  function dispatchViewport() {
+    for (var i = 0; i < whens.length; i++) {
+      var w = whens[i];
+      if ((w.event || "") === "viewport") runExport(w.export);
+    }
+  }
   globalThis.__lukeDispatchRoute = dispatchRoute;
   globalThis.__lukeDispatchFetch = dispatchFetch;
+  globalThis.__lukeDispatchViewport = dispatchViewport;
+  globalThis.__lukeDispatch = dispatch;
 
   if (typeof document === "undefined") {
     /* Node smoke: run home route handler if present */
@@ -476,6 +656,14 @@ function wireLukeWhens(instance, whens) {
   if (typeof window !== "undefined" && !window.__lukeHashWired) {
     window.__lukeHashWired = true;
     window.addEventListener("hashchange", dispatchRoute);
+  }
+  if (typeof window !== "undefined" && !window.__lukeViewportWired) {
+    window.__lukeViewportWired = true;
+    var resizeTimer = null;
+    window.addEventListener("resize", function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(dispatchViewport, 80);
+    });
   }
   dispatchRoute();
 }
@@ -525,12 +713,38 @@ var isNode =
 if (isNode) {
   var path = process.argv[2];
   if (!path) {
-    console.error("usage: luke_browser_loader.cjs <file.wasm>");
+    console.error("usage: luke_browser_loader.cjs <file.wasm> [--dispatch id:event]");
     process.exit(1);
   }
   var fs = require("fs");
-  runLukeWasm(fs.readFileSync(path))
+  var dispatchSpec = null;
+  for (var ai = 3; ai < process.argv.length; ai++) {
+    if (process.argv[ai] === "--dispatch" && process.argv[ai + 1]) {
+      dispatchSpec = process.argv[++ai];
+    }
+  }
+  var whens = [];
+  var htmlPath = path.replace(/\.wasm$/i, ".html");
+  if (fs.existsSync(htmlPath)) {
+    var html = fs.readFileSync(htmlPath, "utf8");
+    var m = html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);
+    if (m) {
+      try {
+        whens = Function("return (" + m[1] + ");")();
+      } catch (e) {
+        console.error("failed to parse LUKE_WHENS", e);
+      }
+    }
+  }
+  runLukeWasm(fs.readFileSync(path), { whens: whens })
     .then(function (res) {
+      if (dispatchSpec && typeof globalThis.__lukeDispatch === "function") {
+        var parts = String(dispatchSpec).split(":");
+        var id = parts[0] || "";
+        var ev = parts[1] || "click";
+        console.log("[dispatch]", id, ev);
+        globalThis.__lukeDispatch(id, ev);
+      }
       process.exit((res && res.code) || 0);
     })
     .catch(function (e) {

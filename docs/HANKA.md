@@ -1,9 +1,10 @@
 # Hanka — LukeLang Layout Engine
 
-> **Status:** v1 — nested boxes  
+> **Status:** v1.2 — nested boxes + ALIGN + WRAP + AUTO measure  
 > **Name:** Hanka  
 > **Role:** Own layout numbers → feed Argus frames  
-> **Not:** browser flex/grid as source of truth
+> **Not:** browser flex/grid as source of truth  
+> **Frontend track:** [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
 
 ## Pipeline
 
@@ -14,25 +15,21 @@ Luke UI terms → Hanka (layout) → frames → Argus (paint) → DOM
 ## Principles
 
 1. Luke owns `x, y, w, h`  
-2. Explicit sizes in v0 (no intrinsic text measure yet)  
+2. Explicit sizes by default; `AUTO` measures text via embedder  
 3. Containers: `COLUMN` / `ROW` / `STACK`  
 4. Leaves become Argus nodes via `LAY OUT` then `PAINT`
 
-## Luke surface (v0)
+## Luke surface
 
 ```luke
 IMPORT std/hanka
 IMPORT std/argus
 
-BEGIN STACK AT 0, 0 SIZE 1280, 720
-  SLOT IMAGE "hero" AT 0, 0 SIZE 1280, 720 FROM "https://…"
-END STACK
-
-BEGIN COLUMN AT 48, 420 SIZE 1184, 280 PAD 0 GAP 16
-  SLOT TEXT "brand" SIZE 900, 80 SAY "LukeLang"
-  SLOT TEXT "lead" SIZE 900, 48 SAY "Hanka lays out. Argus paints."
-  SLOT BUTTON "cta" SIZE 220, 48 SAY "Build something real"
-END COLUMN
+BEGIN ROW AT 48, 48 SIZE 220, 120 PAD 0 GAP 12 ALIGN START WRAP
+  SLOT TEXT "brand" SIZE AUTO, 40 SAY "LukeLang"
+  SLOT BUTTON "cta" SIZE 160, 44 SAY "Build"
+  SLOT BUTTON "more" SIZE 120, 44 SAY "Docs"
+END ROW
 
 LAY OUT THE SCREEN
 PAINT THE SCREEN
@@ -40,34 +37,30 @@ PAINT THE SCREEN
 
 | Term | Meaning |
 | --- | --- |
-| `BEGIN COLUMN\|ROW\|STACK AT x, y SIZE w, h [PAD n] [GAP n]` | Open a layout box |
-| `SLOT TEXT\|BUTTON\|IMAGE\|BOX\|INPUT "id" [AT ox, oy] SIZE w, h …` | Add a leaf |
+| `BEGIN COLUMN\|ROW\|STACK AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START\|CENTER\|END] [WRAP]` | Open a layout box |
+| `SLOT TEXT\|BUTTON\|IMAGE\|BOX\|INPUT\|SELECT\|TABLE\|MODAL "id" … SIZE w, h` | Add a leaf (`AUTO` ok for text width) |
 | `END COLUMN\|ROW\|STACK` | Close the open box |
 | `LAY OUT THE SCREEN` | Resolve boxes → Argus frames |
 
-`AT` on `SLOT` is for `STACK` (relative to the stack origin).  
-`COLUMN` / `ROW` pack along their axis with `PAD` + `GAP`.
+`ALIGN` packs leftover main-axis space and cross-aligns children (start/center/end) when not wrapping.  
+`WRAP` flows children onto the next cross line/column when the main axis fills.  
+`AT` on `SLOT` is for `STACK` (relative to the stack origin).
 
 ## Runtime
 
 - `vm/runtime/hanka.h` — boxes, slots, layout → `argus_place_*`  
 - `vm/stdlib/hanka.luke` — thin wrappers  
-- Demo: `examples/build/hanka_demo.luke`
+- Demos: `hanka_demo.luke`, `hanka_align.luke`, `frontend_wrap_forms.luke`, `frontend_widgets.luke`
 
-## Non-goals (still)
+## Still open
 
-- Intrinsic text measurement  
-- Breakpoints / wrap  
-- CSS flex as authority  
-- Align start/center/end (pack start only)
-
-## Next
-
-- Align start/center/end  
-- Measure text via embedder  
-- Viewport / DPR snapping
+- Flex-grow / shrink  
+- Align start/center/end **per-axis** (main vs cross independently)  
+- Breakpoint rebuild sugar (`WHEN THE VIEWPORT CHANGES` + re-`LAY OUT` patterns)
 
 ## Related
 
 - Paint: [`ARGUS.md`](./ARGUS.md)  
-- History note: [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md)
+- Production: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)  
+- History note: [`LAYOUT_ENGINE.md`](./LAYOUT_ENGINE.md)  
+- Change model: [`REACTIVE.md`](./REACTIVE.md) (Hanka consumes layout invalidation)

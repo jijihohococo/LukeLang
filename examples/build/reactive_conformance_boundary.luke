@@ -1,0 +1,34 @@
+// Phase 14 — Error boundaries: contain failures, siblings outside keep running
+// Build: luke BUILD examples/build/reactive_conformance_boundary.luke -o build/ex_rx_conf_boundary
+
+REMEMBER global_ok AS 0
+
+BEGIN ERROR BOUNDARY Panel
+BEGIN COMPONENT Box
+  REMEMBER x AS 1
+END COMPONENT
+
+WHEN REACTIVE x CHANGES DO
+  ATTEMPT DO
+    GIVE UP WITH "boom"
+  END ATTEMPT
+END WHEN REACTIVE
+
+THE inner IS x ADD 10
+
+WHEN REACTIVE inner CHANGES DO
+  CHANGE global_ok TO 99
+END WHEN REACTIVE
+END ERROR BOUNDARY Panel
+
+WHEN REACTIVE x CHANGES DO
+  CHANGE global_ok TO 1
+END WHEN REACTIVE
+
+INCREASE x BY 1
+SPEAK "global=" AND global_ok
+SPEAK "trips=" AND THE BOUNDARY TRIP COUNT
+SPEAK "tripped=" AND THE BOUNDARY TRIPPED FOR Panel
+
+RESET ERROR BOUNDARY Panel
+SPEAK "reset=" AND THE BOUNDARY TRIPPED FOR Panel

@@ -1,0 +1,50 @@
+// Phase 4 — Async fetch → reactive cells → BIND paint
+// Build: luke BUILD examples/build/reactive_fetch.luke -target browser -o build/reactive_fetch
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "Luke Fetch"
+
+WEAR STYLE """
+html, body { margin: 0; background: #0e1512; }
+#brand, #status-label, #body-label, #hint { color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; }
+#status-label, #body-label { font-size: 18px; }
+#hint { font-size: 14px; opacity: 0.7; }
+#load {
+  background: #f4a259; color: #101820; font-family: Georgia, serif;
+  font-weight: 700; font-size: 16px; cursor: pointer;
+}
+"""
+
+REMEMBER body AS ""
+REMEMBER status AS 0
+REMEMBER ready AS 0
+REMEMBER loading AS 0
+
+BEGIN COLUMN AT 48, 48 SIZE 720, 360 PAD 0 GAP 14
+  SLOT TEXT "brand" SIZE 640, 56 SAY "LukeLang"
+  SLOT BUTTON "load" SIZE 200, 48 SAY "Load profile"
+  SLOT TEXT "status-label" SIZE 640, 36 SAY "status: 0"
+  SLOT TEXT "body-label" SIZE 640, 72 SAY "body: "
+  SLOT TEXT "hint" SIZE 640, 32 SAY "Async → cells → BIND. No promises."
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND "status-label" TO "status: " AND status
+BIND "body-label" TO "body: " AND body
+
+WHEN "load" IS CLICKED DO
+  CHANGE loading TO 1
+  UPDATE "hint" WITH "Fetching…"
+  START FETCH "demo" GET "luke://stub/profile" INTO body STATUS status READY ready
+END WHEN
+
+WHEN FETCH "demo" IS READY DO
+  CHANGE loading TO 0
+  UPDATE "hint" WITH "Fetch ready — reactive cells updated."
+END WHEN

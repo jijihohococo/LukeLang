@@ -12,6 +12,14 @@ THIS IS FUNCTION hankaBeginStack WITH x AS NUMBER, y AS NUMBER, w AS NUMBER, h A
   GIVE BACK __hanka_begin_stack(x, y, w, h, pad, gap)
 END FUNCTION
 
+THIS IS FUNCTION hankaSetAlign WITH align AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __hanka_set_align(align)
+END FUNCTION
+
+THIS IS FUNCTION hankaSetWrap WITH wrap AS NUMBER GIVES BACK FLAG DO
+  GIVE BACK __hanka_set_wrap(wrap)
+END FUNCTION
+
 THIS IS FUNCTION hankaSlotText WITH id AS TEXT, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
   GIVE BACK __hanka_slot_text(id, w, h, text)
 END FUNCTION

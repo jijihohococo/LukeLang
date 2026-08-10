@@ -115,6 +115,18 @@ test-build: build/luke
 	@grep -qE 'hanka_slot_input|argus_place_input' build/web_app.luke.c
 	@grep -q '_luke_fe_i' build/web_app.luke.c
 	@grep -q 'hanka_begin_row' build/web_app.luke.c
+	./build/luke BUILD ../examples/build/hanka_align.luke -o build/ex_hanka_align
+	./build/ex_hanka_align | grep -q "align=1"
+	./build/ex_hanka_align | grep -q "measure="
+	@grep -q 'hanka_set_align' build/ex_hanka_align.luke.c
+	./build/luke BUILD ../examples/build/frontend_widgets.luke -o build/ex_frontend_widgets
+	./build/ex_frontend_widgets | grep -q "ok=1"
+	./build/ex_frontend_widgets | grep -q "vw="
+	@grep -qE 'hanka_slot_select|hanka_slot_table|hanka_slot_modal' build/ex_frontend_widgets.luke.c
+	./build/luke PUBLISH WEB ../examples/build/frontend_widgets.luke -o build/frontend_widgets_pub
+	@test -f build/frontend_widgets_pub.html
+	@test -f build/frontend_widgets_pub.wasm
+	@grep -q 'argus_a11y\|measure_text\|argus_select' build/frontend_widgets_pub.html
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

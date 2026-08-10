@@ -17,12 +17,21 @@ typedef enum HankaAxis {
   HANKA_STACK = 2
 } HankaAxis;
 
+typedef enum HankaAlign {
+  HANKA_ALIGN_START = 0,
+  HANKA_ALIGN_CENTER = 1,
+  HANKA_ALIGN_END = 2
+} HankaAlign;
+
 typedef enum HankaLeafKind {
   HANKA_LEAF_BOX = 0,
   HANKA_LEAF_TEXT = 1,
   HANKA_LEAF_BUTTON = 2,
   HANKA_LEAF_IMAGE = 3,
-  HANKA_LEAF_INPUT = 4
+  HANKA_LEAF_INPUT = 4,
+  HANKA_LEAF_SELECT = 5,
+  HANKA_LEAF_TABLE = 6,
+  HANKA_LEAF_MODAL = 7
 } HankaLeafKind;
 
 typedef struct HankaLeaf {
@@ -53,6 +62,7 @@ struct HankaBox {
   HankaAxis axis;
   double x, y, w, h;
   double pad, gap;
+  int align; /* 0=start, 1=center, 2=end */
   HankaChild *children;
   size_t len;
   size_t cap;
@@ -155,6 +165,16 @@ static inline HankaBox *hanka_open(LukeArena *a) {
   return s->stack[s->depth - 1];
 }
 
+static inline int hanka_set_align(LukeArena *a, double align) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  int v = (int)align;
+  if (v < 0) v = 0;
+  if (v > 2) v = 2;
+  b->align = v;
+  return 1;
+}
+
 static inline HankaLeaf *hanka_add_leaf(LukeArena *a, LukeText id, HankaLeafKind kind, double w,
                                         double h) {
   HankaBox *b = hanka_open(a);
@@ -201,6 +221,28 @@ static inline int hanka_slot_input(LukeArena *a, LukeText id, double w, double h
   if (!leaf) return 0;
   leaf->text = placeholder;
   leaf->input_type = (int)input_type;
+  return 1;
+}
+
+static inline int hanka_slot_select(LukeArena *a, LukeText id, double w, double h,
+                                    LukeText options) {
+  HankaLeaf *leaf = hanka_add_leaf(a, id, HANKA_LEAF_SELECT, w, h);
+  if (!leaf) return 0;
+  leaf->text = options;
+  return 1;
+}
+
+static inline int hanka_slot_table(LukeArena *a, LukeText id, double w, double h, LukeText cells) {
+  HankaLeaf *leaf = hanka_add_leaf(a, id, HANKA_LEAF_TABLE, w, h);
+  if (!leaf) return 0;
+  leaf->text = cells;
+  return 1;
+}
+
+static inline int hanka_slot_modal(LukeArena *a, LukeText id, double w, double h, LukeText text) {
+  HankaLeaf *leaf = hanka_add_leaf(a, id, HANKA_LEAF_MODAL, w, h);
+  if (!leaf) return 0;
+  leaf->text = text;
   return 1;
 }
 
@@ -266,59 +308,110 @@ static inline int hanka_end(LukeArena *a) {
   return 1;
 }
 
+static inline void hanka_resolve_leaf_size(HankaLeaf *leaf) {
+  if (!leaf) return;
+  if (leaf->w < 0 && (leaf->kind == HANKA_LEAF_TEXT || leaf->kind == HANKA_LEAF_BUTTON ||
+                      leaf->kind == HANKA_LEAF_MODAL)) {
+    leaf->w = argus_measure_text(leaf->text);
+    if (leaf->w < 24) leaf->w = 24;
+  }
+  if (leaf->h < 0) leaf->h = 32;
+}
+
 static inline void hanka_place_leaf(LukeArena *a, const HankaLeaf *leaf, double x, double y) {
   LukeText id = luke_text(leaf->id);
+  double w = leaf->w;
+  double h = leaf->h;
   if (leaf->kind == HANKA_LEAF_TEXT)
-    argus_place_text(a, id, x, y, leaf->w, leaf->h, leaf->text);
+    argus_place_text(a, id, x, y, w, h, leaf->text);
   else if (leaf->kind == HANKA_LEAF_BUTTON)
-    argus_place_button(a, id, x, y, leaf->w, leaf->h, leaf->text);
+    argus_place_button(a, id, x, y, w, h, leaf->text);
   else if (leaf->kind == HANKA_LEAF_IMAGE)
-    argus_place_image(a, id, x, y, leaf->w, leaf->h, leaf->src);
+    argus_place_image(a, id, x, y, w, h, leaf->src);
   else if (leaf->kind == HANKA_LEAF_INPUT)
-    argus_place_input(a, id, x, y, leaf->w, leaf->h, leaf->text, (double)leaf->input_type);
+    argus_place_input(a, id, x, y, w, h, leaf->text, (double)leaf->input_type);
+  else if (leaf->kind == HANKA_LEAF_SELECT)
+    argus_place_select(a, id, x, y, w, h, leaf->text);
+  else if (leaf->kind == HANKA_LEAF_TABLE)
+    argus_place_table(a, id, x, y, w, h, leaf->text);
+  else if (leaf->kind == HANKA_LEAF_MODAL)
+    argus_place_modal(a, id, x, y, w, h, leaf->text);
   else
-    argus_place_box(a, id, x, y, leaf->w, leaf->h);
+    argus_place_box(a, id, x, y, w, h);
 }
 
 static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, double abs_y);
 
+static inline double hanka_child_main(const HankaChild *ch, int row) {
+  if (ch->kind == HANKA_CHILD_LEAF) return row ? ch->leaf.w : ch->leaf.h;
+  if (ch->box) return row ? ch->box->w : ch->box->h;
+  return 0;
+}
+
+static inline double hanka_child_cross(const HankaChild *ch, int row) {
+  if (ch->kind == HANKA_CHILD_LEAF) return row ? ch->leaf.h : ch->leaf.w;
+  if (ch->box) return row ? ch->box->h : ch->box->w;
+  return 0;
+}
+
+static inline double hanka_align_offset(int align, double free_space) {
+  if (free_space <= 0) return 0;
+  if (align == HANKA_ALIGN_CENTER) return free_space * 0.5;
+  if (align == HANKA_ALIGN_END) return free_space;
+  return 0;
+}
+
 static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, double abs_y) {
-  double cx = abs_x + b->pad;
-  double cy = abs_y + b->pad;
+  double inner_w = b->w - 2 * b->pad;
+  double inner_h = b->h - 2 * b->pad;
+  for (size_t i = 0; i < b->len; ++i) {
+    if (b->children[i].kind == HANKA_CHILD_LEAF) hanka_resolve_leaf_size(&b->children[i].leaf);
+  }
+  if (b->axis == HANKA_STACK) {
+    for (size_t i = 0; i < b->len; ++i) {
+      HankaChild *ch = &b->children[i];
+      if (ch->kind == HANKA_CHILD_LEAF) {
+        HankaLeaf *leaf = &ch->leaf;
+        double lx = abs_x + (leaf->has_offset ? leaf->ox : b->pad);
+        double ly = abs_y + (leaf->has_offset ? leaf->oy : b->pad);
+        hanka_place_leaf(a, leaf, lx, ly);
+      } else if (ch->box) {
+        hanka_layout_box_at(a, ch->box, abs_x + ch->box->x, abs_y + ch->box->y);
+      }
+    }
+    return;
+  }
+
+  int row = b->axis == HANKA_ROW;
+  double main_total = 0;
+  for (size_t i = 0; i < b->len; ++i) {
+    main_total += hanka_child_main(&b->children[i], row);
+    if (i + 1 < b->len) main_total += b->gap;
+  }
+  double main_free = (row ? inner_w : inner_h) - main_total;
+  double main_off = hanka_align_offset(b->align, main_free);
+  double cx = abs_x + b->pad + (row ? main_off : 0);
+  double cy = abs_y + b->pad + (row ? 0 : main_off);
+
   for (size_t i = 0; i < b->len; ++i) {
     HankaChild *ch = &b->children[i];
+    double cross = hanka_child_cross(ch, row);
+    double cross_free = (row ? inner_h : inner_w) - cross;
+    double cross_off = hanka_align_offset(b->align, cross_free);
     if (ch->kind == HANKA_CHILD_LEAF) {
       HankaLeaf *leaf = &ch->leaf;
-      double lx, ly;
-      if (b->axis == HANKA_STACK) {
-        lx = abs_x + (leaf->has_offset ? leaf->ox : b->pad);
-        ly = abs_y + (leaf->has_offset ? leaf->oy : b->pad);
-      } else if (b->axis == HANKA_ROW) {
-        lx = cx;
-        ly = cy;
-        cx += leaf->w + b->gap;
-      } else {
-        lx = cx;
-        ly = cy;
-        cy += leaf->h + b->gap;
-      }
+      double lx = row ? cx : (cx + cross_off);
+      double ly = row ? (cy + cross_off) : cy;
       hanka_place_leaf(a, leaf, lx, ly);
+      if (row) cx += leaf->w + b->gap;
+      else cy += leaf->h + b->gap;
     } else if (ch->box) {
       HankaBox *child = ch->box;
-      double lx, ly;
-      if (b->axis == HANKA_STACK) {
-        lx = abs_x + child->x;
-        ly = abs_y + child->y;
-      } else if (b->axis == HANKA_ROW) {
-        lx = cx;
-        ly = cy;
-        cx += child->w + b->gap;
-      } else {
-        lx = cx;
-        ly = cy;
-        cy += child->h + b->gap;
-      }
+      double lx = row ? cx : (cx + cross_off);
+      double ly = row ? (cy + cross_off) : cy;
       hanka_layout_box_at(a, child, lx, ly);
+      if (row) cx += child->w + b->gap;
+      else cy += child->h + b->gap;
     }
   }
 }

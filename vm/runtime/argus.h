@@ -16,7 +16,10 @@ typedef enum ArgusKind {
   ARGUS_TEXT = 1,
   ARGUS_BUTTON = 2,
   ARGUS_IMAGE = 3,
-  ARGUS_INPUT = 4
+  ARGUS_INPUT = 4,
+  ARGUS_SELECT = 5,
+  ARGUS_TABLE = 6,
+  ARGUS_MODAL = 7
 } ArgusKind;
 
 typedef struct ArgusNode {
@@ -26,6 +29,8 @@ typedef struct ArgusNode {
   double opacity;
   LukeText text;
   LukeText src;
+  LukeText role;      /* a11y role override (empty = default) */
+  LukeText aria_label; /* a11y label */
   int input_type; /* 0 text, 1 password, 2 email */
   int dirty;
   int mounted;
@@ -57,6 +62,22 @@ __attribute__((import_module("lukejs"), import_name("argus_input"))) void
 argus_js_input_raw(const char *id, size_t id_len, const char *placeholder, size_t placeholder_len,
                    double input_type);
 
+__attribute__((import_module("lukejs"), import_name("argus_a11y"))) void
+argus_js_a11y_raw(const char *id, size_t id_len, const char *role, size_t role_len,
+                  const char *label, size_t label_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_select"))) void
+argus_js_select_raw(const char *id, size_t id_len, const char *options, size_t options_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_table"))) void
+argus_js_table_raw(const char *id, size_t id_len, const char *cells, size_t cells_len);
+
+__attribute__((import_module("lukejs"), import_name("measure_text"))) double
+luke_js_measure_text_raw(const char *text, size_t text_len);
+
+__attribute__((import_module("lukejs"), import_name("viewport_width"))) double
+luke_js_viewport_width_raw(void);
+
 __attribute__((import_module("lukejs"), import_name("argus_clear"))) void
 argus_js_clear_raw(void);
 
@@ -76,6 +97,19 @@ static inline void argus_js_image(LukeText id, LukeText src) {
 static inline void argus_js_input(LukeText id, LukeText placeholder, double input_type) {
   argus_js_input_raw(id.ptr, id.len, placeholder.ptr, placeholder.len, input_type);
 }
+static inline void argus_js_a11y(LukeText id, LukeText role, LukeText label) {
+  argus_js_a11y_raw(id.ptr, id.len, role.ptr, role.len, label.ptr, label.len);
+}
+static inline void argus_js_select(LukeText id, LukeText options) {
+  argus_js_select_raw(id.ptr, id.len, options.ptr, options.len);
+}
+static inline void argus_js_table(LukeText id, LukeText cells) {
+  argus_js_table_raw(id.ptr, id.len, cells.ptr, cells.len);
+}
+static inline double luke_js_measure_text(LukeText text) {
+  return luke_js_measure_text_raw(text.ptr, text.len);
+}
+static inline double luke_js_viewport_width(void) { return luke_js_viewport_width_raw(); }
 static inline void argus_js_clear(void) { argus_js_clear_raw(); }
 #else
 static inline void argus_js_upsert(LukeText id, double kind) {
@@ -104,6 +138,24 @@ static inline void argus_js_input(LukeText id, LukeText placeholder, double inpu
   (void)placeholder;
   (void)input_type;
 }
+static inline void argus_js_a11y(LukeText id, LukeText role, LukeText label) {
+  (void)id;
+  (void)role;
+  (void)label;
+}
+static inline void argus_js_select(LukeText id, LukeText options) {
+  (void)id;
+  (void)options;
+}
+static inline void argus_js_table(LukeText id, LukeText cells) {
+  (void)id;
+  (void)cells;
+}
+static inline double luke_js_measure_text(LukeText text) {
+  /* Native beachhead: ~8px per character */
+  return text.len ? (double)text.len * 8.0 : 0.0;
+}
+static inline double luke_js_viewport_width(void) { return 1280.0; }
 static inline void argus_js_clear(void) {}
 #endif
 
@@ -186,6 +238,23 @@ static inline void argus_set_opacity(ArgusNode *n, double opacity) {
   n->dirty = 1;
 }
 
+static inline void argus_set_a11y(ArgusNode *n, LukeText role, LukeText label) {
+  if (!n) return;
+  n->role = role;
+  n->aria_label = label;
+  n->dirty = 1;
+}
+
+static inline LukeText argus_default_role(ArgusKind kind) {
+  if (kind == ARGUS_BUTTON) return luke_text("button");
+  if (kind == ARGUS_INPUT) return luke_text("textbox");
+  if (kind == ARGUS_IMAGE) return luke_text("img");
+  if (kind == ARGUS_SELECT) return luke_text("listbox");
+  if (kind == ARGUS_TABLE) return luke_text("table");
+  if (kind == ARGUS_MODAL) return luke_text("dialog");
+  return luke_text("");
+}
+
 static inline void argus_paint(LukeArena *a) {
   ArgusTree *t = argus_tree(a);
   for (size_t i = 0; i < t->len; ++i) {
@@ -194,11 +263,17 @@ static inline void argus_paint(LukeArena *a) {
     LukeText id = luke_text(n->id);
     argus_js_upsert(id, (double)n->kind);
     argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
+    LukeText role = n->role.len ? n->role : argus_default_role(n->kind);
+    if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
     if (n->kind == ARGUS_IMAGE)
       argus_js_image(id, n->src);
     else if (n->kind == ARGUS_INPUT)
       argus_js_input(id, n->text, (double)n->input_type);
-    else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON)
+    else if (n->kind == ARGUS_SELECT)
+      argus_js_select(id, n->text);
+    else if (n->kind == ARGUS_TABLE)
+      argus_js_table(id, n->text);
+    else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON || n->kind == ARGUS_MODAL)
       argus_js_text(id, n->text);
     n->dirty = 0;
     n->mounted = 1;
@@ -253,6 +328,35 @@ static inline int argus_place_input(LukeArena *a, LukeText id, double x, double 
   n->input_type = (int)input_type;
   return 1;
 }
+
+static inline int argus_place_select(LukeArena *a, LukeText id, double x, double y, double w,
+                                     double h, LukeText options) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_SELECT);
+  argus_set_frame(n, x, y, w, h);
+  argus_set_text(n, options);
+  return 1;
+}
+
+static inline int argus_place_table(LukeArena *a, LukeText id, double x, double y, double w,
+                                    double h, LukeText cells) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_TABLE);
+  argus_set_frame(n, x, y, w, h);
+  argus_set_text(n, cells);
+  return 1;
+}
+
+static inline int argus_place_modal(LukeArena *a, LukeText id, double x, double y, double w,
+                                    double h, LukeText text) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_MODAL);
+  argus_set_frame(n, x, y, w, h);
+  argus_set_text(n, text);
+  argus_set_a11y(n, luke_text("dialog"), text);
+  return 1;
+}
+
+static inline double argus_measure_text(LukeText text) { return luke_js_measure_text(text); }
+
+static inline double argus_viewport_width(void) { return luke_js_viewport_width(); }
 
 #ifdef __cplusplus
 }

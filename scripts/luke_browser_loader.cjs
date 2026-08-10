@@ -301,7 +301,11 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) {
         var k = kind | 0;
-        var tag = k === 2 ? "button" : k === 4 ? "input" : "div";
+        var tag = "div";
+        if (k === 2) tag = "button";
+        else if (k === 4) tag = "input";
+        else if (k === 5) tag = "select";
+        else if (k === 6) tag = "table";
         el = document.createElement(tag);
         el.id = id;
         el.setAttribute("data-argus-node", String(k));
@@ -318,12 +322,29 @@ function createLukeJs(getMemory, opts) {
           el.style.backgroundSize = "cover";
           el.style.backgroundPosition = "center";
           el.style.backgroundRepeat = "no-repeat";
+          el.setAttribute("role", "img");
         }
         if (k === 4) {
           el.type = "text";
           el.style.font = "inherit";
           el.style.padding = "0 12px";
           el.setAttribute("data-argus-input", "1");
+        }
+        if (k === 5) {
+          el.style.font = "inherit";
+          el.style.padding = "0 8px";
+        }
+        if (k === 6) {
+          el.style.borderCollapse = "collapse";
+          el.style.background = "transparent";
+          el.style.color = "inherit";
+        }
+        if (k === 7) {
+          el.setAttribute("role", "dialog");
+          el.setAttribute("aria-modal", "true");
+          el.style.background = "rgba(16,24,32,0.96)";
+          el.style.padding = "16px";
+          el.style.zIndex = "1000";
         }
         root.appendChild(el);
       }
@@ -363,6 +384,7 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) return;
       el.style.backgroundImage = src ? 'url("' + src.replace(/"/g, '\\"') + '")' : "";
+      if (src) el.setAttribute("aria-label", src);
     },
     argus_input: function (idPtr, idLen, phPtr, phLen, inputType) {
       const id = readText(idPtr, idLen);
@@ -377,6 +399,79 @@ function createLukeJs(getMemory, opts) {
       if (!el) return;
       el.type = type;
       el.placeholder = ph;
+      if (ph) el.setAttribute("aria-label", ph);
+    },
+    argus_a11y: function (idPtr, idLen, rolePtr, roleLen, labelPtr, labelLen) {
+      const id = readText(idPtr, idLen);
+      const role = readText(rolePtr, roleLen);
+      const label = readText(labelPtr, labelLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_a11y]", id, role, label);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (role) el.setAttribute("role", role);
+      if (label) el.setAttribute("aria-label", label);
+      if (role === "dialog") el.setAttribute("aria-modal", "true");
+    },
+    argus_select: function (idPtr, idLen, optPtr, optLen) {
+      const id = readText(idPtr, idLen);
+      const options = readText(optPtr, optLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_select]", id, options);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = "";
+      var parts = options.split("|");
+      for (var i = 0; i < parts.length; i++) {
+        var o = document.createElement("option");
+        o.value = parts[i];
+        o.textContent = parts[i];
+        el.appendChild(o);
+      }
+    },
+    argus_table: function (idPtr, idLen, cellPtr, cellLen) {
+      const id = readText(idPtr, idLen);
+      const cells = readText(cellPtr, cellLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_table]", id, cells);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = "";
+      var rows = cells.split(";");
+      for (var r = 0; r < rows.length; r++) {
+        if (!rows[r]) continue;
+        var tr = document.createElement("tr");
+        var cols = rows[r].split("|");
+        for (var c = 0; c < cols.length; c++) {
+          var cell = document.createElement(r === 0 ? "th" : "td");
+          cell.textContent = cols[c];
+          cell.style.padding = "6px 10px";
+          cell.style.borderBottom = "1px solid rgba(255,255,255,0.12)";
+          tr.appendChild(cell);
+        }
+        el.appendChild(tr);
+      }
+    },
+    measure_text: function (textPtr, textLen) {
+      const text = readText(textPtr, textLen);
+      if (typeof document === "undefined") return text.length * 8;
+      if (!measure_text._canvas) {
+        measure_text._canvas = document.createElement("canvas");
+        measure_text._ctx = measure_text._canvas.getContext("2d");
+      }
+      var ctx = measure_text._ctx;
+      ctx.font = "16px sans-serif";
+      return ctx.measureText(text || "").width || 0;
+    },
+    viewport_width: function () {
+      if (typeof window === "undefined") return 1280;
+      return window.innerWidth || 1280;
     },
   };
 }

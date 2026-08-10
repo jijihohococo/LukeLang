@@ -463,6 +463,7 @@ Expr BC::primary(std::string e, size_t line) {
         return mapCall("hanka_begin_column", Ty::flag(), true);
       if (callee == "__hanka_begin_row") return mapCall("hanka_begin_row", Ty::flag(), true);
       if (callee == "__hanka_begin_stack") return mapCall("hanka_begin_stack", Ty::flag(), true);
+      if (callee == "__hanka_set_align") return mapCall("hanka_set_align", Ty::flag(), true);
       if (callee == "__hanka_slot_text") return mapCall("hanka_slot_text", Ty::flag(), true);
       if (callee == "__hanka_slot_button") return mapCall("hanka_slot_button", Ty::flag(), true);
       if (callee == "__hanka_slot_image") return mapCall("hanka_slot_image", Ty::flag(), true);
@@ -547,6 +548,17 @@ Expr BC::primary(std::string e, size_t line) {
 Expr BC::expr(std::string e, size_t line) {
   e = trim(e);
   if (e.empty()) return {"0", Ty::num()};
+
+  {
+    auto U0 = toUpper(e);
+    if (U0 == "THE VIEWPORT WIDTH" || U0 == "THE WINDOW WIDTH")
+      return {"argus_viewport_width()", Ty::num()};
+  }
+  if (startsWithCI(e, "THE TEXT WIDTH OF ") || startsWithCI(e, "THE MEASURED WIDTH OF ")) {
+    size_t prefix = startsWithCI(e, "THE TEXT WIDTH OF ") ? 18 : 22;
+    auto t = coerceText(expr(trim(e.substr(prefix)), line));
+    return {"argus_measure_text(" + t.code + ")", Ty::num()};
+  }
 
   if (startsWithCI(e, "THE VALUE OF ")) {
     auto id = coerceText(expr(trim(e.substr(13)), line));
@@ -1406,29 +1418,48 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
     if (atPos == std::string::npos || sizePos == std::string::npos || atPos > sizePos) {
-      bc.fail(line, "BEGIN " + axis + " needs AT x, y SIZE w, h [PAD n] [GAP n]");
+      bc.fail(line, "BEGIN " + axis + " needs AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START|CENTER|END]");
       return;
     }
     auto atPart = trim(rest.substr(atPos + atLen, sizePos - (atPos + atLen)));
     auto afterSize = trim(rest.substr(sizePos + 6));
     auto padPos = findOutsideQuotes(afterSize, toUpper(afterSize), " PAD ");
     auto gapPos = findOutsideQuotes(afterSize, toUpper(afterSize), " GAP ");
+    auto alignPos = findOutsideQuotes(afterSize, toUpper(afterSize), " ALIGN ");
     std::string sizePart = afterSize;
     std::string padRaw = "0";
     std::string gapRaw = "0";
+    int alignVal = 0; /* start */
     size_t cut = afterSize.size();
     if (padPos != std::string::npos) cut = padPos;
     if (gapPos != std::string::npos && gapPos < cut) cut = gapPos;
+    if (alignPos != std::string::npos && alignPos < cut) cut = alignPos;
     sizePart = trim(afterSize.substr(0, cut));
     if (padPos != std::string::npos) {
       size_t padEnd = afterSize.size();
       if (gapPos != std::string::npos && gapPos > padPos) padEnd = gapPos;
+      if (alignPos != std::string::npos && alignPos > padPos && alignPos < padEnd) padEnd = alignPos;
       padRaw = trim(afterSize.substr(padPos + 5, padEnd - (padPos + 5)));
     }
     if (gapPos != std::string::npos) {
       size_t gapEnd = afterSize.size();
       if (padPos != std::string::npos && padPos > gapPos) gapEnd = padPos;
+      if (alignPos != std::string::npos && alignPos > gapPos && alignPos < gapEnd) gapEnd = alignPos;
       gapRaw = trim(afterSize.substr(gapPos + 5, gapEnd - (gapPos + 5)));
+    }
+    if (alignPos != std::string::npos) {
+      size_t alignEnd = afterSize.size();
+      if (padPos != std::string::npos && padPos > alignPos) alignEnd = padPos;
+      if (gapPos != std::string::npos && gapPos > alignPos && gapPos < alignEnd) alignEnd = gapPos;
+      auto alignTok = toUpper(trim(afterSize.substr(alignPos + 7, alignEnd - (alignPos + 7))));
+      if (alignTok == "CENTER" || alignTok == "MIDDLE") alignVal = 1;
+      else if (alignTok == "END" || alignTok == "RIGHT" || alignTok == "BOTTOM") alignVal = 2;
+      else if (alignTok == "START" || alignTok == "LEFT" || alignTok == "TOP" || alignTok.empty())
+        alignVal = 0;
+      else {
+        bc.fail(line, "ALIGN needs START, CENTER, or END — got " + alignTok);
+        return;
+      }
     }
     auto commaAt = findOutsideQuotes(atPart, toUpper(atPart), ",");
     auto commaSz = findOutsideQuotes(sizePart, toUpper(sizePart), ",");
@@ -1453,6 +1484,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
                                         : "hanka_begin_stack";
     o << "  " << fn << "(arena, " << x.code << ", " << y.code << ", " << w.code << ", " << h.code
       << ", " << pad.code << ", " << gap.code << ");\n";
+    if (alignVal != 0) o << "  hanka_set_align(arena, " << alignVal << ");\n";
     bc.hankaStack.push_back(axis);
     return;
   }
@@ -1477,7 +1509,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto U = toUpper(rest);
     auto kindEnd = rest.find(' ');
     if (kindEnd == std::string::npos) {
-      bc.fail(line, "SLOT needs TEXT|BUTTON|IMAGE|BOX|INPUT \"id\" …");
+      bc.fail(line, "SLOT needs TEXT|BUTTON|IMAGE|BOX|INPUT|SELECT|TABLE|MODAL \"id\" …");
       return;
     }
     auto kindRaw = toUpper(trim(rest.substr(0, kindEnd)));
@@ -1486,7 +1518,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto atPos = findOutsideQuotes(rest, U, " AT ");
     auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
     if (sizePos == std::string::npos) {
-      bc.fail(line, "SLOT needs SIZE w, h");
+      bc.fail(line, "SLOT needs SIZE w, h (use AUTO for measured text width)");
       return;
     }
     std::string idPart;
@@ -1548,8 +1580,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "SLOT SIZE needs w, h");
       return;
     }
-    auto w = bc.expr(trim(sizePart.substr(0, commaSz)), line);
-    auto h = bc.expr(trim(sizePart.substr(commaSz + 1)), line);
+    auto wRaw = trim(sizePart.substr(0, commaSz));
+    auto hRaw = trim(sizePart.substr(commaSz + 1));
+    Expr w = toUpper(wRaw) == "AUTO" ? Expr{"-1.0", Ty::num()} : bc.expr(wRaw, line);
+    Expr h = toUpper(hRaw) == "AUTO" ? Expr{"-1.0", Ty::num()} : bc.expr(hRaw, line);
     bc.expectTy(line, w.ty, Ty::num(), "SLOT SIZE w");
     bc.expectTy(line, h.ty, Ty::num(), "SLOT SIZE h");
     Expr ox{"0", Ty::num()}, oy{"0", Ty::num()};
@@ -1602,8 +1636,21 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       else
         o << "  hanka_slot_input(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
           << t.code << ", " << inputType << ");\n";
+    } else if (kindRaw == "SELECT" || kindRaw == "DROPDOWN") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  hanka_slot_select(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+        << t.code << ");\n";
+    } else if (kindRaw == "TABLE") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  hanka_slot_table(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+        << t.code << ");\n";
+    } else if (kindRaw == "MODAL" || kindRaw == "DIALOG") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  hanka_slot_modal(arena, " << idE.code << ", " << w.code << ", " << h.code << ", "
+        << t.code << ");\n";
     } else {
-      bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, BOX, or INPUT — got " + kindRaw);
+      bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, BOX, INPUT, SELECT, TABLE, or MODAL — got " +
+                         kindRaw);
     }
     return;
   }
@@ -1626,7 +1673,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
     if (asPos == std::string::npos || atPos == std::string::npos || sizePos == std::string::npos ||
         !(asPos < atPos && atPos < sizePos)) {
-      bc.fail(line, "PLACE needs: PLACE \"id\" AS TEXT|BUTTON|IMAGE|BOX|INPUT AT x, y SIZE w, h …");
+      bc.fail(line,
+              "PLACE needs: PLACE \"id\" AS TEXT|BUTTON|IMAGE|BOX|INPUT|SELECT|TABLE|MODAL AT x, y "
+              "SIZE w, h …");
       return;
     }
     auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, asPos)), line));
@@ -1669,16 +1718,25 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     auto x = bc.expr(trim(atPart.substr(0, commaAt)), line);
     auto y = bc.expr(trim(atPart.substr(commaAt + 1)), line);
-    auto w = bc.expr(trim(sizePart.substr(0, commaSz)), line);
-    auto h = bc.expr(trim(sizePart.substr(commaSz + 1)), line);
+    auto wRaw = trim(sizePart.substr(0, commaSz));
+    auto hRaw = trim(sizePart.substr(commaSz + 1));
+    Expr w = toUpper(wRaw) == "AUTO" ? Expr{"-1.0", Ty::num()} : bc.expr(wRaw, line);
+    Expr h = toUpper(hRaw) == "AUTO" ? Expr{"-1.0", Ty::num()} : bc.expr(hRaw, line);
+    if (toUpper(wRaw) == "AUTO" && (kindRaw == "TEXT" || kindRaw == "BUTTON" || kindRaw == "MODAL")) {
+      /* resolve at place-time via measure when trail known — use sentinel; paint path measures */
+    }
     bc.expectTy(line, x.ty, Ty::num(), "PLACE AT x");
     bc.expectTy(line, y.ty, Ty::num(), "PLACE AT y");
     bc.expectTy(line, w.ty, Ty::num(), "PLACE SIZE w");
     bc.expectTy(line, h.ty, Ty::num(), "PLACE SIZE h");
     if (kindRaw == "TEXT") {
       auto t = bc.coerceText(bc.expr(trail, line));
-      o << "  argus_place_text(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
-        << w.code << ", " << h.code << ", " << t.code << ");\n";
+      if (toUpper(wRaw) == "AUTO")
+        o << "  argus_place_text(arena, " << idE.code << ", " << x.code << ", " << y.code
+          << ", argus_measure_text(" << t.code << "), " << h.code << ", " << t.code << ");\n";
+      else
+        o << "  argus_place_text(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+          << w.code << ", " << h.code << ", " << t.code << ");\n";
     } else if (kindRaw == "BUTTON") {
       auto t = bc.coerceText(bc.expr(trail, line));
       o << "  argus_place_button(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
@@ -1694,8 +1752,21 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
       o << "  argus_place_input(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
         << w.code << ", " << h.code << ", " << t.code << ", " << inputType << ");\n";
+    } else if (kindRaw == "SELECT" || kindRaw == "DROPDOWN") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  argus_place_select(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
+    } else if (kindRaw == "TABLE") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  argus_place_table(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
+    } else if (kindRaw == "MODAL" || kindRaw == "DIALOG") {
+      auto t = bc.coerceText(bc.expr(trail.empty() ? "\"\"" : trail, line));
+      o << "  argus_place_modal(arena, " << idE.code << ", " << x.code << ", " << y.code << ", "
+        << w.code << ", " << h.code << ", " << t.code << ");\n";
     } else {
-      bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, BOX, or INPUT — got " + kindRaw);
+      bc.fail(line, "PLACE AS needs TEXT, BUTTON, IMAGE, BOX, INPUT, SELECT, TABLE, or MODAL — got " +
+                         kindRaw);
     }
     return;
   }

@@ -732,6 +732,37 @@ Expr BC::expr(std::string e, size_t line) {
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->region_layouts : 0.0)", Ty::num()};
     if (U0 == "THE SUBTREE INVALID COUNT" || U0 == "THE SUBTREE INVALIDATIONS")
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->subtree_invals : 0.0)", Ty::num()};
+    if (U0 == "THE ALIVE NODE COUNT" || U0 == "THE LIVE NODE COUNT")
+      return {"(double)luke_rx_alive_count(" + rxGraphVar + ")", Ty::num()};
+    if (U0 == "THE DEAD NODE COUNT")
+      return {"(double)luke_rx_dead_count(" + rxGraphVar + ")", Ty::num()};
+    if (U0 == "THE DISPOSED COUNT" || U0 == "THE DISPOSED NODE COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->disposed_count : 0.0)", Ty::num()};
+    if (U0 == "THE LEAK EDGE COUNT" || U0 == "THE LEAK COUNT") {
+      usesRx = true;
+      return {"(double)((" + rxGraphVar + " ? luke_rx_audit_graph(" + rxGraphVar + ") : 0), "
+              + rxGraphVar + " ? (double)" + rxGraphVar + "->last_leak_edges : 0.0)",
+              Ty::num()};
+    }
+    if (U0 == "THE WEAK READ COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->weak_read_count : 0.0)", Ty::num()};
+  }
+
+  if (startsWithCI(e, "THE WEAK VALUE OF ")) {
+    usesRx = true;
+    auto inner = trim(e.substr(18));
+    auto pe = primary(inner, line);
+    std::string w = pe.code;
+    for (size_t pos = 0; (pos = w.find("luke_rx_read_num(", pos)) != std::string::npos;) {
+      w.replace(pos, 17, "luke_rx_read_num_weak(");
+      pos += 22;
+    }
+    for (size_t pos = 0; (pos = w.find("luke_rx_read_text(", pos)) != std::string::npos;) {
+      w.replace(pos, 18, "luke_rx_read_text_weak(");
+      pos += 23;
+    }
+    pe.code = w;
+    return pe;
   }
 
   if (startsWithCI(e, "THE VALUE OF ")) {
@@ -1294,6 +1325,11 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
+  if (toUpper(text) == "AUDIT REACTIVE" || toUpper(text) == "AUDIT THE REACTIVE GRAPH") {
+    bc.usesRx = true;
+    o << "  luke_rx_audit_graph(_luke_rx);\n";
+    return;
+  }
   if (toUpper(text) == "PAINT DIRTY" || toUpper(text) == "PAINT THE DIRTY NODES") {
     o << "  argus_paint(arena);\n";
     return;
@@ -1587,6 +1623,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
   if (startsWithCI(text, "THE ") && !startsWithCI(text, "THE VALUE OF ") &&
+      !startsWithCI(text, "THE WEAK VALUE OF ") &&
       !startsWithCI(text, "THE BODY OF ") && !startsWithCI(text, "THE STATUS OF ")) {
     auto rest = trim(text.substr(4));
     auto U = toUpper(rest);

@@ -193,6 +193,17 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/reactive_conformance_subtree.luke -o build/ex_rx_conf_subtree
 	./build/ex_rx_conf_subtree | grep -q "subtree=1"
 	./build/ex_rx_conf_subtree | grep -q "after=100"
+	./build/luke BUILD ../examples/build/reactive_conformance_memory.luke -o build/ex_rx_conf_mem
+	./build/ex_rx_conf_mem | grep -q "alive=2"
+	./build/ex_rx_conf_mem | grep -q "disposed=2"
+	./build/ex_rx_conf_mem | grep -q "dead=2"
+	./build/ex_rx_conf_mem | grep -q "leaks=0"
+	./build/ex_rx_conf_mem | grep -q "count=0"
+	./build/luke BUILD ../examples/build/reactive_conformance_weak.luke -o build/ex_rx_conf_weak
+	./build/ex_rx_conf_weak | grep -q "snap0=10"
+	./build/ex_rx_conf_weak | grep -q "snap=10"
+	./build/ex_rx_conf_weak | grep -q "live=15"
+	./build/ex_rx_conf_weak | grep -q "weak_reads=1"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

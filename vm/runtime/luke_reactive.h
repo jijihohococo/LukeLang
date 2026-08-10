@@ -121,6 +121,11 @@ struct LukeRxGraph {
   int region_layouts;
   int subtree_invals;
   int last_region_paints_turn;
+  /* Phase 12 — Memory management */
+  int alive_count;      /* last audit: live nodes */
+  int dead_count;       /* last audit: disposed nodes in graph */
+  int last_leak_edges;  /* alive nodes with deps on dead nodes */
+  int weak_read_count;  /* cumulative weak reads (no dep edge) */
   /* Phase 6 — timelines */
 #define LUKE_RX_MAX_TIMELINES 16
   struct {
@@ -706,6 +711,35 @@ static inline double luke_rx_read_num(LukeRxGraph *g, LukeRxId id) {
   return n ? n->num : 0.0;
 }
 
+/* Weak read — observe value without registering a dependency edge. */
+static inline double luke_rx_read_num_weak(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return 0.0;
+  if (g->computing) g->weak_read_count++;
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
+  n = luke_rx_node(g, id);
+  return n ? n->num : 0.0;
+}
+
+static inline LukeText luke_rx_read_text_weak(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return luke_text("");
+  if (g->computing) g->weak_read_count++;
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
+  n = luke_rx_node(g, id);
+  if (!n) return luke_text("");
+  if (n->vkind == LUKE_RX_VAL_TEXT) return n->text;
+  if (g->arena) {
+    char buf[64];
+    int k = snprintf(buf, sizeof(buf), "%.10g", n->num);
+    if (k < 0) k = 0;
+    char *p = (char *)luke_arena_alloc(g->arena, (size_t)k + 1, 1);
+    memcpy(p, buf, (size_t)k + 1);
+    return luke_text_n(p, (size_t)k);
+  }
+  return luke_text("");
+}
+
 static inline LukeText luke_rx_read_text(LukeRxGraph *g, LukeRxId id) {
   LukeRxNode *n = luke_rx_node(g, id);
   if (!n) return luke_text("");
@@ -741,6 +775,71 @@ static inline int luke_rx_is_dirty(LukeRxGraph *g, LukeRxId id) {
 
 static inline int luke_rx_is_alive(LukeRxGraph *g, LukeRxId id) {
   return luke_rx_node(g, id) != NULL;
+}
+
+static inline int luke_rx_alive_count(LukeRxGraph *g) {
+  if (!g) return 0;
+  int n = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id)
+    if (luke_rx_node(g, id)) n++;
+  return n;
+}
+
+static inline int luke_rx_dead_count(LukeRxGraph *g) {
+  if (!g) return 0;
+  int n = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *raw = luke_rx_node_raw(g, id);
+    if (raw && raw->dead) n++;
+  }
+  return n;
+}
+
+/* Remove dependency edges from alive nodes to dead nodes. */
+static inline int luke_rx_repair_leaks(LukeRxGraph *g) {
+  if (!g) return 0;
+  int fixed = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *n = luke_rx_node(g, id);
+    if (!n) continue;
+    for (size_t i = 0; i < n->dep_len;) {
+      LukeRxNode *d = luke_rx_node_raw(g, n->deps[i]);
+      if (d && !d->dead) {
+        i++;
+        continue;
+      }
+      LukeRxId dead_id = n->deps[i];
+      luke_rx_remove_id(n->deps, &n->dep_len, dead_id);
+      LukeRxNode *dr = luke_rx_node_raw(g, dead_id);
+      if (dr) luke_rx_remove_id(dr->subs, &dr->sub_len, id);
+      fixed++;
+    }
+  }
+  return fixed;
+}
+
+/* Scan graph for stale edges; repair and refresh memory counters. */
+static inline int luke_rx_audit_graph(LukeRxGraph *g) {
+  if (!g) return 0;
+  int leaks = 0;
+  g->alive_count = 0;
+  g->dead_count = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+    LukeRxNode *raw = luke_rx_node_raw(g, id);
+    if (!raw || raw->id == 0) continue;
+    if (raw->dead) {
+      g->dead_count++;
+      continue;
+    }
+    g->alive_count++;
+    for (size_t d = 0; d < raw->dep_len; ++d) {
+      LukeRxNode *dn = luke_rx_node_raw(g, raw->deps[d]);
+      if (!dn || dn->dead) leaks++;
+    }
+  }
+  g->last_leak_edges = leaks;
+  if (leaks > 0) luke_rx_repair_leaks(g);
+  return leaks;
 }
 
 static inline void luke_rx_dispose_node(LukeRxGraph *g, LukeRxId id) {
@@ -846,6 +945,7 @@ static inline int luke_rx_scope_end(LukeRxGraph *g, const char *name) {
     luke_rx_dispose_node(g, s->owned[i]);
   s->owned_len = 0;
   s->open = 0;
+  luke_rx_audit_graph(g);
   /* Restore active_scope to nearest still-open frame. */
   g->active_scope = 0;
   for (size_t i = g->scope_len; i > 0; --i) {

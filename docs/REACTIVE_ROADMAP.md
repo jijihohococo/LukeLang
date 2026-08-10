@@ -14,8 +14,8 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 |---|------|----------------|--------|
 | 1 | **Reactive correctness** | Stale dep cleanup, deterministic order, cycle spec, nested rules | 🟡 v0.1 |
 | 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 |
-| 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 started |
-| 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ⬜ |
+| 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 |
+| 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | 🟡 v0.4 started |
 | 5 | **Error system** | Isolation, async failure, boundaries, retry | ⬜ |
 | 6 | **DevTools** | Live graph, why changed/repaint, timelines | ⬜ |
 | 7 | **Time-travel** | Snapshots, replay, deterministic replay | ⬜ |
@@ -56,7 +56,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone C — Granularity *(current)*
+## Milestone C — Granularity
 
 - [x] Argus region paint (`argus_paint_one`, `THE REGION PAINT COUNT`)
 - [x] Hanka partial relayout (`hanka_layout_dirty`, `hanka_mark_region`)
@@ -64,6 +64,18 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 - [x] `reactive_conformance_subtree.luke`
 - [ ] Field-level object tracking
 - [ ] Paint/layout dirty rects (spatial index)
+
+---
+
+## Milestone E — Memory management *(current)*
+
+- [x] Dead node disposal + `THE DISPOSED COUNT`
+- [x] Graph audit + leak edge repair (`luke_rx_audit_graph`, `THE LEAK EDGE COUNT`)
+- [x] Alive/dead counters (`THE ALIVE NODE COUNT`, `THE DEAD NODE COUNT`)
+- [x] Weak reads (`THE WEAK VALUE OF`, `THE WEAK READ COUNT`)
+- [x] `AUDIT REACTIVE` statement
+- [x] Conformance: `reactive_conformance_{memory,weak}.luke`
+- [ ] Weak effect refs / auto scope GC for unmounted UI
 
 ---
 

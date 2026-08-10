@@ -478,7 +478,7 @@ Priority lanes, dirty dedup, nested flush coalescing, timeline export.
 - Scheduler timeline counters (`THE SCHEDULER STEP COUNT`, `THE SCHEDULER UI BEFORE BACKGROUND`)
 - Conformance: `reactive_conformance_{priority,nested,dedup}.luke`
 
-### Phase 11 — Granularity *(in progress)*
+### Phase 11 — Granularity *(shipped v0.3)*
 
 Partial layout/paint and component subtree invalidation.
 
@@ -489,6 +489,18 @@ Partial layout/paint and component subtree invalidation.
 - Component subtree invalidation (`THE SUBTREE INVALID COUNT`)
 - Introspection: `THE REGION PAINT COUNT`, `THE REGION LAYOUT COUNT`
 - Conformance: `reactive_conformance_subtree.luke`
+
+### Phase 12 — Memory *(in progress)*
+
+Dead nodes, weak reads, leak audit.
+
+**Deliverables**
+
+- `luke_rx_audit_graph` + leak edge repair
+- Weak reads: `THE WEAK VALUE OF x` (no dependency edge)
+- Introspection: `THE ALIVE NODE COUNT`, `THE DEAD NODE COUNT`, `THE DISPOSED COUNT`, `THE LEAK EDGE COUNT`
+- `AUDIT REACTIVE` statement
+- Conformance: `reactive_conformance_{memory,weak}.luke`
 
 ---
 

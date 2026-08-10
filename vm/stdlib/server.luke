@@ -20,6 +20,10 @@ THIS IS FUNCTION httpSseData WITH req AS REQUEST, data AS TEXT GIVES BACK FLAG D
   GIVE BACK __luke_http_sse_data(req, data)
 END FUNCTION
 
+THIS IS FUNCTION httpSseComment WITH req AS REQUEST, comment AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_comment(req, comment)
+END FUNCTION
+
 THIS IS FUNCTION httpClose WITH req AS REQUEST GIVES BACK FLAG DO
   GIVE BACK __luke_http_close(req)
 END FUNCTION

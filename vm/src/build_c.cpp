@@ -1,6 +1,7 @@
 #include "luke/build.hpp"
 
 #include <cctype>
+#include <cerrno>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
@@ -381,7 +382,7 @@ struct BC {
     if (want.k == K::Num && e.ty.k == K::Int)
       return {"((double)(" + e.code + "))", Ty::num()};
     if (want.k == K::Int && e.ty.k == K::Num)
-      return {"((int64_t)(" + e.code + "))", Ty::integer()};
+      return {"luke_number_to_integer(" + e.code + ")", Ty::integer()};
     Expr out = e;
     if (want.k != K::Void) out.ty = want;
     return out;
@@ -532,6 +533,8 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_reply") return mapCall("luke_http_reply", Ty::flag(), false);
       if (callee == "__luke_http_sse_open") return mapCall("luke_http_sse_open", Ty::flag(), false);
       if (callee == "__luke_http_sse_data") return mapCall("luke_http_sse_data", Ty::flag(), false);
+      if (callee == "__luke_http_sse_comment")
+        return mapCall("luke_http_sse_comment", Ty::flag(), false);
       if (callee == "__luke_http_close") return mapCall("luke_http_close", Ty::flag(), false);
       if (callee == "__luke_http_path") return mapCall("luke_http_path", Ty::text(), false);
       if (callee == "__luke_http_method") return mapCall("luke_http_method", Ty::text(), false);
@@ -658,7 +661,16 @@ Expr BC::primary(std::string e, size_t line) {
     for (char c : e) {
       if (c == '.' || c == 'e' || c == 'E') { isIntLit = false; break; }
     }
-    if (isIntLit) return {e + "LL", Ty::integer()};
+    if (isIntLit) {
+      errno = 0;
+      long long v = std::strtoll(e.c_str(), &end, 10);
+      if (errno == ERANGE || !end || *end != '\0') {
+        fail(line, "INTEGER literal '" + e + "' is outside int64 range");
+        return {"0LL", Ty::integer()};
+      }
+      (void)v;
+      return {e + "LL", Ty::integer()};
+    }
     return {e, Ty::num()};
   }
 
@@ -1219,7 +1231,16 @@ Expr BC::expr(std::string e, size_t line) {
         return &r;
       }
       if (L.ty.k == K::Int && R.ty.k == K::Int) {
-        r = {"(" + L.code + op + R.code + ")", Ty::integer()};
+        const char *fn = op == '+'   ? "luke_i64_add"
+                         : op == '-' ? "luke_i64_sub"
+                         : op == '*' ? "luke_i64_mul"
+                                     : nullptr;
+        if (!fn) {
+          fail(line, "INTEGER arithmetic only supports ADD, SUBTRACT, MULTIPLY");
+          r = {"0LL", Ty::integer()};
+          return &r;
+        }
+        r = {std::string(fn) + "(" + L.code + ", " + R.code + ")", Ty::integer()};
         return &r;
       }
       Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
@@ -1255,7 +1276,7 @@ Expr BC::expr(std::string e, size_t line) {
         return {"0", Ty::num()};
       }
       if (L.ty.k == K::Int && R.ty.k == K::Int)
-        return {"(" + L.code + "*" + R.code + ")", Ty::integer()};
+        return {"luke_i64_mul(" + L.code + ", " + R.code + ")", Ty::integer()};
       Expr Lc = L.ty.k == K::Int ? Expr{"((double)(" + L.code + "))", Ty::num()} : L;
       Expr Rc = R.ty.k == K::Int ? Expr{"((double)(" + R.code + "))", Ty::num()} : R;
       return {"(" + Lc.code + "*" + Rc.code + ")", Ty::num()};
@@ -1563,10 +1584,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     bc.usesRx = true;
     if (want.k == K::Int) {
-      Expr amt = e.ty.k == K::Num ? Expr{"((int64_t)(" + e.code + "))", Ty::integer()} : e;
+      Expr amt = e.ty.k == K::Num ? Expr{"luke_number_to_integer(" + e.code + ")", Ty::integer()} : e;
       o << "  luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(name)
-        << ", luke_rx_read_int(_luke_rx, _luke_rx_id_" << cIdent(name) << ") + (" << amt.code
-        << "));\n";
+        << ", luke_i64_add(luke_rx_read_int(_luke_rx, _luke_rx_id_" << cIdent(name) << "), ("
+        << amt.code << ")));\n";
     } else {
       Expr amt = e.ty.k == K::Int ? Expr{"((double)(" + e.code + "))", Ty::num()} : e;
       o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(name)

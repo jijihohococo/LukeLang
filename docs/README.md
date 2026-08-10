@@ -19,6 +19,7 @@ LukeLang uses verbose, human-readable syntax. The language of record is **Build*
 4.  **[Advanced Topics](./advanced_topics.md)**
 5.  **Engine track**
     *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
+    *   [INTEGER](./INTEGER.md) — exact int64 rules (overflow, mix, division)
     *   [Frontend Roadmap](./FRONTEND_ROADMAP.md) — Hanka / Argus / publish
     *   [Reactive](./REACTIVE.md) — language understands change
     *   [Reactive Spec v0.1](./REACTIVE_SPEC.md) — normative scheduler contract

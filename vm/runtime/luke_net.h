@@ -64,6 +64,12 @@ static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
   return 0;
 }
 
+static inline int luke_http_sse_comment(LukeHttpRequest *req, LukeText comment) {
+  (void)req;
+  (void)comment;
+  return 0;
+}
+
 static inline int luke_http_close(LukeHttpRequest *req) {
   (void)req;
   return 0;
@@ -321,10 +327,14 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
 
 /* ---------- SSE (Server-Sent Events) — keep connection open ---------- */
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
 static inline int luke_http__send_all(int fd, const char *buf, size_t len) {
   size_t sent = 0;
   while (sent < len) {
-    ssize_t n = send(fd, buf + sent, len - sent, 0);
+    ssize_t n = send(fd, buf + sent, len - sent, MSG_NOSIGNAL);
     if (n <= 0) return 0;
     sent += (size_t)n;
   }
@@ -344,6 +354,12 @@ static inline int luke_http_sse_open(LukeHttpRequest *req) {
     req->client_fd = -1;
     return 0;
   }
+  /* Opening comment — keeps intermediaries from buffering an empty stream. */
+  if (!luke_http__send_all(req->client_fd, ": luke-sse\n\n", 12)) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
+  }
   return 1;
 }
 
@@ -351,7 +367,38 @@ static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
   if (!req || req->client_fd < 0) return 0;
   if (!luke_http__send_all(req->client_fd, "data: ", 6)) goto fail;
   if (data.len && data.ptr) {
-    if (!luke_http__send_all(req->client_fd, data.ptr, data.len)) goto fail;
+    /* Split embedded newlines into multiple SSE data lines. */
+    size_t i = 0;
+    while (i < data.len) {
+      size_t j = i;
+      while (j < data.len && data.ptr[j] != '\n' && data.ptr[j] != '\r') ++j;
+      if (j > i) {
+        if (!luke_http__send_all(req->client_fd, data.ptr + i, j - i)) goto fail;
+      }
+      i = j;
+      if (i < data.len && data.ptr[i] == '\r') ++i;
+      if (i < data.len && data.ptr[i] == '\n') {
+        ++i;
+        if (i < data.len) {
+          if (!luke_http__send_all(req->client_fd, "\ndata: ", 7)) goto fail;
+        }
+      }
+    }
+  }
+  if (!luke_http__send_all(req->client_fd, "\n\n", 2)) goto fail;
+  return 1;
+fail:
+  close(req->client_fd);
+  req->client_fd = -1;
+  return 0;
+}
+
+/* SSE comment / heartbeat — ignored by EventSource onmessage, keeps connection warm. */
+static inline int luke_http_sse_comment(LukeHttpRequest *req, LukeText comment) {
+  if (!req || req->client_fd < 0) return 0;
+  if (!luke_http__send_all(req->client_fd, ": ", 2)) goto fail;
+  if (comment.len && comment.ptr) {
+    if (!luke_http__send_all(req->client_fd, comment.ptr, comment.len)) goto fail;
   }
   if (!luke_http__send_all(req->client_fd, "\n\n", 2)) goto fail;
   return 1;
@@ -396,8 +443,10 @@ static inline void *luke_http__serve_worker(void *arg) {
 }
 
 /* Accept up to max_conn connections (max_conn<=0 → forever until accept fails).
- * Each connection runs `handler` on its own thread with a private arena.
- * When max_conn > 0, joins workers before returning so the process stays alive. */
+ * Thread-per-connection: correct for dozens of clients, not C10K.
+ * Positive max_conn = lifetime accept budget, then join workers before return.
+ * max_conn <= 0 detaches workers with no bound (dev only).
+ * Each connection runs `handler` on its own thread with a private arena. */
 static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
   if (!s || s->fd < 0 || !handler) return 0;
   int left = (int)max_conn;

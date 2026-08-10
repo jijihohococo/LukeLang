@@ -1,0 +1,4 @@
+// Must abort: INTEGER ADD overflow (checked; no silent wrap).
+MY NAME IS a AS INTEGER SET TO 9223372036854775807
+SET a TO a ADD 1
+SPEAK "should_not_reach"

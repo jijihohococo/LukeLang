@@ -173,6 +173,11 @@ Inference (v0):
 - Function args/arity and `GIVE BACK` types are checked
 - Optional: `THIS IS FUNCTION f … GIVES BACK TEXT DO`
 - Concurrent HTTP: `ASK httpServe WITH server, handler, maxConn` (thread-per-connection; links `-lpthread`)
+- INTEGER rules: see [`INTEGER.md`](./INTEGER.md) — checked overflow, `DIVIDE`→`NUMBER`, widening vs truncating conversion
+
+### Backend concurrency ceiling
+
+`httpServe` is **thread-per-connection**: fine for tens of clients, not a C10K design. Positive `maxConn` is a lifetime accept budget (then join); `maxConn ≤ 0` detaches unbounded workers. Request parse happens on the accept path (a slow client can stall accepts). Long-lived SSE holds one OS thread for the life of the stream. Production load needs a **bounded worker pool** or event-driven I/O — listed as a next ceiling, not a current claim.
 
 ## Memory (Luke words)
 

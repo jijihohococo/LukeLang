@@ -345,6 +345,15 @@ test-build: build/luke
 	@grep -q "cents=200" /tmp/luke_integer.txt
 	@grep -q "id=9007199254740994" /tmp/luke_integer.txt
 	@grep -q "rx=15" /tmp/luke_integer.txt
+	./build/luke BUILD ../examples/build/integer_rules.luke -o build/integer_rules
+	@grep -q 'luke_i64_mul\|luke_i64_add' build/integer_rules.luke.c
+	@./build/integer_rules | tee /tmp/luke_integer_rules.txt | grep -q "mix=1"
+	@grep -q "div=1" /tmp/luke_integer_rules.txt
+	@grep -q "cents=398" /tmp/luke_integer_rules.txt
+	./build/luke BUILD ../examples/build/integer_overflow.luke -o build/integer_overflow
+	@./build/integer_overflow >/tmp/luke_i64_ov.txt 2>/tmp/luke_i64_ov.err; test $$? -ne 0
+	@grep -q "INTEGER error" /tmp/luke_i64_ov.err
+	@! grep -q "should_not_reach" /tmp/luke_i64_ov.txt
 	./build/luke BUILD ../examples/build/concurrent_server.luke -o build/concurrent_server
 	@grep -q 'luke_http_serve\|luke_http_wrap_' build/concurrent_server.luke.c
 	@set -e; \

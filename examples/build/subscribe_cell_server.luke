@@ -20,6 +20,7 @@ WHILE left IS GREATER THAN 0 DO
     MY NAME IS n AS NUMBER SET TO 0
     WHILE n IS LESS THAN 8 DO
       SET n TO n ADD 1
+      ASK httpSseComment WITH req, "beat"
       ASK httpSseData WITH req, "" AND n
       SPEAK "push=" AND n
       MY NAME IS t0 AS NUMBER SET TO THE CLOCK

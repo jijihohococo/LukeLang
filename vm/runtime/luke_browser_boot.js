@@ -291,13 +291,49 @@ function createLukeJs(getMemory, opts) {
       var id = readText(idPtr, idLen);
       var url = readText(urlPtr, urlLen);
       if (!globalThis.__lukeSubscribeJobs) globalThis.__lukeSubscribeJobs = {};
-      globalThis.__lukeSubscribeJobs[id] = { ready: false, body: "" };
+      if (!globalThis.__lukeSubscribeHandles) globalThis.__lukeSubscribeHandles = {};
+      /* Close any prior handle for this id before restarting. */
+      try {
+        var prev = globalThis.__lukeSubscribeHandles[id];
+        if (prev) {
+          if (typeof prev.close === "function") prev.close();
+          else if (typeof prev.destroy === "function") prev.destroy();
+          else if (typeof prev.abort === "function") prev.abort();
+        }
+      } catch (e0) {}
+      globalThis.__lukeSubscribeJobs[id] = { ready: false, body: "", state: "connecting", retryMs: 500 };
       console.log("[subscribe_start]", id, url);
       function onMessage(data) {
-        globalThis.__lukeSubscribeJobs[id] = { ready: true, body: data == null ? "" : String(data) };
+        var job = globalThis.__lukeSubscribeJobs[id] || {};
+        job.ready = true;
+        job.body = data == null ? "" : String(data);
+        job.state = "open";
+        job.retryMs = 500;
+        globalThis.__lukeSubscribeJobs[id] = job;
         console.log("[subscribe_ready]", id);
         if (typeof globalThis.__lukeDispatchSubscribe === "function")
           globalThis.__lukeDispatchSubscribe(id);
+      }
+      function parseSseChunk(buf, chunk) {
+        buf += chunk;
+        var parts = buf.split(/\r?\n\r?\n/);
+        buf = parts.pop() || "";
+        for (var i = 0; i < parts.length; i++) {
+          var lines = parts[i].split(/\r?\n/);
+          var dataLines = [];
+          for (var j = 0; j < lines.length; j++) {
+            var line = lines[j];
+            if (line.indexOf(":") === 0) continue; /* comment / heartbeat */
+            if (line.indexOf("data:") === 0) dataLines.push(line.slice(5).replace(/^\s/, ""));
+            else if (line.indexOf("retry:") === 0) {
+              var ms = parseInt(line.slice(6).trim(), 10);
+              if (ms > 0 && globalThis.__lukeSubscribeJobs[id])
+                globalThis.__lukeSubscribeJobs[id].retryMs = ms;
+            }
+          }
+          if (dataLines.length) onMessage(dataLines.join("\n"));
+        }
+        return buf;
       }
       if (typeof EventSource !== "undefined") {
         try {
@@ -307,15 +343,16 @@ function createLukeJs(getMemory, opts) {
           };
           es.onerror = function () {
             console.log("[subscribe_error]", id);
+            if (globalThis.__lukeSubscribeJobs[id])
+              globalThis.__lukeSubscribeJobs[id].state = "error";
           };
-          if (!globalThis.__lukeSubscribeHandles) globalThis.__lukeSubscribeHandles = {};
           globalThis.__lukeSubscribeHandles[id] = es;
           return;
         } catch (e) {
           console.log("[subscribe_eventsource_fail]", e);
         }
       }
-      /* Node / no-EventSource: minimal HTTP SSE reader */
+      /* Node / no-EventSource: HTTP SSE reader with reconnect + idle timeout */
       try {
         var http = typeof require === "function" ? require("http") : null;
         var https = typeof require === "function" ? require("https") : null;
@@ -323,33 +360,82 @@ function createLukeJs(getMemory, opts) {
           console.log("[subscribe_stub]", id);
           return;
         }
-        var u = new URL(url);
-        var lib = u.protocol === "https:" ? https : http;
-        var req = lib.get(
-          { hostname: u.hostname, port: u.port, path: u.pathname + (u.search || "") },
-          function (res) {
-            var buf = "";
-            res.setEncoding("utf8");
-            res.on("data", function (chunk) {
-              buf += chunk;
-              var parts = buf.split("\n\n");
-              buf = parts.pop() || "";
-              for (var i = 0; i < parts.length; i++) {
-                var lines = parts[i].split(/\r?\n/);
-                for (var j = 0; j < lines.length; j++) {
-                  if (lines[j].indexOf("data:") === 0) {
-                    onMessage(lines[j].slice(5).replace(/^\s/, ""));
-                  }
-                }
-              }
-            });
-          }
-        );
-        req.on("error", function () {
-          console.log("[subscribe_http_error]", id);
-        });
-        if (!globalThis.__lukeSubscribeHandles) globalThis.__lukeSubscribeHandles = {};
-        globalThis.__lukeSubscribeHandles[id] = req;
+        var closed = false;
+        var idleTimer = null;
+        var IDLE_MS = 15000;
+        function clearIdle() {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = null;
+        }
+        function bumpIdle(req) {
+          clearIdle();
+          idleTimer = setTimeout(function () {
+            console.log("[subscribe_idle_timeout]", id);
+            try {
+              req.destroy();
+            } catch (e3) {}
+          }, IDLE_MS);
+        }
+        function connect() {
+          if (closed) return;
+          var u = new URL(url);
+          var lib = u.protocol === "https:" ? https : http;
+          var req = lib.get(
+            {
+              hostname: u.hostname,
+              port: u.port,
+              path: u.pathname + (u.search || ""),
+              timeout: 10000,
+            },
+            function (res) {
+              var buf = "";
+              res.setEncoding("utf8");
+              bumpIdle(req);
+              res.on("data", function (chunk) {
+                bumpIdle(req);
+                buf = parseSseChunk(buf, chunk);
+              });
+              res.on("end", function () {
+                clearIdle();
+                console.log("[subscribe_end]", id);
+                scheduleReconnect();
+              });
+            }
+          );
+          req.on("timeout", function () {
+            console.log("[subscribe_connect_timeout]", id);
+            req.destroy();
+          });
+          req.on("error", function () {
+            clearIdle();
+            console.log("[subscribe_http_error]", id);
+            scheduleReconnect();
+          });
+          globalThis.__lukeSubscribeHandles[id] = {
+            close: function () {
+              closed = true;
+              clearIdle();
+              try {
+                req.destroy();
+              } catch (e4) {}
+            },
+            destroy: function () {
+              this.close();
+            },
+          };
+        }
+        function scheduleReconnect() {
+          if (closed) return;
+          var job = globalThis.__lukeSubscribeJobs[id] || {};
+          job.state = "reconnect";
+          var delay = job.retryMs || 500;
+          if (delay > 8000) delay = 8000;
+          job.retryMs = Math.min((job.retryMs || 500) * 2, 8000);
+          globalThis.__lukeSubscribeJobs[id] = job;
+          console.log("[subscribe_reconnect]", id, delay);
+          setTimeout(connect, delay);
+        }
+        connect();
       } catch (e2) {
         console.log("[subscribe_fail]", e2);
       }

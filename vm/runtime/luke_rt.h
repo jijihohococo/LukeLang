@@ -175,6 +175,38 @@ static inline LukeText luke_integer_to_text(LukeArena *a, int64_t n) {
   return luke_text_n(p, (size_t)k);
 }
 
+/* INTEGER overflow / conversion — abort; money and IDs must not wrap silently. */
+static inline void luke_integer_fail(const char *why) {
+  fprintf(stderr, "INTEGER error: %s\n", why ? why : "invalid");
+  fflush(stderr);
+  exit(1);
+}
+
+static inline int64_t luke_i64_add(int64_t a, int64_t b) {
+  int64_t r;
+  if (__builtin_add_overflow(a, b, &r)) luke_integer_fail("ADD overflow");
+  return r;
+}
+
+static inline int64_t luke_i64_sub(int64_t a, int64_t b) {
+  int64_t r;
+  if (__builtin_sub_overflow(a, b, &r)) luke_integer_fail("SUBTRACT overflow");
+  return r;
+}
+
+static inline int64_t luke_i64_mul(int64_t a, int64_t b) {
+  int64_t r;
+  if (__builtin_mul_overflow(a, b, &r)) luke_integer_fail("MULTIPLY overflow");
+  return r;
+}
+
+/* NUMBER → INTEGER: truncate toward zero. Non-finite or out of int64 range aborts. */
+static inline int64_t luke_number_to_integer(double n) {
+  if (n != n || n > (double)INT64_MAX || n < (double)INT64_MIN)
+    luke_integer_fail("NUMBER→INTEGER out of range or not finite");
+  return (int64_t)n;
+}
+
 static inline void luke_speak_flag(int f) {
   puts(f ? "true" : "false");
   fflush(stdout);

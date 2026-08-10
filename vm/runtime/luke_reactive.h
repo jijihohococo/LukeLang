@@ -1,7 +1,7 @@
 #ifndef LUKE_REACTIVE_H
 #define LUKE_REACTIVE_H
 
-/* Luke Reactive Runtime — Phase 1 core
+/* Luke Reactive Runtime — Phase 1 core + Phase 2 UI flush hooks
  * See docs/REACTIVE.md
  *
  * Doctrine: Lukelang understands change.
@@ -37,13 +37,21 @@ typedef struct LukeRxGraph LukeRxGraph;
 
 typedef double (*LukeRxComputeFn)(LukeRxGraph *g, void *ctx);
 typedef void (*LukeRxEffectFn)(LukeRxGraph *g, void *ctx);
+typedef void (*LukeRxAfterFlushFn)(LukeRxGraph *g);
+
+typedef enum LukeRxValKind {
+  LUKE_RX_VAL_NUM = 0,
+  LUKE_RX_VAL_TEXT = 1
+} LukeRxValKind;
 
 typedef struct LukeRxNode {
   LukeRxId id;
   LukeRxKind kind;
+  LukeRxValKind vkind;
   int dirty;
   int version;
   double num;
+  LukeText text;
   LukeRxComputeFn compute;
   LukeRxEffectFn effect;
   void *ctx;
@@ -69,6 +77,9 @@ struct LukeRxGraph {
   int epoch;
   int cycle_tripped;
   int stale_read; /* set if compute read a dirty derived — leave dirty & retry */
+  int need_paint; /* Phase 2: Argus dirty paint after effect wave */
+  int need_layout; /* Phase 2+: Hanka region relayout (text-only skips) */
+  LukeRxAfterFlushFn after_flush; /* usually luke_rx_ui_after_flush */
 };
 
 static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {
@@ -165,7 +176,19 @@ static inline LukeRxId luke_rx_cell(LukeRxGraph *g, double initial) {
   LukeRxId id = luke_rx_alloc(g, LUKE_RX_CELL);
   LukeRxNode *n = luke_rx_node(g, id);
   if (n) {
+    n->vkind = LUKE_RX_VAL_NUM;
     n->num = initial;
+    n->dirty = 0;
+  }
+  return id;
+}
+
+static inline LukeRxId luke_rx_cell_text(LukeRxGraph *g, LukeText initial) {
+  LukeRxId id = luke_rx_alloc(g, LUKE_RX_CELL);
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (n) {
+    n->vkind = LUKE_RX_VAL_TEXT;
+    n->text = initial;
     n->dirty = 0;
   }
   return id;
@@ -175,6 +198,7 @@ static inline LukeRxId luke_rx_derived(LukeRxGraph *g, LukeRxComputeFn fn, void 
   LukeRxId id = luke_rx_alloc(g, LUKE_RX_DERIVED);
   LukeRxNode *n = luke_rx_node(g, id);
   if (n) {
+    n->vkind = LUKE_RX_VAL_NUM;
     n->compute = fn;
     n->ctx = ctx;
     luke_rx_mark_dirty(g, id);
@@ -284,7 +308,9 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
   }
   g->dirty_len = 0;
   g->epoch++;
-  /* Waves 4–5 (layout/paint) are Phase 2 — Hanka/Argus consumers. */
+  /* Waves 4–5 — layout/paint consumers (Hanka / Argus). Text-only UI binds
+   * set need_paint; size/structure changes may set need_layout. */
+  if (g->after_flush) g->after_flush(g);
   return g->cycle_tripped ? -1 : 1;
 }
 
@@ -301,8 +327,27 @@ static inline void luke_rx_batch_end(LukeRxGraph *g) {
 static inline void luke_rx_write_num(LukeRxGraph *g, LukeRxId id, double v) {
   LukeRxNode *n = luke_rx_node(g, id);
   if (!n || n->kind != LUKE_RX_CELL) return;
+  if (n->vkind == LUKE_RX_VAL_TEXT) return;
   if (n->num == v && !n->dirty) return;
   n->num = v;
+  n->version++;
+  luke_rx_mark_dirty(g, id);
+  luke_rx_invalidate_subs(g, id);
+  if (!g->batching) luke_rx_flush(g);
+}
+
+static inline int luke_rx_text_eq(LukeText a, LukeText b) {
+  return a.len == b.len && (a.len == 0 || (a.ptr && b.ptr && memcmp(a.ptr, b.ptr, a.len) == 0));
+}
+
+static inline void luke_rx_write_text(LukeRxGraph *g, LukeRxId id, LukeText v) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || n->kind != LUKE_RX_CELL) return;
+  if (n->vkind != LUKE_RX_VAL_TEXT) {
+    n->vkind = LUKE_RX_VAL_TEXT;
+  }
+  if (luke_rx_text_eq(n->text, v) && !n->dirty) return;
+  n->text = v;
   n->version++;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
@@ -319,6 +364,29 @@ static inline double luke_rx_read_num(LukeRxGraph *g, LukeRxId id) {
   if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_flush(g);
   n = luke_rx_node(g, id);
   return n ? n->num : 0.0;
+}
+
+static inline LukeText luke_rx_read_text(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return luke_text("");
+  if (g->computing) {
+    luke_rx_link(g, g->computing, id);
+    if (n->dirty && n->kind == LUKE_RX_DERIVED) g->stale_read = 1;
+  }
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_flush(g);
+  n = luke_rx_node(g, id);
+  if (!n) return luke_text("");
+  if (n->vkind == LUKE_RX_VAL_TEXT) return n->text;
+  /* Number cell read as text — allocate via arena when available. */
+  if (g->arena) {
+    char buf[64];
+    int k = snprintf(buf, sizeof(buf), "%.10g", n->num);
+    if (k < 0) k = 0;
+    char *p = (char *)luke_arena_alloc(g->arena, (size_t)k + 1, 1);
+    memcpy(p, buf, (size_t)k + 1);
+    return luke_text_n(p, (size_t)k);
+  }
+  return luke_text("");
 }
 
 static inline int luke_rx_version(LukeRxGraph *g, LukeRxId id) {

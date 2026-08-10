@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phase 1 Reactive Core shipped (cells / derived / batch scheduler)  
+> **Status:** Phase 2 UI bridge shipped (text cells, BIND → Argus dirty paint)  
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -166,7 +166,24 @@ FLUSH REACTIVE
 SPEAK total
 ```
 
-Smoke: `examples/build/reactive_core.luke` · cycle tripwire: `examples/build/reactive_cycle.luke` 
+Smoke: `examples/build/reactive_core.luke` · cycle tripwire: `examples/build/reactive_cycle.luke`
+
+### Phase 2 UI surface
+
+```luke
+REMEMBER username AS ""
+BIND "greeting" TO "Welcome, " AND username
+WHEN "name" IS CHANGED DO
+  CHANGE username TO THE VALUE OF "name"
+END WHEN
+UPDATE "greeting" WITH "Welcome, " AND username
+PAINT DIRTY
+```
+
+Pipeline: event → `CHANGE` cell → effect (`BIND`) → `argus_set_text` → dirty paint.  
+**No** `CLEAR THE SCREEN`. Text-only updates skip Hanka relayout.
+
+Demo: `examples/build/reactive_greeting.luke` 
 
 ---
 
@@ -300,12 +317,19 @@ Argus paint ← TextNode#greeting
 2. Two writes in one turn batch to one recompute pass  
 3. Cycle on derived graph fails loudly  
 
-### Phase 2 — UI bridge *(next)*
+### Phase 2 — UI bridge *(shipped)*
 
-Input/event → cell → Hanka region invalidate → Argus dirty paint.  
+Input/event → cell → Hanka region invalidate (text-only skips) → Argus dirty paint.  
 Greeting demo without full `CLEAR THE SCREEN`.
 
-### Phase 3 — Component scopes
+**Deliverables**
+
+- TEXT cells (`luke_rx_cell_text` / `luke_rx_write_text`)  
+- `BIND "id" TO expr` effect → Argus text + `need_paint`  
+- `UPDATE` / `PAINT DIRTY` · flush after-wave via `luke_rx_ui_after_flush`  
+- Demo: `examples/build/reactive_greeting.luke`
+
+### Phase 3 — Component scopes *(next)*
 
 Counter component: local cells, handlers, auto cleanup on scope end.
 

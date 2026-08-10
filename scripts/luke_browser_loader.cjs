@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Minimal browser / Node loader for Luke Build WASM (WASI + optional lukejs).
  * Usage:
@@ -449,6 +448,7 @@ function wireLukeWhens(instance, whens) {
   }
   globalThis.__lukeDispatchRoute = dispatchRoute;
   globalThis.__lukeDispatchFetch = dispatchFetch;
+  globalThis.__lukeDispatch = dispatch;
 
   if (typeof document === "undefined") {
     /* Node smoke: run home route handler if present */
@@ -525,12 +525,38 @@ var isNode =
 if (isNode) {
   var path = process.argv[2];
   if (!path) {
-    console.error("usage: luke_browser_loader.cjs <file.wasm>");
+    console.error("usage: luke_browser_loader.cjs <file.wasm> [--dispatch id:event]");
     process.exit(1);
   }
   var fs = require("fs");
-  runLukeWasm(fs.readFileSync(path))
+  var dispatchSpec = null;
+  for (var ai = 3; ai < process.argv.length; ai++) {
+    if (process.argv[ai] === "--dispatch" && process.argv[ai + 1]) {
+      dispatchSpec = process.argv[++ai];
+    }
+  }
+  var whens = [];
+  var htmlPath = path.replace(/\.wasm$/i, ".html");
+  if (fs.existsSync(htmlPath)) {
+    var html = fs.readFileSync(htmlPath, "utf8");
+    var m = html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);
+    if (m) {
+      try {
+        whens = Function("return (" + m[1] + ");")();
+      } catch (e) {
+        console.error("failed to parse LUKE_WHENS", e);
+      }
+    }
+  }
+  runLukeWasm(fs.readFileSync(path), { whens: whens })
     .then(function (res) {
+      if (dispatchSpec && typeof globalThis.__lukeDispatch === "function") {
+        var parts = String(dispatchSpec).split(":");
+        var id = parts[0] || "";
+        var ev = parts[1] || "click";
+        console.log("[dispatch]", id, ev);
+        globalThis.__lukeDispatch(id, ev);
+      }
       process.exit((res && res.code) || 0);
     })
     .catch(function (e) {

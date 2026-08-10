@@ -34,7 +34,7 @@ Static dist    .html + .wasm + fonts/
 | Deploy folder | html + wasm + fonts |
 | Motion / a11y polish | next |
 | `luke PUBLISH WEB` | next |
-| Reactive runtime | Phase 1 core shipped — see [`REACTIVE.md`](./REACTIVE.md) |
+| Reactive runtime | Phase 2 UI bridge — see [`REACTIVE.md`](./REACTIVE.md) |
 
 ## Surface (v1)
 

@@ -121,6 +121,12 @@ test-build: build/luke
 	./build/ex_reactive | grep -q "total=500"
 	./build/luke BUILD ../examples/build/reactive_cycle.luke -o build/ex_reactive_cycle
 	@./build/ex_reactive_cycle 2>/tmp/luke_rx_cycle.txt >/dev/null; grep -q "cycle detected" /tmp/luke_rx_cycle.txt
+	./build/luke BUILD ../examples/build/reactive_greeting.luke -target browser -o build/reactive_greeting
+	@grep -q 'luke_rx_ui_set_text\|luke_rx_ui_enable' build/reactive_greeting.luke.c
+	@grep -q 'luke_rx_write_text\|luke_rx_cell_text' build/reactive_greeting.luke.c
+	@! grep -q 'argus_clear' build/reactive_greeting.luke.c || ! grep -A20 'luke_when_' build/reactive_greeting.luke.c | grep -q 'argus_clear'
+	@node ../scripts/luke_browser_loader.cjs build/reactive_greeting.wasm --dispatch go:click 2>&1 | tee /tmp/luke_rx_ui.txt | grep -q 'Welcome, Alex'
+	@! grep -q '\[argus_clear\]' /tmp/luke_rx_ui.txt
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

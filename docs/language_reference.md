@@ -123,18 +123,13 @@ BLUEPRINT ConcertTicket FOLLOWS Ticket {
 For more details on advanced features, refer to the **[Advanced Topics](./advanced_topics.md)** guide.
 ## Multiple Inheritance (Mixin-Based)
 
-LukeLang supports declaring multiple parents via `FOLLOWS <BaseA> AND <BaseB>`. Since JavaScript only allows a single `extends`, the transpiler emits a mixin-style implementation:
-
-- The first parent after `FOLLOWS` becomes the JS `extends` base.
-- Additional parents are instantiated and mixed into the instance in the constructor using `Object.assign(this, new ParentB())`.
+LukeLang supports declaring multiple parents via `FOLLOWS <BaseA> AND <BaseB>` on the **Play VM** path. Build blueprints currently use a single `FOLLOWS` parent — prefer that for `luke BUILD` programs.
 
 ### Explicit Ancestor Calls
 
-When a class has multiple parents, `CALL PARENT <method>` refers to the primary base (the one actually extended). To invoke a specific ancestor’s implementation, use:
+When a class has multiple parents (Play VM), `CALL PARENT <method>` refers to the primary base. To invoke a specific ancestor’s implementation, use:
 
 - `CALL PARENT <method> OF <Ancestor> WITH <args>`
-
-This compiles to `(<Ancestor>.prototype['<method>']).apply(this, [<args>])`, avoiding ambiguity and safely bypassing JS `super` limitations.
 
 ### Example
 

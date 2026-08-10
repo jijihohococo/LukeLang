@@ -52,4 +52,4 @@ Browser ship:
 - Language of record: [`BUILD_MODE.md`](./BUILD_MODE.md)
 - Frontend stack: [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
 - Reactive: [`REACTIVE.md`](./REACTIVE.md)
-- Legacy JS paths (`main.js` / `mimo/`): [`LEGACY.md`](./LEGACY.md) — do not use for new work
+- History of removed JS emitters: [`LEGACY.md`](./LEGACY.md)

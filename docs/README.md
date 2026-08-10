@@ -3,7 +3,7 @@
 Welcome to the official documentation for LukeLang — a conversational language with a **Build-first** native/WASM runtime in [`vm/`](../vm/).
 
 > Prefer [`BUILD_MODE.md`](./BUILD_MODE.md) and [`getting_started.md`](./getting_started.md).  
-> Legacy JS emitters (`main.js` / `mimo/`): [`LEGACY.md`](./LEGACY.md).
+> Removed JS emitters: [`LEGACY.md`](./LEGACY.md).
 
 ## Introduction
 
@@ -24,5 +24,5 @@ LukeLang uses verbose, human-readable syntax. The language of record is **Build*
     *   [Argus](./ARGUS.md) — rendering engine (DOM presentment)
     *   [Hanka](./HANKA.md) — layout engine (frames → Argus)
     *   [Production Web](./PRODUCTION_WEB.md) — forms, routes, deploy stack
-    *   [Legacy delete plan](./LEGACY.md) — `main.js` / `mimo/` retirement
+    *   [Legacy (removed)](./LEGACY.md) — former `main.js` / `mimo/` history
 6.  **[Contributor Guide](./contributor_guide.md)**

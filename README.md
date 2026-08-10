@@ -31,7 +31,7 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 | Tests | `luke TEST` + `MAKE SURE` / `TEST … END TEST` + GitHub Actions CI |
 | Arena scopes | `IN ARENA` / `END ARENA` |
 | Show | Prefers Build; Play VM is `--vm` / fallback |
-| Legacy `main.js` / `mimo/` | Deprecated — see [`docs/LEGACY.md`](docs/LEGACY.md) |
+| Legacy JS emitters | **Removed** — see [`docs/LEGACY.md`](docs/LEGACY.md) |
 
 ## Quick examples
 
@@ -53,7 +53,6 @@ Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and
 - Emit Play bytecode opcodes directly from Build IR nodes
 - Replace line-based Build stmt matching with a real lexer/AST (see BUILD_MODE)
 
-## Legacy JS path
+## Legacy
 
-`main.js` / `luke.js` / `mimo/` are **deprecated**. Do not teach or extend them.  
-Deletion plan: [`docs/LEGACY.md`](docs/LEGACY.md). Prefer `vm/build/luke`.
+JS emitters (`main.js` / `luke.js` / `mimo/`) were **removed**. History: [`docs/LEGACY.md`](docs/LEGACY.md). Use `vm/build/luke`.

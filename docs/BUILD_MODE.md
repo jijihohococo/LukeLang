@@ -286,4 +286,4 @@ That is why today’s surface is productive and conversational — and also why 
 | One line ≈ one stmt | Soft line-wrap / continued statements |
 | Hand-rolled expression splits (`AND`, `ADD`, …) | Precedence tables / proper AST |
 
-**Roadmap:** keep shipping features on the line-based front-end until a shared tokenize → AST → Build-IR path can replace `stmt(...)` without breaking demos. Do not invent a second parallel parser in `mimo/` or `main.js`.
+**Roadmap:** keep shipping features on the line-based front-end until a shared tokenize → AST → Build-IR path can replace `stmt(...)` without breaking demos. Do not reintroduce a parallel JS parser.

@@ -1,17 +1,11 @@
 {
   "name": "lukelang",
-  "version": "0.2.0",
-  "type": "module",
+  "version": "0.3.0",
   "private": true,
-  "description": "LukeLang — conversational language. Canonical toolchain is vm/; JS bin/scripts are deprecated (see docs/LEGACY.md).",
-  "bin": {
-    "luke": "./luke.js"
-  },
+  "description": "LukeLang — conversational language. Toolchain is vm/ (native Build + Play VM).",
   "scripts": {
-    "build:native": "make -C vm",
-    "test:native": "make -C vm test",
-    "show:native": "make -C vm && vm/build/luke SHOW examples/build/hello.luke",
-    "build:legacy-js": "node main.js",
-    "show:legacy-js": "node main.js SHOW examples/oop_full.luke"
+    "build": "make -C vm",
+    "test": "make -C vm test",
+    "show": "make -C vm && vm/build/luke SHOW examples/build/hello.luke"
   }
 }

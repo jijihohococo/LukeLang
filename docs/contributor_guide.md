@@ -6,10 +6,10 @@ Thanks for contributing. The **canonical codebase is `vm/`**.
 
 | Do | Don’t |
 | --- | --- |
-| Change `vm/`, `docs/`, `examples/build/`, `scripts/` (browser/WASI loaders) | Grow `main.js`, `luke.js`, or `mimo/` |
+| Change `vm/`, `docs/`, `examples/build/`, `scripts/` (browser/WASI loaders) | Reintroduce a JS transpiler or `mimo/` |
 | Run `cd vm && make test` before landing | Commit `*.obj` / build products |
 
-Legacy JS paths are deprecated — see [`LEGACY.md`](./LEGACY.md).
+Legacy JS emitters were removed — see [`LEGACY.md`](./LEGACY.md).
 
 ## Workflow
 
@@ -30,4 +30,4 @@ CI (GitHub Actions) runs the same `make test` target, including frontend demos a
 ## Docs
 
 - Build truth: [`BUILD_MODE.md`](./BUILD_MODE.md)
-- Getting started must teach `vm/build/luke`, never `node main.js`
+- Getting started must teach `vm/build/luke`

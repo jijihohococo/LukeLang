@@ -179,6 +179,17 @@ test-build: build/luke
 	./build/ex_rx_conf_order | grep -q "chain=4"
 	./build/ex_rx_conf_order | grep -q "chain=14"
 	./build/ex_rx_conf_order | grep -q "derived_runs=3"
+	./build/luke BUILD ../examples/build/reactive_conformance_priority.luke -o build/ex_rx_conf_prio
+	./build/ex_rx_conf_prio | grep -q "log=10"
+	./build/ex_rx_conf_prio | grep -q "ui_first=1"
+	./build/luke BUILD ../examples/build/reactive_conformance_nested.luke -o build/ex_rx_conf_nested
+	./build/ex_rx_conf_nested | grep -q "y=1"
+	./build/ex_rx_conf_nested | grep -q "passes=1"
+	./build/ex_rx_conf_nested | grep -q "turns=1"
+	./build/ex_rx_conf_nested | grep -q "deferred=1"
+	./build/luke BUILD ../examples/build/reactive_conformance_dedup.luke -o build/ex_rx_conf_dedup
+	./build/ex_rx_conf_dedup | grep -q "dedup=2"
+	./build/ex_rx_conf_dedup | grep -q "t=5"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

@@ -12,8 +12,8 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 | # | Area | Phase 9+ focus | Status |
 |---|------|----------------|--------|
-| 1 | **Reactive correctness** | Stale dep cleanup, deterministic order, cycle spec, nested rules | 🟡 v0.1 started |
-| 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | ⬜ |
+| 1 | **Reactive correctness** | Stale dep cleanup, deterministic order, cycle spec, nested rules | 🟡 v0.1 |
+| 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 started |
 | 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | ⬜ |
 | 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ⬜ |
 | 5 | **Error system** | Isolation, async failure, boundaries, retry | ⬜ |
@@ -30,7 +30,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone A — Correctness foundation *(current)*
+## Milestone A — Correctness foundation
 
 **Done when:**
 
@@ -43,11 +43,16 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone B — Scheduler 2.0
+## Milestone B — Scheduler 2.0 *(current)*
 
-- Priority lanes (UI effect > derived > background)
-- Dirty dedup queue
-- Starvation guard + scheduler timeline export
+- [x] Priority lanes (UI effect before BACKGROUND)
+- [x] Dirty dedup counter + queue size instrumentation
+- [x] Deferred nested flush (one turn, multiple passes)
+- [x] Scheduler timeline / step counters
+- [x] `WHEN REACTIVE` / `WHEN BACKGROUND REACTIVE` side-effect effects
+- [x] `BIND BACKGROUND` low-priority binds
+- [ ] Starvation guard (wait_epochs boost) — runtime hook present, conformance pending
+- [ ] Macrotask queue / `scheduleReactive` API
 
 ---
 

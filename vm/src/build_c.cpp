@@ -325,6 +325,16 @@ struct BC {
     size_t line = 0;
   };
   std::vector<RxQueryDef> rxQueryDefs;
+  struct RxWhenDef {
+    std::string cellName;
+    std::vector<std::string> body;
+    std::vector<size_t> lines;
+    size_t line = 0;
+    int seq = 0;
+    bool background = false;
+  };
+  std::vector<RxWhenDef> rxWhenDefs;
+  int rxWhenSeq = 0;
   std::vector<std::string> rxComponentStack; /* open BEGIN COMPONENT names */
   /* Phase 4 — async fetch → reactive cells */
   struct RxFetchBind {
@@ -692,6 +702,29 @@ Expr BC::expr(std::string e, size_t line) {
               Ty::num()};
     if (U0 == "THE TOTAL STALE EDGE COUNT")
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->total_deps_cleared : 0.0)",
+              Ty::num()};
+    if (U0 == "THE FLUSH PASS COUNT" || U0 == "THE REACTIVE FLUSH PASS COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_flush_passes : 0.0)",
+              Ty::num()};
+    if (U0 == "THE DEFERRED FLUSH COUNT" || U0 == "THE NESTED FLUSH COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->deferred_flush_count : 0.0)",
+              Ty::num()};
+    if (U0 == "THE DIRTY DEDUP COUNT" || U0 == "THE DIRTY DEDUP HITS")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_flush_dedup_hits : 0.0)",
+              Ty::num()};
+    if (U0 == "THE DIRTY QUEUE SIZE" || U0 == "THE LAST DIRTY QUEUE SIZE")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_dirty_q_size : 0.0)",
+              Ty::num()};
+    if (U0 == "THE SCHEDULER STEP COUNT" || U0 == "THE REACTIVE STEP COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_flush_steps : 0.0)",
+              Ty::num()};
+    if (U0 == "THE SCHEDULER UI BEFORE BACKGROUND" || U0 == "THE UI BEFORE BACKGROUND")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->ui_before_bg : 0.0)", Ty::num()};
+    if (U0 == "THE SCHEDULER FIRST STEP" || U0 == "THE FIRST EFFECT STEP")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_first_effect : 0.0)",
+              Ty::num()};
+    if (U0 == "THE SCHEDULER LAST STEP" || U0 == "THE LAST EFFECT STEP")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_last_effect : 0.0)",
               Ty::num()};
   }
 
@@ -1257,6 +1290,47 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   }
   if (toUpper(text) == "PAINT DIRTY" || toUpper(text) == "PAINT THE DIRTY NODES") {
     o << "  argus_paint(arena);\n";
+    return;
+  }
+  if (startsWithCI(text, "REACTIVE WATCH REGISTER ")) {
+    auto seq = std::atoi(trim(text.substr(24)).c_str());
+    const BC::RxWhenDef *wd = nullptr;
+    for (auto &w : bc.rxWhenDefs)
+      if (w.seq == seq) {
+        wd = &w;
+        break;
+      }
+    if (!wd) {
+      bc.fail(line, "Internal: unknown reactive watch #" + std::to_string(seq));
+      return;
+    }
+    bc.usesRx = true;
+    o << "  _luke_rx_id_when_" << seq << " = luke_rx_effect_prio(_luke_rx, _luke_rx_when_" << seq
+      << ", NULL, "
+      << (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") << ");\n";
+    return;
+  }
+  /* BIND BACKGROUND "tag" TO expr — low-priority reactive effect (Scheduler 2.0). */
+  if (startsWithCI(text, "BIND BACKGROUND ")) {
+    auto rest = trim(text.substr(16));
+    auto U = toUpper(rest);
+    auto toPos = U.find(" TO ");
+    if (toPos == std::string::npos) {
+      bc.fail(line, "BIND BACKGROUND needs: BIND BACKGROUND \"element\" TO expression");
+      return;
+    }
+    auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, toPos)), line));
+    auto exprRaw = trim(rest.substr(toPos + 4));
+    if (exprRaw.empty()) {
+      bc.fail(line, "BIND BACKGROUND needs an expression after TO");
+      return;
+    }
+    bc.usesRx = true;
+    int seq = ++bc.rxBindSeq;
+    bc.rxBindDefs.push_back({idE.code, exprRaw, line, seq});
+    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect_prio(_luke_rx, _luke_rx_bind_" << seq
+      << ", NULL, LUKE_RX_PRIO_BACKGROUND);\n";
+    o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
   /* BIND OPACITY "panel" TO progress — reactive Argus opacity (layout frame). */
@@ -2495,12 +2569,13 @@ bool parse(BC &bc, const std::string &source) {
   std::istringstream in(src);
   std::string raw;
   size_t lineNo = 0;
-  enum Mode { Top, InFn, InBp, InMeth, InWhen };
+  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen };
   Mode mode = Top;
   Fn curFn;
   BP curBp;
   Method curM;
   BrowserWhen curWhen;
+  BC::RxWhenDef curRxWhen;
   bool skipContract = false;
 
   while (std::getline(in, raw)) {
@@ -2628,6 +2703,29 @@ bool parse(BC &bc, const std::string &source) {
         mode = InBp;
         continue;
       }
+      if (startsWithCI(text, "WHEN BACKGROUND REACTIVE ") ||
+          startsWithCI(text, "WHEN REACTIVE ")) {
+        bool bg = startsWithCI(text, "WHEN BACKGROUND REACTIVE ");
+        auto rest = trim(text.substr(bg ? 25 : 14));
+        stripDo(rest);
+        auto U = toUpper(rest);
+        auto chPos = U.find(" CHANGES");
+        if (chPos == std::string::npos) {
+          bc.fail(lineNo, "WHEN REACTIVE needs: WHEN REACTIVE cell CHANGES DO");
+          return false;
+        }
+        auto cellName = stripThe(trim(rest.substr(0, chPos)));
+        if (cellName.empty()) {
+          bc.fail(lineNo, "WHEN REACTIVE needs a cell name — WHEN REACTIVE count CHANGES DO");
+          return false;
+        }
+        curRxWhen = {};
+        curRxWhen.cellName = cellName;
+        curRxWhen.background = bg;
+        curRxWhen.line = lineNo;
+        mode = InRxWhen;
+        continue;
+      }
       if (startsWithCI(text, "WHEN ")) {
         curWhen = {};
         auto rest = trim(text.substr(5));
@@ -2681,6 +2779,19 @@ bool parse(BC &bc, const std::string &source) {
         continue;
       }
       bc.top.push_back({lineNo, text});
+      continue;
+    }
+
+    if (mode == InRxWhen) {
+      if (toUpper(text) == "END WHEN REACTIVE" || toUpper(text) == "ENDWHEN REACTIVE") {
+        curRxWhen.seq = ++bc.rxWhenSeq;
+        bc.rxWhenDefs.push_back(curRxWhen);
+        bc.top.push_back({lineNo, "REACTIVE WATCH REGISTER " + std::to_string(curRxWhen.seq)});
+        mode = Top;
+        continue;
+      }
+      curRxWhen.body.push_back(text);
+      curRxWhen.lines.push_back(lineNo);
       continue;
     }
 
@@ -3137,6 +3248,8 @@ std::string emit(BC &bc) {
       o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
     for (auto &b : bc.rxOpacityBindDefs)
       o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
+    for (auto &w : bc.rxWhenDefs)
+      o << "static LukeRxId _luke_rx_id_when_" << w.seq << ";\n";
     if (bc.usesTimeline || bc.forBrowser) o << "static LukeText _luke_active_timeline_id;\n";
     o << "\n";
     for (auto &kv : bc.rxCells) {
@@ -3157,6 +3270,34 @@ std::string emit(BC &bc) {
       o << "static double _luke_rx_fn_" << cIdent(d.name) << "(LukeRxGraph *g, void *ctx) {\n";
       o << "  (void)ctx;\n";
       o << "  return " << e.code << ";\n";
+      o << "}\n\n";
+    }
+    for (auto &w : bc.rxWhenDefs) {
+      bc.rxGraphVar = "g";
+      o << "static void _luke_rx_when_" << w.seq << "(LukeRxGraph *g, void *ctx) {\n";
+      o << "  (void)ctx;\n";
+      auto watchCell = resolveRxCellName(bc.rxCells, bc.rxEntityStack, w.cellName);
+      if (!bc.rxCells.count(watchCell)) {
+        bc.fail(w.line, "WHEN REACTIVE needs a REMEMBER'd cell — not '" + w.cellName + "'");
+        return {};
+      }
+      if (bc.rxCellTy.count(watchCell) && bc.rxCellTy[watchCell].k == K::Text)
+        o << "  (void)luke_rx_read_text(g, _luke_rx_id_" << cIdent(watchCell) << ");\n";
+      else
+        o << "  (void)luke_rx_read_num(g, _luke_rx_id_" << cIdent(watchCell) << ");\n";
+      bc.locals.clear();
+      for (auto &kv : bc.rxCells) {
+        Ty ty = bc.rxCellTy.count(kv.first) ? bc.rxCellTy[kv.first] : Ty::num();
+        bc.locals[kv.first] = ty;
+        auto dot = kv.first.find('.');
+        if (dot != std::string::npos) bc.locals[kv.first.substr(dot + 1)] = ty;
+      }
+      std::ostringstream wb;
+      for (size_t i = 0; i < w.body.size(); ++i) {
+        stmt(bc, w.body[i], w.lines[i], wb);
+        if (bc.bad) return {};
+      }
+      o << wb.str();
       o << "}\n\n";
     }
     for (auto &b : bc.rxBindDefs) {

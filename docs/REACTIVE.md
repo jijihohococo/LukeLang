@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phases 1–8 shipped; Phase 9 correctness foundation in progress  
+> **Status:** Phases 1–8 shipped; Phase 9 correctness + Phase 10 Scheduler 2.0 in progress  
 > **Normative spec:** [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md) · **Roadmap:** [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
@@ -454,7 +454,7 @@ Query result TEXT cells; `REFRESH QUERY` re-runs SQL and invalidates dependents.
 - `luke_rx_query_refresh` over `luke_db_query_text`
 - Demo: `reactive_query.luke`
 
-### Phase 9 — Correctness *(in progress)*
+### Phase 9 — Correctness *(shipped v0.1)*
 
 Production-grade scheduler guarantees before new features.
 
@@ -463,8 +463,20 @@ Production-grade scheduler guarantees before new features.
 - Normative [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md) v0.1 (flush waves, stale-edge cleanup, batch coalescing)
 - Scheduler instrumentation: `THE FLUSH COUNT`, `THE STALE EDGE COUNT`, `THE DERIVED RUN COUNT`, …
 - `luke_rx_clear_deps` — unlink superseded dynamic edges before derived/effect rerun
-- Conformance programs: `examples/build/reactive_conformance_*.luke`
+- Conformance programs: `examples/build/reactive_conformance_{batch,stale,order}.luke`
 - Roadmap: [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
+
+### Phase 10 — Scheduler 2.0 *(in progress)*
+
+Priority lanes, dirty dedup, nested flush coalescing, timeline export.
+
+**Deliverables**
+
+- Effect priority: UI (`BIND`, `WHEN REACTIVE`) before `BACKGROUND` (`BIND BACKGROUND`, `WHEN BACKGROUND REACTIVE`)
+- Deferred flush during active flush (`THE DEFERRED FLUSH COUNT`, `THE FLUSH PASS COUNT`)
+- Dirty dedup + queue instrumentation (`THE DIRTY DEDUP COUNT`)
+- Scheduler timeline counters (`THE SCHEDULER STEP COUNT`, `THE SCHEDULER UI BEFORE BACKGROUND`)
+- Conformance: `reactive_conformance_{priority,nested,dedup}.luke`
 
 ---
 

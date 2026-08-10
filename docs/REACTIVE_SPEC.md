@@ -1,6 +1,6 @@
 # LukeLang Reactive Specification v0.1
 
-> **Status:** Normative draft (Phase 9 — correctness foundation)  
+> **Status:** Normative draft (Phase 9–10 — correctness + Scheduler 2.0)  
 > **Implementation:** `vm/runtime/luke_reactive.h`  
 > **Architecture overview:** [`REACTIVE.md`](./REACTIVE.md)  
 > **Roadmap:** [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)
@@ -126,13 +126,67 @@ THE GRANULAR PAINT COUNT
 
 ## 6. Conformance
 
-Programs under `examples/build/reactive_conformance_*.luke` assert v0.1 guarantees on native.  
+Programs under `examples/build/reactive_conformance_*.luke` assert v0.1+ guarantees on native.  
 WASM parity: same programs compiled with `-target browser` must match native outputs (roadmap).
 
 ---
 
-## 7. Non-normative (future)
+## 7. Scheduler 2.0 (v0.2)
 
-Not in v0.1: priority queues, parallel reactions, time-travel, weak refs, field-level object tracking, Hanka region invalidation spec.
+### 7.1 Priority lanes
+
+Effects run in **ascending priority** (lower number = sooner):
+
+| Priority | Kind | Surface |
+|----------|------|---------|
+| `UI` (0) | User-visible / interactive | `BIND`, `BIND LIST`, `BIND OPACITY`, `WHEN REACTIVE` |
+| `NORMAL` (1) | Derived compute | `THE x IS …` |
+| `BACKGROUND` (2) | Deferred work | `BIND BACKGROUND`, `WHEN BACKGROUND REACTIVE` |
+
+Within the same priority, **ascending node id** breaks ties (deterministic).
+
+### 7.2 Nested flush coalescing
+
+While `flushing == 1`, cell/collection writes **must not** re-enter `luke_rx_flush` synchronously.  
+They set `pending_flush = 1` and increment `deferred_flush_count`.
+
+One outer flush turn:
+
+1. Runs one or more internal **passes** until `pending_flush == 0` or `dirty_len == 0`
+2. Increments `flush_count` **once**
+3. Increments `epoch` **once**
+
+**Guarantee:** `last_flush_passes >= 1`; nested writes during effects coalesce into the same turn.
+
+### 7.3 Dirty dedup
+
+`mark_dirty` on an already-dirty node is a no-op and increments `last_flush_dedup_hits` during flush.
+
+### 7.4 Instrumentation (v0.2)
+
+| Counter | Meaning |
+|---------|---------|
+| `last_flush_passes` | Internal passes in last turn |
+| `deferred_flush_count` | Cumulative nested deferrals |
+| `last_flush_dedup_hits` | Dedup hits last pass |
+| `last_dirty_q_size` | `dirty_q` length at wave 1 |
+| `last_flush_steps` | Timeline entries last turn |
+| `ui_before_bg` | UI effect ran before any BACKGROUND effect |
+
+Build surface:
+
+```luke
+THE FLUSH PASS COUNT
+THE DEFERRED FLUSH COUNT
+THE DIRTY DEDUP COUNT
+THE SCHEDULER STEP COUNT
+THE SCHEDULER UI BEFORE BACKGROUND
+```
+
+---
+
+## 8. Non-normative (future)
+
+Not yet specified: macrotask queues, parallel reactions, time-travel, weak refs, field-level object tracking, Hanka region invalidation spec.
 
 See [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md).

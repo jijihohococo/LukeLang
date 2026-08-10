@@ -35,6 +35,12 @@ typedef enum LukeRxWave {
   LUKE_RX_WAVE_PAINT = 5
 } LukeRxWave;
 
+typedef enum LukeRxPriority {
+  LUKE_RX_PRIO_UI = 0,
+  LUKE_RX_PRIO_NORMAL = 1,
+  LUKE_RX_PRIO_BACKGROUND = 2
+} LukeRxPriority;
+
 typedef struct LukeRxGraph LukeRxGraph;
 
 typedef double (*LukeRxComputeFn)(LukeRxGraph *g, void *ctx);
@@ -54,6 +60,9 @@ typedef struct LukeRxNode {
   LukeRxValKind vkind;
   int dirty;
   int dead; /* disposed with component scope */
+  int queued; /* enqueued on dirty_q this flush turn */
+  uint8_t priority; /* effect scheduling lane (Scheduler 2.0) */
+  uint8_t wait_epochs; /* starvation guard — epochs waiting to run */
   int version;
   uint32_t scope_id; /* owning scope frame (0 = global) */
   double num;
@@ -123,6 +132,25 @@ struct LukeRxGraph {
   int last_flush_effects;    /* effect runs in last flush */
   int last_flush_deps_cleared; /* stale dep edges removed in last flush */
   int total_deps_cleared;    /* cumulative stale-edge cleanup */
+  /* Phase 10 — Scheduler 2.0 */
+  int flushing;              /* re-entrancy guard */
+  int pending_flush;         /* deferred flush requested during flush */
+  int deferred_flush_count;  /* cumulative nested flush deferrals */
+  int last_flush_passes;     /* internal passes in last flush turn */
+  int last_flush_dedup_hits; /* mark_dirty no-ops last turn */
+  int dedup_accum;           /* mark_dirty no-ops accumulating for current turn */
+  int last_dirty_q_size;     /* dirty_q length at wave 1 last pass */
+  int ui_before_bg;          /* last turn: UI-priority effect before BACKGROUND */
+  LukeRxId last_first_effect; /* first effect id run last turn */
+  LukeRxId last_last_effect;  /* last effect id run last turn */
+#define LUKE_RX_TIMELINE_MAX 64
+  struct {
+    LukeRxId id;
+    uint8_t wave; /* 2 derived, 3 effect */
+    uint8_t priority;
+  } timeline[LUKE_RX_TIMELINE_MAX];
+  size_t sched_timeline_len;
+  int last_flush_steps; /* timeline entries last turn */
 };
 
 static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {
@@ -222,8 +250,13 @@ static inline void luke_rx_link(LukeRxGraph *g, LukeRxId from, LukeRxId to) {
 static inline void luke_rx_mark_dirty(LukeRxGraph *g, LukeRxId id) {
   LukeRxNode *n = luke_rx_node(g, id);
   if (!n) return;
-  if (n->dirty) return;
+  if (n->dirty) {
+    g->dedup_accum++;
+    return;
+  }
   n->dirty = 1;
+  if (n->queued) return;
+  n->queued = 1;
   if (g->dirty_len + 1 > g->dirty_cap) {
     size_t ncap = g->dirty_cap ? g->dirty_cap * 2 : 8;
     LukeRxId *nq =
@@ -289,6 +322,7 @@ static inline LukeRxId luke_rx_derived(LukeRxGraph *g, LukeRxComputeFn fn, void 
   LukeRxNode *n = luke_rx_node(g, id);
   if (n) {
     n->vkind = LUKE_RX_VAL_NUM;
+    n->priority = LUKE_RX_PRIO_NORMAL;
     n->compute = fn;
     n->ctx = ctx;
     luke_rx_mark_dirty(g, id);
@@ -296,15 +330,21 @@ static inline LukeRxId luke_rx_derived(LukeRxGraph *g, LukeRxComputeFn fn, void 
   return id;
 }
 
-static inline LukeRxId luke_rx_effect(LukeRxGraph *g, LukeRxEffectFn fn, void *ctx) {
+static inline LukeRxId luke_rx_effect_prio(LukeRxGraph *g, LukeRxEffectFn fn, void *ctx,
+                                          LukeRxPriority prio) {
   LukeRxId id = luke_rx_alloc(g, LUKE_RX_EFFECT);
   LukeRxNode *n = luke_rx_node(g, id);
   if (n) {
     n->effect = fn;
     n->ctx = ctx;
+    n->priority = (uint8_t)prio;
     luke_rx_mark_dirty(g, id);
   }
   return id;
+}
+
+static inline LukeRxId luke_rx_effect(LukeRxGraph *g, LukeRxEffectFn fn, void *ctx) {
+  return luke_rx_effect_prio(g, fn, ctx, LUKE_RX_PRIO_UI);
 }
 
 static inline void luke_rx_remove_id(LukeRxId *arr, size_t *len, LukeRxId v) {
@@ -344,12 +384,28 @@ static inline void luke_rx_invalidate_subs(LukeRxGraph *g, LukeRxId id) {
   }
 }
 
-static inline int luke_rx_flush(LukeRxGraph *g) {
+static inline void luke_rx_timeline_push(LukeRxGraph *g, LukeRxId id, uint8_t wave,
+                                         uint8_t priority) {
+  if (!g || g->sched_timeline_len >= LUKE_RX_TIMELINE_MAX) return;
+  g->timeline[g->sched_timeline_len].id = id;
+  g->timeline[g->sched_timeline_len].wave = wave;
+  g->timeline[g->sched_timeline_len].priority = priority;
+  g->sched_timeline_len++;
+}
+
+static inline int luke_rx_flush(LukeRxGraph *g); /* forward */
+
+static inline int luke_rx_flush_pass(LukeRxGraph *g) {
   if (!g || g->dirty_len == 0) return 0;
   g->cycle_tripped = 0;
   g->last_flush_derived = 0;
   g->last_flush_effects = 0;
   g->last_flush_deps_cleared = 0;
+  g->last_dirty_q_size = (int)g->dirty_len;
+  g->sched_timeline_len = 0;
+  g->ui_before_bg = 0;
+  g->last_first_effect = 0;
+  g->last_last_effect = 0;
 
   /* Wave 1 — invalidate already queued; ensure transitive dirty marks. */
   for (size_t i = 0; i < g->dirty_len; ++i)
@@ -375,6 +431,7 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
       if (!deps_ready) continue;
       if (!n->compute) {
         n->dirty = 0;
+        n->queued = 0;
         progressed = 1;
         continue;
       }
@@ -390,7 +447,9 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
       n->num = v;
       n->version++;
       n->dirty = 0;
+      n->queued = 0;
       g->last_flush_derived++;
+      luke_rx_timeline_push(g, id, 2, n->priority);
       progressed = 1;
     }
     if (!pending_derived) break;
@@ -405,32 +464,98 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
     }
   }
 
-  /* Wave 3 — effects (ascending id order). */
-  for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
+  /* Wave 3 — effects (priority lane, then ascending id). */
+#define LUKE_RX_MAX_EFFECT_BATCH 128
+  LukeRxId effect_ids[LUKE_RX_MAX_EFFECT_BATCH];
+  int effect_pri[LUKE_RX_MAX_EFFECT_BATCH];
+  size_t effect_n = 0;
+  for (LukeRxId id = 1; id < (LukeRxId)g->len && effect_n < LUKE_RX_MAX_EFFECT_BATCH; ++id) {
     LukeRxNode *n = &g->nodes[id];
     if (n->dead || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    n->wait_epochs++;
+    effect_ids[effect_n] = id;
+    effect_pri[effect_n] = (int)n->priority;
+    if (n->wait_epochs >= 3 && effect_pri[effect_n] > (int)LUKE_RX_PRIO_UI)
+      effect_pri[effect_n] = (int)LUKE_RX_PRIO_UI;
+    effect_n++;
+  }
+  for (size_t i = 0; i + 1 < effect_n; ++i) {
+    for (size_t j = i + 1; j < effect_n; ++j) {
+      int swap = 0;
+      if (effect_pri[j] < effect_pri[i]) swap = 1;
+      else if (effect_pri[j] == effect_pri[i] && effect_ids[j] < effect_ids[i]) swap = 1;
+      if (!swap) continue;
+      int tp = effect_pri[i];
+      effect_pri[i] = effect_pri[j];
+      effect_pri[j] = tp;
+      LukeRxId tid = effect_ids[i];
+      effect_ids[i] = effect_ids[j];
+      effect_ids[j] = tid;
+    }
+  }
+  int saw_ui = 0;
+  for (size_t ei = 0; ei < effect_n; ++ei) {
+    LukeRxId id = effect_ids[ei];
+    LukeRxNode *n = &g->nodes[id];
+    if (n->dead || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    if (n->priority == LUKE_RX_PRIO_BACKGROUND && saw_ui) g->ui_before_bg = 1;
+    if (n->priority == LUKE_RX_PRIO_UI) saw_ui = 1;
+    if (!g->last_first_effect) g->last_first_effect = id;
+    g->last_last_effect = id;
     luke_rx_clear_deps(g, id);
     g->computing = id;
     if (n->effect) n->effect(g, n->ctx);
     g->computing = 0;
     n->version++;
     n->dirty = 0;
+    n->queued = 0;
+    n->wait_epochs = 0;
     g->last_flush_effects++;
+    luke_rx_timeline_push(g, id, 3, n->priority);
   }
 
   /* Clear remaining value dirty flags (cells / collections hold values already). */
   for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
     if (g->nodes[id].dead) continue;
     LukeRxKind k = g->nodes[id].kind;
-    if (k == LUKE_RX_CELL || k == LUKE_RX_LIST || k == LUKE_RX_MAP) g->nodes[id].dirty = 0;
+    if (k == LUKE_RX_CELL || k == LUKE_RX_LIST || k == LUKE_RX_MAP) {
+      g->nodes[id].dirty = 0;
+      g->nodes[id].queued = 0;
+    }
   }
   g->dirty_len = 0;
-  g->epoch++;
-  g->flush_count++;
-  /* Waves 4–5 — layout/paint consumers (Hanka / Argus). Text-only UI binds
-   * set need_paint; size/structure changes may set need_layout. */
-  if (g->after_flush) g->after_flush(g);
+  g->last_flush_steps = (int)g->sched_timeline_len;
   return g->cycle_tripped ? -1 : 1;
+}
+
+static inline void luke_rx_request_flush(LukeRxGraph *g) {
+  if (!g || g->dirty_len == 0) return;
+  if (g->flushing) {
+    g->pending_flush = 1;
+    g->deferred_flush_count++;
+    return;
+  }
+  luke_rx_flush(g);
+}
+
+static inline int luke_rx_flush(LukeRxGraph *g) {
+  if (!g || g->dirty_len == 0) return 0;
+  g->flushing = 1;
+  int result = 1;
+  int passes = 0;
+  do {
+    g->pending_flush = 0;
+    result = luke_rx_flush_pass(g);
+    passes++;
+  } while (g->pending_flush && g->dirty_len > 0);
+  g->flushing = 0;
+  g->last_flush_passes = passes;
+  g->last_flush_dedup_hits = g->dedup_accum;
+  g->dedup_accum = 0;
+  g->flush_count++;
+  g->epoch++;
+  if (g->after_flush) g->after_flush(g);
+  return g->cycle_tripped ? -1 : result;
 }
 
 static inline void luke_rx_batch_begin(LukeRxGraph *g) {
@@ -440,7 +565,7 @@ static inline void luke_rx_batch_begin(LukeRxGraph *g) {
 static inline void luke_rx_batch_end(LukeRxGraph *g) {
   if (!g) return;
   if (g->batching > 0) g->batching--;
-  if (g->batching == 0) luke_rx_flush(g);
+  if (g->batching == 0) luke_rx_request_flush(g);
 }
 
 static inline void luke_rx_write_num(LukeRxGraph *g, LukeRxId id, double v) {
@@ -452,7 +577,7 @@ static inline void luke_rx_write_num(LukeRxGraph *g, LukeRxId id, double v) {
   n->version++;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
-  if (!g->batching) luke_rx_flush(g);
+  if (!g->batching) luke_rx_request_flush(g);
 }
 
 static inline int luke_rx_text_eq(LukeText a, LukeText b) {
@@ -467,7 +592,7 @@ static inline void luke_rx_touch_coll(LukeRxGraph *g, LukeRxId id, int change_ki
   n->version++;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
-  if (!g->batching) luke_rx_flush(g);
+  if (!g->batching) luke_rx_request_flush(g);
 }
 
 static inline void luke_rx_list_add(LukeRxGraph *g, LukeRxId id, LukeText v) {
@@ -559,7 +684,7 @@ static inline void luke_rx_write_text(LukeRxGraph *g, LukeRxId id, LukeText v) {
   n->version++;
   luke_rx_mark_dirty(g, id);
   luke_rx_invalidate_subs(g, id);
-  if (!g->batching) luke_rx_flush(g);
+  if (!g->batching) luke_rx_request_flush(g);
 }
 
 static inline double luke_rx_read_num(LukeRxGraph *g, LukeRxId id) {
@@ -569,7 +694,7 @@ static inline double luke_rx_read_num(LukeRxGraph *g, LukeRxId id) {
     luke_rx_link(g, g->computing, id);
     if (n->dirty && n->kind == LUKE_RX_DERIVED) g->stale_read = 1;
   }
-  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_flush(g);
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
   n = luke_rx_node(g, id);
   return n ? n->num : 0.0;
 }
@@ -581,7 +706,7 @@ static inline LukeText luke_rx_read_text(LukeRxGraph *g, LukeRxId id) {
     luke_rx_link(g, g->computing, id);
     if (n->dirty && n->kind == LUKE_RX_DERIVED) g->stale_read = 1;
   }
-  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_flush(g);
+  if (n->dirty && n->kind == LUKE_RX_DERIVED && !g->computing) luke_rx_request_flush(g);
   n = luke_rx_node(g, id);
   if (!n) return luke_text("");
   if (n->vkind == LUKE_RX_VAL_TEXT) return n->text;

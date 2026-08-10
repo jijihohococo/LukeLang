@@ -3925,7 +3925,8 @@ std::string emit(BC &bc) {
   o << "int main(int argc, char **argv) {\n";
   o << "  luke_runtime_set_args(argc, argv);\n";
   o << "  LukeArena arena_storage; LukeArena *arena = &arena_storage;\n";
-  o << "  luke_arena_init(arena, 1u<<20);\n";
+  /* 16MiB — enough for Track 12 10K-node benches; tiny demos ignore the slack. */
+  o << "  luke_arena_init(arena, 1u<<24);\n";
   if (bc.forBrowser || !bc.pageWhens.empty())
     o << "  luke_page_arena = arena;\n";
   if (bc.usesRx) {

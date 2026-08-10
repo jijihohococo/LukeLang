@@ -1,0 +1,56 @@
+// Phase 2 — Track 12 beachhead: granular paint vs full rebuild
+// Native. Prints baseline numbers for 1K and 10K nodes.
+// Build: luke BUILD examples/build/reactive_benchmark.luke -o build/reactive_benchmark
+
+IMPORT std/hanka
+IMPORT std/argus
+
+MY NAME IS run AS NUMBER SET TO 0
+WHILE run IS LESS THAN 2 DO
+  MY NAME IS n AS NUMBER SET TO 1000
+  IF run EQUALS 1 DO
+    SET n TO 10000
+  END IF
+
+  CLEAR THE SCREEN
+
+  MY NAME IS i AS NUMBER SET TO 0
+  MY NAME IS t_build0 AS NUMBER SET TO THE CLOCK
+  WHILE i IS LESS THAN n DO
+    PLACE "n" AND i AS TEXT AT 0, 0 SIZE 40, 12 SAY "row"
+    SET i TO i ADD 1
+  END WHILE
+  PAINT THE SCREEN
+  MY NAME IS t_build1 AS NUMBER SET TO THE CLOCK
+  MY NAME IS build_ms AS NUMBER SET TO t_build1 SUBTRACT t_build0
+
+  MY NAME IS paints_before AS NUMBER SET TO THE REGION PAINT COUNT
+  MY NAME IS t_g0 AS NUMBER SET TO THE CLOCK
+  UPDATE "n0" WITH "hit"
+  MY NAME IS t_g1 AS NUMBER SET TO THE CLOCK
+  MY NAME IS granular_ms AS NUMBER SET TO t_g1 SUBTRACT t_g0
+  MY NAME IS region AS NUMBER SET TO THE REGION PAINT COUNT SUBTRACT paints_before
+
+  MY NAME IS t_f0 AS NUMBER SET TO THE CLOCK
+  CLEAR THE SCREEN
+  SET i TO 0
+  WHILE i IS LESS THAN n DO
+    PLACE "n" AND i AS TEXT AT 0, 0 SIZE 40, 12 SAY "row"
+    SET i TO i ADD 1
+  END WHILE
+  PAINT THE SCREEN
+  MY NAME IS t_f1 AS NUMBER SET TO THE CLOCK
+  MY NAME IS full_ms AS NUMBER SET TO t_f1 SUBTRACT t_f0
+
+  SPEAK "nodes=" AND n
+  SPEAK "build_ms=" AND build_ms
+  SPEAK "granular_ms=" AND granular_ms
+  SPEAK "full_ms=" AND full_ms
+  SPEAK "region=" AND region
+
+  MAKE SURE region EQUALS 1
+
+  SET run TO run ADD 1
+END WHILE
+
+SPEAK "benchmark_ok=1"

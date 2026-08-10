@@ -79,14 +79,14 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - Identity locked (this document).
 - Repo hygiene complete on `main`: CI runs the reactive conformance suite (`make test`); stale objects removed; legacy JS emitters removed; `system()` return values checked.
 
-### Phase 1 — De-risk the two big bets *(next)*
+### Phase 1 — De-risk the two big bets *(done)*
 - **Spike a client↔server reactive cell** (#5): **poll variant green** — `examples/build/fullstack_cell_{server,client}.luke` + bind proof; server change → BIND → `THE REGION PAINT COUNT == 1` (wired in `make test`). Push/SSE variant still open.
 - **Spike Path A** (#3): **POC green** — ROW/COLUMN emit CSS flex (`argus_flex` / `argus_flow_frame` / parent attach); STACK/PLACE stay absolute; `reactive_greeting` still shows `region=1` on BIND. Full Hanka→CSS rewrite still open.
 
-### Phase 2 — The proof point *(the real work)*
-- Build **one reference app** (reactive dashboard or todo) on the Path A renderer.
-- Use `THE REGION PAINT COUNT` to *demonstrate* granular updates (flip one cell → one node repaints).
-- **Publish a benchmark baseline** vs. a full-rerender approach. This artifact sells the language; everything before it is setup.
+### Phase 2 — The proof point *(done — beachhead)*
+- **Reference app:** `examples/build/dashboard_{server,client}.luke` — live metrics, Path A flex, `region=1` per server tick.
+- **Benchmark baseline:** `examples/build/reactive_benchmark.luke` + [`BENCHMARKS.md`](./BENCHMARKS.md) — granular vs full rebuild at 1K / 10K nodes; `make test` asserts `region=1`.
+- Push transport + richer dashboard polish remain open; the signature property is measured.
 
 ### Phase 3 — Expand from strength
 - Resume reactive engine phases (roadmap in [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)).

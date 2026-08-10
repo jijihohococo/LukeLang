@@ -23,10 +23,10 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 | 9 | **Concurrency** | Parallel reactions, workers, race-safe cells | ⬜ |
 | 10 | **Persistence** | Persistent cells, cache invalidation, offline sync | 🟡 QUERY beachhead |
 | 11 | **Cross-runtime consistency** | Native/WASM/backend/game same semantics tests | 🟡 conformance harness |
-| 12 | **Benchmark suite** | 1K/10K/100K nodes, workloads | ⬜ |
+| 12 | **Benchmark suite** | 1K/10K/100K nodes, workloads | 🟡 1K/10K baseline |
 | 13 | **Reactive specification** | Official semantics doc | 🟡 v0.1 |
 | 14 | **Signature API polish** | Conversational idioms, keyword trim | ⬜ |
-| 15 | **Real-world stress apps** | Todo, dashboard, chat, game, full-stack | ⬜ |
+| 15 | **Real-world stress apps** | Todo, dashboard, chat, game, full-stack | 🟡 dashboard |
 
 ---
 
@@ -104,9 +104,10 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-- Benchmark suite vs full rerender baseline
-- One **signature reference app** (todo or dashboard)
+- Benchmark suite vs full rerender baseline — **1K/10K shipped** ([`BENCHMARKS.md`](./BENCHMARKS.md))
+- One **signature reference app** — **dashboard** (`examples/build/dashboard_*.luke`)
 - WASM/native conformance CI matrix
+- 100K node workload still open
 
 ---
 

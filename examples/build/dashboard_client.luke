@@ -1,0 +1,79 @@
+// Phase 2 — reference reactive dashboard (client, browser, Path A flex)
+// Live /reqs from the server → one BIND → THE REGION PAINT COUNT == 1.
+// Build: luke BUILD examples/build/dashboard_client.luke -target browser -o build/dashboard_client
+// Needs: dashboard_server on :8792
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "LukeLang Live"
+
+WEAR STYLE """
+html, body { margin: 0; background: #0c1210; color: #eef7f1; font-family: Georgia, "Times New Roman", serif; }
+#root { background:
+  radial-gradient(ellipse 80% 50% at 10% 0%, #1a3328 0%, transparent 55%),
+  linear-gradient(165deg, #0c1210 0%, #152018 45%, #0c1210 100%); }
+#brand { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; color: #f4fff8; }
+#tag { font-size: 16px; opacity: 0.72; }
+#cpu, #mem, #reqs { font-size: 28px; letter-spacing: 0.02em; }
+#paint { font-size: 15px; opacity: 0.75; }
+#go {
+  background: #e8a05c; color: #101820; font-family: Georgia, serif;
+  font-weight: 700; font-size: 16px; cursor: pointer; border: 0;
+}
+"""
+
+REMEMBER reqs AS "—"
+REMEMBER cpu AS "37"
+REMEMBER mem AS "54"
+REMEMBER status AS 0
+REMEMBER ready AS 0
+REMEMBER tick AS 0
+REMEMBER region_now AS 0
+REMEMBER granular_before AS 0
+REMEMBER granular_now AS 0
+REMEMBER granular_delta AS 0
+REMEMBER polls AS 0
+
+BEGIN COLUMN AT 48, 40 SIZE 720, 420 PAD 0 GAP 18
+  SLOT TEXT "brand" SIZE 680, 52 SAY "LukeLang"
+  SLOT TEXT "tag" SIZE 680, 28 SAY "Live metrics — one cell, one region paint."
+  BEGIN ROW AT 0, 0 SIZE 680, 56 PAD 0 GAP 28
+    SLOT TEXT "cpu" SIZE 200, 48 SAY "CPU 37"
+    SLOT TEXT "mem" SIZE 200, 48 SAY "MEM 54"
+    SLOT TEXT "reqs" SIZE 220, 48 SAY "REQ —"
+  END ROW
+  SLOT TEXT "paint" SIZE 680, 28 SAY "region paints: —"
+  SLOT BUTTON "go" SIZE 220, 48 SAY "Start live feed"
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND "cpu" TO "CPU " AND cpu
+BIND "mem" TO "MEM " AND mem
+BIND "reqs" TO "REQ " AND reqs
+
+WHEN "go" IS CLICKED DO
+  CHANGE granular_before TO THE GRANULAR PAINT COUNT
+  START FETCH "reqs" GET "http://127.0.0.1:8792/reqs" INTO reqs STATUS status READY ready
+END WHEN
+
+WHEN FETCH "reqs" IS READY DO
+  CHANGE region_now TO THE REGION PAINT COUNT
+  CHANGE granular_now TO THE GRANULAR PAINT COUNT
+  CHANGE granular_delta TO granular_now SUBTRACT granular_before
+  CHANGE polls TO polls ADD 1
+  UPDATE "paint" WITH "region paints: " AND region_now
+  SPEAK "reqs=" AND reqs
+  SPEAK "region=" AND region_now
+  SPEAK "granular_delta=" AND granular_delta
+  SPEAK "polls=" AND polls
+  CHANGE granular_before TO THE GRANULAR PAINT COUNT
+  START TIMELINE "wait" FOR 100 MILLISECONDS FROM 0 TO 1 INTO tick
+END WHEN
+
+WHEN TIMELINE "wait" IS FINISHED DO
+  START FETCH "reqs" GET "http://127.0.0.1:8792/reqs" INTO reqs STATUS status READY ready
+END WHEN

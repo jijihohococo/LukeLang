@@ -1,11 +1,11 @@
 #ifndef LUKE_REACTIVE_H
 #define LUKE_REACTIVE_H
 
-/* Luke Reactive Runtime — Phase 1 core + Phase 2 UI flush hooks
+/* Luke Reactive Runtime — Phases 1–3
  * See docs/REACTIVE.md
  *
  * Doctrine: Lukelang understands change.
- * Cells / derived / effects + batched scheduler.
+ * Cells / derived / effects + batched scheduler + component scopes.
  * Argus/Hanka consume invalidation; they are not the reactive framework.
  *
  * Arena-backed graph. No GC. Single-threaded.
@@ -49,7 +49,9 @@ typedef struct LukeRxNode {
   LukeRxKind kind;
   LukeRxValKind vkind;
   int dirty;
+  int dead; /* disposed with component scope */
   int version;
+  uint32_t scope_id; /* owning scope frame (0 = global) */
   double num;
   LukeText text;
   LukeRxComputeFn compute;
@@ -63,6 +65,15 @@ typedef struct LukeRxNode {
   size_t sub_len;
   size_t sub_cap;
 } LukeRxNode;
+
+typedef struct LukeRxScopeFrame {
+  char name[64];
+  uint32_t scope_id;
+  LukeRxId *owned;
+  size_t owned_len;
+  size_t owned_cap;
+  int open;
+} LukeRxScopeFrame;
 
 struct LukeRxGraph {
   LukeArena *arena;
@@ -80,6 +91,13 @@ struct LukeRxGraph {
   int need_paint; /* Phase 2: Argus dirty paint after effect wave */
   int need_layout; /* Phase 2+: Hanka region relayout (text-only skips) */
   LukeRxAfterFlushFn after_flush; /* usually luke_rx_ui_after_flush */
+  /* Phase 3 — component scopes */
+  LukeRxScopeFrame *scopes;
+  size_t scope_len;
+  size_t scope_cap;
+  uint32_t scope_seq;
+  uint32_t active_scope; /* 0 = none */
+  int disposed_count;
 };
 
 static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {
@@ -89,6 +107,13 @@ static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {
 }
 
 static inline LukeRxNode *luke_rx_node(LukeRxGraph *g, LukeRxId id) {
+  if (!g || id == 0 || id > g->len) return NULL;
+  LukeRxNode *n = &g->nodes[id];
+  if (n->dead) return NULL;
+  return n;
+}
+
+static inline LukeRxNode *luke_rx_node_raw(LukeRxGraph *g, LukeRxId id) {
   if (!g || id == 0 || id > g->len) return NULL;
   return &g->nodes[id];
 }
@@ -104,25 +129,6 @@ static inline void luke_rx_ensure_nodes(LukeRxGraph *g, size_t need) {
   memset(nn + g->cap, 0, (ncap - g->cap) * sizeof(LukeRxNode));
   g->nodes = nn;
   g->cap = ncap;
-}
-
-static inline LukeRxId luke_rx_alloc(LukeRxGraph *g, LukeRxKind kind) {
-  if (!g) return 0;
-  if (g->len == 0) {
-    /* Reserve index 0 as sentinel. */
-    luke_rx_ensure_nodes(g, 8);
-    memset(&g->nodes[0], 0, sizeof(LukeRxNode));
-    g->len = 1;
-  }
-  if (g->len + 1 > g->cap) luke_rx_ensure_nodes(g, g->len + 1);
-  LukeRxId id = (LukeRxId)g->len;
-  g->len++;
-  LukeRxNode *n = &g->nodes[id];
-  memset(n, 0, sizeof(*n));
-  n->id = id;
-  n->kind = kind;
-  n->dirty = 0;
-  return id;
 }
 
 static inline int luke_rx_has_edge(LukeRxId *arr, size_t len, LukeRxId v) {
@@ -143,6 +149,39 @@ static inline void luke_rx_push_id(LukeRxGraph *g, LukeRxId **arr, size_t *len, 
     *cap = ncap;
   }
   (*arr)[(*len)++] = v;
+}
+
+static inline void luke_rx_scope_track(LukeRxGraph *g, LukeRxId id) {
+  if (!g || !g->active_scope || id == 0) return;
+  for (size_t i = 0; i < g->scope_len; ++i) {
+    LukeRxScopeFrame *s = &g->scopes[i];
+    if (!s->open || s->scope_id != g->active_scope) continue;
+    luke_rx_push_id(g, &s->owned, &s->owned_len, &s->owned_cap, id);
+    LukeRxNode *n = luke_rx_node_raw(g, id);
+    if (n) n->scope_id = s->scope_id;
+    return;
+  }
+}
+
+static inline LukeRxId luke_rx_alloc(LukeRxGraph *g, LukeRxKind kind) {
+  if (!g) return 0;
+  if (g->len == 0) {
+    /* Reserve index 0 as sentinel. */
+    luke_rx_ensure_nodes(g, 8);
+    memset(&g->nodes[0], 0, sizeof(LukeRxNode));
+    g->len = 1;
+  }
+  if (g->len + 1 > g->cap) luke_rx_ensure_nodes(g, g->len + 1);
+  LukeRxId id = (LukeRxId)g->len;
+  g->len++;
+  LukeRxNode *n = &g->nodes[id];
+  memset(n, 0, sizeof(*n));
+  n->id = id;
+  n->kind = kind;
+  n->dirty = 0;
+  n->dead = 0;
+  luke_rx_scope_track(g, id);
+  return id;
 }
 
 /* dependent `from` reads dependency `to` */
@@ -246,7 +285,7 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
     int pending_derived = 0;
     for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
       LukeRxNode *n = &g->nodes[id];
-      if (!n->dirty || n->kind != LUKE_RX_DERIVED) continue;
+      if (n->dead || !n->dirty || n->kind != LUKE_RX_DERIVED) continue;
       pending_derived = 1;
       int deps_ready = 1;
       for (size_t d = 0; d < n->dep_len; ++d) {
@@ -284,7 +323,8 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
       fprintf(stderr, "Luke Reactive: cycle detected in derived graph (epoch %d)\n", g->epoch);
       /* Force-clear to avoid infinite loops at the call site. */
       for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
-        if (g->nodes[id].kind == LUKE_RX_DERIVED) g->nodes[id].dirty = 0;
+        if (!g->nodes[id].dead && g->nodes[id].kind == LUKE_RX_DERIVED)
+          g->nodes[id].dirty = 0;
       }
       break;
     }
@@ -293,7 +333,7 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
   /* Wave 3 — effects (after pure recompute). */
   for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
     LukeRxNode *n = &g->nodes[id];
-    if (!n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    if (n->dead || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
     n->dep_len = 0;
     g->computing = id;
     if (n->effect) n->effect(g, n->ctx);
@@ -304,7 +344,7 @@ static inline int luke_rx_flush(LukeRxGraph *g) {
 
   /* Clear remaining cell dirty flags (cells hold values already). */
   for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
-    if (g->nodes[id].kind == LUKE_RX_CELL) g->nodes[id].dirty = 0;
+    if (!g->nodes[id].dead && g->nodes[id].kind == LUKE_RX_CELL) g->nodes[id].dirty = 0;
   }
   g->dirty_len = 0;
   g->epoch++;
@@ -397,6 +437,119 @@ static inline int luke_rx_version(LukeRxGraph *g, LukeRxId id) {
 static inline int luke_rx_is_dirty(LukeRxGraph *g, LukeRxId id) {
   LukeRxNode *n = luke_rx_node(g, id);
   return n ? n->dirty : 0;
+}
+
+static inline int luke_rx_is_alive(LukeRxGraph *g, LukeRxId id) {
+  return luke_rx_node(g, id) != NULL;
+}
+
+static inline void luke_rx_remove_id(LukeRxId *arr, size_t *len, LukeRxId v) {
+  if (!arr || !len) return;
+  size_t w = 0;
+  for (size_t i = 0; i < *len; ++i) {
+    if (arr[i] == v) continue;
+    arr[w++] = arr[i];
+  }
+  *len = w;
+}
+
+static inline void luke_rx_dispose_node(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node_raw(g, id);
+  if (!n || n->dead) return;
+  /* Unlink from neighbors. */
+  for (size_t i = 0; i < n->dep_len; ++i) {
+    LukeRxNode *d = luke_rx_node_raw(g, n->deps[i]);
+    if (d) luke_rx_remove_id(d->subs, &d->sub_len, id);
+  }
+  for (size_t i = 0; i < n->sub_len; ++i) {
+    LukeRxNode *s = luke_rx_node_raw(g, n->subs[i]);
+    if (s) luke_rx_remove_id(s->deps, &s->dep_len, id);
+  }
+  n->dep_len = 0;
+  n->sub_len = 0;
+  n->compute = NULL;
+  n->effect = NULL;
+  n->ctx = NULL;
+  n->dirty = 0;
+  n->dead = 1;
+  g->disposed_count++;
+}
+
+static inline int luke_rx_scope_begin(LukeRxGraph *g, const char *name) {
+  if (!g) return 0;
+  if (g->scope_len + 1 > g->scope_cap) {
+    size_t ncap = g->scope_cap ? g->scope_cap * 2 : 4;
+    LukeRxScopeFrame *ns = (LukeRxScopeFrame *)luke_arena_alloc(
+        g->arena, ncap * sizeof(LukeRxScopeFrame), sizeof(void *));
+    if (g->scopes && g->scope_len)
+      memcpy(ns, g->scopes, g->scope_len * sizeof(LukeRxScopeFrame));
+    memset(ns + g->scope_cap, 0, (ncap - g->scope_cap) * sizeof(LukeRxScopeFrame));
+    g->scopes = ns;
+    g->scope_cap = ncap;
+  }
+  LukeRxScopeFrame *s = &g->scopes[g->scope_len++];
+  memset(s, 0, sizeof(*s));
+  if (name && name[0]) {
+    size_t n = strlen(name);
+    if (n >= sizeof(s->name)) n = sizeof(s->name) - 1;
+    memcpy(s->name, name, n);
+    s->name[n] = '\0';
+  } else {
+    snprintf(s->name, sizeof(s->name), "scope%u", g->scope_seq + 1);
+  }
+  s->scope_id = ++g->scope_seq;
+  s->open = 1;
+  g->active_scope = s->scope_id;
+  return 1;
+}
+
+static inline LukeRxScopeFrame *luke_rx_scope_find(LukeRxGraph *g, const char *name) {
+  if (!g || !name) return NULL;
+  for (size_t i = g->scope_len; i > 0; --i) {
+    LukeRxScopeFrame *s = &g->scopes[i - 1];
+    if (s->open && strcmp(s->name, name) == 0) return s;
+  }
+  return NULL;
+}
+
+/* Destroy a named component scope: unsubscribe owned cells/effects. */
+static inline int luke_rx_scope_end(LukeRxGraph *g, const char *name) {
+  if (!g) return 0;
+  LukeRxScopeFrame *s = NULL;
+  if (name && name[0])
+    s = luke_rx_scope_find(g, name);
+  else {
+    for (size_t i = g->scope_len; i > 0; --i) {
+      if (g->scopes[i - 1].open) {
+        s = &g->scopes[i - 1];
+        break;
+      }
+    }
+  }
+  if (!s || !s->open) return 0;
+  for (size_t i = 0; i < s->owned_len; ++i)
+    luke_rx_dispose_node(g, s->owned[i]);
+  s->owned_len = 0;
+  s->open = 0;
+  /* Restore active_scope to nearest still-open frame. */
+  g->active_scope = 0;
+  for (size_t i = g->scope_len; i > 0; --i) {
+    if (g->scopes[i - 1].open) {
+      g->active_scope = g->scopes[i - 1].scope_id;
+      break;
+    }
+  }
+  return 1;
+}
+
+static inline int luke_rx_scope_alive(LukeRxGraph *g, const char *name) {
+  LukeRxScopeFrame *s = luke_rx_scope_find(g, name);
+  return s && s->open ? 1 : 0;
+}
+
+static inline size_t luke_rx_scope_owned(LukeRxGraph *g, const char *name) {
+  LukeRxScopeFrame *s = luke_rx_scope_find(g, name);
+  return s ? s->owned_len : 0;
 }
 
 #ifdef __cplusplus

@@ -127,6 +127,14 @@ test-build: build/luke
 	@! grep -q 'argus_clear' build/reactive_greeting.luke.c || ! grep -A20 'luke_when_' build/reactive_greeting.luke.c | grep -q 'argus_clear'
 	@node ../scripts/luke_browser_loader.cjs build/reactive_greeting.wasm --dispatch go:click 2>&1 | tee /tmp/luke_rx_ui.txt | grep -q 'Welcome, Alex'
 	@! grep -q '\[argus_clear\]' /tmp/luke_rx_ui.txt
+	./build/luke BUILD ../examples/build/reactive_counter_scope.luke -o build/ex_rx_scope
+	./build/ex_rx_scope | grep -q "count=3"
+	./build/ex_rx_scope | grep -q "doubled=6"
+	./build/ex_rx_scope | grep -q "disposed"
+	./build/luke BUILD ../examples/build/reactive_counter.luke -target browser -o build/reactive_counter
+	@grep -q 'luke_rx_scope_begin\|luke_rx_scope_end' build/reactive_counter.luke.c
+	@node ../scripts/luke_browser_loader.cjs build/reactive_counter.wasm --dispatch counter-inc:click 2>&1 | tee /tmp/luke_rx_counter.txt | grep -q 'Count: 1'
+	@node ../scripts/luke_browser_loader.cjs build/reactive_counter.wasm --dispatch counter-destroy:click 2>&1 | grep -q 'Counter scope destroyed'
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

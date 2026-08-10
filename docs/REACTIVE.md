@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phase 2 UI bridge shipped (text cells, BIND → Argus dirty paint)  
+> **Status:** Phase 3 component scopes shipped (local cells + DESTROY cleanup)  
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -115,10 +115,18 @@ Async work is **not** Promise-shaped in user code; it is event → work → resu
 
 Structural change (add/remove/replace item) invalidates **granular** dependents, not the whole list paint by default.
 
-### 6. Reactive scopes / components (later phase)
+### 6. Reactive scopes / components
 
 A component is a **scope**: state + deps + handlers + UI tree + effects.  
-Destroy → unsubscribe (arena mark/reset aligns with `IN ARENA` doctrine).
+Destroy → unsubscribe (owned cells/effects disposed; aligns with arena doctrine).
+
+```luke
+BEGIN COMPONENT Counter
+  REMEMBER count AS 0
+  …
+END COMPONENT
+DESTROY COMPONENT Counter
+```
 
 ---
 
@@ -183,7 +191,27 @@ PAINT DIRTY
 Pipeline: event → `CHANGE` cell → effect (`BIND`) → `argus_set_text` → dirty paint.  
 **No** `CLEAR THE SCREEN`. Text-only updates skip Hanka relayout.
 
-Demo: `examples/build/reactive_greeting.luke` 
+Demo: `examples/build/reactive_greeting.luke`
+
+### Phase 3 component surface
+
+```luke
+BEGIN COMPONENT Counter
+  REMEMBER count AS 0
+  BIND "counter-label" TO "Count: " AND count
+END COMPONENT
+
+WHEN "counter-inc" IS CLICKED DO
+  INCREASE count BY 1
+END WHEN
+
+DESTROY COMPONENT Counter
+```
+
+`BEGIN COMPONENT` opens a reactive scope; cells/effects inside are owned.  
+`DESTROY COMPONENT` unsubscribes those nodes.
+
+Demos: `reactive_counter_scope.luke` · `reactive_counter.luke` 
 
 ---
 
@@ -329,11 +357,17 @@ Greeting demo without full `CLEAR THE SCREEN`.
 - `UPDATE` / `PAINT DIRTY` · flush after-wave via `luke_rx_ui_after_flush`  
 - Demo: `examples/build/reactive_greeting.luke`
 
-### Phase 3 — Component scopes *(next)*
+### Phase 3 — Component scopes *(shipped)*
 
 Counter component: local cells, handlers, auto cleanup on scope end.
 
-### Phase 4 — Async in the graph
+**Deliverables**
+
+- `luke_rx_scope_begin` / `luke_rx_scope_end` — owned node tracking + dispose/unlink  
+- Build: `BEGIN COMPONENT Name` … `END COMPONENT` · `DESTROY COMPONENT Name`  
+- Demos: `reactive_counter_scope.luke`, `reactive_counter.luke`
+
+### Phase 4 — Async in the graph *(next)*
 
 `START FETCH` results write cells; `WHEN FETCH READY` is a continuation edge (already beachheaded — wire into scheduler).
 

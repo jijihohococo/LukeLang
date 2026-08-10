@@ -275,6 +275,7 @@ struct BC {
   };
   std::vector<RxBindDef> rxBindDefs;
   int rxBindSeq = 0;
+  std::vector<std::string> rxComponentStack; /* open BEGIN COMPONENT names */
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -1116,6 +1117,55 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     bc.usesRxUi = true;
     o << "  luke_rx_ui_set_text(_luke_rx, " << idE.code << ", " << t.code << ");\n";
     o << "  if (_luke_rx) { _luke_rx->need_paint = 1; luke_rx_ui_after_flush(_luke_rx); }\n";
+    return;
+  }
+  /* Phase 3 — component scopes */
+  if (startsWithCI(text, "BEGIN COMPONENT ") || startsWithCI(text, "COMPONENT ")) {
+    std::string rest = startsWithCI(text, "BEGIN COMPONENT ") ? trim(text.substr(16))
+                                                              : trim(text.substr(10));
+    stripDo(rest);
+    auto name = stripThe(rest);
+    if (name.empty()) {
+      bc.fail(line, "COMPONENT needs a name — BEGIN COMPONENT Counter");
+      return;
+    }
+    bool simple = true;
+    for (char c : name)
+      if (!(isalnum((unsigned char)c) || c == '_')) simple = false;
+    if (!simple) {
+      bc.fail(line, "COMPONENT name must be a simple identifier");
+      return;
+    }
+    bc.usesRx = true;
+    bc.rxComponentStack.push_back(name);
+    o << "  luke_rx_scope_begin(_luke_rx, \"" << esc(name) << "\");\n";
+    return;
+  }
+  if (startsWithCI(text, "END COMPONENT")) {
+    std::string rest = trim(text.substr(13));
+    if (bc.rxComponentStack.empty()) {
+      bc.fail(line, "END COMPONENT without matching BEGIN COMPONENT");
+      return;
+    }
+    std::string open = bc.rxComponentStack.back();
+    if (!rest.empty() && stripThe(rest) != open) {
+      bc.fail(line, "END COMPONENT '" + stripThe(rest) + "' but open scope is '" + open + "'");
+      return;
+    }
+    bc.rxComponentStack.pop_back();
+    /* Scope stays alive until DESTROY COMPONENT — handlers can still touch cells. */
+    return;
+  }
+  if (startsWithCI(text, "DESTROY COMPONENT ") || startsWithCI(text, "DESTROY ")) {
+    std::string rest = startsWithCI(text, "DESTROY COMPONENT ") ? trim(text.substr(18))
+                                                                : trim(text.substr(8));
+    auto name = stripThe(rest);
+    if (name.empty()) {
+      bc.fail(line, "DESTROY COMPONENT needs a name");
+      return;
+    }
+    bc.usesRx = true;
+    o << "  luke_rx_scope_end(_luke_rx, \"" << esc(name) << "\");\n";
     return;
   }
   /* Derived: THE total IS price MULTIPLIED BY quantity */
@@ -2586,6 +2636,10 @@ std::string emit(BC &bc) {
     bc.fail(1, "Unclosed FOR EACH — missing END FOR");
     return {};
   }
+  if (!bc.rxComponentStack.empty()) {
+    bc.fail(1, "Unclosed COMPONENT " + bc.rxComponentStack.back() + " — missing END COMPONENT");
+    return {};
+  }
 
   /* Ensure reactive names are visible while compiling derived compute fns. */
   for (auto &kv : bc.rxCells) {
@@ -2595,6 +2649,7 @@ std::string emit(BC &bc) {
 
   if (bc.usesRx) {
     o << "static LukeRxGraph *_luke_rx = NULL;\n";
+    o << "static LukeRxGraph _luke_rx_storage;\n";
     for (auto &name : bc.rxCellOrder)
       o << "static LukeRxId _luke_rx_id_" << cIdent(name) << ";\n";
     for (auto &b : bc.rxBindDefs)
@@ -2665,7 +2720,6 @@ std::string emit(BC &bc) {
   if (bc.forBrowser || !bc.pageWhens.empty())
     o << "  luke_page_arena = arena;\n";
   if (bc.usesRx) {
-    o << "  LukeRxGraph _luke_rx_storage;\n";
     o << "  luke_rx_graph_init(&_luke_rx_storage, arena);\n";
     o << "  _luke_rx = &_luke_rx_storage;\n";
     if (bc.usesRxUi) o << "  luke_rx_ui_enable(_luke_rx);\n";

@@ -50,6 +50,23 @@ std::string stripThe(std::string n) {
   if (startsWithCI(n, "THE ")) n = trim(n.substr(4));
   return n;
 }
+/* Phase 7 — Entity.field cell id when inside BEGIN ENTITY. */
+std::string rxScopedCellName(const std::vector<std::string> &entityStack, const std::string &name) {
+  auto n = stripThe(trim(name));
+  if (!entityStack.empty()) return entityStack.back() + "." + n;
+  return n;
+}
+std::string resolveRxCellName(const std::map<std::string, bool> &rxCells,
+                              const std::vector<std::string> &entityStack, std::string name) {
+  name = stripThe(trim(name));
+  if (rxCells.count(name)) return name;
+  if (name.find('.') != std::string::npos && rxCells.count(name)) return name;
+  if (!entityStack.empty()) {
+    auto scoped = entityStack.back() + "." + name;
+    if (rxCells.count(scoped)) return scoped;
+  }
+  return name;
+}
 std::string esc(const std::string &s) {
   std::string o;
   for (char c : s) {
@@ -283,6 +300,31 @@ struct BC {
     int seq = 0;
   };
   std::vector<RxListBindDef> rxListBindDefs;
+  struct RxOpacityBindDef {
+    std::string argusId;
+    std::string exprRaw;
+    size_t line = 0;
+    int seq = 0;
+  };
+  std::vector<RxOpacityBindDef> rxOpacityBindDefs;
+  std::vector<std::string> rxEntityStack;
+  struct RxTimelineBind {
+    std::string jobId;
+    std::string progressCell;
+    double from = 0;
+    double to = 1;
+    double ms = 0;
+    size_t line = 0;
+  };
+  std::vector<RxTimelineBind> rxTimelineBinds;
+  bool usesTimeline = false;
+  struct RxQueryDef {
+    std::string name;
+    std::string dbLocal;
+    std::string sql;
+    size_t line = 0;
+  };
+  std::vector<RxQueryDef> rxQueryDefs;
   std::vector<std::string> rxComponentStack; /* open BEGIN COMPONENT names */
   /* Phase 4 — async fetch → reactive cells */
   struct RxFetchBind {
@@ -573,6 +615,22 @@ Expr BC::primary(std::string e, size_t line) {
     if (locals.count(naked) || rxCells.count(naked)) e = naked;
   }
 
+  if (!rxCells.count(e)) {
+    for (auto &kv : rxCells) {
+      auto dot = kv.first.find('.');
+      if (dot == std::string::npos) continue;
+      if (kv.first.substr(dot + 1) == e) {
+        e = kv.first;
+        break;
+      }
+    }
+  }
+
+  if (!rxEntityStack.empty()) {
+    auto scoped = rxEntityStack.back() + "." + e;
+    if (rxCells.count(scoped)) e = scoped;
+  }
+
   bool words = !e.empty();
   for (char c : e)
     if (!(isalpha((unsigned char)c) || isspace((unsigned char)c))) words = false;
@@ -841,6 +899,8 @@ Expr BC::expr(std::string e, size_t line) {
   if (auto *r = cmp(" IS EQUAL TO ", "==")) return *r;
   if (auto *r = cmp(" IS LESS THAN ", "<")) return *r;
   if (auto *r = cmp(" IS GREATER THAN ", ">")) return *r;
+  if (auto *r = cmp(" IS LESS THAN OR EQUAL TO ", "<=")) return *r;
+  if (auto *r = cmp(" IS GREATER THAN OR EQUAL TO ", ">=")) return *r;
 
   auto arith = [&](const std::string &mid, const std::string &pref, char op) -> Expr * {
     static Expr r;
@@ -882,6 +942,16 @@ Expr BC::expr(std::string e, size_t line) {
   if (auto *r = arith(" SUBTRACT ", "SUBTRACT ", '-')) return *r;
   if (auto *r = arith(" MULTIPLY ", "MULTIPLY ", '*')) return *r;
   if (auto *r = arith(" DIVIDE ", "DIVIDE ", '/')) return *r;
+  {
+    size_t pos = findOutsideQuotes(e, U, " DIVIDED BY ");
+    if (pos != std::string::npos) {
+      auto L = expr(trim(e.substr(0, pos)), line);
+      auto R = expr(trim(e.substr(pos + 12)), line);
+      expectTy(line, L.ty, Ty::num(), "Arithmetic");
+      expectTy(line, R.ty, Ty::num(), "Arithmetic");
+      return {"(" + L.code + "/" + R.code + ")", Ty::num()};
+    }
+  }
 
   {
     auto pos = findOutsideQuotes(e, U, " AND ");
@@ -991,6 +1061,34 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "REMEMBER needs a name");
       return;
     }
+    /* REMEMBER notes AS QUERY ON db AS "SELECT …" */
+    if (startsWithCI(valRaw, "QUERY ON ")) {
+      auto qrest = trim(valRaw.substr(9));
+      auto qU = toUpper(qrest);
+      auto qAs = qU.find(" AS ");
+      if (qAs == std::string::npos) {
+        bc.fail(line, "REMEMBER QUERY needs: REMEMBER name AS QUERY ON db AS \"sql\"");
+        return;
+      }
+      auto dbName = trim(qrest.substr(0, qAs));
+      auto sqlE = bc.coerceText(bc.expr(trim(qrest.substr(qAs + 4)), line));
+      if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+          bc.locals[dbName].klass != "__Db") {
+        bc.fail(line, "QUERY ON needs a DATABASE — MY NAME IS " + dbName + " AS DATABASE");
+        return;
+      }
+      std::string key = rxScopedCellName(bc.rxEntityStack, name);
+      bc.usesRx = true;
+      bc.locals[name] = Ty::text();
+      bc.rxCellTy[key] = Ty::text();
+      if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
+      bc.rxCells[key] = true;
+      bc.rxQueryDefs.push_back({key, dbName, unquoteText(trim(qrest.substr(qAs + 4))), line});
+      o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+      o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
+        << cIdent(dbName) << ", " << sqlE.code << ");\n";
+      return;
+    }
     /* Optional: REMEMBER x AS NUMBER SET TO 100 */
     auto vU = toUpper(valRaw);
     auto setPos = vU.find(" SET TO ");
@@ -1009,22 +1107,23 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       }
     }
     /* Reactive collections */
+    std::string cellKey = rxScopedCellName(bc.rxEntityStack, name);
     if (forced.k == K::List || (valRaw.empty() && forced.k == K::List)) {
       bc.usesRx = true;
       bc.locals[name] = Ty::list();
-      bc.rxCellTy[name] = Ty::list();
-      if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
-      bc.rxCells[name] = true;
-      o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_list(_luke_rx);\n";
+      bc.rxCellTy[cellKey] = Ty::list();
+      if (!bc.rxCells.count(cellKey)) bc.rxCellOrder.push_back(cellKey);
+      bc.rxCells[cellKey] = true;
+      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_list(_luke_rx);\n";
       return;
     }
     if (forced.k == K::Map) {
       bc.usesRx = true;
       bc.locals[name] = Ty::map();
-      bc.rxCellTy[name] = Ty::map();
-      if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
-      bc.rxCells[name] = true;
-      o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_map(_luke_rx);\n";
+      bc.rxCellTy[cellKey] = Ty::map();
+      if (!bc.rxCells.count(cellKey)) bc.rxCellOrder.push_back(cellKey);
+      bc.rxCells[cellKey] = true;
+      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_map(_luke_rx);\n";
       return;
     }
     Expr e{"0.0", Ty::num()};
@@ -1046,13 +1145,14 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     bc.usesRx = true;
     bc.locals[name] = e.ty;
-    bc.rxCellTy[name] = e.ty;
-    if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
-    bc.rxCells[name] = true;
+    bc.rxCellTy[cellKey] = e.ty;
+    if (!bc.rxCells.count(cellKey)) bc.rxCellOrder.push_back(cellKey);
+    bc.rxCells[cellKey] = true;
     if (e.ty.k == K::Text)
-      o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_cell_text(_luke_rx, " << e.code << ");\n";
+      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell_text(_luke_rx, " << e.code
+        << ");\n";
     else
-      o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_cell(_luke_rx, " << e.code << ");\n";
+      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell(_luke_rx, " << e.code << ");\n";
     return;
   }
   if (startsWithCI(text, "CHANGE ")) {
@@ -1063,7 +1163,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "CHANGE needs: CHANGE name TO value");
       return;
     }
-    auto name = stripThe(trim(rest.substr(0, to)));
+    auto name = resolveRxCellName(bc.rxCells, bc.rxEntityStack, trim(rest.substr(0, to)));
     auto e = bc.expr(trim(rest.substr(to + 4)), line);
     if (!bc.rxCells.count(name)) {
       bc.fail(line, "CHANGE '" + name + "' — REMEMBER it first (reactive cell)");
@@ -1094,7 +1194,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "INCREASE needs: INCREASE name BY amount");
       return;
     }
-    auto name = stripThe(trim(rest.substr(0, by)));
+    auto name = resolveRxCellName(bc.rxCells, bc.rxEntityStack, trim(rest.substr(0, by)));
     auto e = bc.expr(trim(rest.substr(by + 4)), line);
     if (!bc.rxCells.count(name) || bc.rxDerived.count(name)) {
       bc.fail(line, "INCREASE needs a REMEMBER'd NUMBER cell — not '" + name + "'");
@@ -1123,6 +1223,30 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   }
   if (toUpper(text) == "PAINT DIRTY" || toUpper(text) == "PAINT THE DIRTY NODES") {
     o << "  argus_paint(arena);\n";
+    return;
+  }
+  /* BIND OPACITY "panel" TO progress — reactive Argus opacity (layout frame). */
+  if (startsWithCI(text, "BIND OPACITY ")) {
+    auto rest = trim(text.substr(13));
+    auto U = toUpper(rest);
+    auto toPos = U.find(" TO ");
+    if (toPos == std::string::npos) {
+      bc.fail(line, "BIND OPACITY needs: BIND OPACITY \"element\" TO expression");
+      return;
+    }
+    auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, toPos)), line));
+    auto exprRaw = trim(rest.substr(toPos + 4));
+    if (exprRaw.empty()) {
+      bc.fail(line, "BIND OPACITY needs an expression after TO");
+      return;
+    }
+    bc.usesRx = true;
+    bc.usesRxUi = true;
+    int seq = ++bc.rxBindSeq;
+    bc.rxOpacityBindDefs.push_back({idE.code, exprRaw, line, seq});
+    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect(_luke_rx, _luke_rx_bind_opacity_" << seq
+      << ", NULL);\n";
+    o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
   /* BIND LIST players AS "row" — granular Argus row paints (prefix_index). */
@@ -1199,7 +1323,29 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  if (_luke_rx) { _luke_rx->need_paint = 1; luke_rx_ui_after_flush(_luke_rx); }\n";
     return;
   }
-  /* Phase 3 — component scopes */
+  /* Phase 3/7 — component / entity scopes */
+  if (startsWithCI(text, "BEGIN ENTITY ") || startsWithCI(text, "ENTITY ")) {
+    std::string rest = startsWithCI(text, "BEGIN ENTITY ") ? trim(text.substr(13))
+                                                         : trim(text.substr(7));
+    stripDo(rest);
+    auto name = stripThe(rest);
+    if (name.empty()) {
+      bc.fail(line, "ENTITY needs a name — BEGIN ENTITY Player");
+      return;
+    }
+    bool simple = true;
+    for (char c : name)
+      if (!(isalnum((unsigned char)c) || c == '_')) simple = false;
+    if (!simple) {
+      bc.fail(line, "ENTITY name must be a simple identifier");
+      return;
+    }
+    bc.usesRx = true;
+    bc.rxEntityStack.push_back(name);
+    bc.rxComponentStack.push_back(name);
+    o << "  luke_rx_scope_begin(_luke_rx, \"" << esc(name) << "\");\n";
+    return;
+  }
   if (startsWithCI(text, "BEGIN COMPONENT ") || startsWithCI(text, "COMPONENT ")) {
     std::string rest = startsWithCI(text, "BEGIN COMPONENT ") ? trim(text.substr(16))
                                                               : trim(text.substr(10));
@@ -1221,10 +1367,17 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  luke_rx_scope_begin(_luke_rx, \"" << esc(name) << "\");\n";
     return;
   }
-  if (startsWithCI(text, "END COMPONENT")) {
-    std::string rest = trim(text.substr(13));
+  if (startsWithCI(text, "END COMPONENT") || startsWithCI(text, "END ENTITY") ||
+      toUpper(text) == "ENDCOMPONENT" || toUpper(text) == "ENDENTITY") {
+    std::string rest;
+    if (startsWithCI(text, "END COMPONENT"))
+      rest = trim(text.substr(13));
+    else if (startsWithCI(text, "END ENTITY"))
+      rest = trim(text.substr(10));
+    else
+      rest = "";
     if (bc.rxComponentStack.empty()) {
-      bc.fail(line, "END COMPONENT without matching BEGIN COMPONENT");
+      bc.fail(line, "END COMPONENT without matching BEGIN COMPONENT / ENTITY");
       return;
     }
     std::string open = bc.rxComponentStack.back();
@@ -1232,13 +1385,21 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "END COMPONENT '" + stripThe(rest) + "' but open scope is '" + open + "'");
       return;
     }
+    if (!bc.rxEntityStack.empty() && bc.rxEntityStack.back() == open) bc.rxEntityStack.pop_back();
     bc.rxComponentStack.pop_back();
     /* Scope stays alive until DESTROY COMPONENT — handlers can still touch cells. */
     return;
   }
-  if (startsWithCI(text, "DESTROY COMPONENT ") || startsWithCI(text, "DESTROY ")) {
-    std::string rest = startsWithCI(text, "DESTROY COMPONENT ") ? trim(text.substr(18))
-                                                                : trim(text.substr(8));
+  if (startsWithCI(text, "DESTROY COMPONENT ") || startsWithCI(text, "DESTROY ENTITY ") ||
+      (startsWithCI(text, "DESTROY ") && !startsWithCI(text, "DESTROY COMPONENT ") &&
+       !startsWithCI(text, "DESTROY ENTITY "))) {
+    std::string rest;
+    if (startsWithCI(text, "DESTROY COMPONENT "))
+      rest = trim(text.substr(18));
+    else if (startsWithCI(text, "DESTROY ENTITY "))
+      rest = trim(text.substr(15));
+    else
+      rest = trim(text.substr(8));
     auto name = stripThe(rest);
     if (name.empty()) {
       bc.fail(line, "DESTROY COMPONENT needs a name");
@@ -1249,6 +1410,66 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
   /* Derived: THE total IS price MULTIPLIED BY quantity */
+  if (startsWithCI(text, "REFRESH QUERY ")) {
+    auto qname = resolveRxCellName(bc.rxCells, bc.rxEntityStack, trim(text.substr(14)));
+    const BC::RxQueryDef *qd = nullptr;
+    for (auto &q : bc.rxQueryDefs)
+      if (q.name == qname) {
+        qd = &q;
+        break;
+      }
+    if (!qd) {
+      bc.fail(line, "REFRESH QUERY needs a REMEMBER'd QUERY cell — not '" + qname + "'");
+      return;
+    }
+    bc.usesRx = true;
+    o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(qname) << ", "
+      << cIdent(qd->dbLocal) << ", luke_text(\"" << esc(qd->sql) << "\"));\n";
+    return;
+  }
+  if (startsWithCI(text, "START TIMELINE ") || startsWithCI(text, "RUN TIMELINE ")) {
+    size_t prefix = startsWithCI(text, "START TIMELINE ") ? 15 : 13;
+    auto rest = trim(text.substr(prefix));
+    auto U = toUpper(rest);
+    /* Parse: "id" FOR ms MILLISECONDS FROM a TO b INTO cell */
+    auto forPos = findOutsideQuotes(rest, U, " FOR ");
+    auto fromPos = findOutsideQuotes(rest, U, " FROM ");
+    auto toKw = findOutsideQuotes(rest, U, " TO ");
+    auto intoPos = findOutsideQuotes(rest, U, " INTO ");
+    if (forPos == std::string::npos || fromPos == std::string::npos || toKw == std::string::npos ||
+        intoPos == std::string::npos || intoPos < toKw) {
+      bc.fail(line, "TIMELINE needs: START TIMELINE \"id\" FOR ms MILLISECONDS FROM a TO b INTO cell");
+      return;
+    }
+    auto idRaw = trim(rest.substr(0, forPos));
+    auto idLit = unquoteText(idRaw);
+    auto forClause = trim(rest.substr(forPos + 5, fromPos - (forPos + 5)));
+    auto fU = toUpper(forClause);
+    auto msPos = fU.find(" MILLISECONDS");
+    if (msPos != std::string::npos) forClause = trim(forClause.substr(0, msPos));
+    auto msE = bc.expr(forClause, line);
+    auto fromE = bc.expr(trim(rest.substr(fromPos + 6, toKw - (fromPos + 6))), line);
+    auto toE = bc.expr(trim(rest.substr(toKw + 4, intoPos - (toKw + 4))), line);
+    auto intoName = resolveRxCellName(bc.rxCells, bc.rxEntityStack, trim(rest.substr(intoPos + 6)));
+    if (!bc.rxCells.count(intoName)) {
+      bc.fail(line, "TIMELINE INTO needs a REMEMBER'd NUMBER cell — '" + intoName + "'");
+      return;
+    }
+    if (idLit.empty()) idLit = idRaw;
+    bc.usesRx = true;
+    bc.usesTimeline = true;
+    bc.rxTimelineBinds.push_back({idLit, intoName, 0, 1, 0, line});
+    o << "  _luke_active_timeline_id = luke_text(\"" << esc(idLit) << "\");\n";
+    o << "  luke_rx_timeline_register(_luke_rx, _luke_active_timeline_id, _luke_rx_id_"
+      << cIdent(intoName) << ", " << fromE.code << ", " << toE.code << ");\n";
+    if (bc.forBrowser) {
+      o << "  luke_js_timeline_start(luke_text(\"" << esc(idLit) << "\"), " << msE.code << ");\n";
+    } else {
+      o << "  luke_rx_timeline_run_sync(_luke_rx, luke_text(\"" << esc(idLit) << "\"), "
+        << fromE.code << ", " << toE.code << ", _luke_rx_id_" << cIdent(intoName) << ", 10);\n";
+    }
+    return;
+  }
   if (startsWithCI(text, "THE ") && !startsWithCI(text, "THE VALUE OF ") &&
       !startsWithCI(text, "THE BODY OF ") && !startsWithCI(text, "THE STATUS OF ")) {
     auto rest = trim(text.substr(4));
@@ -1257,26 +1478,27 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     if (isPos != std::string::npos) {
       auto name = stripThe(trim(rest.substr(0, isPos)));
       auto exprRaw = trim(rest.substr(isPos + 4));
-      /* Avoid mistaking "THE SCREEN" fragments — name must be a simple ident. */
       bool simple = !name.empty();
       for (char c : name)
-        if (!(isalnum((unsigned char)c) || c == '_')) simple = false;
+        if (!(isalnum((unsigned char)c) || c == '_' || c == '.')) simple = false;
       if (simple && !exprRaw.empty()) {
+        std::string dkey =
+            name.find('.') != std::string::npos ? name : rxScopedCellName(bc.rxEntityStack, name);
         bc.usesRx = true;
         bc.locals[name] = Ty::num();
-        if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
-        bc.rxCells[name] = true;
-        bc.rxDerived[name] = true;
+        if (!bc.rxCells.count(dkey)) bc.rxCellOrder.push_back(dkey);
+        bc.rxCells[dkey] = true;
+        bc.rxDerived[dkey] = true;
         int found = 0;
         for (auto &d : bc.rxDerivedDefs)
-          if (d.name == name) {
+          if (d.name == dkey) {
             d.exprRaw = exprRaw;
             d.line = line;
             found = 1;
           }
-        if (!found) bc.rxDerivedDefs.push_back({name, exprRaw, line});
-        o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_derived(_luke_rx, _luke_rx_fn_"
-          << cIdent(name) << ", NULL);\n";
+        if (!found) bc.rxDerivedDefs.push_back({dkey, exprRaw, line});
+        o << "  _luke_rx_id_" << cIdent(dkey) << " = luke_rx_derived(_luke_rx, _luke_rx_fn_"
+          << cIdent(dkey) << ", NULL);\n";
         return;
       }
     }
@@ -2384,6 +2606,14 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN THE ROUTE IS needs a name — WHEN THE ROUTE IS \"home\" DO");
             return false;
           }
+        } else if (startsWithCI(rest, "TIMELINE ") && U.find(" IS FINISHED") != std::string::npos) {
+          curWhen.event = "timeline";
+          auto fin = U.find(" IS FINISHED");
+          curWhen.elementId = unquoteText(trim(rest.substr(9, fin - 9)));
+          if (curWhen.elementId.empty()) {
+            bc.fail(lineNo, "WHEN TIMELINE … IS FINISHED needs a timeline id");
+            return false;
+          }
         } else if (startsWithCI(rest, "FETCH ") && U.find(" IS READY") != std::string::npos) {
           curWhen.event = "fetch";
           auto ready = U.find(" IS READY");
@@ -2402,7 +2632,7 @@ bool parse(BC &bc, const std::string &source) {
             curWhen.event = "submit";
           else {
             bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
-                            "or FETCH … IS READY");
+                            "TIMELINE … IS FINISHED, or FETCH … IS READY");
             return false;
           }
           curWhen.elementId = unquoteText(trim(rest.substr(0, evPos)));
@@ -2845,6 +3075,17 @@ std::string emit(BC &bc) {
     return {};
   }
 
+  for (auto &tl : bc.top) {
+    if (startsWithCI(tl.second, "START TIMELINE ") || startsWithCI(tl.second, "RUN TIMELINE "))
+      bc.usesTimeline = true;
+  }
+  for (auto &w : bc.pageWhens) {
+    for (auto &line : w.body) {
+      if (startsWithCI(line, "START TIMELINE ") || startsWithCI(line, "RUN TIMELINE "))
+        bc.usesTimeline = true;
+    }
+  }
+
   /* Ensure reactive names are visible while compiling derived compute fns. */
   for (auto &kv : bc.rxCells) {
     Ty ty = bc.rxCellTy.count(kv.first) ? bc.rxCellTy[kv.first] : Ty::num();
@@ -2860,9 +3101,21 @@ std::string emit(BC &bc) {
       o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
     for (auto &b : bc.rxListBindDefs)
       o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
+    for (auto &b : bc.rxOpacityBindDefs)
+      o << "static LukeRxId _luke_rx_id_bind_" << b.seq << ";\n";
+    if (bc.usesTimeline || bc.forBrowser) o << "static LukeText _luke_active_timeline_id;\n";
     o << "\n";
+    for (auto &kv : bc.rxCells) {
+      auto dot = kv.first.find('.');
+      if (dot != std::string::npos) {
+        Ty ty = bc.rxCellTy.count(kv.first) ? bc.rxCellTy[kv.first] : Ty::num();
+        bc.locals[kv.first.substr(dot + 1)] = ty;
+      }
+    }
     for (auto &d : bc.rxDerivedDefs) {
       bc.rxGraphVar = "g";
+      auto dot = d.name.find('.');
+      if (dot != std::string::npos) bc.locals[d.name.substr(dot + 1)] = Ty::num();
       auto e = bc.expr(d.exprRaw, d.line);
       if (bc.bad) return {};
       bc.expectTy(d.line, e.ty, Ty::num(), "THE " + d.name + " IS");
@@ -2893,6 +3146,26 @@ std::string emit(BC &bc) {
       o << "  (void)arena;\n";
       o << "  luke_rx_ui_paint_list(g, _luke_rx_id_" << cIdent(b.listName) << ", " << pe.code
         << ");\n";
+      o << "}\n\n";
+    }
+    for (auto &b : bc.rxOpacityBindDefs) {
+      bc.rxGraphVar = "g";
+      auto oe = bc.expr(b.exprRaw, b.line);
+      if (bc.bad) return {};
+      bc.expectTy(b.line, oe.ty, Ty::num(), "BIND OPACITY");
+      o << "static void _luke_rx_bind_opacity_" << b.seq << "(LukeRxGraph *g, void *ctx) {\n";
+      o << "  (void)ctx;\n";
+      o << "  luke_rx_ui_set_opacity(g, " << b.argusId << ", " << oe.code << ");\n";
+      o << "}\n\n";
+    }
+    if (bc.forBrowser && bc.usesRx) {
+      o << "__attribute__((export_name(\"luke_timeline_progress\")))\n";
+      o << "void luke_timeline_progress(double t) {\n";
+      o << "  if (_luke_rx) luke_rx_timeline_progress(_luke_rx, _luke_active_timeline_id, t);\n";
+      o << "}\n\n";
+      o << "__attribute__((export_name(\"luke_timeline_finish_export\")))\n";
+      o << "void luke_timeline_finish_export(void) {\n";
+      o << "  if (_luke_rx) luke_rx_timeline_finish(_luke_rx, _luke_active_timeline_id);\n";
       o << "}\n\n";
     }
     bc.rxGraphVar = "_luke_rx";
@@ -2938,6 +3211,28 @@ std::string emit(BC &bc) {
       bc.hasPage = true;
       whenBodies.push_back("");
     }
+  }
+
+  /* Phase 6: ensure START TIMELINE has FINISHED continuation (browser). */
+  if (bc.forBrowser || bc.hasPage) {
+  for (auto &tb : bc.rxTimelineBinds) {
+    bool found = false;
+    for (auto &w : bc.pageWhens) {
+      if (w.event == "timeline" && w.elementId == tb.jobId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      BrowserWhen w;
+      w.event = "timeline";
+      w.elementId = tb.jobId;
+      w.exportName = "luke_when_" + std::to_string(bc.whenSeq++);
+      bc.pageWhens.push_back(w);
+      bc.hasPage = true;
+      whenBodies.push_back("");
+    }
+  }
   }
 
   if (!bc.pageWhens.empty()) {

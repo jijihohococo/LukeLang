@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phase 5 collections shipped (LIST/MAP + BIND LIST granular paint)  
+> **Status:** Phases 1–8 shipped (animation, game entities, backend queries)  
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -422,17 +422,36 @@ Granular list/map invalidation; `BIND LIST` paints `{prefix}_{index}` using `cha
 - `THE GRANULAR PAINT COUNT` for tests
 - Demos: `examples/build/reactive_list.luke`, `reactive_list_ui.luke`
 
-### Phase 6 — Animation
+### Phase 6 — Animation *(shipped)*
 
-Timeline progress cells → Hanka/Argus; shared with UI motion.
+Timeline progress as NUMBER cells → `BIND OPACITY` / layout consumers.
 
-### Phase 7 — Game
+**Deliverables**
 
-Entity fields as cells; health → bar / death / animation triggers.
+- `START TIMELINE "id" FOR ms MILLISECONDS FROM a TO b INTO cell` (native: stepped sync)
+- `WHEN TIMELINE "id" IS FINISHED DO` · browser rAF ticks via `timeline_start`
+- `BIND OPACITY "element" TO expr`
+- Demos: `reactive_timeline.luke`, `reactive_timeline_ui.luke`
 
-### Phase 8 — Backend
+### Phase 7 — Game *(shipped)*
 
-Derived query cells over lists/DB; subscription-friendly invalidation.
+Entity scopes with dotted field cells (`Player.health`).
+
+**Deliverables**
+
+- `BEGIN ENTITY Name` … `END ENTITY` · `DESTROY ENTITY Name`
+- Field cells as `Entity.field` in the dependency graph
+- Demo: `reactive_entity.luke`
+
+### Phase 8 — Backend *(shipped)*
+
+Query result TEXT cells; `REFRESH QUERY` re-runs SQL and invalidates dependents.
+
+**Deliverables**
+
+- `REMEMBER x AS QUERY ON db AS "sql"` · `REFRESH QUERY x`
+- `luke_rx_query_refresh` over `luke_db_query_text`
+- Demo: `reactive_query.luke`
 
 ---
 

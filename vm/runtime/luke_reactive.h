@@ -107,6 +107,16 @@ struct LukeRxGraph {
   uint32_t active_scope; /* 0 = none */
   int disposed_count;
   int granular_paints; /* Phase 5: count of row/slot paints (tests) */
+  /* Phase 6 — timelines */
+#define LUKE_RX_MAX_TIMELINES 16
+  struct {
+    char id[64];
+    LukeRxId target;
+    double from;
+    double to;
+    int active;
+  } timelines[LUKE_RX_MAX_TIMELINES];
+  size_t timeline_len;
 };
 
 static inline void luke_rx_graph_init(LukeRxGraph *g, LukeArena *a) {

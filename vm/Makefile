@@ -152,6 +152,21 @@ test-build: build/luke
 	@grep -q 'luke_rx_ui_paint_list\|luke_rx_list_set' build/reactive_list_ui.luke.c
 	@node ../scripts/luke_browser_loader.cjs build/reactive_list_ui.wasm --dispatch rename:click 2>&1 | tee /tmp/luke_rx_list.txt | grep -q 'Zoe'
 	@! grep -q '\[argus_clear\]' /tmp/luke_rx_list.txt
+	./build/luke BUILD ../examples/build/reactive_timeline.luke -o build/ex_rx_timeline
+	./build/ex_rx_timeline | grep -q "progress=1"
+	@grep -q 'luke_rx_timeline_run_sync' build/ex_rx_timeline.luke.c
+	./build/luke BUILD ../examples/build/reactive_timeline_ui.luke -target browser -o build/reactive_timeline_ui
+	@grep -q 'luke_timeline_progress\|BIND OPACITY\|luke_rx_ui_set_opacity' build/reactive_timeline_ui.luke.c
+	@node -e 'const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/reactive_timeline_ui.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/reactive_timeline_ui.wasm"),{whens}).then(()=>{globalThis.__lukeDispatch("play","click");return new Promise(r=>setTimeout(r,350));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_rx_timeline.txt | grep -q 'Timeline finished'
+	./build/luke BUILD ../examples/build/reactive_entity.luke -o build/ex_rx_entity
+	./build/ex_rx_entity | grep -q "hp=100"
+	./build/ex_rx_entity | grep -q "hp=75"
+	./build/ex_rx_entity | grep -q "pct=0.75"
+	@grep -q 'Player_health' build/ex_rx_entity.luke.c
+	./build/luke BUILD ../examples/build/reactive_query.luke -o build/ex_rx_query
+	./build/ex_rx_query | grep -q "alpha"
+	./build/ex_rx_query | grep -q "gamma"
+	@grep -q 'luke_rx_query_refresh' build/ex_rx_query.luke.c
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

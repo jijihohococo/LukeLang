@@ -34,7 +34,7 @@ This documentation serves as a comprehensive guide for learners and developers, 
 
 5.  **Engine track**
     *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
-    *   [Reactive](./REACTIVE.md) — language understands change (Phase 5 collections)
+    *   [Reactive](./REACTIVE.md) — language understands change (Phases 1–8)
     *   [Argus](./ARGUS.md) — rendering engine (DOM presentment)
     *   [Hanka](./HANKA.md) — layout engine (frames → Argus)
     *   [Production Web](./PRODUCTION_WEB.md) — forms, routes, deploy stack

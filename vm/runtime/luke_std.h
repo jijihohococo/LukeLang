@@ -10,6 +10,7 @@
 #include "argus.h"
 #include "hanka.h"
 #include "luke_reactive.h"
+#include "luke_timeline.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -987,15 +988,43 @@ static inline void luke_rx_ui_paint_list(LukeRxGraph *g, LukeRxId list_id, LukeT
   int last = n->last_index;
   LukeList *list = n->list;
   size_t len = list->len;
-  /* Item update or structural add/remove tip → paint that index only. */
   if ((kind == 1 || kind == 2) && last >= 0 && (size_t)last < len) {
     luke_rx_ui_paint_list_row(g, prefix, last, luke_list_get(list, (double)last));
     return;
   }
-  /* Initial bind / full refresh */
   for (size_t i = 0; i < len; ++i)
     luke_rx_ui_paint_list_row(g, prefix, (int)i, luke_list_get(list, (double)i));
 }
+
+static inline void luke_rx_ui_set_opacity(LukeRxGraph *g, LukeText id, double opacity) {
+  if (!g || !g->arena) return;
+  ArgusNode *n = argus_find(argus_tree(g->arena), id);
+  if (!n) return;
+  if (n->mounted && n->opacity == opacity) return;
+  argus_set_opacity(n, opacity);
+  g->need_paint = 1;
+}
+
+/* Phase 8 — refresh a QUERY TEXT cell from SQLite (native) or stub. */
+static inline void luke_rx_query_refresh(LukeRxGraph *g, LukeRxId id, LukeDb *db, LukeText sql) {
+  if (!g || !g->arena) return;
+  LukeText row = luke_db_query_text(g->arena, db, sql);
+  luke_rx_write_text(g, id, row);
+}
+
+#if defined(LUKE_BROWSER)
+__attribute__((import_module("lukejs"), import_name("timeline_start"))) void
+luke_js_timeline_start_raw(const char *id, size_t id_len, double ms);
+
+static inline void luke_js_timeline_start(LukeText id, double ms) {
+  luke_js_timeline_start_raw(id.ptr, id.len, ms);
+}
+#else
+static inline void luke_js_timeline_start(LukeText id, double ms) {
+  (void)id;
+  (void)ms;
+}
+#endif
 
 #ifdef __cplusplus
 }

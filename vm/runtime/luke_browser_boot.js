@@ -287,6 +287,30 @@ function createLukeJs(getMemory, opts) {
       if (outCap > 0) u8[outPtr + n] = 0;
       view.setUint32(outLenPtr, n, true);
     },
+    timeline_start: function (idPtr, idLen, ms) {
+      var id = readText(idPtr, idLen);
+      var dur = ms > 0 ? ms : 300;
+      console.log("[timeline_start]", id, dur);
+      setTimeout(function () {
+        var inst = globalThis.__lukeInstance;
+        if (!inst) return;
+        var start = Date.now();
+        function tick() {
+          var t = (Date.now() - start) / dur;
+          if (t >= 1) {
+            if (typeof inst.exports.luke_timeline_finish_export === "function")
+              inst.exports.luke_timeline_finish_export();
+            if (typeof globalThis.__lukeDispatch === "function")
+              globalThis.__lukeDispatch(id, "timeline");
+            return;
+          }
+          if (typeof inst.exports.luke_timeline_progress === "function")
+            inst.exports.luke_timeline_progress(t);
+          setTimeout(tick, 16);
+        }
+        tick();
+      }, 0);
+    },
     argus_clear: function () {
       if (typeof document === "undefined") return;
       var root = document.getElementById("root");

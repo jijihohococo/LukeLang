@@ -276,6 +276,15 @@ struct BC {
   std::vector<RxBindDef> rxBindDefs;
   int rxBindSeq = 0;
   std::vector<std::string> rxComponentStack; /* open BEGIN COMPONENT names */
+  /* Phase 4 — async fetch → reactive cells */
+  struct RxFetchBind {
+    std::string jobId;
+    std::string bodyCell;
+    std::string statusCell;
+    std::string readyCell;
+    size_t line = 0;
+  };
+  std::vector<RxFetchBind> rxFetchBinds;
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -1661,7 +1670,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   if (startsWithCI(text, "START FETCH ")) {
     auto rest = trim(text.substr(12));
     auto U = toUpper(rest);
-    /* START FETCH "job" GET "url"  |  START FETCH "job" POST "url" WITH body */
+    /* START FETCH "job" GET "url" [INTO body] [STATUS st] [READY ready]
+     * START FETCH "job" POST "url" [WITH body] [INTO …] [STATUS …] [READY …] */
     auto getPos = findOutsideQuotes(rest, U, " GET ");
     auto postPos = findOutsideQuotes(rest, U, " POST ");
     bool isPost = postPos != std::string::npos && (getPos == std::string::npos || postPos < getPos);
@@ -1670,16 +1680,87 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "START FETCH needs GET or POST — START FETCH \"job\" GET \"url\"");
       return;
     }
-    auto idE = bc.coerceText(bc.expr(trim(rest.substr(0, methPos)), line));
+    auto idRaw = trim(rest.substr(0, methPos));
+    auto idE = bc.coerceText(bc.expr(idRaw, line));
     auto after = trim(rest.substr(methPos + (isPost ? 6 : 5)));
     auto aU = toUpper(after);
-    auto withPos = findOutsideQuotes(after, aU, " WITH ");
-    std::string urlPart = withPos == std::string::npos ? after : trim(after.substr(0, withPos));
+    size_t withPos = isPost ? findOutsideQuotes(after, aU, " WITH ") : std::string::npos;
+    size_t intoPos = findOutsideQuotes(after, aU, " INTO ");
+    size_t statusPos = findOutsideQuotes(after, aU, " STATUS ");
+    size_t readyPos = findOutsideQuotes(after, aU, " READY ");
+
+    size_t firstClause = std::string::npos;
+    auto consider = [&](size_t p) {
+      if (p != std::string::npos && (firstClause == std::string::npos || p < firstClause))
+        firstClause = p;
+    };
+    consider(withPos);
+    consider(intoPos);
+    consider(statusPos);
+    consider(readyPos);
+
+    auto urlPart = firstClause == std::string::npos ? after : trim(after.substr(0, firstClause));
     auto urlE = bc.coerceText(bc.expr(urlPart, line));
     Expr bodyE{"luke_text(\"\")", Ty::text()};
-    if (withPos != std::string::npos) bodyE = bc.coerceText(bc.expr(trim(after.substr(withPos + 6)), line));
+    if (withPos != std::string::npos) {
+      size_t bEnd = after.size();
+      auto limit = [&](size_t p) {
+        if (p != std::string::npos && p > withPos && p < bEnd) bEnd = p;
+      };
+      limit(intoPos);
+      limit(statusPos);
+      limit(readyPos);
+      bodyE = bc.coerceText(bc.expr(trim(after.substr(withPos + 6, bEnd - (withPos + 6))), line));
+    }
+
+    auto parseCellRef = [&](size_t pos, size_t keyLen, const char *clause,
+                            bool wantText) -> std::string {
+      if (pos == std::string::npos) return {};
+      size_t start = pos + keyLen;
+      size_t end = after.size();
+      auto limit = [&](size_t p) {
+        if (p != std::string::npos && p > pos && p < end) end = p;
+      };
+      limit(intoPos);
+      limit(statusPos);
+      limit(readyPos);
+      limit(withPos);
+      auto name = stripThe(trim(after.substr(start, end - start)));
+      if (name.empty()) {
+        bc.fail(line, std::string("START FETCH ") + clause + " needs a cell name");
+        return {};
+      }
+      if (!bc.rxCells.count(name)) {
+        bc.fail(line, std::string("START FETCH ") + clause + " '" + name +
+                          "' — REMEMBER it first as a reactive cell");
+        return {};
+      }
+      Ty ty = bc.rxCellTy.count(name) ? bc.rxCellTy[name] : Ty::num();
+      if (wantText)
+        bc.expectTy(line, ty, Ty::text(), std::string("START FETCH ") + clause);
+      else if (ty.k != K::Num && ty.k != K::Flag)
+        bc.fail(line, std::string("START FETCH ") + clause + " wants NUMBER/FLAG cell");
+      return name;
+    };
+
+    std::string intoCell = parseCellRef(intoPos, 6, "INTO", true);
+    if (bc.bad) return;
+    std::string statusCell = parseCellRef(statusPos, 8, "STATUS", false);
+    if (bc.bad) return;
+    std::string readyCell = parseCellRef(readyPos, 7, "READY", false);
+    if (bc.bad) return;
+
+    if (!intoCell.empty() || !statusCell.empty() || !readyCell.empty()) {
+      std::string jobLit = unquoteText(idRaw);
+      if (jobLit.empty()) jobLit = idRaw;
+      bc.rxFetchBinds.push_back({jobLit, intoCell, statusCell, readyCell, line});
+      bc.usesRx = true;
+    }
+
     o << "  luke_js_fetch_start(" << idE.code << ", luke_text(\"" << (isPost ? "POST" : "GET")
       << "\"), " << urlE.code << ", " << bodyE.code << ");\n";
+    if (!readyCell.empty())
+      o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
     return;
   }
 
@@ -2680,6 +2761,7 @@ std::string emit(BC &bc) {
     bc.rxGraphVar = "_luke_rx";
   }
 
+  /* Collect WHEN bodies; START FETCH inside handlers may register rxFetchBinds. */
   std::vector<std::string> whenBodies;
   if (!bc.pageWhens.empty()) {
     for (auto &w : bc.pageWhens) {
@@ -2701,6 +2783,26 @@ std::string emit(BC &bc) {
     }
   }
 
+  /* Phase 4: ensure every START FETCH … INTO has a FETCH READY continuation. */
+  for (auto &fb : bc.rxFetchBinds) {
+    bool found = false;
+    for (auto &w : bc.pageWhens) {
+      if (w.event == "fetch" && w.elementId == fb.jobId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      BrowserWhen w;
+      w.event = "fetch";
+      w.elementId = fb.jobId;
+      w.exportName = "luke_when_" + std::to_string(bc.whenSeq++);
+      bc.pageWhens.push_back(w);
+      bc.hasPage = true;
+      whenBodies.push_back("");
+    }
+  }
+
   if (!bc.pageWhens.empty()) {
     for (size_t wi = 0; wi < bc.pageWhens.size(); ++wi) {
       auto &w = bc.pageWhens[wi];
@@ -2708,6 +2810,25 @@ std::string emit(BC &bc) {
       o << "void " << w.exportName << "(void) {\n";
       o << "  LukeArena *arena = luke_page_arena;\n";
       o << "  if (!arena) return;\n";
+      if (w.event == "fetch") {
+        /* Continuation edge: result cells first (batched), then user body. */
+        for (auto &fb : bc.rxFetchBinds) {
+          if (fb.jobId != w.elementId) continue;
+          o << "  if (_luke_rx) luke_rx_batch_begin(_luke_rx);\n";
+          if (!fb.bodyCell.empty()) {
+            o << "  luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(fb.bodyCell)
+              << ", luke_js_fetch_body(arena, luke_text(\"" << esc(fb.jobId) << "\")));\n";
+          }
+          if (!fb.statusCell.empty()) {
+            o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.statusCell)
+              << ", luke_js_fetch_status(luke_text(\"" << esc(fb.jobId) << "\")));\n";
+          }
+          if (!fb.readyCell.empty()) {
+            o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.readyCell) << ", 1);\n";
+          }
+          o << "  if (_luke_rx) luke_rx_batch_end(_luke_rx);\n";
+        }
+      }
       o << whenBodies[wi];
       o << "}\n\n";
     }

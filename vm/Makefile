@@ -135,6 +135,11 @@ test-build: build/luke
 	@grep -q 'luke_rx_scope_begin\|luke_rx_scope_end' build/reactive_counter.luke.c
 	@node ../scripts/luke_browser_loader.cjs build/reactive_counter.wasm --dispatch counter-inc:click 2>&1 | tee /tmp/luke_rx_counter.txt | grep -q 'Count: 1'
 	@node ../scripts/luke_browser_loader.cjs build/reactive_counter.wasm --dispatch counter-destroy:click 2>&1 | grep -q 'Counter scope destroyed'
+	./build/luke BUILD ../examples/build/reactive_fetch.luke -target browser -o build/reactive_fetch
+	@grep -q 'luke_rx_write_text.*fetch_body\|luke_js_fetch_body' build/reactive_fetch.luke.c
+	@grep -q 'luke_rx_batch_begin' build/reactive_fetch.luke.c
+	@node -e 'const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/reactive_fetch.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/reactive_fetch.wasm"),{whens}).then(()=>{globalThis.__lukeDispatch("load","click");return new Promise(r=>setTimeout(r,80));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_rx_fetch.txt | grep -q 'status: 200'
+	@grep -q 'stub/profile' /tmp/luke_rx_fetch.txt
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

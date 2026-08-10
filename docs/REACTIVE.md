@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Phase 3 component scopes shipped (local cells + DESTROY cleanup)  
+> **Status:** Phase 4 async-in-graph shipped (FETCH → cells → BIND)  
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -211,7 +211,27 @@ DESTROY COMPONENT Counter
 `BEGIN COMPONENT` opens a reactive scope; cells/effects inside are owned.  
 `DESTROY COMPONENT` unsubscribes those nodes.
 
-Demos: `reactive_counter_scope.luke` · `reactive_counter.luke` 
+Demos: `reactive_counter_scope.luke` · `reactive_counter.luke`
+
+### Phase 4 async surface
+
+```luke
+REMEMBER body AS ""
+REMEMBER status AS 0
+REMEMBER ready AS 0
+
+START FETCH "demo" GET "luke://stub/profile" INTO body STATUS status READY ready
+
+WHEN FETCH "demo" IS READY DO
+  CHANGE loading TO 0
+END WHEN
+
+BIND "body-label" TO "body: " AND body
+```
+
+On fetch ready: runtime writes result cells (batched) **then** runs the WHEN body — a continuation edge into the reactive graph. No Promise API in user code.
+
+`luke://…` URLs finish locally (deterministic tests). Demo: `reactive_fetch.luke` 
 
 ---
 
@@ -367,11 +387,19 @@ Counter component: local cells, handlers, auto cleanup on scope end.
 - Build: `BEGIN COMPONENT Name` … `END COMPONENT` · `DESTROY COMPONENT Name`  
 - Demos: `reactive_counter_scope.luke`, `reactive_counter.luke`
 
-### Phase 4 — Async in the graph *(next)*
+### Phase 4 — Async in the graph *(shipped)*
 
-`START FETCH` results write cells; `WHEN FETCH READY` is a continuation edge (already beachheaded — wire into scheduler).
+`START FETCH` results write cells; `WHEN FETCH READY` is a continuation edge.
 
-### Phase 5 — Collections
+**Deliverables**
+
+- `START FETCH … INTO body STATUS status READY ready`  
+- Auto prelude on FETCH READY: batch-write cells → flush → user WHEN body  
+- Synthesize FETCH READY handler when INTO is used without an explicit WHEN  
+- `luke://` stub fetch for offline/deterministic tests  
+- Demo: `examples/build/reactive_fetch.luke`
+
+### Phase 5 — Collections *(next)*
 
 Granular list/map invalidation; `FOR EACH` consumers subscribe per-index where possible.
 

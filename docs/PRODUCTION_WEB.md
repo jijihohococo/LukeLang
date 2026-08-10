@@ -34,7 +34,7 @@ Static dist    .html + .wasm + fonts/
 | Deploy folder | html + wasm + fonts |
 | Motion / a11y polish | next |
 | `luke PUBLISH WEB` | next |
-| Reactive runtime | Phase 3 scopes — see [`REACTIVE.md`](./REACTIVE.md) |
+| Reactive runtime | Phase 4 async — see [`REACTIVE.md`](./REACTIVE.md) |
 
 ## Surface (v1)
 

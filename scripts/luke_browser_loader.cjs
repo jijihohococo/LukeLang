@@ -223,6 +223,15 @@ function createLukeJs(getMemory, opts) {
         console.log("[fetch_ready]", id, status);
         if (typeof globalThis.__lukeDispatchFetch === "function") globalThis.__lukeDispatchFetch(id);
       };
+      /* Deterministic stub for tests / offline — luke://path */
+      if (url.indexOf("luke://") === 0) {
+        var path = url.slice("luke://".length);
+        var payload = '{"ok":true,"path":"' + path.replace(/"/g, '\\"') + '"}';
+        setTimeout(function () {
+          finish(200, payload);
+        }, 0);
+        return;
+      }
       if (typeof fetch === "function") {
         var opts = { method: method };
         if (method === "POST" || method === "PUT" || method === "PATCH") opts.body = body;
@@ -250,7 +259,9 @@ function createLukeJs(getMemory, opts) {
           finish(0, "");
         }
       } else {
-        finish(200, "[fetch stub] " + url);
+        setTimeout(function () {
+          finish(200, "[fetch stub] " + url);
+        }, 0);
       }
     },
     fetch_ready: function (idPtr, idLen) {

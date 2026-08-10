@@ -1,0 +1,6 @@
+// Phase 1 — derived cycle must fail loudly (stderr).
+
+REMEMBER seed AS 1
+THE a IS b ADD seed
+THE b IS a ADD seed
+SPEAK a

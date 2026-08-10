@@ -223,6 +223,15 @@ function createLukeJs(getMemory, opts) {
         console.log("[fetch_ready]", id, status);
         if (typeof globalThis.__lukeDispatchFetch === "function") globalThis.__lukeDispatchFetch(id);
       };
+      /* Deterministic stub for tests / offline — luke://path */
+      if (url.indexOf("luke://") === 0) {
+        var path = url.slice("luke://".length);
+        var payload = '{"ok":true,"path":"' + path.replace(/"/g, '\\"') + '"}';
+        setTimeout(function () {
+          finish(200, payload);
+        }, 0);
+        return;
+      }
       if (typeof fetch === "function") {
         var opts = { method: method };
         if (method === "POST" || method === "PUT" || method === "PATCH") opts.body = body;
@@ -250,7 +259,9 @@ function createLukeJs(getMemory, opts) {
           finish(0, "");
         }
       } else {
-        finish(200, "[fetch stub] " + url);
+        setTimeout(function () {
+          finish(200, "[fetch stub] " + url);
+        }, 0);
       }
     },
     fetch_ready: function (idPtr, idLen) {
@@ -275,6 +286,30 @@ function createLukeJs(getMemory, opts) {
       u8.set(bytes.subarray(0, n), outPtr);
       if (outCap > 0) u8[outPtr + n] = 0;
       view.setUint32(outLenPtr, n, true);
+    },
+    timeline_start: function (idPtr, idLen, ms) {
+      var id = readText(idPtr, idLen);
+      var dur = ms > 0 ? ms : 300;
+      console.log("[timeline_start]", id, dur);
+      setTimeout(function () {
+        var inst = globalThis.__lukeInstance;
+        if (!inst) return;
+        var start = Date.now();
+        function tick() {
+          var t = (Date.now() - start) / dur;
+          if (t >= 1) {
+            if (typeof inst.exports.luke_timeline_finish_export === "function")
+              inst.exports.luke_timeline_finish_export();
+            if (typeof globalThis.__lukeDispatch === "function")
+              globalThis.__lukeDispatch(id, "timeline");
+            return;
+          }
+          if (typeof inst.exports.luke_timeline_progress === "function")
+            inst.exports.luke_timeline_progress(t);
+          setTimeout(tick, 16);
+        }
+        tick();
+      }, 0);
     },
     argus_clear: function () {
       if (typeof document === "undefined") return;
@@ -592,6 +627,7 @@ function wireLukeWhens(instance, whens) {
   globalThis.__lukeDispatchRoute = dispatchRoute;
   globalThis.__lukeDispatchFetch = dispatchFetch;
   globalThis.__lukeDispatchViewport = dispatchViewport;
+  globalThis.__lukeDispatch = dispatch;
 
   if (typeof document === "undefined") {
     /* Node smoke: run home route handler if present */
@@ -676,12 +712,38 @@ var isNode =
 if (isNode) {
   var path = process.argv[2];
   if (!path) {
-    console.error("usage: luke_browser_loader.cjs <file.wasm>");
+    console.error("usage: luke_browser_loader.cjs <file.wasm> [--dispatch id:event]");
     process.exit(1);
   }
   var fs = require("fs");
-  runLukeWasm(fs.readFileSync(path))
+  var dispatchSpec = null;
+  for (var ai = 3; ai < process.argv.length; ai++) {
+    if (process.argv[ai] === "--dispatch" && process.argv[ai + 1]) {
+      dispatchSpec = process.argv[++ai];
+    }
+  }
+  var whens = [];
+  var htmlPath = path.replace(/\.wasm$/i, ".html");
+  if (fs.existsSync(htmlPath)) {
+    var html = fs.readFileSync(htmlPath, "utf8");
+    var m = html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);
+    if (m) {
+      try {
+        whens = Function("return (" + m[1] + ");")();
+      } catch (e) {
+        console.error("failed to parse LUKE_WHENS", e);
+      }
+    }
+  }
+  runLukeWasm(fs.readFileSync(path), { whens: whens })
     .then(function (res) {
+      if (dispatchSpec && typeof globalThis.__lukeDispatch === "function") {
+        var parts = String(dispatchSpec).split(":");
+        var id = parts[0] || "";
+        var ev = parts[1] || "click";
+        console.log("[dispatch]", id, ev);
+        globalThis.__lukeDispatch(id, ev);
+      }
       process.exit((res && res.code) || 0);
     })
     .catch(function (e) {

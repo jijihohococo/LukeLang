@@ -69,6 +69,7 @@ struct HankaBox {
   size_t cap;
   HankaBox *parent;
   int is_root;
+  int dirty; /* Phase 11 — region relayout when set on root */
 };
 
 typedef struct HankaState {
@@ -77,6 +78,7 @@ typedef struct HankaState {
   size_t root_len;
   HankaBox *stack[32];
   size_t depth;
+  int keep_roots; /* retain layout tree for partial relayout */
 } HankaState;
 
 static HankaState hanka_global = {0};
@@ -326,6 +328,34 @@ static inline void hanka_resolve_leaf_size(HankaLeaf *leaf) {
   if (leaf->h < 0) leaf->h = 32;
 }
 
+static inline int hanka_box_has_leaf(HankaBox *b, const char *leaf_id) {
+  if (!b || !leaf_id || !leaf_id[0]) return 0;
+  for (size_t i = 0; i < b->len; ++i) {
+    HankaChild *ch = &b->children[i];
+    if (ch->kind == HANKA_CHILD_LEAF) {
+      if (strcmp(ch->leaf.id, leaf_id) == 0) return 1;
+    } else if (ch->box && hanka_box_has_leaf(ch->box, leaf_id)) return 1;
+  }
+  return 0;
+}
+
+static inline void hanka_set_keep_roots(LukeArena *a, int keep) {
+  hanka_state(a)->keep_roots = keep ? 1 : 0;
+}
+
+static inline int hanka_mark_region(LukeArena *a, LukeText leaf_id) {
+  HankaState *s = hanka_state(a);
+  char buf[64];
+  hanka_id_copy(buf, sizeof(buf), leaf_id);
+  for (size_t i = 0; i < s->root_len; ++i) {
+    if (hanka_box_has_leaf(s->roots[i], buf)) {
+      s->roots[i]->dirty = 1;
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static inline void hanka_place_leaf(LukeArena *a, const HankaLeaf *leaf, double x, double y) {
   LukeText id = luke_text(leaf->id);
   double w = leaf->w;
@@ -469,9 +499,24 @@ static inline int hanka_layout(LukeArena *a) {
   for (size_t i = 0; i < s->root_len; ++i) {
     HankaBox *b = s->roots[i];
     hanka_layout_box_at(a, b, b->x, b->y);
+    b->dirty = 0;
   }
-  s->root_len = 0;
+  if (!s->keep_roots) s->root_len = 0;
   return 1;
+}
+
+/* Relayout only roots marked dirty (Granularity / Milestone C). */
+static inline int hanka_layout_dirty(LukeArena *a) {
+  HankaState *s = hanka_state(a);
+  int count = 0;
+  for (size_t i = 0; i < s->root_len; ++i) {
+    HankaBox *b = s->roots[i];
+    if (!b->dirty) continue;
+    hanka_layout_box_at(a, b, b->x, b->y);
+    b->dirty = 0;
+    count++;
+  }
+  return count;
 }
 
 #ifdef __cplusplus

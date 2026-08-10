@@ -1,0 +1,19 @@
+// Phase 9 — batch coalescing (REACTIVE_SPEC v0.1 §2.2)
+// One END REACTIVE BATCH ⇒ one flush increment.
+
+REMEMBER x AS 1
+THE doubled IS x MULTIPLIED BY 2
+
+SPEAK "doubled=" AND doubled
+SPEAK "flush1=" AND THE FLUSH COUNT
+
+BEGIN REACTIVE BATCH
+  CHANGE x TO 5
+  CHANGE x TO 10
+END REACTIVE BATCH
+
+SPEAK "doubled=" AND doubled
+SPEAK "flush2=" AND THE FLUSH COUNT
+
+INCREASE x BY 1
+SPEAK "flush3=" AND THE FLUSH COUNT

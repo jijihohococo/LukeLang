@@ -39,6 +39,7 @@ Static dist    .html + .wasm + fonts/
 | a11y roles on paint | yes (beachhead) |
 | Motion polish | in progress |
 | `luke PUBLISH WEB` | yes |
+| Reactive runtime | Phases 1–8 — see [`REACTIVE.md`](./REACTIVE.md) |
 
 ## Surface (v1)
 
@@ -67,4 +68,4 @@ luke PUBLISH WEB examples/build/web_app.luke -o dist/app
 
 ## Related
 
-- [`ARGUS.md`](./ARGUS.md) · [`HANKA.md`](./HANKA.md) · [`BUILD_MODE.md`](./BUILD_MODE.md) · [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
+- [`ARGUS.md`](./ARGUS.md) · [`HANKA.md`](./HANKA.md) · [`BUILD_MODE.md`](./BUILD_MODE.md) · [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md) · [`REACTIVE.md`](./REACTIVE.md)

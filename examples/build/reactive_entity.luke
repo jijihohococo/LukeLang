@@ -1,0 +1,18 @@
+// Phase 7 — Reactive game entity (field cells)
+// Build: luke BUILD examples/build/reactive_entity.luke -o build/ex_rx_entity
+
+BEGIN ENTITY Player
+  REMEMBER health AS 100
+END ENTITY
+
+THE Player.healthPct IS Player.health MULTIPLIED BY 0.01
+
+SPEAK "hp=" AND Player.health
+SPEAK "pct=" AND Player.healthPct
+
+INCREASE Player.health BY -25
+SPEAK "hp=" AND Player.health
+SPEAK "pct=" AND Player.healthPct
+
+INCREASE Player.health BY -80
+SPEAK "hp=" AND Player.health

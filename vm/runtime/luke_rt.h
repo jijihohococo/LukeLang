@@ -161,6 +161,13 @@ static inline LukeText luke_list_get(LukeList *l, double index) {
   return l->items[i];
 }
 
+static inline void luke_list_set(LukeList *l, double index, LukeText v) {
+  if (!l || index < 0) return;
+  size_t i = (size_t)index;
+  if (i >= l->len) return;
+  l->items[i] = v;
+}
+
 static inline double luke_list_len(LukeList *l) { return l ? (double)l->len : 0; }
 
 static inline LukeMap *luke_map_new(LukeArena *a) {

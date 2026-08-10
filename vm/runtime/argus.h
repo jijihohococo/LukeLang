@@ -294,30 +294,41 @@ static inline LukeText argus_default_role(const ArgusNode *n) {
   return luke_text("");
 }
 
-static inline void argus_paint(LukeArena *a) {
+/* Paint a single node if dirty (Granularity — region paint). Returns 1 if painted. */
+static inline int argus_paint_one(LukeArena *a, LukeText id) {
   ArgusTree *t = argus_tree(a);
+  ArgusNode *n = argus_find(t, id);
+  if (!n || (!n->dirty && n->mounted)) return 0;
+  argus_js_upsert(id, (double)n->kind);
+  argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
+  LukeText role = n->role.len ? n->role : argus_default_role(n);
+  if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
+  if (n->kind == ARGUS_IMAGE)
+    argus_js_image(id, n->src);
+  else if (n->kind == ARGUS_INPUT)
+    argus_js_input(id, n->text, (double)n->input_type);
+  else if (n->kind == ARGUS_SELECT)
+    argus_js_select(id, n->text);
+  else if (n->kind == ARGUS_TABLE)
+    argus_js_table(id, n->text);
+  else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON || n->kind == ARGUS_MODAL)
+    argus_js_text(id, n->text);
+  n->dirty = 0;
+  n->mounted = 1;
+  t->painted = 1;
+  return 1;
+}
+
+static inline int argus_paint(LukeArena *a) {
+  ArgusTree *t = argus_tree(a);
+  int count = 0;
   for (size_t i = 0; i < t->len; ++i) {
     ArgusNode *n = &t->nodes[i];
     if (!n->dirty && n->mounted) continue;
     LukeText id = luke_text(n->id);
-    argus_js_upsert(id, (double)n->kind);
-    argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
-    LukeText role = n->role.len ? n->role : argus_default_role(n);
-    if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
-    if (n->kind == ARGUS_IMAGE)
-      argus_js_image(id, n->src);
-    else if (n->kind == ARGUS_INPUT)
-      argus_js_input(id, n->text, (double)n->input_type);
-    else if (n->kind == ARGUS_SELECT)
-      argus_js_select(id, n->text);
-    else if (n->kind == ARGUS_TABLE)
-      argus_js_table(id, n->text);
-    else if (n->kind == ARGUS_TEXT || n->kind == ARGUS_BUTTON || n->kind == ARGUS_MODAL)
-      argus_js_text(id, n->text);
-    n->dirty = 0;
-    n->mounted = 1;
+    if (argus_paint_one(a, id)) count++;
   }
-  t->painted = 1;
+  return count;
 }
 
 static inline void argus_clear(LukeArena *a) {

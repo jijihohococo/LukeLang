@@ -75,5 +75,8 @@ Full focus-trap / live regions still open.
 
 ## Related
 
+A browser demo paints via `PLACE` / Hanka + `PAINT THE SCREEN` without `FILL "root" WITH """…html…"""`.
+
 - Layout: [`HANKA.md`](./HANKA.md)  
-- Production: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)
+- Production: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)  
+- Change model: [`REACTIVE.md`](./REACTIVE.md) (Argus consumes paint invalidation)

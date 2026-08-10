@@ -1,0 +1,23 @@
+// Phase 13 — DevTools: why-changed, graph stats, timeline steps
+// Build: luke BUILD examples/build/reactive_conformance_devtools.luke -o build/ex_rx_conf_devtools
+
+REMEMBER price AS 10
+REMEMBER qty AS 2
+THE total IS price MULTIPLIED BY qty
+
+CHANGE price TO 20
+
+SPEAK "write=" AND THE LAST WRITE ID
+SPEAK "root=" AND THE WHY ROOT OF total
+SPEAK "depth=" AND THE WHY DEPTH OF total
+SPEAK "deps=" AND THE DEP COUNT OF total
+SPEAK "subs=" AND THE SUB COUNT OF price
+SPEAK "cells=" AND THE GRAPH CELL COUNT
+SPEAK "derived=" AND THE GRAPH DERIVED COUNT
+SPEAK "edges=" AND THE GRAPH EDGE COUNT
+SPEAK "step0=" AND THE TIMELINE STEP ID AT 0
+SPEAK "wave0=" AND THE TIMELINE STEP WAVE AT 0
+TRACE WHY total
+SPEAK "traces=" AND THE WHY TRACE COUNT
+DUMP REACTIVE GRAPH
+SPEAK "dumps=" AND THE GRAPH DUMP COUNT

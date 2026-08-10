@@ -44,6 +44,12 @@ std::string cIdent(const std::string &n) {
   if (o.empty() || isdigit((unsigned char)o[0])) o = "_" + o;
   return o;
 }
+/* Conversational "the price" → "price" for reactive / locals. */
+std::string stripThe(std::string n) {
+  n = trim(n);
+  if (startsWithCI(n, "THE ")) n = trim(n.substr(4));
+  return n;
+}
 std::string esc(const std::string &s) {
   std::string o;
   for (char c : s) {
@@ -246,6 +252,19 @@ struct BC {
   std::vector<BrowserFont> pageFonts;
   std::vector<BrowserWhen> pageWhens;
   BrowserWhen *curWhen = nullptr;
+
+  /* Reactive Phase 1 — cells / derived (see docs/REACTIVE.md) */
+  bool usesRx = false;
+  std::string rxGraphVar = "_luke_rx";
+  std::map<std::string, bool> rxCells;     /* name → cell or derived id */
+  std::map<std::string, bool> rxDerived;   /* name → derived */
+  std::vector<std::string> rxCellOrder;
+  struct RxDerivedDef {
+    std::string name;
+    std::string exprRaw;
+    size_t line = 0;
+  };
+  std::vector<RxDerivedDef> rxDerivedDefs;
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -520,12 +539,22 @@ Expr BC::primary(std::string e, size_t line) {
   std::strtod(e.c_str(), &end);
   if (end && end != e.c_str() && *end == '\0') return {e, Ty::num()};
 
+  /* "THE price" → local/reactive "price" when declared. */
+  if (startsWithCI(e, "THE ")) {
+    auto naked = trim(e.substr(4));
+    if (locals.count(naked) || rxCells.count(naked)) e = naked;
+  }
+
   bool words = !e.empty();
   for (char c : e)
     if (!(isalpha((unsigned char)c) || isspace((unsigned char)c))) words = false;
   if (words && e.find(' ') != std::string::npos)
     return {"luke_text(\"" + esc(e) + "\")", Ty::text()};
 
+  if (rxCells.count(e)) {
+    Ty ty = locals.count(e) ? locals[e] : Ty::num();
+    return {"luke_rx_read_num(" + rxGraphVar + ", _luke_rx_id_" + cIdent(e) + ")", ty};
+  }
   if (locals.count(e)) return {cIdent(e), locals[e]};
 
   auto dot = e.find('.');
@@ -792,10 +821,15 @@ Expr BC::expr(std::string e, size_t line) {
     return nullptr;
   };
   {
-    auto pos = findOutsideQuotes(e, U, " MULTIPLY BY ");
+    size_t pos = findOutsideQuotes(e, U, " MULTIPLIED BY ");
+    size_t mid = 15;
+    if (pos == std::string::npos) {
+      pos = findOutsideQuotes(e, U, " MULTIPLY BY ");
+      mid = 13;
+    }
     if (pos != std::string::npos) {
       auto L = expr(trim(e.substr(0, pos)), line);
-      auto R = expr(trim(e.substr(pos + 13)), line);
+      auto R = expr(trim(e.substr(pos + mid)), line);
       expectTy(line, L.ty, Ty::num(), "Arithmetic");
       expectTy(line, R.ty, Ty::num(), "Arithmetic");
       return {"(" + L.code + "*" + R.code + ")", Ty::num()};
@@ -899,6 +933,152 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "GIVE BACK with no value — this function should GIVE BACK " + tyName(bc.curRet));
     o << "  return 0;\n";
     return;
+  }
+  if (startsWithCI(text, "REMEMBER ")) {
+    auto rest = trim(text.substr(9));
+    auto U = toUpper(rest);
+    auto asPos = U.find(" AS ");
+    if (asPos == std::string::npos) {
+      bc.fail(line, "REMEMBER needs: REMEMBER name AS value");
+      return;
+    }
+    auto name = stripThe(trim(rest.substr(0, asPos)));
+    auto valRaw = trim(rest.substr(asPos + 4));
+    if (name.empty()) {
+      bc.fail(line, "REMEMBER needs a name");
+      return;
+    }
+    /* Optional: REMEMBER x AS NUMBER SET TO 100 */
+    auto vU = toUpper(valRaw);
+    auto setPos = vU.find(" SET TO ");
+    Ty forced = Ty::vod();
+    if (setPos != std::string::npos) {
+      forced = bc.parseTy(trim(valRaw.substr(0, setPos)));
+      valRaw = trim(valRaw.substr(setPos + 8));
+    } else {
+      Ty maybe = bc.parseTy(valRaw);
+      if (maybe.k != K::Void && valRaw.find(' ') == std::string::npos &&
+          !std::isdigit((unsigned char)valRaw[0]) && valRaw[0] != '-' && valRaw[0] != '"' &&
+          toUpper(valRaw) != "TRUE" && toUpper(valRaw) != "FALSE") {
+        /* REMEMBER x AS NUMBER — default 0 cell */
+        forced = maybe;
+        valRaw.clear();
+      }
+    }
+    Expr e{"0.0", Ty::num()};
+    if (valRaw.empty()) {
+      if (forced.k == K::Text) e = {"luke_text(\"\")", Ty::text()};
+      else if (forced.k == K::Flag) e = {"0", Ty::flag()};
+      else e = {"0.0", Ty::num()};
+      if (forced.k != K::Void) e.ty = forced;
+    } else {
+      e = bc.expr(valRaw, line);
+      if (forced.k != K::Void) {
+        bc.expectTy(line, e.ty, forced, "REMEMBER " + name);
+        e.ty = forced;
+      }
+    }
+    if (e.ty.k != K::Num) {
+      bc.fail(line, "REMEMBER Phase 1 supports NUMBER cells only — got " + tyName(e.ty));
+      return;
+    }
+    bc.usesRx = true;
+    bc.locals[name] = Ty::num();
+    if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
+    bc.rxCells[name] = true;
+    o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_cell(_luke_rx, " << e.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "CHANGE ")) {
+    auto rest = trim(text.substr(7));
+    auto U = toUpper(rest);
+    auto to = U.find(" TO ");
+    if (to == std::string::npos) {
+      bc.fail(line, "CHANGE needs: CHANGE name TO value");
+      return;
+    }
+    auto name = stripThe(trim(rest.substr(0, to)));
+    auto e = bc.expr(trim(rest.substr(to + 4)), line);
+    if (!bc.rxCells.count(name)) {
+      bc.fail(line, "CHANGE '" + name + "' — REMEMBER it first (reactive cell)");
+      return;
+    }
+    if (bc.rxDerived.count(name)) {
+      bc.fail(line, "Cannot CHANGE derived '" + name + "' — change its inputs instead");
+      return;
+    }
+    bc.expectTy(line, e.ty, Ty::num(), "CHANGE " + name);
+    bc.usesRx = true;
+    o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(name) << ", " << e.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "INCREASE ")) {
+    auto rest = trim(text.substr(9));
+    auto U = toUpper(rest);
+    auto by = U.find(" BY ");
+    if (by == std::string::npos) {
+      bc.fail(line, "INCREASE needs: INCREASE name BY amount");
+      return;
+    }
+    auto name = stripThe(trim(rest.substr(0, by)));
+    auto e = bc.expr(trim(rest.substr(by + 4)), line);
+    if (!bc.rxCells.count(name) || bc.rxDerived.count(name)) {
+      bc.fail(line, "INCREASE needs a REMEMBER'd NUMBER cell — not '" + name + "'");
+      return;
+    }
+    bc.expectTy(line, e.ty, Ty::num(), "INCREASE " + name);
+    bc.usesRx = true;
+    o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(name) << ", luke_rx_read_num(_luke_rx, _luke_rx_id_"
+      << cIdent(name) << ") + (" << e.code << "));\n";
+    return;
+  }
+  if (toUpper(text) == "BEGIN REACTIVE BATCH" || toUpper(text) == "BEGIN BATCH") {
+    bc.usesRx = true;
+    o << "  luke_rx_batch_begin(_luke_rx);\n";
+    return;
+  }
+  if (toUpper(text) == "END REACTIVE BATCH" || toUpper(text) == "END BATCH") {
+    bc.usesRx = true;
+    o << "  luke_rx_batch_end(_luke_rx);\n";
+    return;
+  }
+  if (toUpper(text) == "FLUSH REACTIVE" || toUpper(text) == "FLUSH THE REACTIVE GRAPH") {
+    bc.usesRx = true;
+    o << "  luke_rx_flush(_luke_rx);\n";
+    return;
+  }
+  /* Derived: THE total IS price MULTIPLIED BY quantity */
+  if (startsWithCI(text, "THE ") && !startsWithCI(text, "THE VALUE OF ") &&
+      !startsWithCI(text, "THE BODY OF ") && !startsWithCI(text, "THE STATUS OF ")) {
+    auto rest = trim(text.substr(4));
+    auto U = toUpper(rest);
+    auto isPos = U.find(" IS ");
+    if (isPos != std::string::npos) {
+      auto name = stripThe(trim(rest.substr(0, isPos)));
+      auto exprRaw = trim(rest.substr(isPos + 4));
+      /* Avoid mistaking "THE SCREEN" fragments — name must be a simple ident. */
+      bool simple = !name.empty();
+      for (char c : name)
+        if (!(isalnum((unsigned char)c) || c == '_')) simple = false;
+      if (simple && !exprRaw.empty()) {
+        bc.usesRx = true;
+        bc.locals[name] = Ty::num();
+        if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
+        bc.rxCells[name] = true;
+        bc.rxDerived[name] = true;
+        int found = 0;
+        for (auto &d : bc.rxDerivedDefs)
+          if (d.name == name) {
+            d.exprRaw = exprRaw;
+            d.line = line;
+            found = 1;
+          }
+        if (!found) bc.rxDerivedDefs.push_back({name, exprRaw, line});
+        o << "  _luke_rx_id_" << cIdent(name) << " = luke_rx_derived(_luke_rx, _luke_rx_fn_"
+          << cIdent(name) << ", NULL);\n";
+        return;
+      }
+    }
   }
   if (startsWithCI(text, "MY NAME IS ")) {
     auto rest = trim(text.substr(11));
@@ -2277,33 +2457,45 @@ std::string emit(BC &bc) {
   if (bc.forBrowser || !bc.pageWhens.empty())
     o << "static LukeArena *luke_page_arena = NULL;\n\n";
 
-  if (!bc.pageWhens.empty()) {
-    for (auto &w : bc.pageWhens) {
-      o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
-      o << "void " << w.exportName << "(void) {\n";
-      o << "  LukeArena *arena = luke_page_arena;\n";
-      o << "  if (!arena) return;\n";
-      bc.locals.clear();
-      for (size_t i = 0; i < w.body.size(); ++i) {
-        stmt(bc, w.body[i], w.lines[i], o);
-        if (bc.bad) return {};
-      }
-      if (!bc.hankaStack.empty()) {
-        bc.fail(1, "Unclosed BEGIN " + bc.hankaStack.back() + " in WHEN handler");
-        return {};
-      }
-      o << "}\n\n";
+  /* Pre-declare reactive names so THE a IS b … can forward-reference. */
+  for (auto &tl : bc.top) {
+    const std::string &text = tl.second;
+    if (startsWithCI(text, "REMEMBER ")) {
+      auto rest = trim(text.substr(9));
+      auto U = toUpper(rest);
+      auto asPos = U.find(" AS ");
+      if (asPos == std::string::npos) continue;
+      auto name = stripThe(trim(rest.substr(0, asPos)));
+      if (name.empty()) continue;
+      bc.usesRx = true;
+      bc.locals[name] = Ty::num();
+      if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
+      bc.rxCells[name] = true;
+    } else if (startsWithCI(text, "THE ") && !startsWithCI(text, "THE VALUE OF ") &&
+               !startsWithCI(text, "THE BODY OF ") && !startsWithCI(text, "THE STATUS OF ")) {
+      auto rest = trim(text.substr(4));
+      auto U = toUpper(rest);
+      auto isPos = U.find(" IS ");
+      if (isPos == std::string::npos) continue;
+      auto name = stripThe(trim(rest.substr(0, isPos)));
+      bool simple = !name.empty();
+      for (char c : name)
+        if (!(isalnum((unsigned char)c) || c == '_')) simple = false;
+      if (!simple) continue;
+      bc.usesRx = true;
+      bc.locals[name] = Ty::num();
+      if (!bc.rxCells.count(name)) bc.rxCellOrder.push_back(name);
+      bc.rxCells[name] = true;
+      bc.rxDerived[name] = true;
     }
   }
 
-  o << "int main(int argc, char **argv) {\n";
-  o << "  luke_runtime_set_args(argc, argv);\n";
-  o << "  LukeArena arena_storage; LukeArena *arena = &arena_storage;\n";
-  o << "  luke_arena_init(arena, 1u<<20);\n";
-  if (bc.forBrowser || !bc.pageWhens.empty())
-    o << "  luke_page_arena = arena;\n";
+  /* Emit top-level + WHEN bodies first so REMEMBER / THE x IS populate reactive metadata. */
+  bc.locals.clear();
+  for (auto &kv : bc.rxCells) bc.locals[kv.first] = Ty::num();
+  std::ostringstream mainBody;
   for (auto &tl : bc.top) {
-    stmt(bc, tl.second, tl.first, o);
+    stmt(bc, tl.second, tl.first, mainBody);
     if (bc.bad) return {};
   }
   if (!bc.arenaMarks.empty()) {
@@ -2318,6 +2510,71 @@ std::string emit(BC &bc) {
     bc.fail(1, "Unclosed FOR EACH — missing END FOR");
     return {};
   }
+
+  /* Ensure reactive names are visible while compiling derived compute fns. */
+  for (auto &kv : bc.rxCells) bc.locals[kv.first] = Ty::num();
+
+  if (bc.usesRx) {
+    o << "static LukeRxGraph *_luke_rx = NULL;\n";
+    for (auto &name : bc.rxCellOrder)
+      o << "static LukeRxId _luke_rx_id_" << cIdent(name) << ";\n";
+    o << "\n";
+    for (auto &d : bc.rxDerivedDefs) {
+      bc.rxGraphVar = "g";
+      auto e = bc.expr(d.exprRaw, d.line);
+      if (bc.bad) return {};
+      bc.expectTy(d.line, e.ty, Ty::num(), "THE " + d.name + " IS");
+      if (bc.bad) return {};
+      o << "static double _luke_rx_fn_" << cIdent(d.name) << "(LukeRxGraph *g, void *ctx) {\n";
+      o << "  (void)ctx;\n";
+      o << "  return " << e.code << ";\n";
+      o << "}\n\n";
+    }
+    bc.rxGraphVar = "_luke_rx";
+  }
+
+  std::vector<std::string> whenBodies;
+  if (!bc.pageWhens.empty()) {
+    for (auto &w : bc.pageWhens) {
+      bc.locals.clear();
+      for (auto &kv : bc.rxCells) bc.locals[kv.first] = Ty::num();
+      std::ostringstream wb;
+      for (size_t i = 0; i < w.body.size(); ++i) {
+        stmt(bc, w.body[i], w.lines[i], wb);
+        if (bc.bad) return {};
+      }
+      if (!bc.hankaStack.empty()) {
+        bc.fail(1, "Unclosed BEGIN " + bc.hankaStack.back() + " in WHEN handler");
+        return {};
+      }
+      whenBodies.push_back(wb.str());
+    }
+  }
+
+  if (!bc.pageWhens.empty()) {
+    for (size_t wi = 0; wi < bc.pageWhens.size(); ++wi) {
+      auto &w = bc.pageWhens[wi];
+      o << "__attribute__((export_name(\"" << w.exportName << "\")))\n";
+      o << "void " << w.exportName << "(void) {\n";
+      o << "  LukeArena *arena = luke_page_arena;\n";
+      o << "  if (!arena) return;\n";
+      o << whenBodies[wi];
+      o << "}\n\n";
+    }
+  }
+
+  o << "int main(int argc, char **argv) {\n";
+  o << "  luke_runtime_set_args(argc, argv);\n";
+  o << "  LukeArena arena_storage; LukeArena *arena = &arena_storage;\n";
+  o << "  luke_arena_init(arena, 1u<<20);\n";
+  if (bc.forBrowser || !bc.pageWhens.empty())
+    o << "  luke_page_arena = arena;\n";
+  if (bc.usesRx) {
+    o << "  LukeRxGraph _luke_rx_storage;\n";
+    o << "  luke_rx_graph_init(&_luke_rx_storage, arena);\n";
+    o << "  _luke_rx = &_luke_rx_storage;\n";
+  }
+  o << mainBody.str();
   if (bc.forBrowser || !bc.pageWhens.empty()) {
     /* Keep arena alive for WHEN handlers / page lifetime. */
     o << "  return 0;\n}\n";

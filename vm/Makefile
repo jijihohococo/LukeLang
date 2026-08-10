@@ -115,6 +115,12 @@ test-build: build/luke
 	@grep -qE 'hanka_slot_input|argus_place_input' build/web_app.luke.c
 	@grep -q '_luke_fe_i' build/web_app.luke.c
 	@grep -q 'hanka_begin_row' build/web_app.luke.c
+	./build/luke BUILD ../examples/build/reactive_core.luke -o build/ex_reactive
+	./build/ex_reactive | grep -q "total=300"
+	./build/ex_reactive | grep -q "total=400"
+	./build/ex_reactive | grep -q "total=500"
+	./build/luke BUILD ../examples/build/reactive_cycle.luke -o build/ex_reactive_cycle
+	@./build/ex_reactive_cycle 2>/tmp/luke_rx_cycle.txt >/dev/null; grep -q "cycle detected" /tmp/luke_rx_cycle.txt
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

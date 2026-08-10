@@ -1,6 +1,6 @@
 # LukeLang Reactive Architecture
 
-> **Status:** Architecture locked for implementation (Phase 1 not shipped yet)  
+> **Status:** Phase 1 Reactive Core shipped (cells / derived / batch scheduler)  
 > **Identity:** *Lukelang understands change.*  
 > **Not:** a React/Vue-style framework bolted onto the language  
 > **Is:** language + runtime primitive — one dependency graph for UI, backend, game, animation
@@ -141,14 +141,32 @@ typedef struct LukeRxNode {
 } LukeRxNode;
 ```
 
-Sketch lives in `vm/runtime/luke_reactive.h` (types + comments only until Phase 1 lands).
+Sketch lives in `vm/runtime/luke_reactive.h` (Phase 1 API implemented).
 
 **Invariants**
 
-1. Writes go through `luke_rx_write` / conversational `CHANGE` / `SET` on remembered cells  
+1. Writes go through `luke_rx_write` / conversational `CHANGE` / `INCREASE` on remembered cells  
 2. Derived reads register the reader as a dependent (dynamic tracking) **or** use compile-time edges  
 3. Effects never run mid-propagation; they run in the effect wave after pure recompute  
 4. Cycles: compile-time where possible; runtime tripwire otherwise  
+
+### Phase 1 Build surface
+
+```luke
+REMEMBER price AS 100
+REMEMBER quantity AS 3
+THE total IS price MULTIPLIED BY quantity
+CHANGE quantity TO 4
+INCREASE quantity BY 1
+BEGIN REACTIVE BATCH
+  CHANGE price TO 200
+  CHANGE quantity TO 5
+END REACTIVE BATCH
+FLUSH REACTIVE
+SPEAK total
+```
+
+Smoke: `examples/build/reactive_core.luke` · cycle tripwire: `examples/build/reactive_cycle.luke` 
 
 ---
 
@@ -267,13 +285,13 @@ Argus paint ← TextNode#greeting
 
 ## Implementation roadmap
 
-### Phase 1 — Reactive Core *(next to implement)*
+### Phase 1 — Reactive Core *(shipped)*
 
 **Deliverables**
 
 - Cells + derived + invalidation + single-threaded scheduler  
 - Arena-friendly graph tables in `luke_reactive.h`  
-- Build surface: `REMEMBER` / `THE x IS …` / `CHANGE` (or thin aliases on `MY NAME IS` + assignment)  
+- Build surface: `REMEMBER` / `THE x IS …` / `CHANGE` / `INCREASE` / batch + flush  
 - Smoke: change quantity → total recomputes; unaffected cells untouched  
 
 **Acceptance**
@@ -282,7 +300,7 @@ Argus paint ← TextNode#greeting
 2. Two writes in one turn batch to one recompute pass  
 3. Cycle on derived graph fails loudly  
 
-### Phase 2 — UI bridge
+### Phase 2 — UI bridge *(next)*
 
 Input/event → cell → Hanka region invalidate → Argus dirty paint.  
 Greeting demo without full `CLEAR THE SCREEN`.

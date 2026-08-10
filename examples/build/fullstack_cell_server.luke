@@ -1,0 +1,29 @@
+// Spike A — full-stack reactive cell (server half, native)
+// Serves an incrementing cell at GET /cell. Exits after a fixed accept budget (CI-friendly).
+// Build: luke BUILD examples/build/fullstack_cell_server.luke -o build/fullstack_cell_server
+
+IMPORT std/server
+
+SPEAK "fullstack_cell server :8791 /cell"
+
+MY NAME IS server SET TO ASK httpListen WITH 8791
+MY NAME IS count AS NUMBER SET TO 0
+MY NAME IS left AS NUMBER SET TO 24
+
+WHILE left IS GREATER THAN 0 DO
+  MY NAME IS req SET TO ASK httpAccept WITH server
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS hit AS FLAG SET TO FALSE
+  IF path EQUALS "/cell" DO
+    SET hit TO TRUE
+    SET count TO count ADD 1
+    ASK httpReply WITH req, 200, "text/plain", "" AND count
+    SPEAK "served=" AND count
+  END IF
+  IF NOT hit DO
+    ASK httpReply WITH req, 404, "text/plain", "not found"
+  END IF
+  SET left TO left SUBTRACT 1
+END WHILE
+
+SPEAK "server done"

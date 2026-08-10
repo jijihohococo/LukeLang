@@ -1,0 +1,68 @@
+// Spike A — full-stack reactive cell (client half, browser)
+// Poll GET /cell → REMEMBER cell → BIND one node.
+// Proof: after each server-driven flush, THE REGION PAINT COUNT == 1
+// (per-flush counter; reset at the start of luke_rx_flush).
+// Build: luke BUILD examples/build/fullstack_cell_client.luke -target browser -o build/fullstack_cell_client
+// Needs: fullstack_cell_server listening on :8791
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "Luke Full-Stack Cell"
+
+WEAR STYLE """
+html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 40px; font-weight: 700; }
+#counter { font-size: 28px; }
+#hint { font-size: 14px; opacity: 0.7; }
+#start {
+  background: #f4a259; color: #101820; font-weight: 700; font-size: 16px; cursor: pointer;
+}
+"""
+
+REMEMBER server_count AS ""
+REMEMBER status AS 0
+REMEMBER ready AS 0
+REMEMBER tick AS 0
+REMEMBER region_now AS 0
+REMEMBER granular_before AS 0
+REMEMBER granular_now AS 0
+REMEMBER granular_delta AS 0
+REMEMBER polls AS 0
+
+BEGIN COLUMN AT 40, 40 SIZE 640, 280 PAD 0 GAP 14
+  SLOT TEXT "brand" SIZE 560, 48 SAY "LukeLang"
+  SLOT TEXT "counter" SIZE 560, 40 SAY "cell: —"
+  SLOT TEXT "hint" SIZE 560, 32 SAY "Server cell → BIND → one region paint."
+  SLOT BUTTON "start" SIZE 200, 44 SAY "Start poll"
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND "counter" TO "cell: " AND server_count
+
+WHEN "start" IS CLICKED DO
+  CHANGE granular_before TO THE GRANULAR PAINT COUNT
+  UPDATE "hint" WITH "Polling http://127.0.0.1:8791/cell …"
+  CHANGE granular_before TO THE GRANULAR PAINT COUNT
+  START FETCH "poll" GET "http://127.0.0.1:8791/cell" INTO server_count STATUS status READY ready
+END WHEN
+
+WHEN FETCH "poll" IS READY DO
+  CHANGE region_now TO THE REGION PAINT COUNT
+  CHANGE granular_now TO THE GRANULAR PAINT COUNT
+  CHANGE granular_delta TO granular_now SUBTRACT granular_before
+  CHANGE polls TO polls ADD 1
+  SPEAK "cell=" AND server_count
+  SPEAK "region=" AND region_now
+  SPEAK "granular_delta=" AND granular_delta
+  SPEAK "polls=" AND polls
+  CHANGE granular_before TO granular_now
+  START TIMELINE "wait" FOR 120 MILLISECONDS FROM 0 TO 1 INTO tick
+END WHEN
+
+WHEN TIMELINE "wait" IS FINISHED DO
+  START FETCH "poll" GET "http://127.0.0.1:8791/cell" INTO server_count STATUS status READY ready
+END WHEN

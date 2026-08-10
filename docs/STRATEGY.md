@@ -80,7 +80,7 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - Repo hygiene complete on `main`: CI runs the reactive conformance suite (`make test`); stale objects removed; legacy JS emitters removed; `system()` return values checked.
 
 ### Phase 1 — De-risk the two big bets *(next)*
-- **Spike a client↔server reactive cell** (#5): the smallest end-to-end demo where a server-side change repaints one client region through the dependency graph. Goal: *feel whether it's magic* before building the frontend around it.
+- **Spike a client↔server reactive cell** (#5): **poll variant green** — `examples/build/fullstack_cell_{server,client}.luke` + bind proof; server change → BIND → `THE REGION PAINT COUNT == 1` (wired in `make test`). Push/SSE variant still open.
 - **Spike Path A** (#3): take one existing demo and emit DOM + CSS instead of absolute frames; confirm Argus still does surgical updates. This proves the pivot is real before Hanka is rewritten to emit CSS.
 
 ### Phase 2 — The proof point *(the real work)*

@@ -713,14 +713,17 @@ var isNode =
 if (isNode) {
   var path = process.argv[2];
   if (!path) {
-    console.error("usage: luke_browser_loader.cjs <file.wasm> [--dispatch id:event]");
+    console.error("usage: luke_browser_loader.cjs <file.wasm> [--dispatch id:event] [--wait-ms N]");
     process.exit(1);
   }
   var fs = require("fs");
   var dispatchSpec = null;
+  var waitMs = 0;
   for (var ai = 3; ai < process.argv.length; ai++) {
     if (process.argv[ai] === "--dispatch" && process.argv[ai + 1]) {
       dispatchSpec = process.argv[++ai];
+    } else if (process.argv[ai] === "--wait-ms" && process.argv[ai + 1]) {
+      waitMs = parseInt(process.argv[++ai], 10) || 0;
     }
   }
   var whens = [];
@@ -745,7 +748,18 @@ if (isNode) {
         console.log("[dispatch]", id, ev);
         globalThis.__lukeDispatch(id, ev);
       }
-      process.exit((res && res.code) || 0);
+      var code = (res && res.code) || 0;
+      if (waitMs > 0) {
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            resolve(code);
+          }, waitMs);
+        });
+      }
+      return code;
+    })
+    .then(function (code) {
+      process.exit(code);
     })
     .catch(function (e) {
       console.error(e);

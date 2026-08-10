@@ -265,6 +265,22 @@ test-build: build/luke
 	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "trips=1"
 	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "tripped=1"
 	./build/ex_rx_conf_boundary 2>/dev/null | grep -q "reset=0"
+	./build/luke BUILD ../examples/build/fullstack_cell_bind_proof.luke -o build/ex_fullstack_bind
+	./build/ex_fullstack_bind | tee /tmp/luke_fullstack_bind.txt | grep -q "bind_region=1"
+	@grep -q "ch1_region=1" /tmp/luke_fullstack_bind.txt
+	@grep -q "ch2_region=1" /tmp/luke_fullstack_bind.txt
+	@grep -q "ch1_granular=2" /tmp/luke_fullstack_bind.txt
+	@grep -q "ch2_granular=3" /tmp/luke_fullstack_bind.txt
+	./build/luke BUILD ../examples/build/fullstack_cell_server.luke -o build/fullstack_cell_server
+	./build/luke BUILD ../examples/build/fullstack_cell_client.luke -target browser -o build/fullstack_cell_client
+	@grep -q 'luke_rx_ui_set_text\|luke_rx_batch_begin' build/fullstack_cell_client.luke.c
+	@rm -f /tmp/luke_fullstack_server.pid /tmp/luke_fullstack_cell.txt
+	@./build/fullstack_cell_server > /tmp/luke_fullstack_server.log 2>&1 & echo $$! > /tmp/luke_fullstack_server.pid
+	@sleep 0.15
+	@node ../scripts/luke_browser_loader.cjs build/fullstack_cell_client.wasm --dispatch start:click --wait-ms 700 2>&1 | tee /tmp/luke_fullstack_cell.txt | grep -q "region=1"
+	@grep -q "granular_delta=1" /tmp/luke_fullstack_cell.txt
+	@grep -q "cell=" /tmp/luke_fullstack_cell.txt
+	@if [ -f /tmp/luke_fullstack_server.pid ]; then kill $$(cat /tmp/luke_fullstack_server.pid) 2>/dev/null || true; fi
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

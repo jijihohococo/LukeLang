@@ -716,6 +716,8 @@ static inline void luke_rx_request_flush(LukeRxGraph *g) {
 
 static inline int luke_rx_flush(LukeRxGraph *g) {
   if (!g || g->dirty_len == 0) return 0;
+  /* Per-flush counters — THE REGION PAINT COUNT reads region_paints after the
+   * wave, so a single-node BIND update reports 1 (not a cumulative total). */
   g->region_paints = 0;
   g->region_layouts = 0;
   g->flushing = 1;

@@ -930,16 +930,6 @@ static inline int luke_looks_like_email(LukeText s) {
  * Argus/Hanka only consume need_paint / text updates — no VDOM.
  */
 
-static inline void luke_rx_ui_set_text(LukeRxGraph *g, LukeText id, LukeText text) {
-  if (!g || !g->arena) return;
-  ArgusNode *n = argus_find(argus_tree(g->arena), id);
-  if (!n) return;
-  if (n->mounted && luke_rx_text_eq(n->text, text)) return;
-  argus_set_text(n, text);
-  g->need_paint = 1;
-  /* Text-only: frame unchanged → skip Hanka relayout. */
-}
-
 static inline void luke_rx_ui_set_text_granular(LukeRxGraph *g, LukeText id, LukeText text) {
   if (!g || !g->arena) return;
   ArgusNode *n = argus_find(argus_tree(g->arena), id);
@@ -951,6 +941,12 @@ static inline void luke_rx_ui_set_text_granular(LukeRxGraph *g, LukeText id, Luk
     g->region_paints++;
     g->last_region_paints_turn++;
   }
+}
+
+static inline void luke_rx_ui_set_text(LukeRxGraph *g, LukeText id, LukeText text) {
+  /* Surgical text patch (Path A / Spike A): one dirty node → argus_paint_one.
+   * Bumps THE REGION PAINT COUNT so full-stack cell demos can assert granularity. */
+  luke_rx_ui_set_text_granular(g, id, text);
 }
 
 static inline void luke_rx_ui_after_flush(LukeRxGraph *g) {

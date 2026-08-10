@@ -769,6 +769,18 @@ Expr BC::expr(std::string e, size_t line) {
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->need_paint : 0.0)", Ty::num()};
     if (U0 == "THE NEED LAYOUT FLAG" || U0 == "THE NEED LAYOUT COUNT")
       return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->need_layout : 0.0)", Ty::num()};
+    if (U0 == "THE REACTIVE ERROR COUNT" || U0 == "THE ERROR COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->error_count : 0.0)", Ty::num()};
+    if (U0 == "THE ERROR ISOLATION COUNT" || U0 == "THE ISOLATED ERROR COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->error_isolation_count : 0.0)",
+              Ty::num()};
+    if (U0 == "THE REACTIVE RETRY COUNT" || U0 == "THE RETRY COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->retry_count : 0.0)", Ty::num()};
+    if (U0 == "THE LAST ERROR NODE" || U0 == "THE ERROR NODE")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->last_error_node : 0.0)", Ty::num()};
+    if (U0 == "THE ASYNC FAILURE COUNT" || U0 == "THE FETCH FAILURE COUNT")
+      return {"(" + rxGraphVar + " ? (double)" + rxGraphVar + "->async_failure_count : 0.0)",
+              Ty::num()};
   }
 
   if (startsWithCI(e, "THE TIMELINE STEP ID AT ") || startsWithCI(e, "THE TIMELINE STEP WAVE AT ")) {
@@ -1438,6 +1450,39 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     bc.usesRx = true;
     o << "  luke_rx_trace_why(_luke_rx, _luke_rx_id_" << cIdent(name) << ");\n";
+    return;
+  }
+  if (toUpper(text) == "RETRY REACTIVE ERROR" || toUpper(text) == "RETRY THE REACTIVE ERROR") {
+    bc.usesRx = true;
+    o << "  luke_rx_retry_error(_luke_rx);\n";
+    return;
+  }
+  if (toUpper(text) == "CLEAR REACTIVE ERROR" || toUpper(text) == "CLEAR THE REACTIVE ERROR") {
+    bc.usesRx = true;
+    o << "  luke_rx_clear_reactive_error(_luke_rx);\n";
+    return;
+  }
+  if (startsWithCI(text, "REPORT REACTIVE FAILURE FOR ") ||
+      startsWithCI(text, "REPORT ASYNC FAILURE FOR ")) {
+    size_t prefix =
+        startsWithCI(text, "REPORT REACTIVE FAILURE FOR ") ? 28 : 26;
+    auto rest = trim(text.substr(prefix));
+    auto U = toUpper(rest);
+    auto withPos = U.find(" WITH ");
+    if (withPos == std::string::npos) {
+      bc.fail(line, "REPORT REACTIVE FAILURE needs: … FOR cell WITH message");
+      return;
+    }
+    auto cellRaw = trim(rest.substr(0, withPos));
+    auto msgE = bc.coerceText(bc.expr(trim(rest.substr(withPos + 6)), line));
+    auto cellName = resolveRxCellName(bc.rxCells, bc.rxEntityStack, stripThe(cellRaw));
+    if (!bc.rxCells.count(cellName)) {
+      bc.fail(line, "REPORT REACTIVE FAILURE needs a reactive cell — not '" + cellRaw + "'");
+      return;
+    }
+    bc.usesRx = true;
+    o << "  luke_rx_report_async_failure(_luke_rx, _luke_rx_id_" << cIdent(cellName) << ", "
+      << msgE.code << ");\n";
     return;
   }
   if (toUpper(text) == "PAINT DIRTY" || toUpper(text) == "PAINT THE DIRTY NODES") {

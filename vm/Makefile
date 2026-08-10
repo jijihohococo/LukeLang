@@ -227,6 +227,13 @@ test-build: build/luke
 	./build/ex_rx_conf_devtools | grep -q "wave0=2"
 	./build/ex_rx_conf_devtools | grep -q "traces=1"
 	./build/ex_rx_conf_devtools | grep -q "dumps=1"
+	./build/luke BUILD ../examples/build/reactive_conformance_error.luke -o build/ex_rx_conf_error
+	./build/ex_rx_conf_error 2>/dev/null | grep -q "errors=1"
+	./build/ex_rx_conf_error 2>/dev/null | grep -q "iso=1"
+	./build/ex_rx_conf_error 2>/dev/null | grep -q "ok=1"
+	./build/ex_rx_conf_error 2>/dev/null | grep -q "async=1"
+	./build/ex_rx_conf_error 2>/dev/null | grep -q "errors2=2"
+	./build/ex_rx_conf_error 2>/dev/null | grep -q "retries=1"
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

@@ -265,7 +265,28 @@ Wave `2` = derived, `3` = effect.
 
 ---
 
-## 11. Non-normative (future)
+## 12. Error system (v0.6)
+
+### 12.1 Isolation
+
+When a derived/effect run sets a problem (`GIVE UP` inside `ATTEMPT`), the runtime:
+
+1. Marks the node `errored = 1`
+2. Clears its deps and removes it from the dirty queue
+3. Continues flush — sibling effects still run
+
+### 12.2 Async failure
+
+`REPORT REACTIVE FAILURE FOR cell WITH message` isolates the cell and increments `THE ASYNC FAILURE COUNT`.
+
+### 12.3 Retry
+
+`RETRY REACTIVE ERROR` clears `errored` on `last_error_node`, marks dirty, and flushes.  
+`CLEAR REACTIVE ERROR` clears the flag without re-scheduling.
+
+---
+
+## 13. Non-normative (future)
 
 Not yet specified: macrotask queues, parallel reactions, time-travel, field-level object tracking, Hanka region invalidation spec.
 

@@ -61,6 +61,7 @@ typedef struct LukeRxNode {
   int dirty;
   int dead; /* disposed with component scope */
   int weak; /* effect: reads do not register dependency edges */
+  int errored; /* isolated failure — skipped until retry */
   int queued; /* enqueued on dirty_q this flush turn */
   uint8_t priority; /* effect scheduling lane (Scheduler 2.0) */
   uint8_t wait_epochs; /* starvation guard — epochs waiting to run */
@@ -132,6 +133,12 @@ struct LukeRxGraph {
   LukeRxId last_write_id; /* last cell/collection write (why-changed root hint) */
   int graph_dump_count;
   int why_trace_count;
+  /* Phase 14 — Error system */
+  int error_count;
+  int error_isolation_count;
+  int retry_count;
+  int async_failure_count;
+  LukeRxId last_error_node;
   /* Phase 6 — timelines */
 #define LUKE_RX_MAX_TIMELINES 16
   struct {
@@ -423,6 +430,54 @@ static inline void luke_rx_timeline_push(LukeRxGraph *g, LukeRxId id, uint8_t wa
   g->sched_timeline_len++;
 }
 
+static inline void luke_rx_request_flush(LukeRxGraph *g); /* forward */
+
+static inline void luke_rx_isolate_error(LukeRxGraph *g, LukeRxId id) {
+  if (!g || id == 0) return;
+  LukeRxNode *n = luke_rx_node_raw(g, id);
+  if (!n || n->dead) return;
+  n->errored = 1;
+  g->last_error_node = id;
+  g->error_count++;
+  g->error_isolation_count++;
+  luke_rx_clear_deps(g, id);
+  n->dirty = 0;
+  n->queued = 0;
+  fprintf(stderr, "Luke Reactive: isolated error on node #%u\n", (unsigned)id);
+}
+
+static inline void luke_rx_report_async_failure(LukeRxGraph *g, LukeRxId id, LukeText msg) {
+  if (!g) return;
+  luke_set_problem(msg);
+  g->async_failure_count++;
+  luke_rx_isolate_error(g, id);
+  luke_clear_problem();
+}
+
+static inline int luke_rx_retry_error(LukeRxGraph *g) {
+  if (!g || g->last_error_node == 0) return 0;
+  LukeRxNode *n = luke_rx_node_raw(g, g->last_error_node);
+  if (!n || n->dead) return 0;
+  n->errored = 0;
+  g->retry_count++;
+  luke_rx_mark_dirty(g, g->last_error_node);
+  if (!g->batching) luke_rx_request_flush(g);
+  return 1;
+}
+
+static inline int luke_rx_clear_reactive_error(LukeRxGraph *g) {
+  if (!g || g->last_error_node == 0) return 0;
+  LukeRxNode *n = luke_rx_node_raw(g, g->last_error_node);
+  if (!n) return 0;
+  n->errored = 0;
+  return 1;
+}
+
+static inline int luke_rx_node_errored(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node_raw(g, id);
+  return n && n->errored ? 1 : 0;
+}
+
 static inline int luke_rx_flush(LukeRxGraph *g); /* forward */
 
 static inline int luke_rx_flush_pass(LukeRxGraph *g) {
@@ -448,7 +503,7 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
     int pending_derived = 0;
     for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
       LukeRxNode *n = &g->nodes[id];
-      if (n->dead || !n->dirty || n->kind != LUKE_RX_DERIVED) continue;
+      if (n->dead || n->errored || !n->dirty || n->kind != LUKE_RX_DERIVED) continue;
       pending_derived = 1;
       int deps_ready = 1;
       for (size_t d = 0; d < n->dep_len; ++d) {
@@ -470,6 +525,12 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
       g->stale_read = 0;
       double v = n->compute(g, n->ctx);
       g->computing = 0;
+      if (luke_has_problem()) {
+        luke_rx_isolate_error(g, id);
+        luke_clear_problem();
+        progressed = 1;
+        continue;
+      }
       if (g->stale_read) {
         g->stale_read = 0;
         continue;
@@ -501,7 +562,7 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
   size_t effect_n = 0;
   for (LukeRxId id = 1; id < (LukeRxId)g->len && effect_n < LUKE_RX_MAX_EFFECT_BATCH; ++id) {
     LukeRxNode *n = &g->nodes[id];
-    if (n->dead || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    if (n->dead || n->errored || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
     n->wait_epochs++;
     effect_ids[effect_n] = id;
     effect_pri[effect_n] = (int)n->priority;
@@ -527,7 +588,7 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
   for (size_t ei = 0; ei < effect_n; ++ei) {
     LukeRxId id = effect_ids[ei];
     LukeRxNode *n = &g->nodes[id];
-    if (n->dead || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
+    if (n->dead || n->errored || !n->dirty || n->kind != LUKE_RX_EFFECT) continue;
     if (n->priority == LUKE_RX_PRIO_BACKGROUND && saw_ui) g->ui_before_bg = 1;
     if (n->priority == LUKE_RX_PRIO_UI) saw_ui = 1;
     if (!g->last_first_effect) g->last_first_effect = id;
@@ -536,6 +597,11 @@ static inline int luke_rx_flush_pass(LukeRxGraph *g) {
     g->computing = id;
     if (n->effect) n->effect(g, n->ctx);
     g->computing = 0;
+    if (luke_has_problem()) {
+      luke_rx_isolate_error(g, id);
+      luke_clear_problem();
+      continue;
+    }
     n->version++;
     n->dirty = 0;
     n->queued = 0;

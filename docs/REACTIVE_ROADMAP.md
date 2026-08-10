@@ -16,7 +16,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 | 2 | **Scheduler 2.0** | Priority, dedup, micro/macrotask queues, starvation | 🟡 v0.2 |
 | 3 | **Granularity** | Field-level, Hanka regions, Argus paint regions | 🟡 v0.3 |
 | 4 | **Memory management** | Auto cleanup, dead nodes, weak refs, leak detect | ✅ v0.4 |
-| 5 | **Error system** | Isolation, async failure, boundaries, retry | ⬜ |
+| 5 | **Error system** | Isolation, async failure, boundaries, retry | 🟡 v0.6 started |
 | 6 | **DevTools** | Live graph, why changed/repaint, timelines | 🟡 v0.5 started |
 | 7 | **Time-travel** | Snapshots, replay, deterministic replay | ⬜ |
 | 8 | **Compiler optimization** | Static graph, dead reaction elimination | ⬜ |
@@ -39,7 +39,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 - [x] Scheduler counters + Build introspection
 - [x] `reactive_conformance_*.luke` + `make test-build`
 - [ ] Nested/recursive reaction rules documented + tested
-- [ ] Error propagation policy (v0.2)
+- [x] Error propagation policy (v0.6 — isolation + retry)
 
 ---
 
@@ -81,7 +81,7 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone F — DevTools *(current)*
+## Milestone F — DevTools *(shipped v0.5)*
 
 - [x] Graph stats (`THE GRAPH CELL COUNT`, `THE GRAPH EDGE COUNT`)
 - [x] Why-changed trace (`THE WHY ROOT OF`, `THE WHY DEPTH OF`, `TRACE WHY`)
@@ -92,7 +92,17 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-## Milestone D — Production proof
+## Milestone G — Error system *(current)*
+
+- [x] Effect/derived error isolation (`luke_rx_isolate_error`, `errored` flag)
+- [x] Flush continues after isolated failure (sibling effects still run)
+- [x] Async failure reporting (`REPORT REACTIVE FAILURE FOR … WITH …`)
+- [x] Retry + clear (`RETRY REACTIVE ERROR`, `CLEAR REACTIVE ERROR`)
+- [x] Introspection: `THE REACTIVE ERROR COUNT`, `THE LAST ERROR NODE`, `THE ASYNC FAILURE COUNT`
+- [x] Conformance: `reactive_conformance_error.luke`
+- [ ] Error boundaries (component-scoped containment)
+
+---
 
 - Benchmark suite vs full rerender baseline
 - One **signature reference app** (todo or dashboard)

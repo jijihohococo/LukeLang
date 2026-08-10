@@ -516,6 +516,18 @@ Graph introspection, why-changed tracing, timeline export.
 - Introspection: `THE DEP COUNT OF`, `THE WHY ROOT OF`, `THE GRAPH EDGE COUNT`, `THE TIMELINE STEP ID AT n`
 - Conformance: `reactive_conformance_devtools.luke`
 
+### Phase 14 — Error system *(shipped v0.6)*
+
+Isolated failures, async reporting, retry.
+
+**Deliverables**
+
+- `luke_rx_isolate_error` — mark node errored, skip on flush, graph continues
+- `luke_rx_report_async_failure` + `REPORT REACTIVE FAILURE FOR cell WITH msg`
+- `RETRY REACTIVE ERROR` / `CLEAR REACTIVE ERROR`
+- Introspection: `THE REACTIVE ERROR COUNT`, `THE LAST ERROR NODE`, `THE ASYNC FAILURE COUNT`
+- Conformance: `reactive_conformance_error.luke`
+
 ---
 
 ## Relation to current engines

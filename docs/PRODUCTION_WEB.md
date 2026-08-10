@@ -31,9 +31,11 @@ Static dist    .html + .wasm + fonts/
 | Hash routing | yes |
 | Async fetch GET/POST + status/body | yes |
 | `FOR EACH` → UI | yes |
-| Deploy folder | html + wasm + fonts |
-| Motion / a11y polish | next |
-| `luke PUBLISH WEB` | next |
+| Deploy folder | **`luke PUBLISH WEB`** → `dist/` + `index.html` + `PUBLISH.md` |
+| Argus a11y beachhead | yes (labels / roles / focus-visible) |
+| Motion | next (`std/motion`) |
+| Hanka align / measure | next |
+| App JS | none (boot inlined) |
 
 ## Surface (v1)
 
@@ -63,9 +65,14 @@ END WHEN
 ## Demo / deploy
 
 ```bash
-luke BUILD examples/build/web_app.luke -target browser -o dist/app
-# ship: dist/app.html + dist/app.wasm (+ fonts/)
+luke BUILD examples/build/web_app.luke -target browser -o build/web_app
+
+# Ship folder (preferred):
+luke PUBLISH WEB examples/build/web_app.luke -o dist/web
+# → dist/web/index.html + *.wasm + fonts/ + PUBLISH.md
 ```
+
+Argus sets basic a11y on paint: `aria-label` on buttons/inputs/text, `role="img"` on images, focus-visible rings, `#root role="application"`.
 
 ## Related
 

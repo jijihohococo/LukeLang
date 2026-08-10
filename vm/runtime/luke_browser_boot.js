@@ -308,12 +308,17 @@ function createLukeJs(getMemory, opts) {
         el.style.boxSizing = "border-box";
         el.style.margin = "0";
         el.style.border = "0";
+        if (k === 1) {
+          el.setAttribute("role", "text");
+        }
         if (k === 2) {
           el.type = "button";
           el.style.cursor = "pointer";
           el.style.font = "inherit";
         }
         if (k === 3) {
+          el.setAttribute("role", "img");
+          el.setAttribute("aria-hidden", "false");
           el.style.backgroundSize = "cover";
           el.style.backgroundPosition = "center";
           el.style.backgroundRepeat = "no-repeat";
@@ -323,6 +328,9 @@ function createLukeJs(getMemory, opts) {
           el.style.font = "inherit";
           el.style.padding = "0 12px";
           el.setAttribute("data-argus-input", "1");
+        }
+        if (k === 0) {
+          el.setAttribute("role", "presentation");
         }
         root.appendChild(el);
       }
@@ -351,6 +359,9 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) return;
       el.textContent = text;
+      var kind = el.getAttribute("data-argus-node");
+      if (kind === "2" && text) el.setAttribute("aria-label", text);
+      if (kind === "1" && text) el.setAttribute("aria-label", text);
     },
     argus_image: function (idPtr, idLen, srcPtr, srcLen) {
       const id = readText(idPtr, idLen);
@@ -362,6 +373,7 @@ function createLukeJs(getMemory, opts) {
       var el = document.getElementById(id);
       if (!el) return;
       el.style.backgroundImage = src ? 'url("' + src.replace(/"/g, '\\"') + '")' : "";
+      if (src) el.setAttribute("aria-label", id);
     },
     argus_input: function (idPtr, idLen, phPtr, phLen, inputType) {
       const id = readText(idPtr, idLen);
@@ -376,6 +388,10 @@ function createLukeJs(getMemory, opts) {
       if (!el) return;
       el.type = type;
       el.placeholder = ph;
+      if (ph) el.setAttribute("aria-label", ph);
+      else el.setAttribute("aria-label", id);
+      if (t === 2) el.setAttribute("autocomplete", "email");
+      if (t === 1) el.setAttribute("autocomplete", "current-password");
     },
   };
 }

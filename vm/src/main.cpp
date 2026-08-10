@@ -21,6 +21,7 @@ void printUsage(const char *argv0) {
       << "\n"
       << "  " << argv0 << " SHOW  <file.luke> [--vm]     Run (Build-first; VM fallback)\n"
       << "  " << argv0 << " BUILD <file.luke> [options]  Build (native / wasm / browser)\n"
+      << "  " << argv0 << " PUBLISH WEB <file.luke> [-o dir]  Build browser app into a ship folder\n"
       << "  " << argv0 << " TEST  <file.luke>            Build + run MAKE SURE checks\n"
       << "  " << argv0 << " PKG init <name>             Create luke_modules/<name> package\n"
       << "  " << argv0 << " PKG install <name>          Install from registry/index.json\n"
@@ -203,10 +204,13 @@ std::string makeBrowserHtml(const std::string &wasmFile, const luke::BuildResult
   }
   o << "html,body{margin:0;min-height:100%}\n";
   o << "#luke-out{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}\n";
+  o << "[data-argus] button:focus-visible,[data-argus] input:focus-visible{"
+       "outline:2px solid #f4a259;outline-offset:2px;}\n";
   o << page.pageStyle << "\n";
   o << "  </style>\n</head>\n<body>\n";
-  o << "  <div id=\"root\">" << page.pageBody << "</div>\n";
-  o << "  <pre id=\"luke-out\"></pre>\n";
+  o << "  <div id=\"root\" role=\"application\" aria-label=\"" << escapeHtml(title) << "\">"
+    << page.pageBody << "</div>\n";
+  o << "  <pre id=\"luke-out\" aria-live=\"polite\"></pre>\n";
 
   std::string bootSrc = findBrowserLoaderSrc();
   std::string boot = bootSrc.empty() ? "" : stripBootForInline(readFile(bootSrc));
@@ -429,6 +433,67 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
   return 0;
 }
 
+int runPublishWeb(const std::string &path, const std::string &outDirIn) {
+  std::string outDir = outDirIn.empty() ? "dist" : outDirIn;
+  while (!outDir.empty() && (outDir.back() == '/' || outDir.back() == '\\')) outDir.pop_back();
+  if (outDir.empty()) outDir = "dist";
+
+  std::string mk = "mkdir -p \"" + outDir + "\"";
+  if (std::system(mk.c_str()) != 0) {
+    std::cerr << "Error: could not create " << outDir << "\n";
+    return 1;
+  }
+
+  std::string name = basenameNoExt(path);
+  std::string stem = outDir + "/" + name;
+  std::cerr << "PUBLISH WEB → " << outDir << "/\n";
+  int rc = runBuild(path, stem, "browser");
+  if (rc != 0) return rc;
+
+  /* Prefer index.html as the entry for static hosts. */
+  std::string appHtml = stem + ".html";
+  std::string indexHtml = outDir + "/index.html";
+  std::string cpHtml = "cp -f \"" + appHtml + "\" \"" + indexHtml + "\"";
+  if (std::system(cpHtml.c_str()) != 0) {
+    std::cerr << "Error: could not write " << indexHtml << "\n";
+    return 1;
+  }
+
+  /* Drop Build intermediates from the ship folder. */
+  std::string cPath = stem + ".luke.c";
+  std::remove(cPath.c_str());
+
+  std::ostringstream checklist;
+  checklist << "# Luke PUBLISH WEB\n\n"
+            << "Ship this folder as a static site (no app JS).\n\n"
+            << "## Contents\n\n"
+            << "- `index.html` — entry (open this)\n"
+            << "- `" << name << ".html` — same page (named stem)\n"
+            << "- `" << name << ".wasm` — Luke Build artifact\n"
+            << "- `fonts/` — local font packs (if used)\n\n"
+            << "## Checklist\n\n"
+            << "- [ ] Open `index.html` via a static server (not always `file://` for fetch)\n"
+            << "- [ ] Clicks / routes / inputs work\n"
+            << "- [ ] No `luke_browser_loader.js` beside the page (boot is inlined)\n"
+            << "- [ ] Fonts load (if local packs were BRING FONT'd)\n\n"
+            << "## Serve locally\n\n"
+            << "```bash\n"
+            << "python3 -m http.server -d " << outDir << " 8080\n"
+            << "# then open http://127.0.0.1:8080/\n"
+            << "```\n\n"
+            << "Source: `" << path << "`\n";
+  std::string checkPath = outDir + "/PUBLISH.md";
+  if (!writeFile(checkPath, checklist.str())) {
+    std::cerr << "Error: could not write " << checkPath << "\n";
+    return 1;
+  }
+
+  std::cerr << "Publish ok → " << outDir << "/\n";
+  std::cerr << "  entry: " << indexHtml << "\n";
+  std::cerr << "  notes: " << checkPath << "\n";
+  return 0;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -491,6 +556,38 @@ int main(int argc, char **argv) {
       return 1;
     }
     return runBuild(path, out, target);
+  }
+
+  if (cmd == "PUBLISH") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dir]\n";
+      return 1;
+    }
+    std::string sub = upper(argv[2]);
+    if (sub != "WEB") {
+      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dir]\n";
+      return 1;
+    }
+    if (argc < 4) {
+      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dir]\n";
+      return 1;
+    }
+    std::string path = argv[3];
+    std::string outDir = "dist";
+    for (int i = 4; i < argc; ++i) {
+      std::string a = argv[i];
+      if (a == "-o" && i + 1 < argc) {
+        outDir = argv[++i];
+      } else {
+        std::cerr << "Unknown PUBLISH WEB option: " << a << "\n";
+        return 1;
+      }
+    }
+    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
+      std::cerr << "Error: input must be a .luke file\n";
+      return 1;
+    }
+    return runPublishWeb(path, outDir);
   }
 
   if (cmd == "TEST") {

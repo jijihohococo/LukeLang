@@ -125,6 +125,13 @@ luke PKG publish mylib
 luke PKG lock          # writes luke.lock
 ```
 
+### Publish web
+
+```bash
+luke PUBLISH WEB examples/build/web_app.luke -o dist/web
+# → dist/web/index.html + web_app.wasm (+ fonts/) + PUBLISH.md
+```
+
 ### Arena scopes
 
 ```luke

@@ -115,6 +115,13 @@ test-build: build/luke
 	@grep -qE 'hanka_slot_input|argus_place_input' build/web_app.luke.c
 	@grep -q '_luke_fe_i' build/web_app.luke.c
 	@grep -q 'hanka_begin_row' build/web_app.luke.c
+	@rm -rf build/publish_web && ./build/luke PUBLISH WEB ../examples/build/web_app.luke -o build/publish_web
+	@test -f build/publish_web/index.html
+	@test -f build/publish_web/web_app.wasm
+	@test -f build/publish_web/PUBLISH.md
+	@test ! -f build/publish_web/web_app.luke.c
+	@grep -q 'role="application"' build/publish_web/index.html
+	@grep -q 'focus-visible' build/publish_web/index.html
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

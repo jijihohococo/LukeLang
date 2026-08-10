@@ -65,7 +65,7 @@ END WHEN
 - Owning layout math (that's **Hanka**)
 - WebGL/Skia
 - CSS-as-source-of-truth
-- Full a11y tree mapping (button/text roles come next)
+- Full a11y tree mapping beyond labels/roles/focus rings
 
 ## Success metric
 

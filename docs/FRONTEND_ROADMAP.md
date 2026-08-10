@@ -1,25 +1,32 @@
 # LukeLang Frontend Production Roadmap
 
+> **Wedge:** reactive full-stack web — see [`STRATEGY.md`](./STRATEGY.md) (the decision record this roadmap serves).  
 > **Current track:** Frontend (this document)  
-> **Later tracks:** Backend → Scripting → Mobile → Game
+> **Next track:** Backend (unlocks full-stack reactivity — likely the true signature)  
+> **Parked:** Scripting → Mobile → Game, plus the own-the-pixels renderer (earned post-beachhead)
 
-Luke owns the UI stack (Hanka → Argus → WASM boot).  
 Reactive change model: [`REACTIVE.md`](./REACTIVE.md)  
 Ship path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)
+
+> **Renderer direction (Path A):** compile to **DOM + CSS** — the browser lays out and paints;
+> Argus is a thin **reactive patcher** (dirty node → surgical DOM update) and Hanka emits
+> flex/grid rather than computing absolute frames. Rationale in [`STRATEGY.md`](./STRATEGY.md).
 
 ---
 
 ## Big picture (product tracks)
 
-| Order | Track | Goal |
-|------:|-------|------|
-| 1 | **Frontend** *(now)* | Layout, widgets, a11y, publish, production proof |
-| 2 | Backend | HTTP/server, DB, auth, full-stack apps |
-| 3 | Scripting | Tooling DX, packages, automation |
-| 4 | Mobile | Native shells / shared Luke UI |
-| 5 | Game | Entities, loops, rendering beyond DOM |
+| Order | Track | Goal | Status |
+|------:|-------|------|--------|
+| 1 | **Frontend** *(now)* | Layout, widgets, a11y, publish, production proof | active |
+| 2 | Backend | HTTP/server, DB, auth, full-stack **reactive** apps | next |
+| 3 | Scripting | Tooling DX, packages, automation | parked |
+| 4 | Mobile | Native shells / shared Luke UI | parked |
+| 5 | Game | Entities, loops, rendering beyond DOM | parked |
+| — | Own-the-pixels renderer (canvas/WebGL) | Flutter-style; only in *full* form | parked |
 
-Do **not** pull later tracks into Frontend PRs unless they unblock ship.
+Parked ≠ cancelled: these are sequenced **after** the frontend proof point, picked up from
+a position of strength. Do **not** pull parked tracks into Frontend PRs unless they unblock ship.
 
 ---
 

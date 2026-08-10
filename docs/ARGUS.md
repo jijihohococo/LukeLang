@@ -6,6 +6,10 @@
 > **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames  
 > **Frontend track:** [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
 
+> **Direction (Path A, see [`STRATEGY.md`](./STRATEGY.md)):** long-term, Argus becomes a thin
+> **reactive patcher** — the browser lays out and paints; Argus only applies dirty-node → DOM
+> updates. The absolute-frame model below is the *current* implementation, not the destination.
+
 ## What Argus is
 
 Argus owns the **Luke scene tree** and paints it.  

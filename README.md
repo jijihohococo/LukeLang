@@ -3,6 +3,10 @@
 LukeLang is a conversational language with a **Build-first** vision:
 write like Python, ship like Rust.
 
+> **Direction:** the wedge is **reactive full-stack web** — conversational syntax + a
+> reactive engine that understands change, rendering through the browser (DOM + CSS).
+> Read [`docs/STRATEGY.md`](docs/STRATEGY.md) for the identity, the renderer decision, and the plan.
+
 | Mode | Command | What it is |
 | --- | --- | --- |
 | **Build** (real language) | `luke BUILD file.luke` | Native / WASM / browser — **no GC**, arena memory |

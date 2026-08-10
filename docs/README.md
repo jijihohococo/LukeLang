@@ -2,6 +2,7 @@
 
 Welcome to the official documentation for LukeLang — a conversational language with a **Build-first** native/WASM runtime in [`vm/`](../vm/).
 
+> **Start here for direction:** [`STRATEGY.md`](./STRATEGY.md) — identity, the wedge, and the plan.  
 > Prefer [`BUILD_MODE.md`](./BUILD_MODE.md) and [`getting_started.md`](./getting_started.md).  
 > Removed JS emitters: [`LEGACY.md`](./LEGACY.md).
 
@@ -11,6 +12,7 @@ LukeLang uses verbose, human-readable syntax. The language of record is **Build*
 
 ## Table of Contents
 
+0.  **[Strategy](./STRATEGY.md)** — identity, the wedge (reactive full-stack), renderer decision, and the phased plan
 1.  **[Getting Started](./getting_started.md)**
 2.  **[Language Reference](./language_reference.md)**
 3.  **[Standard Library](./standard_library.md)**

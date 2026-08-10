@@ -6,6 +6,10 @@
 > **Not:** browser flex/grid as source of truth  
 > **Frontend track:** [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)
 
+> **Direction (Path A, see [`STRATEGY.md`](./STRATEGY.md)):** long-term, Hanka emits CSS
+> **flex/grid** and lets the browser resolve layout, rather than computing absolute `x,y,w,h`
+> frames itself. The frame-computing model below is the *current* implementation, not the destination.
+
 ## Pipeline
 
 ```text

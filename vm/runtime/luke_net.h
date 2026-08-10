@@ -52,6 +52,22 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
   return 0;
 }
 
+static inline int luke_http_sse_open(LukeHttpRequest *req) {
+  (void)req;
+  return 0;
+}
+
+static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
+  (void)req;
+  (void)data;
+  return 0;
+}
+
+static inline int luke_http_close(LukeHttpRequest *req) {
+  (void)req;
+  return 0;
+}
+
 #else /* !__wasi__ */
 
 static inline LukeHttpServer *luke_http_listen(LukeArena *a, double port) {
@@ -289,6 +305,55 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
     sent += (size_t)n;
   }
 
+  close(req->client_fd);
+  req->client_fd = -1;
+  return 1;
+}
+
+/* ---------- SSE (Server-Sent Events) — keep connection open ---------- */
+
+static inline int luke_http__send_all(int fd, const char *buf, size_t len) {
+  size_t sent = 0;
+  while (sent < len) {
+    ssize_t n = send(fd, buf + sent, len - sent, 0);
+    if (n <= 0) return 0;
+    sent += (size_t)n;
+  }
+  return 1;
+}
+
+static inline int luke_http_sse_open(LukeHttpRequest *req) {
+  if (!req || req->client_fd < 0) return 0;
+  const char *hdr = "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/event-stream\r\n"
+                    "Cache-Control: no-cache\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Connection: keep-alive\r\n"
+                    "\r\n";
+  if (!luke_http__send_all(req->client_fd, hdr, strlen(hdr))) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
+  }
+  return 1;
+}
+
+static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
+  if (!req || req->client_fd < 0) return 0;
+  if (!luke_http__send_all(req->client_fd, "data: ", 6)) goto fail;
+  if (data.len && data.ptr) {
+    if (!luke_http__send_all(req->client_fd, data.ptr, data.len)) goto fail;
+  }
+  if (!luke_http__send_all(req->client_fd, "\n\n", 2)) goto fail;
+  return 1;
+fail:
+  close(req->client_fd);
+  req->client_fd = -1;
+  return 0;
+}
+
+static inline int luke_http_close(LukeHttpRequest *req) {
+  if (!req || req->client_fd < 0) return 0;
   close(req->client_fd);
   req->client_fd = -1;
   return 1;

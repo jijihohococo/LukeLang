@@ -47,6 +47,7 @@ typedef struct ArgusNode {
   double flex_pad;
   int flex_align; /* 0 start, 1 center, 2 end */
   int flex_wrap;
+  int flex_grow; /* Path A: 1 = flex-grow fill (AUTO width/height on flow) */
   int dirty;
   int mounted;
 } ArgusNode;
@@ -123,7 +124,8 @@ argus_js_flex_raw(const char *id, size_t id_len, double dir, double gap, double 
                   double wrap);
 
 __attribute__((import_module("lukejs"), import_name("argus_flow_frame"))) void
-argus_js_flow_frame_raw(const char *id, size_t id_len, double w, double h, double opacity);
+argus_js_flow_frame_raw(const char *id, size_t id_len, double w, double h, double opacity,
+                        double grow);
 
 static inline void argus_js_upsert(LukeText id, double kind) {
   argus_js_upsert_raw(id.ptr, id.len, kind);
@@ -139,8 +141,9 @@ static inline void argus_js_flex(LukeText id, double dir, double gap, double pad
                                  double wrap) {
   argus_js_flex_raw(id.ptr, id.len, dir, gap, pad, align, wrap);
 }
-static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity) {
-  argus_js_flow_frame_raw(id.ptr, id.len, w, h, opacity);
+static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity,
+                                       double grow) {
+  argus_js_flow_frame_raw(id.ptr, id.len, w, h, opacity, grow);
 }
 static inline void argus_js_text(LukeText id, LukeText text) {
   argus_js_text_raw(id.ptr, id.len, text.ptr, text.len);
@@ -197,11 +200,13 @@ static inline void argus_js_flex(LukeText id, double dir, double gap, double pad
   (void)align;
   (void)wrap;
 }
-static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity) {
+static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity,
+                                       double grow) {
   (void)id;
   (void)w;
   (void)h;
   (void)opacity;
+  (void)grow;
 }
 static inline void argus_js_text(LukeText id, LukeText text) {
   (void)id;
@@ -473,7 +478,7 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
     argus_js_flex(id, (double)n->flex_dir, n->flex_gap, n->flex_pad, (double)n->flex_align,
                   (double)n->flex_wrap);
   if (n->flow)
-    argus_js_flow_frame(id, n->w, n->h, n->opacity);
+    argus_js_flow_frame(id, n->w, n->h, n->opacity, (double)n->flex_grow);
   else
     argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
   LukeText role = n->role.len ? n->role : argus_default_role(n);
@@ -555,13 +560,16 @@ static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, i
                                    double pad, int align, int wrap) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
   if (absolute) {
-    argus_set_frame(n, x, y, w, h);
+    argus_set_frame(n, x, y, w < 0 ? 0 : w, h < 0 ? 0 : h);
     argus_set_flow(n, 0);
     argus_set_parent(n, luke_text_n("", 0));
+    n->flex_grow = 0;
   } else {
-    argus_set_frame(n, 0, 0, w, h);
+    int grow = (w < 0 || h < 0) ? 1 : 0;
+    argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
     argus_set_flow(n, 1);
     argus_set_parent(n, parent);
+    n->flex_grow = grow;
   }
   argus_set_flex(n, dir, gap, pad, align, wrap);
   return 1;
@@ -570,10 +578,12 @@ static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, i
 static inline int argus_place_flow_text(LukeArena *a, LukeText id, LukeText parent, double w,
                                         double h, LukeText text) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_TEXT);
-  argus_set_frame(n, 0, 0, w, h);
+  int grow = (w < 0 || h < 0) ? 1 : 0;
+  argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
   argus_set_flow(n, 1);
   argus_set_parent(n, parent);
   n->flex_dir = 0;
+  n->flex_grow = grow;
   argus_set_text(n, text);
   return 1;
 }
@@ -581,10 +591,12 @@ static inline int argus_place_flow_text(LukeArena *a, LukeText id, LukeText pare
 static inline int argus_place_flow_button(LukeArena *a, LukeText id, LukeText parent, double w,
                                           double h, LukeText text) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_BUTTON);
-  argus_set_frame(n, 0, 0, w, h);
+  int grow = (w < 0 || h < 0) ? 1 : 0;
+  argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
   argus_set_flow(n, 1);
   argus_set_parent(n, parent);
   n->flex_dir = 0;
+  n->flex_grow = grow;
   argus_set_text(n, text);
   return 1;
 }
@@ -592,10 +604,12 @@ static inline int argus_place_flow_button(LukeArena *a, LukeText id, LukeText pa
 static inline int argus_place_flow_image(LukeArena *a, LukeText id, LukeText parent, double w,
                                          double h, LukeText src) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_IMAGE);
-  argus_set_frame(n, 0, 0, w, h);
+  int grow = (w < 0 || h < 0) ? 1 : 0;
+  argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
   argus_set_flow(n, 1);
   argus_set_parent(n, parent);
   n->flex_dir = 0;
+  n->flex_grow = grow;
   argus_set_src(n, src);
   return 1;
 }
@@ -603,20 +617,24 @@ static inline int argus_place_flow_image(LukeArena *a, LukeText id, LukeText par
 static inline int argus_place_flow_box(LukeArena *a, LukeText id, LukeText parent, double w,
                                        double h) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
-  argus_set_frame(n, 0, 0, w, h);
+  int grow = (w < 0 || h < 0) ? 1 : 0;
+  argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
   argus_set_flow(n, 1);
   argus_set_parent(n, parent);
   n->flex_dir = 0;
+  n->flex_grow = grow;
   return 1;
 }
 
 static inline int argus_place_flow_input(LukeArena *a, LukeText id, LukeText parent, double w,
                                          double h, LukeText placeholder, double input_type) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_INPUT);
-  argus_set_frame(n, 0, 0, w, h);
+  int grow = (w < 0 || h < 0) ? 1 : 0;
+  argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
   argus_set_flow(n, 1);
   argus_set_parent(n, parent);
   n->flex_dir = 0;
+  n->flex_grow = grow;
   argus_set_text(n, placeholder);
   n->input_type = (int)input_type;
   return 1;

@@ -436,9 +436,9 @@ static inline double hanka_align_offset(int align, double free_space) {
 
 /* Path A: ROW/COLUMN → flex container + normal-flow children (browser does layout). */
 static inline void hanka_layout_flex_box(LukeArena *a, HankaBox *b, double abs_x, double abs_y) {
-  for (size_t i = 0; i < b->len; ++i) {
-    if (b->children[i].kind == HANKA_CHILD_LEAF) hanka_resolve_leaf_size(&b->children[i].leaf);
-  }
+  /* Leave AUTO (w/h < 0) unresolved — flow children use flex-grow instead of measured px. */
+  (void)abs_x;
+  (void)abs_y;
   LukeText box_id = luke_text(b->id);
   int under_flex_parent = b->parent && b->parent->axis != HANKA_STACK;
   int absolute = !under_flex_parent;

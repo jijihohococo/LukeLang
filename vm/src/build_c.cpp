@@ -347,6 +347,14 @@ struct BC {
     size_t line = 0;
   };
   std::vector<RxFetchBind> rxFetchBinds;
+  /* Spike A part 2 — SSE subscribe → reactive cells (same write path as FETCH) */
+  struct RxSubscribeBind {
+    std::string jobId;
+    std::string bodyCell;
+    std::string readyCell;
+    size_t line = 0;
+  };
+  std::vector<RxSubscribeBind> rxSubscribeBinds;
 
   void fail(size_t line, const std::string &m) {
     if (bad) return;
@@ -501,6 +509,9 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_accept")
         return mapCall("luke_http_accept", Ty::ptr("__HttpReq"), true);
       if (callee == "__luke_http_reply") return mapCall("luke_http_reply", Ty::flag(), false);
+      if (callee == "__luke_http_sse_open") return mapCall("luke_http_sse_open", Ty::flag(), false);
+      if (callee == "__luke_http_sse_data") return mapCall("luke_http_sse_data", Ty::flag(), false);
+      if (callee == "__luke_http_close") return mapCall("luke_http_close", Ty::flag(), false);
       if (callee == "__luke_http_path") return mapCall("luke_http_path", Ty::text(), false);
       if (callee == "__luke_http_method") return mapCall("luke_http_method", Ty::text(), false);
       if (callee == "__luke_http_query") return mapCall("luke_http_query", Ty::text(), false);
@@ -2513,6 +2524,78 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     return;
   }
 
+  /* START SUBSCRIBE "feed" GET "url" [INTO body] [READY ready] — SSE → cell (Spike A push) */
+  if (startsWithCI(text, "START SUBSCRIBE ")) {
+    auto rest = trim(text.substr(16));
+    auto U = toUpper(rest);
+    auto getPos = findOutsideQuotes(rest, U, " GET ");
+    if (getPos == std::string::npos) {
+      bc.fail(line, "START SUBSCRIBE needs GET — START SUBSCRIBE \"feed\" GET \"url\"");
+      return;
+    }
+    auto idRaw = trim(rest.substr(0, getPos));
+    auto idE = bc.coerceText(bc.expr(idRaw, line));
+    auto after = trim(rest.substr(getPos + 5));
+    auto aU = toUpper(after);
+    size_t intoPos = findOutsideQuotes(after, aU, " INTO ");
+    size_t readyPos = findOutsideQuotes(after, aU, " READY ");
+
+    size_t firstClause = std::string::npos;
+    auto consider = [&](size_t p) {
+      if (p != std::string::npos && (firstClause == std::string::npos || p < firstClause))
+        firstClause = p;
+    };
+    consider(intoPos);
+    consider(readyPos);
+    auto urlPart = firstClause == std::string::npos ? after : trim(after.substr(0, firstClause));
+    auto urlE = bc.coerceText(bc.expr(urlPart, line));
+
+    auto parseCellRef = [&](size_t pos, size_t keyLen, const char *clause,
+                            bool wantText) -> std::string {
+      if (pos == std::string::npos) return {};
+      size_t start = pos + keyLen;
+      size_t end = after.size();
+      auto limit = [&](size_t p) {
+        if (p != std::string::npos && p > pos && p < end) end = p;
+      };
+      limit(intoPos);
+      limit(readyPos);
+      auto name = stripThe(trim(after.substr(start, end - start)));
+      if (name.empty()) {
+        bc.fail(line, std::string("START SUBSCRIBE ") + clause + " needs a cell name");
+        return {};
+      }
+      if (!bc.rxCells.count(name)) {
+        bc.fail(line, std::string("START SUBSCRIBE ") + clause + " '" + name +
+                          "' — REMEMBER it first as a reactive cell");
+        return {};
+      }
+      Ty ty = bc.rxCellTy.count(name) ? bc.rxCellTy[name] : Ty::num();
+      if (wantText)
+        bc.expectTy(line, ty, Ty::text(), std::string("START SUBSCRIBE ") + clause);
+      else if (ty.k != K::Num && ty.k != K::Flag)
+        bc.fail(line, std::string("START SUBSCRIBE ") + clause + " wants NUMBER/FLAG cell");
+      return name;
+    };
+
+    std::string intoCell = parseCellRef(intoPos, 6, "INTO", true);
+    if (bc.bad) return;
+    std::string readyCell = parseCellRef(readyPos, 7, "READY", false);
+    if (bc.bad) return;
+
+    if (!intoCell.empty() || !readyCell.empty()) {
+      std::string jobLit = unquoteText(idRaw);
+      if (jobLit.empty()) jobLit = idRaw;
+      bc.rxSubscribeBinds.push_back({jobLit, intoCell, readyCell, line});
+      bc.usesRx = true;
+    }
+
+    o << "  luke_js_subscribe_start(" << idE.code << ", " << urlE.code << ");\n";
+    if (!readyCell.empty())
+      o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(readyCell) << ", 0);\n";
+    return;
+  }
+
   /* Hanka — layout boxes → Argus frames */
   if (toUpper(text) == "LAY OUT THE SCREEN" || toUpper(text) == "LAYOUT THE SCREEN" ||
       toUpper(text) == "LAY OUT" || toUpper(text) == "LAYOUT") {
@@ -2594,13 +2677,16 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     auto commaAt = findOutsideQuotes(atPart, toUpper(atPart), ",");
     auto commaSz = findOutsideQuotes(sizePart, toUpper(sizePart), ",");
     if (commaAt == std::string::npos || commaSz == std::string::npos) {
-      bc.fail(line, "BEGIN " + axis + " AT needs x, y and SIZE needs w, h");
+      bc.fail(line, "BEGIN " + axis + " AT needs x, y and SIZE needs w, h (AUTO ok on flex children)");
       return;
     }
     auto x = bc.expr(trim(atPart.substr(0, commaAt)), line);
     auto y = bc.expr(trim(atPart.substr(commaAt + 1)), line);
-    auto w = bc.expr(trim(sizePart.substr(0, commaSz)), line);
-    auto h = bc.expr(trim(sizePart.substr(commaSz + 1)), line);
+    auto wRaw = trim(sizePart.substr(0, commaSz));
+    auto hRaw = trim(sizePart.substr(commaSz + 1));
+    /* Spike B part 2: SIZE AUTO → flex-grow on nested flow boxes */
+    auto w = toUpper(wRaw) == "AUTO" ? Expr{"-1.0", Ty::num()} : bc.expr(wRaw, line);
+    auto h = toUpper(hRaw) == "AUTO" ? Expr{"-1.0", Ty::num()} : bc.expr(hRaw, line);
     auto pad = bc.expr(padRaw, line);
     auto gap = bc.expr(gapRaw, line);
     bc.expectTy(line, x.ty, Ty::num(), "BEGIN AT x");
@@ -3249,6 +3335,14 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN FETCH … IS READY needs a job id");
             return false;
           }
+        } else if (startsWithCI(rest, "SUBSCRIBE ") && U.find(" IS READY") != std::string::npos) {
+          curWhen.event = "subscribe";
+          auto ready = U.find(" IS READY");
+          curWhen.elementId = unquoteText(trim(rest.substr(10, ready - 10)));
+          if (curWhen.elementId.empty()) {
+            bc.fail(lineNo, "WHEN SUBSCRIBE … IS READY needs a job id");
+            return false;
+          }
         } else {
           size_t evPos = std::string::npos;
           if ((evPos = U.find(" IS CLICKED")) != std::string::npos)
@@ -3259,7 +3353,8 @@ bool parse(BC &bc, const std::string &source) {
             curWhen.event = "submit";
           else {
             bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
-                            "THE VIEWPORT CHANGES, TIMELINE … IS FINISHED, or FETCH … IS READY");
+                            "THE VIEWPORT CHANGES, TIMELINE … IS FINISHED, FETCH … IS READY, "
+                            "or SUBSCRIBE … IS READY");
             return false;
           }
           curWhen.elementId = unquoteText(trim(rest.substr(0, evPos)));
@@ -3888,6 +3983,26 @@ std::string emit(BC &bc) {
     }
   }
 
+  /* Spike A push: ensure START SUBSCRIBE … INTO has a SUBSCRIBE READY continuation. */
+  for (auto &sb : bc.rxSubscribeBinds) {
+    bool found = false;
+    for (auto &w : bc.pageWhens) {
+      if (w.event == "subscribe" && w.elementId == sb.jobId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      BrowserWhen w;
+      w.event = "subscribe";
+      w.elementId = sb.jobId;
+      w.exportName = "luke_when_" + std::to_string(bc.whenSeq++);
+      bc.pageWhens.push_back(w);
+      bc.hasPage = true;
+      whenBodies.push_back("");
+    }
+  }
+
   /* Phase 6: ensure START TIMELINE has FINISHED continuation (browser). */
   if (bc.forBrowser || bc.hasPage) {
   for (auto &tb : bc.rxTimelineBinds) {
@@ -3932,6 +4047,20 @@ std::string emit(BC &bc) {
           }
           if (!fb.readyCell.empty()) {
             o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(fb.readyCell) << ", 1);\n";
+          }
+          o << "  if (_luke_rx) luke_rx_batch_end(_luke_rx);\n";
+        }
+      }
+      if (w.event == "subscribe") {
+        for (auto &sb : bc.rxSubscribeBinds) {
+          if (sb.jobId != w.elementId) continue;
+          o << "  if (_luke_rx) luke_rx_batch_begin(_luke_rx);\n";
+          if (!sb.bodyCell.empty()) {
+            o << "  luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(sb.bodyCell)
+              << ", luke_js_subscribe_body(arena, luke_text(\"" << esc(sb.jobId) << "\")));\n";
+          }
+          if (!sb.readyCell.empty()) {
+            o << "  luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(sb.readyCell) << ", 1);\n";
           }
           o << "  if (_luke_rx) luke_rx_batch_end(_luke_rx);\n";
         }

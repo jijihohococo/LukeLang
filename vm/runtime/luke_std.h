@@ -840,6 +840,36 @@ static inline LukeText luke_js_fetch_body(LukeArena *a, LukeText id) {
   p[n] = '\0';
   return luke_text_n(p, n);
 }
+
+__attribute__((import_module("lukejs"), import_name("subscribe_start"))) void
+luke_js_subscribe_start_raw(const char *id, size_t id_len, const char *url, size_t url_len);
+
+__attribute__((import_module("lukejs"), import_name("subscribe_ready"))) double
+luke_js_subscribe_ready_raw(const char *id, size_t id_len);
+
+__attribute__((import_module("lukejs"), import_name("subscribe_body"))) void
+luke_js_subscribe_body_raw(const char *id, size_t id_len, char *out, size_t out_cap,
+                           size_t *out_len);
+
+static inline int luke_js_subscribe_start(LukeText id, LukeText url) {
+  luke_js_subscribe_start_raw(id.ptr, id.len, url.ptr, url.len);
+  return 1;
+}
+
+static inline int luke_js_subscribe_ready(LukeText id) {
+  return luke_js_subscribe_ready_raw(id.ptr, id.len) != 0.0;
+}
+
+static inline LukeText luke_js_subscribe_body(LukeArena *a, LukeText id) {
+  char tmp[65536];
+  size_t n = 0;
+  luke_js_subscribe_body_raw(id.ptr, id.len, tmp, sizeof(tmp), &n);
+  if (n >= sizeof(tmp)) n = sizeof(tmp) - 1;
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  memcpy(p, tmp, n);
+  p[n] = '\0';
+  return luke_text_n(p, n);
+}
 #else
 static inline int luke_js_set_text(LukeText id, LukeText text) {
   (void)id;
@@ -899,6 +929,20 @@ static inline double luke_js_fetch_status(LukeText id) {
   return 0;
 }
 static inline LukeText luke_js_fetch_body(LukeArena *a, LukeText id) {
+  (void)a;
+  (void)id;
+  return luke_text("");
+}
+static inline int luke_js_subscribe_start(LukeText id, LukeText url) {
+  (void)id;
+  (void)url;
+  return 0;
+}
+static inline int luke_js_subscribe_ready(LukeText id) {
+  (void)id;
+  return 0;
+}
+static inline LukeText luke_js_subscribe_body(LukeArena *a, LukeText id) {
   (void)a;
   (void)id;
   return luke_text("");

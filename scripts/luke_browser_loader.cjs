@@ -288,6 +288,90 @@ function createLukeJs(getMemory, opts) {
       if (outCap > 0) u8[outPtr + n] = 0;
       view.setUint32(outLenPtr, n, true);
     },
+    subscribe_start: function (idPtr, idLen, urlPtr, urlLen) {
+      var id = readText(idPtr, idLen);
+      var url = readText(urlPtr, urlLen);
+      if (!globalThis.__lukeSubscribeJobs) globalThis.__lukeSubscribeJobs = {};
+      globalThis.__lukeSubscribeJobs[id] = { ready: false, body: "" };
+      console.log("[subscribe_start]", id, url);
+      function onMessage(data) {
+        globalThis.__lukeSubscribeJobs[id] = { ready: true, body: data == null ? "" : String(data) };
+        console.log("[subscribe_ready]", id);
+        if (typeof globalThis.__lukeDispatchSubscribe === "function")
+          globalThis.__lukeDispatchSubscribe(id);
+      }
+      if (typeof EventSource !== "undefined") {
+        try {
+          var es = new EventSource(url);
+          es.onmessage = function (ev) {
+            onMessage(ev.data);
+          };
+          es.onerror = function () {
+            console.log("[subscribe_error]", id);
+          };
+          if (!globalThis.__lukeSubscribeHandles) globalThis.__lukeSubscribeHandles = {};
+          globalThis.__lukeSubscribeHandles[id] = es;
+          return;
+        } catch (e) {
+          console.log("[subscribe_eventsource_fail]", e);
+        }
+      }
+      try {
+        var http = typeof require === "function" ? require("http") : null;
+        var https = typeof require === "function" ? require("https") : null;
+        if (!http) {
+          console.log("[subscribe_stub]", id);
+          return;
+        }
+        var u = new URL(url);
+        var lib = u.protocol === "https:" ? https : http;
+        var req = lib.get(
+          { hostname: u.hostname, port: u.port, path: u.pathname + (u.search || "") },
+          function (res) {
+            var buf = "";
+            res.setEncoding("utf8");
+            res.on("data", function (chunk) {
+              buf += chunk;
+              var parts = buf.split("\n\n");
+              buf = parts.pop() || "";
+              for (var i = 0; i < parts.length; i++) {
+                var lines = parts[i].split(/\r?\n/);
+                for (var j = 0; j < lines.length; j++) {
+                  if (lines[j].indexOf("data:") === 0) {
+                    onMessage(lines[j].slice(5).replace(/^\s/, ""));
+                  }
+                }
+              }
+            });
+          }
+        );
+        req.on("error", function () {
+          console.log("[subscribe_http_error]", id);
+        });
+        if (!globalThis.__lukeSubscribeHandles) globalThis.__lukeSubscribeHandles = {};
+        globalThis.__lukeSubscribeHandles[id] = req;
+      } catch (e2) {
+        console.log("[subscribe_fail]", e2);
+      }
+    },
+    subscribe_ready: function (idPtr, idLen) {
+      var id = readText(idPtr, idLen);
+      var job = globalThis.__lukeSubscribeJobs && globalThis.__lukeSubscribeJobs[id];
+      return job && job.ready ? 1 : 0;
+    },
+    subscribe_body: function (idPtr, idLen, outPtr, outCap, outLenPtr) {
+      var id = readText(idPtr, idLen);
+      var job = globalThis.__lukeSubscribeJobs && globalThis.__lukeSubscribeJobs[id];
+      var value = job && job.ready ? String(job.body || "") : "";
+      const mem = getMemory();
+      const u8 = new Uint8Array(mem.buffer);
+      const view = new DataView(mem.buffer);
+      const bytes = new TextEncoder().encode(value);
+      const n = Math.min(bytes.length, outCap > 0 ? outCap - 1 : 0);
+      u8.set(bytes.subarray(0, n), outPtr);
+      if (outCap > 0) u8[outPtr + n] = 0;
+      view.setUint32(outLenPtr, n, true);
+    },
     timeline_start: function (idPtr, idLen, ms) {
       var id = readText(idPtr, idLen);
       var dur = ms > 0 ? ms : 300;
@@ -438,10 +522,10 @@ function createLukeJs(getMemory, opts) {
       el.style.alignItems = justify;
       el.style.boxSizing = "border-box";
     },
-    argus_flow_frame: function (idPtr, idLen, w, h, opacity) {
+    argus_flow_frame: function (idPtr, idLen, w, h, opacity, grow) {
       const id = readText(idPtr, idLen);
       if (typeof document === "undefined") {
-        console.log("[argus_flow_frame]", id, w, h, opacity);
+        console.log("[argus_flow_frame]", id, w, h, opacity, grow);
         return;
       }
       var el = document.getElementById(id);
@@ -449,12 +533,19 @@ function createLukeJs(getMemory, opts) {
       el.style.position = "relative";
       el.style.left = "";
       el.style.top = "";
-      el.style.width = w + "px";
-      el.style.height = h + "px";
       el.style.opacity = String(opacity);
-      el.style.flex = "0 0 auto";
       el.style.minWidth = "0";
       el.style.boxSizing = "border-box";
+      if (grow) {
+        el.style.flex = "1 1 auto";
+        el.style.width = w > 0 ? w + "px" : "auto";
+        el.style.height = h > 0 ? h + "px" : "auto";
+        el.style.maxWidth = "100%";
+      } else {
+        el.style.flex = "0 0 auto";
+        el.style.width = w + "px";
+        el.style.height = h + "px";
+      }
     },
     argus_text: function (idPtr, idLen, textPtr, textLen) {
       const id = readText(idPtr, idLen);
@@ -676,6 +767,10 @@ function wireLukeWhens(instance, whens) {
     console.log("[fetch_dispatch]", jobId);
     dispatch(jobId, "fetch");
   }
+  function dispatchSubscribe(jobId) {
+    console.log("[subscribe_dispatch]", jobId);
+    dispatch(jobId, "subscribe");
+  }
   function dispatchViewport() {
     for (var i = 0; i < whens.length; i++) {
       var w = whens[i];
@@ -684,6 +779,7 @@ function wireLukeWhens(instance, whens) {
   }
   globalThis.__lukeDispatchRoute = dispatchRoute;
   globalThis.__lukeDispatchFetch = dispatchFetch;
+  globalThis.__lukeDispatchSubscribe = dispatchSubscribe;
   globalThis.__lukeDispatchViewport = dispatchViewport;
   globalThis.__lukeDispatch = dispatch;
 

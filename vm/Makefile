@@ -310,6 +310,33 @@ test-build: build/luke
 	@grep -q "granular_delta=1" /tmp/luke_dash.txt
 	@grep -q "\[argus_flex\]" /tmp/luke_dash.txt
 	@if [ -f /tmp/luke_dash_server.pid ]; then kill $$(cat /tmp/luke_dash_server.pid) 2>/dev/null || true; fi
+	./build/luke BUILD ../examples/build/subscribe_cell_server.luke -o build/subscribe_cell_server
+	./build/luke BUILD ../examples/build/subscribe_cell_client.luke -target browser -o build/subscribe_cell_client
+	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/subscribe_cell_client.luke.c
+	@! grep -qE 'START FETCH|START TIMELINE' ../examples/build/subscribe_cell_client.luke
+	@rm -f /tmp/luke_sub_server.pid /tmp/luke_sub.txt
+	@./build/subscribe_cell_server > /tmp/luke_sub_server.log 2>&1 & echo $$! > /tmp/luke_sub_server.pid
+	@sleep 0.15
+	@node ../scripts/luke_browser_loader.cjs build/subscribe_cell_client.wasm --wait-ms 900 2>&1 | tee /tmp/luke_sub.txt | grep -q "region=1"
+	@grep -q "cell=" /tmp/luke_sub.txt
+	@grep -q "events=" /tmp/luke_sub.txt
+	@grep -q "\[subscribe_start\]" /tmp/luke_sub.txt
+	@test $$(grep -c 'region=1' /tmp/luke_sub.txt) -ge 3
+	@if [ -f /tmp/luke_sub_server.pid ]; then kill $$(cat /tmp/luke_sub_server.pid) 2>/dev/null || true; fi
+	./build/luke BUILD ../examples/build/dashboard_push_server.luke -o build/dashboard_push_server
+	./build/luke BUILD ../examples/build/dashboard_push_client.luke -target browser -o build/dashboard_push_client
+	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/dashboard_push_client.luke.c
+	@grep -q 'hanka_begin_column\|hanka_begin_row' build/dashboard_push_client.luke.c
+	@! grep -qE 'START FETCH|START TIMELINE' ../examples/build/dashboard_push_client.luke
+	@rm -f /tmp/luke_dash_push_server.pid /tmp/luke_dash_push.txt
+	@./build/dashboard_push_server > /tmp/luke_dash_push_server.log 2>&1 & echo $$! > /tmp/luke_dash_push_server.pid
+	@sleep 0.15
+	@node ../scripts/luke_browser_loader.cjs build/dashboard_push_client.wasm --wait-ms 1000 2>&1 | tee /tmp/luke_dash_push.txt | grep -q "region=1"
+	@grep -q "reqs=" /tmp/luke_dash_push.txt
+	@grep -q "\[argus_flex\]" /tmp/luke_dash_push.txt
+	@grep -q "\[argus_flow_frame\]" /tmp/luke_dash_push.txt
+	@test $$(grep -c 'region=1' /tmp/luke_dash_push.txt) -ge 3
+	@if [ -f /tmp/luke_dash_push_server.pid ]; then kill $$(cat /tmp/luke_dash_push_server.pid) 2>/dev/null || true; fi
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
 
 clean:

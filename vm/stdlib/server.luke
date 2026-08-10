@@ -12,6 +12,18 @@ THIS IS FUNCTION httpReply WITH req AS REQUEST, status AS NUMBER, contentType AS
   GIVE BACK __luke_http_reply(req, status, contentType, body)
 END FUNCTION
 
+THIS IS FUNCTION httpSseOpen WITH req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_open(req)
+END FUNCTION
+
+THIS IS FUNCTION httpSseData WITH req AS REQUEST, data AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_data(req, data)
+END FUNCTION
+
+THIS IS FUNCTION httpClose WITH req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_http_close(req)
+END FUNCTION
+
 THIS IS FUNCTION httpPath WITH req AS REQUEST GIVES BACK TEXT DO
   GIVE BACK __luke_http_path(req)
 END FUNCTION

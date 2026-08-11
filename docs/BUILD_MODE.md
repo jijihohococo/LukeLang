@@ -252,9 +252,10 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 15. ~~LIST / MAP + ATTEMPT / OTHERWISE + `luke TEST`~~
 16. ~~`std/server` + `std/sqlite` + browser fetch/click~~
 17. ~~`luke PKG publish` + `luke.lock`~~
-18. Richer remote registry (signed packages)
-19. Explicit Python bridges (beyond C FFI)
-20. Optional: emit Play bytecode opcodes directly from Build IR nodes
+18. ~~`luke LSP` stdio diagnostics beachhead~~
+19. Richer remote registry (signed packages)
+20. Explicit Python bridges (beyond C FFI)
+21. Optional: emit Play bytecode opcodes directly from Build IR nodes
 
 ### Rendering / layout (engine track)
 

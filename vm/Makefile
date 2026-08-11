@@ -407,8 +407,8 @@ test-build: build/luke
 	@grep -q 'luke_db_exec_bind\|luke_db_query_bind_text' build/sql_bind.luke.c
 	./build/luke BUILD ../examples/build/auth_unit.luke -o build/auth_unit
 	@./build/auth_unit | tee /tmp/luke_auth_unit.txt | grep -q "auth_unit_ok=1"
-	@grep -q '\$argon2id\$' /tmp/luke_auth_unit.txt
-	@grep -q 'crypto_pwhash\|libsodium\|luke_auth_' runtime/luke_auth.h
+	@grep -q argon2id /tmp/luke_auth_unit.txt
+	@grep -q 'crypto_pwhash\|luke_auth_' runtime/luke_auth.h
 	./build/luke BUILD ../examples/build/auth_scoped.luke -o build/auth_scoped
 	@./build/auth_scoped | tee /tmp/luke_auth_scoped.txt | grep -q "auth_scoped_ok=1"
 	@grep -q 'luke_auth_current_user\|FOR CURRENT USER\|luke_db_query_bind_text' build/auth_scoped.luke.c

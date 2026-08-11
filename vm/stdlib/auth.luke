@@ -1,0 +1,30 @@
+// IMPORT std/auth — Argon2id (libsodium) passwords + secure sessions + CSRF
+// Links -lsodium. Never stores plaintext passwords. Set LUKE_AUTH_SECURE=1 behind HTTPS.
+
+THIS IS FUNCTION authInit WITH db AS DATABASE GIVES BACK FLAG DO
+  GIVE BACK __luke_auth_init(db)
+END FUNCTION
+
+THIS IS FUNCTION authCreateAccount WITH db AS DATABASE, email AS TEXT, password AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_auth_create_account(db, email, password)
+END FUNCTION
+
+THIS IS FUNCTION authLogin WITH db AS DATABASE, req AS REQUEST, email AS TEXT, password AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_auth_login(db, req, email, password)
+END FUNCTION
+
+THIS IS FUNCTION authLogout WITH db AS DATABASE, req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_auth_logout(db, req)
+END FUNCTION
+
+THIS IS FUNCTION authRequire WITH db AS DATABASE, req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_auth_require(db, req)
+END FUNCTION
+
+THIS IS FUNCTION authCsrf WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_auth_csrf(req)
+END FUNCTION
+
+THIS IS FUNCTION authCheckCsrf WITH db AS DATABASE, req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_auth_check_csrf(db, req)
+END FUNCTION

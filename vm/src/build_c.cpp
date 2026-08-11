@@ -43,6 +43,17 @@ std::string cIdent(const std::string &n) {
   std::string o;
   for (char c : n) o.push_back(isalnum((unsigned char)c) ? c : '_');
   if (o.empty() || isdigit((unsigned char)o[0])) o = "_" + o;
+  /* Avoid C/C++ keywords that appear as Luke locals (e.g. short). */
+  static const char *kw[] = {"auto",  "break",  "case",   "char",   "const",   "continue",
+                             "default", "do",    "double", "else",   "enum",    "extern",
+                             "float", "for",    "goto",   "if",     "int",     "long",
+                             "register", "return", "short", "signed", "sizeof", "static",
+                             "struct", "switch", "typedef", "union", "unsigned", "void",
+                             "volatile", "while", "class", "new", "delete", "template",
+                             "this", "friend", "inline", "virtual", "bool", "true", "false",
+                             NULL};
+  for (int i = 0; kw[i]; ++i)
+    if (o == kw[i]) return o + "_";
   return o;
 }
 /* Conversational "the price" → "price" for reactive / locals. */
@@ -337,6 +348,7 @@ struct BC {
     bool hasIvm = false;
     bool hasDiffTrig = false; /* NEW/OLD differential triggers (simple id= pred) */
     bool hasJoin = false;
+    bool scopedToUser = false; /* FOR CURRENT USER — per-request bind, no shared IVM */
     size_t line = 0;
   };
   std::vector<RxQueryDef> rxQueryDefs;
@@ -570,6 +582,15 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_db_query_bind")
         return mapCall("luke_db_query_bind_text", Ty::text(), true);
       if (callee == "__luke_db_close") return mapCall("luke_db_close", Ty::flag(), false);
+      if (callee == "__luke_auth_init") return mapCall("luke_auth_init", Ty::flag(), false);
+      if (callee == "__luke_auth_create_account")
+        return mapCall("luke_auth_create_account", Ty::text(), true);
+      if (callee == "__luke_auth_login") return mapCall("luke_auth_login", Ty::text(), true);
+      if (callee == "__luke_auth_logout") return mapCall("luke_auth_logout", Ty::flag(), true);
+      if (callee == "__luke_auth_require") return mapCall("luke_auth_require", Ty::flag(), true);
+      if (callee == "__luke_auth_csrf") return mapCall("luke_auth_csrf", Ty::text(), true);
+      if (callee == "__luke_auth_check_csrf")
+        return mapCall("luke_auth_check_csrf", Ty::flag(), true);
       if (callee == "__luke_list_new") return mapCall("luke_list_new", Ty::list(), true);
       if (callee == "__luke_list_add") return mapCall("luke_list_add", Ty::vod(), true);
       if (callee == "__luke_list_get") return mapCall("luke_list_get", Ty::text(), false);
@@ -635,7 +656,7 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__hanka_layout") return {"(hanka_layout(arena), 1)", Ty::flag()};
       fail(line, "Unknown native helper '" + callee +
                      "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
-                     "std/args, std/env, std/paths, std/process, or std/js");
+                     "std/auth, std/args, std/env, std/paths, std/process, or std/js");
       return {"0", Ty::num()};
     }
   }
@@ -770,6 +791,8 @@ Expr BC::expr(std::string e, size_t line) {
       return {"argus_viewport_height()", Ty::num()};
     if (U0 == "THE CLOCK" || U0 == "THE TIME IN MILLISECONDS" || U0 == "THE CLOCK IN MILLISECONDS")
       return {"argus_now_ms()", Ty::num()};
+    if (U0 == "THE CURRENT USER" || U0 == "THE CURRENT USER ID")
+      return {"luke_auth_current_user()", Ty::text()};
     if (U0 == "THE BENCH MEDIAN" || U0 == "THE BENCHMARK MEDIAN")
       return {"luke_bench_median()", Ty::num()};
     if (U0 == "THE BENCH MIN" || U0 == "THE BENCHMARK MIN")
@@ -2266,6 +2289,46 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     return;
   }
+  /* REQUIRE LOGIN ON req WITH db — secure session gate (401 + return). */
+  if (startsWithCI(text, "REQUIRE LOGIN ")) {
+    auto rest = trim(text.substr(14));
+    stripDo(rest);
+    auto U = toUpper(rest);
+    size_t onPos = std::string::npos;
+    size_t withPos = U.find(" WITH ");
+    if (startsWithCI(rest, "ON ")) {
+      onPos = 0;
+    } else {
+      onPos = U.find(" ON ");
+    }
+    if (onPos == std::string::npos || withPos == std::string::npos || withPos < onPos) {
+      bc.fail(line, "REQUIRE LOGIN needs — REQUIRE LOGIN ON req WITH db");
+      return;
+    }
+    std::string reqName;
+    if (onPos == 0)
+      reqName = stripThe(trim(rest.substr(3, withPos - 3)));
+    else
+      reqName = stripThe(trim(rest.substr(onPos + 4, withPos - (onPos + 4))));
+    auto dbName = stripThe(trim(rest.substr(withPos + 6)));
+    if (!bc.locals.count(reqName) || bc.locals[reqName].k != K::Ptr ||
+        bc.locals[reqName].klass != "__HttpReq") {
+      bc.fail(line, "REQUIRE LOGIN ON needs a REQUEST");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "REQUIRE LOGIN WITH needs a DATABASE");
+      return;
+    }
+    o << "  if (!luke_auth_require(arena, " << cIdent(dbName) << ", " << cIdent(reqName) << ")) {\n";
+    o << "    httpReply(arena, " << cIdent(reqName)
+      << ", 401, luke_text(\"text/plain\"), luke_text(\"login required\"));\n";
+    o << "    dbClose(arena, " << cIdent(dbName) << ");\n";
+    o << "    return 0;\n";
+    o << "  }\n";
+    return;
+  }
   if (startsWithCI(text, "IF ")) {
     auto rest = trim(text.substr(3));
     stripDo(rest);
@@ -2743,6 +2806,15 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     auto after = trim(rest.substr(fromPos + 6));
     auto aU = toUpper(after);
+    bool scopedToUser = false;
+    {
+      auto forUser = aU.rfind(" FOR CURRENT USER");
+      if (forUser != std::string::npos) {
+        scopedToUser = true;
+        after = trim(after.substr(0, forUser));
+        aU = toUpper(after);
+      }
+    }
     size_t asPos = findOutsideQuotes(after, aU, " AS ");
     size_t wherePos = findOutsideQuotes(after, aU, " WHERE ");
     size_t readyPos = findOutsideQuotes(after, aU, " READY ");
@@ -2862,6 +2934,42 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       std::string ivmTable;
       std::string ivmValueSql;
       std::string eventLog;
+      if (scopedToUser) {
+        /* Per-user Live Graph: no shared IVM cache (would leak across tenants).
+         * SQL should use ? for user_id; we bind THE CURRENT USER at read/push time. */
+        if (sql.find('?') == std::string::npos) {
+          bc.fail(line, "WATCH … FOR CURRENT USER needs a ? bind for user_id — "
+                        "AS \"SELECT … WHERE user_id = ?\"");
+          return;
+        }
+        BC::RxQueryDef qd;
+        qd.name = key;
+        qd.dbLocal = dbName;
+        qd.sql = sql;
+        qd.readSql = sql;
+        qd.hasIvm = false;
+        qd.scopedToUser = true;
+        qd.line = line;
+        bc.rxQueryDefs.push_back(qd);
+
+        bc.usesRx = true;
+        bc.locals[cellName] = Ty::text();
+        bc.rxCellTy[key] = Ty::text();
+        if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
+        bc.rxCells[key] = true;
+        o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+        o << "  {\n";
+        o << "    LukeText _luke_uid = luke_auth_current_user();\n";
+        o << "    if (_luke_uid.len) {\n";
+        o << "      LukeList *_luke_ub = luke_list_new(arena);\n";
+        o << "      luke_list_add(arena, _luke_ub, _luke_uid);\n";
+        o << "      luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(key)
+          << ", luke_db_query_bind_text(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(sql)
+          << "\"), _luke_ub));\n";
+        o << "    }\n";
+        o << "  }\n";
+        return;
+      }
       if (!baseTable.empty()) {
         /* Differential IVM cache + causal event log for SSE resume. */
         ivmTable = "luke_ivm_" + sanitizeSqlIdent(key);
@@ -3148,7 +3256,19 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "      if (_luke_watch_nowv != _luke_watch_ver) {\n";
     o << "        _luke_watch_ver = _luke_watch_nowv;\n";
     o << "        _luke_watch_queries = _luke_watch_queries + 1;\n";
-    {
+    if (qd->scopedToUser) {
+      o << "        LukeText _luke_watch_now = luke_text(\"\");\n";
+      o << "        {\n";
+      o << "          LukeText _luke_uid = luke_auth_current_user();\n";
+      o << "          if (!_luke_uid.len) _luke_uid = " << cIdent(reqName) << "->user_id;\n";
+      o << "          if (_luke_uid.len) {\n";
+      o << "            LukeList *_luke_ub = luke_list_new(arena);\n";
+      o << "            luke_list_add(arena, _luke_ub, _luke_uid);\n";
+      o << "            _luke_watch_now = luke_db_query_bind_text(arena, " << cIdent(qd->dbLocal)
+        << ", luke_text(\"" << esc(qd->sql) << "\"), _luke_ub);\n";
+      o << "          }\n";
+      o << "        }\n";
+    } else {
       auto querySql = qd->hasIvm ? qd->readSql : qd->sql;
       o << "        LukeText _luke_watch_now = luke_db_query_text(arena, " << cIdent(qd->dbLocal)
         << ", luke_text(\"" << esc(querySql) << "\"));\n";
@@ -4941,6 +5061,12 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
             for (auto &e : r.linkLibs)
               if (e == "sqlite3") dup = true;
             if (!dup) r.linkLibs.push_back("sqlite3");
+          }
+          if (mod == "AUTH") {
+            bool dup = false;
+            for (auto &e : r.linkLibs)
+              if (e == "sodium") dup = true;
+            if (!dup) r.linkLibs.push_back("sodium");
           }
         } else if (startsWithCI(spec, "luke/") || startsWithCI(spec, "LUKE/") ||
                    startsWithCI(spec, "package:") || startsWithCI(spec, "PACKAGE:")) {

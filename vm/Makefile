@@ -405,6 +405,38 @@ test-build: build/luke
 	@./build/sql_bind | tee /tmp/luke_sql_bind.txt | grep -q "sql_bind_ok=1"
 	@grep -q "name2=Bobby'); DROP TABLE users;--" /tmp/luke_sql_bind.txt
 	@grep -q 'luke_db_exec_bind\|luke_db_query_bind_text' build/sql_bind.luke.c
+	./build/luke BUILD ../examples/build/auth_unit.luke -o build/auth_unit
+	@./build/auth_unit | tee /tmp/luke_auth_unit.txt | grep -q "auth_unit_ok=1"
+	@grep -q '\$argon2id\$' /tmp/luke_auth_unit.txt
+	@grep -q 'crypto_pwhash\|libsodium\|luke_auth_' runtime/luke_auth.h
+	./build/luke BUILD ../examples/build/auth_scoped.luke -o build/auth_scoped
+	@./build/auth_scoped | tee /tmp/luke_auth_scoped.txt | grep -q "auth_scoped_ok=1"
+	@grep -q 'luke_auth_current_user\|FOR CURRENT USER\|luke_db_query_bind_text' build/auth_scoped.luke.c
+	./build/luke BUILD ../examples/build/auth_api.luke -o build/auth_api
+	@grep -q 'luke_auth_login\|luke_auth_check_csrf\|luke_auth_require' build/auth_api.luke.c
+	@set -e; \
+	  fuser -k 8802/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_auth_api.db /tmp/luke_auth_api.db-wal /tmp/luke_auth_api.db-shm \
+	    /tmp/luke_auth_api.pid /tmp/luke_auth_api.log /tmp/luke_auth_cookies.txt; \
+	  ./build/auth_api > /tmp/luke_auth_api.log 2>&1 & echo $$! > /tmp/luke_auth_api.pid; \
+	  sleep 0.40; \
+	  REG=$$(curl -s -m 3 -H 'Content-Type: application/json' -d '{"email":"ada@example.com","password":"correct horse battery"}' http://127.0.0.1:8802/register); \
+	  echo "$$REG" | grep -q '^uid='; \
+	  LOGIN=$$(curl -s -m 3 -c /tmp/luke_auth_cookies.txt -H 'Content-Type: application/json' -d '{"email":"ada@example.com","password":"correct horse battery"}' http://127.0.0.1:8802/login); \
+	  echo "$$LOGIN" | grep -q 'csrf='; \
+	  CSRF=$$(echo "$$LOGIN" | sed -n 's/.*csrf=\([0-9a-f]*\).*/\1/p'); \
+	  test -n "$$CSRF"; \
+	  ME=$$(curl -s -m 3 -b /tmp/luke_auth_cookies.txt http://127.0.0.1:8802/me); \
+	  echo "$$ME" | grep -q '^me='; \
+	  NOTE=$$(curl -s -m 3 -b /tmp/luke_auth_cookies.txt -H "Content-Type: application/json" -H "X-CSRF-Token: $$CSRF" -d '{"body":"secret-a"}' http://127.0.0.1:8802/notes); \
+	  test "$$NOTE" = "note_ok"; \
+	  NOTES=$$(curl -s -m 3 -b /tmp/luke_auth_cookies.txt http://127.0.0.1:8802/notes); \
+	  echo "$$NOTES" | grep -q 'secret-a'; \
+	  BYE=$$(curl -s -m 3 -b /tmp/luke_auth_cookies.txt -X POST http://127.0.0.1:8802/logout); \
+	  test "$$BYE" = "bye"; \
+	  wait $$(cat /tmp/luke_auth_api.pid); \
+	  grep -q "auth_api_done=1" /tmp/luke_auth_api.log; \
+	  fuser -k 8802/tcp 2>/dev/null || true
 	./build/luke BUILD ../examples/build/backend_api.luke -o build/backend_api
 	@grep -q 'luke_http_match\|luke_http_query_map\|luke_http_set_cookie' build/backend_api.luke.c
 	@set -e; \

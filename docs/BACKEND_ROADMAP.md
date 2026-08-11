@@ -26,11 +26,21 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 | Headers / cookies | ✅ | `httpHeader` / `httpCookie` / `httpSetCookie` |
 | JSON body | 🟡 | `httpBody` + `jsonParse` (stdlib sugar later) |
 | Form body (`application/x-www-form-urlencoded`) | ⬜ | |
-| Auth / session / login | 🟡 | opaque cookie session + SQLite store example |
+| Auth / session / login | 🟡 | `std/auth` — Argon2id (`crypto_pwhash`), HttpOnly+SameSite session, CSRF header check, `REQUIRE LOGIN`, `THE CURRENT USER`, `WATCH … FOR CURRENT USER` |
 | Middleware / filters | ⬜ | |
 | Declarative route table syntax | ⬜ | |
 | SSE channel auth / backpressure | ⬜ | see Live Graph wire hardening |
+| Password reset / 2FA / OAuth | ⬜ | |
 | Migrations / schema helpers | ⬜ | |
+
+### Auth rules (non-negotiable)
+
+1. **No homegrown crypto** — passwords via libsodium Argon2id (`crypto_pwhash_str` / `_verify`); randomness via `randombytes_buf`; compares via `sodium_memcmp`.
+2. **Password = hash, not encryption** — plaintext never stored; “auto encrypt everything” is out of scope (key management is the hard part).
+3. **Secure path together** — hash + timing-safe verify + session cookie (HttpOnly, SameSite=Lax; `LUKE_AUTH_SECURE=1` adds Secure) + CSRF. Not hash-only.
+4. **Live Graph + auth** — `WATCH … FOR CURRENT USER` binds `user_id = ?` per request (no shared IVM across tenants).
+
+Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`.
 
 ---
 

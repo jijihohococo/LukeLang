@@ -7,6 +7,7 @@
 #include "luke_rt.h"
 #include "luke_net.h"
 #include "luke_db.h"
+#include "luke_auth.h"
 #include "argus.h"
 #include "hanka.h"
 #include "luke_reactive.h"

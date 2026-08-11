@@ -31,7 +31,9 @@ typedef struct LukeHttpRequest {
   LukeText body;
   LukeText last_event_id; /* SSE Last-Event-ID header (may be empty) */
   LukeText headers;       /* raw header block after request line */
-  LukeText set_cookie;    /* pending Set-Cookie value for reply */
+  LukeText set_cookie;    /* pending Set-Cookie line(s); multiple separated by \n */
+  LukeText user_id;       /* filled by luke_auth_require / login */
+  LukeText csrf;          /* session CSRF (server-side; also on req after auth) */
   int client_fd;
 } LukeHttpRequest;
 
@@ -304,6 +306,8 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
   req->last_event_id = last_event_id;
   req->headers = headers;
   req->set_cookie = luke_text("");
+  req->user_id = luke_text("");
+  req->csrf = luke_text("");
   req->client_fd = cfd;
   return req;
 }
@@ -321,6 +325,10 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
     reason = "No Content";
   else if (code == 400)
     reason = "Bad Request";
+  else if (code == 401)
+    reason = "Unauthorized";
+  else if (code == 403)
+    reason = "Forbidden";
   else if (code == 404)
     reason = "Not Found";
   else if (code == 405)
@@ -340,27 +348,47 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
   }
   ctype[ct_n] = '\0';
 
-  char hdr[768];
-  int hlen;
+  /* Build header block; support multiple Set-Cookie lines (\\n-separated). */
+  char hdr[2048];
+  int hlen = snprintf(hdr, sizeof(hdr),
+                      "HTTP/1.1 %d %s\r\n"
+                      "Content-Type: %s\r\n"
+                      "Content-Length: %zu\r\n",
+                      code, reason, ctype, body.len);
+  if (hlen < 0 || (size_t)hlen >= sizeof(hdr)) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
+  }
   if (req->set_cookie.len > 0 && req->set_cookie.ptr) {
-    hlen = snprintf(hdr, sizeof(hdr),
-                    "HTTP/1.1 %d %s\r\n"
-                    "Content-Type: %s\r\n"
-                    "Content-Length: %zu\r\n"
-                    "Set-Cookie: %.*s\r\n"
-                    "Access-Control-Allow-Origin: *\r\n"
-                    "Connection: close\r\n"
-                    "\r\n",
-                    code, reason, ctype, body.len, (int)req->set_cookie.len, req->set_cookie.ptr);
-  } else {
-    hlen = snprintf(hdr, sizeof(hdr),
-                    "HTTP/1.1 %d %s\r\n"
-                    "Content-Type: %s\r\n"
-                    "Content-Length: %zu\r\n"
-                    "Access-Control-Allow-Origin: *\r\n"
-                    "Connection: close\r\n"
-                    "\r\n",
-                    code, reason, ctype, body.len);
+    size_t i = 0;
+    while (i < req->set_cookie.len) {
+      size_t line0 = i;
+      while (i < req->set_cookie.len && req->set_cookie.ptr[i] != '\n') ++i;
+      size_t line_n = i - line0;
+      if (i < req->set_cookie.len) ++i;
+      if (line_n == 0) continue;
+      int add = snprintf(hdr + hlen, sizeof(hdr) - (size_t)hlen, "Set-Cookie: %.*s\r\n",
+                         (int)line_n, req->set_cookie.ptr + line0);
+      if (add < 0 || (size_t)hlen + (size_t)add >= sizeof(hdr)) {
+        close(req->client_fd);
+        req->client_fd = -1;
+        return 0;
+      }
+      hlen += add;
+    }
+  }
+  {
+    int add = snprintf(hdr + hlen, sizeof(hdr) - (size_t)hlen,
+                       "Access-Control-Allow-Origin: *\r\n"
+                       "Connection: close\r\n"
+                       "\r\n");
+    if (add < 0 || (size_t)hlen + (size_t)add >= sizeof(hdr)) {
+      close(req->client_fd);
+      req->client_fd = -1;
+      return 0;
+    }
+    hlen += add;
   }
   if (hlen < 0 || (size_t)hlen >= sizeof(hdr)) {
     close(req->client_fd);
@@ -777,25 +805,71 @@ static inline LukeText luke_http_cookie(LukeArena *a, LukeHttpRequest *req, Luke
   return luke_text("");
 }
 
-static inline int luke_http_set_cookie(LukeArena *a, LukeHttpRequest *req, LukeText name,
-                                       LukeText value) {
+#ifndef LUKE_COOKIE_HTTPONLY
+#define LUKE_COOKIE_HTTPONLY 1
+#define LUKE_COOKIE_SECURE 2
+#define LUKE_COOKIE_SAMESITE_LAX 4
+#define LUKE_COOKIE_SAMESITE_STRICT 8
+#define LUKE_COOKIE_CLEAR 16
+#endif
+
+static inline int luke_http_set_cookie_ex(LukeArena *a, LukeHttpRequest *req, LukeText name,
+                                          LukeText value, int flags) {
   if (!req || !a || !name.len) return 0;
-  /* name=value; Path=/; HttpOnly */
-  size_t n = name.len + 1 + value.len + 18;
-  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  /* name=value; Path=/; [HttpOnly]; [Secure]; [SameSite=…]; [Max-Age=0] */
+  size_t n = name.len + 1 + value.len + 96;
+  char *line = (char *)luke_arena_alloc(a, n + 1, 1);
   size_t o = 0;
-  memcpy(p + o, name.ptr, name.len);
+  memcpy(line + o, name.ptr, name.len);
   o += name.len;
-  p[o++] = '=';
-  if (value.len && value.ptr) {
-    memcpy(p + o, value.ptr, value.len);
+  line[o++] = '=';
+  if (!(flags & LUKE_COOKIE_CLEAR) && value.len && value.ptr) {
+    memcpy(line + o, value.ptr, value.len);
     o += value.len;
   }
-  memcpy(p + o, "; Path=/; HttpOnly", 18);
-  o += 18;
-  p[o] = '\0';
-  req->set_cookie = luke_text_n(p, o);
+  memcpy(line + o, "; Path=/", 8);
+  o += 8;
+  if (flags & LUKE_COOKIE_CLEAR) {
+    memcpy(line + o, "; Max-Age=0", 11);
+    o += 11;
+  }
+  if (flags & LUKE_COOKIE_HTTPONLY) {
+    memcpy(line + o, "; HttpOnly", 10);
+    o += 10;
+  }
+  if (flags & LUKE_COOKIE_SECURE) {
+    memcpy(line + o, "; Secure", 8);
+    o += 8;
+  }
+  if (flags & LUKE_COOKIE_SAMESITE_STRICT) {
+    memcpy(line + o, "; SameSite=Strict", 17);
+    o += 17;
+  } else if (flags & LUKE_COOKIE_SAMESITE_LAX) {
+    memcpy(line + o, "; SameSite=Lax", 14);
+    o += 14;
+  }
+  line[o] = '\0';
+
+  /* Append to pending cookie block (newline-separated). */
+  if (req->set_cookie.len == 0) {
+    req->set_cookie = luke_text_n(line, o);
+    return 1;
+  }
+  size_t total = req->set_cookie.len + 1 + o;
+  char *block = (char *)luke_arena_alloc(a, total + 1, 1);
+  memcpy(block, req->set_cookie.ptr, req->set_cookie.len);
+  block[req->set_cookie.len] = '\n';
+  memcpy(block + req->set_cookie.len + 1, line, o);
+  block[total] = '\0';
+  req->set_cookie = luke_text_n(block, total);
   return 1;
+}
+
+static inline int luke_http_set_cookie(LukeArena *a, LukeHttpRequest *req, LukeText name,
+                                       LukeText value) {
+  /* Legacy helper — HttpOnly + SameSite=Lax (not Secure; set LUKE_AUTH_SECURE for that). */
+  return luke_http_set_cookie_ex(a, req, name, value,
+                                 LUKE_COOKIE_HTTPONLY | LUKE_COOKIE_SAMESITE_LAX);
 }
 
 static inline LukeMap *luke_http_query_map(LukeArena *a, LukeHttpRequest *req) {

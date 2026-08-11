@@ -12,7 +12,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 |------|--------|-------|
 | Routing — route table, path params (`/user/:id`), method dispatch | 🟡 | `httpMatch` beachhead (this ship); declarative route table still open |
 | Request parsing — query map, JSON body→value, form, headers, cookies | 🟡 | query map + header/cookie + JSON-via-body (this ship); form still open |
-| Auth / session / login | 🟡 | cookie + opaque session id beachhead (this ship); real login/crypto still open |
+| Auth / session / login | 🟡 | Argon2id (libsodium) + secure session cookie + CSRF + `REQUIRE LOGIN` / `THE CURRENT USER` / `WATCH … FOR CURRENT USER` beachhead; 2FA/OAuth/reset still open |
 | **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind` (this ship); prefer over raw SQL in app code |
 | `BACKEND_ROADMAP.md` track spine | ✅ | added (this ship) |
 

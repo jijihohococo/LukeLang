@@ -57,6 +57,7 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 | `std/http` | `httpGet` (native via curl; empty on WASI) |
 | `std/server` | `httpListen`, `httpAccept`, `httpReply`, `httpPath` / `Method` / `Query` / `Body`, `httpMatch`, `httpQueryMap`, `httpHeader` / `Cookie` / `SetCookie`, `httpJson`, SSE helpers |
 | `std/sqlite` | `dbOpen`, `dbExec`, `dbQuery`, **`dbExecBind` / `dbQueryBind`**, `dbClose` (auto `-lsqlite3`) |
+| `std/auth` | `authInit`, `authCreateAccount`, `authLogin` / `Logout`, `authRequire`, `authCsrf` / `authCheckCsrf` (links `-lsodium`; set `LUKE_AUTH_SECURE=1` behind HTTPS) |
 | `std/args` | `argCount`, `getArg` |
 | `std/env` | `getEnv`, `setEnv` |
 | `std/paths` | `cwd`, `pathJoin`, `pathBasename`, `pathDirname` |
@@ -176,6 +177,7 @@ Inference (v0):
 - Concurrent HTTP: `ASK httpServe WITH server, handler, maxConn` (bounded worker pool; links `-lpthread`)
 - Routing / request shape: `httpMatch`, `httpQueryMap`, `httpHeader` / `httpCookie` / `httpSetCookie`, `httpJson`
 - Parameterized SQL: `dbExecBind` / `dbQueryBind` (prefer over string-concat `dbExec` / `dbQuery`)
+- Auth: `IMPORT std/auth` — Argon2id passwords (libsodium), `REQUIRE LOGIN`, `THE CURRENT USER`, CSRF; see [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md)
 - SSE: `httpSseOpen` / `httpSseData` / `httpSseId` / `httpSseComment`; `httpLastEventId` for resume
 - INTEGER rules: see [`INTEGER.md`](./INTEGER.md) — checked overflow, `DIVIDE`→`NUMBER`, widening vs truncating conversion
 - Backend track: [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) · master checklist [`TaskList.md`](../TaskList.md)

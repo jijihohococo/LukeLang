@@ -43,3 +43,20 @@ cd vm
 ```
 
 Also covered by `make test` (`benchmark_ok=1`, `region=100`, sample counts).
+
+## Pressure suite (100K / concurrent)
+
+Separate from the CI lap:
+
+```bash
+cd vm && make pressure
+```
+
+| Probe | Load | Result (this host) |
+| --- | ---: | --- |
+| Reactive granular | **100 000** nodes, 50 updates | median ~0.35 ms, region Δ == 50 |
+| Reactive mount | 100 000 nodes | build ~38 ms; full rebuild median ~21 ms |
+| Frontend mount | **2 500** boxes | ~0.7 ms |
+| Concurrent HTTP | 32× `/fast` + 8× `/slow` overlapping | all replies correct |
+
+Programs: `examples/build/reactive_pressure.luke`, `frontend_pressure.luke`, `concurrent_pressure.luke`.

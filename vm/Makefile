@@ -14,7 +14,7 @@ SRCS := \
 
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 
-.PHONY: all clean test test-play test-build
+.PHONY: all clean test test-play test-build pressure
 
 all: build/luke
 
@@ -413,6 +413,45 @@ test-build: build/luke
 	  if [ -f /tmp/luke_lg_server.pid ]; then wait $$(cat /tmp/luke_lg_server.pid) 2>/dev/null || true; fi; \
 	  fuser -k 8798/tcp 2>/dev/null || true
 	@rm -rf ../luke_modules/_test_pkg && ./build/luke PKG init _test_pkg && test -f ../luke_modules/_test_pkg/main.luke && rm -rf ../luke_modules/_test_pkg
+
+# Pressure suite — not part of every CI lap; proves ceilings under load.
+pressure: build/luke
+	./build/luke BUILD ../examples/build/reactive_pressure.luke -o build/reactive_pressure
+	./build/reactive_pressure | tee /tmp/luke_pressure_rx.txt | grep -q "pressure_ok=1"
+	@grep -q "nodes=100000" /tmp/luke_pressure_rx.txt
+	@grep -q "region=50" /tmp/luke_pressure_rx.txt
+	@python3 -c 'import re,sys; t=open("/tmp/luke_pressure_rx.txt").read();\
+g=float(re.search(r"granular_median_ms=([0-9.]+)",t).group(1));\
+b=float(re.search(r"build_ms=([0-9.]+)",t).group(1));\
+assert g < 1.0, g; assert b < 5000.0, b; print("reactive_pressure thresholds ok", g, b)'
+	./build/luke BUILD ../examples/build/frontend_pressure.luke -o build/frontend_pressure
+	./build/frontend_pressure | tee /tmp/luke_pressure_fe.txt | grep -q "pressure_ok=1"
+	@grep -q "nodes=2500" /tmp/luke_pressure_fe.txt
+	@python3 -c 'import re; t=open("/tmp/luke_pressure_fe.txt").read();\
+ms=float(re.search(r"ms=([0-9.]+)",t).group(1));\
+assert ms < 5000.0, ms; print("frontend_pressure thresholds ok", ms)'
+	./build/luke BUILD ../examples/build/concurrent_pressure.luke -o build/concurrent_pressure
+	@set -e; \
+	  fuser -k 8799/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_pressure_conc.log /tmp/luke_pressure_conc_out.txt /tmp/luke_pressure_curl.pids; \
+	  ./build/concurrent_pressure > /tmp/luke_pressure_conc.log 2>&1 & echo $$! > /tmp/luke_pressure_conc.pid; \
+	  sleep 0.35; \
+	  : > /tmp/luke_pressure_curl.pids; \
+	  for i in $$(seq 1 32); do \
+	    curl -s -m 2 http://127.0.0.1:8799/fast -o /tmp/luke_pressure_fast_$$i.txt & echo $$! >> /tmp/luke_pressure_curl.pids; \
+	  done; \
+	  for i in $$(seq 1 8); do \
+	    curl -s -m 3 http://127.0.0.1:8799/slow -o /tmp/luke_pressure_slow_$$i.txt & echo $$! >> /tmp/luke_pressure_curl.pids; \
+	  done; \
+	  wait $$(cat /tmp/luke_pressure_curl.pids); \
+	  for i in $$(seq 1 32); do grep -q '^fast$$' /tmp/luke_pressure_fast_$$i.txt; done; \
+	  for i in $$(seq 1 8); do grep -q '^slow$$' /tmp/luke_pressure_slow_$$i.txt; done; \
+	  echo "concurrent_pressure ok fast=32 slow=8" | tee /tmp/luke_pressure_conc_out.txt; \
+	  if [ -f /tmp/luke_pressure_conc.pid ]; then kill $$(cat /tmp/luke_pressure_conc.pid) 2>/dev/null || true; fi; \
+	  wait $$(cat /tmp/luke_pressure_conc.pid) 2>/dev/null || true; \
+	  fuser -k 8799/tcp 2>/dev/null || true
+	@echo "pressure suite passed"
+	@cat /tmp/luke_pressure_rx.txt /tmp/luke_pressure_fe.txt /tmp/luke_pressure_conc_out.txt
 
 clean:
 	rm -rf build

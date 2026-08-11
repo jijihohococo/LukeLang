@@ -1,0 +1,29 @@
+// Pressure — thread-per-connection under overlapping load.
+// /slow sleeps ~100ms; /fast and /ok are immediate. Accept budget = 64.
+// Build: luke BUILD examples/build/concurrent_pressure.luke -o build/concurrent_pressure
+
+IMPORT std/server
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  MY NAME IS path SET TO ASK httpPath WITH req
+  IF path EQUALS "/slow" DO
+    MY NAME IS t0 AS NUMBER SET TO THE CLOCK
+    WHILE THE CLOCK SUBTRACT t0 IS LESS THAN 100 DO
+    END WHILE
+    ASK httpReply WITH req, 200, "text/plain", "slow"
+  END IF
+  IF path EQUALS "/fast" DO
+    ASK httpReply WITH req, 200, "text/plain", "fast"
+  END IF
+  IF path EQUALS "/ok" DO
+    ASK httpReply WITH req, 200, "text/plain", "ok"
+  END IF
+END FUNCTION
+
+SPEAK "pressure=concurrent"
+SPEAK "concurrent pressure :8799"
+
+MY NAME IS server SET TO ASK httpListen WITH 8799
+ASK httpServe WITH server, handle, 64
+
+SPEAK "server done"

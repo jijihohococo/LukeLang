@@ -100,6 +100,33 @@ static inline LukeText luke_auth_attempts_left(LukeArena *a, LukeDb *db, LukeTex
   (void)email;
   return luke_text("0");
 }
+static inline void luke_auth_configure_limit(int max_fails, int window_secs) {
+  (void)max_fails;
+  (void)window_secs;
+}
+static inline LukeText luke_auth_who_saw_since(LukeArena *a, LukeText field, int64_t since) {
+  (void)a;
+  (void)field;
+  (void)since;
+  return luke_text("");
+}
+static inline LukeText luke_auth_scrub_to_access(LukeArena *a, LukeText field) {
+  (void)a;
+  (void)field;
+  return luke_text("");
+}
+static inline LukeText luke_auth_reveal_last(LukeArena *a, LukeText src, int n) {
+  (void)a;
+  (void)src;
+  (void)n;
+  return luke_text("");
+}
+static inline void luke_auth_mark_reveal(LukeArena *a, LukeText field, LukeText dest) {
+  (void)a;
+  (void)field;
+  (void)dest;
+}
+static inline int luke_auth_saw_verify(void) { return 1; }
 
 #else /* !__wasi__ */
 
@@ -113,6 +140,9 @@ static inline LukeText luke_auth_attempts_left(LukeArena *a, LukeDb *db, LukeTex
 #define LUKE_AUTH_LOCK_SECS (15 * 60)
 #endif
 
+static int luke_auth_max_fails = LUKE_AUTH_MAX_FAILS;
+static int luke_auth_lock_secs = LUKE_AUTH_LOCK_SECS;
+
 static __thread char luke_auth_tls_uid[65];
 static __thread char luke_auth_tls_csrf[65];
 static __thread int luke_auth_tls_ok;
@@ -125,11 +155,16 @@ static int luke_auth_sodium_ready;
 typedef struct {
   char uid[65];
   char field[96];
+  char kind[16]; /* "saw" | "reveal" */
+  char dest[96]; /* REVEAL target name (optional) */
   int64_t ts;
+  unsigned char hash[32]; /* tamper-evident chain (libsodium generichash) */
 } LukeAuthSaw;
 static LukeAuthSaw luke_auth_saw_log[LUKE_AUTH_SAW_MAX];
 static int luke_auth_saw_n;
 static int luke_auth_saw_i;
+static unsigned char luke_auth_saw_prev[32];
+static int luke_auth_scrub_idx = -1; /* cursor for SCRUB TO access OF … */
 
 static inline int luke_auth__sodium(void) {
   if (luke_auth_sodium_ready) return 1;
@@ -237,8 +272,8 @@ static inline int luke_auth__locked(LukeArena *a, LukeDb *db, LukeText email) {
   long fails = 0, win = 0;
   sscanf(row.ptr, "%ld %ld", &fails, &win);
   int64_t now = luke_auth__now();
-  if (fails >= LUKE_AUTH_MAX_FAILS && (now - win) < LUKE_AUTH_LOCK_SECS) return 1;
-  if ((now - win) >= LUKE_AUTH_LOCK_SECS) {
+  if (fails >= luke_auth_max_fails && (now - win) < luke_auth_lock_secs) return 1;
+  if ((now - win) >= luke_auth_lock_secs) {
     LukeList *c = luke_list_new(a);
     luke_list_add(a, c, email);
     luke_db_exec_bind(db, luke_text("DELETE FROM luke_auth_attempts WHERE email = ?"), c);
@@ -255,7 +290,7 @@ static inline void luke_auth__fail(LukeArena *a, LukeDb *db, LukeText email) {
   int64_t now = luke_auth__now();
   long fails = 0, win = now;
   if (row.len) sscanf(row.ptr, "%ld %ld", &fails, &win);
-  if ((now - win) >= LUKE_AUTH_LOCK_SECS) {
+  if ((now - win) >= luke_auth_lock_secs) {
     fails = 0;
     win = now;
   }
@@ -462,8 +497,63 @@ static inline void luke_auth_revoke(void) {
   luke_auth_tls_csrf[0] = 0;
 }
 
-static inline void luke_auth_mark_saw(LukeArena *a, LukeText field) {
-  (void)a;
+static inline void luke_auth__saw_hash(LukeAuthSaw *e) {
+  unsigned char msg[256];
+  size_t n = 0;
+  memcpy(msg + n, luke_auth_saw_prev, 32);
+  n += 32;
+  size_t ul = strlen(e->uid);
+  if (ul > 64) ul = 64;
+  memcpy(msg + n, e->uid, ul);
+  n += ul;
+  size_t fl = strlen(e->field);
+  if (fl > 64) fl = 64;
+  memcpy(msg + n, e->field, fl);
+  n += fl;
+  memcpy(msg + n, e->kind, strlen(e->kind));
+  n += strlen(e->kind);
+  memcpy(msg + n, &e->ts, sizeof(e->ts));
+  n += sizeof(e->ts);
+  crypto_generichash(e->hash, 32, msg, n, NULL, 0);
+  memcpy(luke_auth_saw_prev, e->hash, 32);
+}
+
+static inline int luke_auth_saw_verify(void) {
+  unsigned char prev[32];
+  memset(prev, 0, 32);
+  for (int k = 0; k < luke_auth_saw_n; ++k) {
+    LukeAuthSaw *e = &luke_auth_saw_log[(luke_auth_saw_i - luke_auth_saw_n + k + LUKE_AUTH_SAW_MAX * 2) %
+                                        LUKE_AUTH_SAW_MAX];
+    unsigned char msg[256];
+    size_t n = 0;
+    memcpy(msg + n, prev, 32);
+    n += 32;
+    size_t ul = strlen(e->uid);
+    if (ul > 64) ul = 64;
+    memcpy(msg + n, e->uid, ul);
+    n += ul;
+    size_t fl = strlen(e->field);
+    if (fl > 64) fl = 64;
+    memcpy(msg + n, e->field, fl);
+    n += fl;
+    memcpy(msg + n, e->kind, strlen(e->kind));
+    n += strlen(e->kind);
+    memcpy(msg + n, &e->ts, sizeof(e->ts));
+    n += sizeof(e->ts);
+    unsigned char h[32];
+    crypto_generichash(h, 32, msg, n, NULL, 0);
+    if (sodium_memcmp(h, e->hash, 32) != 0) return 0;
+    memcpy(prev, e->hash, 32);
+  }
+  return 1;
+}
+
+static inline void luke_auth_configure_limit(int max_fails, int window_secs) {
+  if (max_fails > 0) luke_auth_max_fails = max_fails;
+  if (window_secs > 0) luke_auth_lock_secs = window_secs;
+}
+
+static inline void luke_auth__append_saw(const char *kind, LukeText field, LukeText dest) {
   if (!field.len || field.len >= sizeof(luke_auth_saw_log[0].field)) return;
   LukeText uid = luke_auth_current_user();
   LukeAuthSaw *e = &luke_auth_saw_log[luke_auth_saw_i % LUKE_AUTH_SAW_MAX];
@@ -474,32 +564,94 @@ static inline void luke_auth_mark_saw(LukeArena *a, LukeText field) {
   }
   memcpy(e->field, field.ptr, field.len);
   e->field[field.len] = 0;
+  snprintf(e->kind, sizeof(e->kind), "%s", kind ? kind : "saw");
+  if (dest.len && dest.len < sizeof(e->dest)) {
+    memcpy(e->dest, dest.ptr, dest.len);
+    e->dest[dest.len] = 0;
+  }
   e->ts = luke_auth__now();
+  luke_auth__saw_hash(e);
   luke_auth_saw_i++;
   if (luke_auth_saw_n < LUKE_AUTH_SAW_MAX) luke_auth_saw_n++;
 }
 
+static inline void luke_auth_mark_saw(LukeArena *a, LukeText field) {
+  (void)a;
+  luke_auth__append_saw("saw", field, luke_text(""));
+}
+
+static inline void luke_auth_mark_reveal(LukeArena *a, LukeText field, LukeText dest) {
+  (void)a;
+  luke_auth__append_saw("reveal", field, dest);
+}
+
 /* "who, when" lines for a SECRET field — compliance beachhead from the access log. */
-static inline LukeText luke_auth_who_saw(LukeArena *a, LukeText field) {
+static inline LukeText luke_auth_who_saw_since(LukeArena *a, LukeText field, int64_t since) {
   if (!a || !field.len) return luke_text("");
   size_t cap = 1;
   for (int k = 0; k < luke_auth_saw_n; ++k) {
     LukeAuthSaw *e = &luke_auth_saw_log[(luke_auth_saw_i - luke_auth_saw_n + k + LUKE_AUTH_SAW_MAX * 2) %
                                         LUKE_AUTH_SAW_MAX];
+    if (e->ts < since) continue;
     if (e->field[0] && field.len == strlen(e->field) && memcmp(e->field, field.ptr, field.len) == 0)
-      cap += strlen(e->uid) + 24;
+      cap += strlen(e->uid) + strlen(e->kind) + 40;
   }
   char *p = (char *)luke_arena_alloc(a, cap + 1, 1);
   size_t o = 0;
   for (int k = 0; k < luke_auth_saw_n; ++k) {
     LukeAuthSaw *e = &luke_auth_saw_log[(luke_auth_saw_i - luke_auth_saw_n + k + LUKE_AUTH_SAW_MAX * 2) %
                                         LUKE_AUTH_SAW_MAX];
+    if (e->ts < since) continue;
     if (!e->field[0] || field.len != strlen(e->field) || memcmp(e->field, field.ptr, field.len) != 0)
       continue;
-    int n = snprintf(p + o, cap - o, "%s %lld\n", e->uid[0] ? e->uid : "-", (long long)e->ts);
+    int n = snprintf(p + o, cap - o, "%s %s %lld\n", e->uid[0] ? e->uid : "-", e->kind,
+                     (long long)e->ts);
     if (n > 0) o += (size_t)n;
   }
   return luke_text_n(p, o);
+}
+
+static inline LukeText luke_auth_who_saw(LukeArena *a, LukeText field) {
+  return luke_auth_who_saw_since(a, field, 0);
+}
+
+/* Rewind audit cursor to first access of field — "breach moment" beachhead. */
+static inline LukeText luke_auth_scrub_to_access(LukeArena *a, LukeText field) {
+  if (!a || !field.len) return luke_text("");
+  luke_auth_scrub_idx = -1;
+  for (int k = 0; k < luke_auth_saw_n; ++k) {
+    int idx = (luke_auth_saw_i - luke_auth_saw_n + k + LUKE_AUTH_SAW_MAX * 2) % LUKE_AUTH_SAW_MAX;
+    LukeAuthSaw *e = &luke_auth_saw_log[idx];
+    if (!e->field[0] || field.len != strlen(e->field) || memcmp(e->field, field.ptr, field.len) != 0)
+      continue;
+    luke_auth_scrub_idx = idx;
+    char buf[192];
+    snprintf(buf, sizeof(buf), "scrub=%s %s %lld", e->uid[0] ? e->uid : "-", e->kind,
+             (long long)e->ts);
+    size_t bl = strlen(buf);
+    char *p = (char *)luke_arena_alloc(a, bl + 1, 1);
+    memcpy(p, buf, bl + 1);
+    return luke_text_n(p, bl);
+  }
+  {
+    const char *none = "scrub=none";
+    size_t bl = strlen(none);
+    char *p = (char *)luke_arena_alloc(a, bl + 1, 1);
+    memcpy(p, none, bl + 1);
+    return luke_text_n(p, bl);
+  }
+}
+
+/* Declassify: last N characters of SECRET text (REVEAL escape hatch). */
+static inline LukeText luke_auth_reveal_last(LukeArena *a, LukeText src, int n) {
+  if (!a || n <= 0) return luke_text("");
+  if (!src.len) return luke_text("");
+  size_t take = (size_t)n;
+  if (take > src.len) take = src.len;
+  char *p = (char *)luke_arena_alloc(a, take + 1, 1);
+  memcpy(p, src.ptr + (src.len - take), take);
+  p[take] = 0;
+  return luke_text_n(p, take);
 }
 
 /* Reactive rate-limit UX beachhead — remaining login attempts in the fail window. */
@@ -516,8 +668,8 @@ static inline LukeText luke_auth_attempts_left(LukeArena *a, LukeDb *db, LukeTex
   long fails = 0, win = 0;
   if (row.len) sscanf(row.ptr, "%ld %ld", &fails, &win);
   int64_t now = luke_auth__now();
-  if ((now - win) >= LUKE_AUTH_LOCK_SECS) fails = 0;
-  long left = (long)LUKE_AUTH_MAX_FAILS - fails;
+  if ((now - win) >= luke_auth_lock_secs) fails = 0;
+  long left = (long)luke_auth_max_fails - fails;
   if (left < 0) left = 0;
   char buf[32];
   snprintf(buf, sizeof(buf), "%ld", left);

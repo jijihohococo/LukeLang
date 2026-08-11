@@ -1,0 +1,33 @@
+// Declarative FLOW — VERIFY before DONE (impossible auth state = compile error).
+// Build: luke BUILD examples/build/auth_flow_ok.luke -o build/auth_flow_ok
+
+IMPORT std/sqlite
+IMPORT std/auth
+
+SPEAK "auth_flow_ok start"
+
+FLOW signup DO
+  COLLECT email, password
+  VERIFY email BY CODE
+  DONE → CREATE ACCOUNT
+END FLOW
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_auth_flow_ok.db"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_auth_attempts"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_sessions"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_users"
+ASK authInit WITH db
+
+CHANGE signup_email TO "flow@example.com"
+CHANGE signup_password TO "password long enough"
+
+SPEAK "step0=" AND signup_step
+ADVANCE FLOW signup
+SPEAK "step1=" AND signup_step
+ADVANCE FLOW signup
+SPEAK "step2=" AND signup_step
+
+CREATE ACCOUNT FROM FLOW signup WITH db
+
+ASK dbClose WITH db
+SPEAK "auth_flow_ok=1"

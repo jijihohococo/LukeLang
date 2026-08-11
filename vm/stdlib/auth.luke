@@ -43,3 +43,7 @@ END FUNCTION
 THIS IS FUNCTION authAttemptsLeft WITH db AS DATABASE, email AS TEXT GIVES BACK TEXT DO
   GIVE BACK __luke_auth_attempts_left(db, email)
 END FUNCTION
+
+THIS IS FUNCTION authSawVerify GIVES BACK NUMBER DO
+  GIVE BACK __luke_auth_saw_verify()
+END FUNCTION

@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <cerrno>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
@@ -294,6 +295,27 @@ struct BC {
   std::map<std::string, bool> rxDerived;   /* name → derived */
   std::map<std::string, bool> rxSecretCells; /* auth-as-types: SECRET cells */
   std::map<std::string, bool> rxScopedSecretOk; /* SECRET cell allowed via FOR CURRENT USER WATCH */
+  /* Declarative auth FLOW — impossible states = compile error (VERIFY before DONE). */
+  struct FlowDef {
+    std::string name;
+    std::vector<std::string> steps; /* collect | verify | done */
+    std::vector<std::string> collectFields;
+    bool hasVerify = false;
+    bool hasDone = false;
+    std::string doneAction;
+    size_t line = 0;
+  };
+  std::map<std::string, FlowDef> flows;
+  std::vector<std::string> flowOrder;
+  /* LIMIT name TO N PER MINUTE [PER ip] — reactive remaining cell name.remaining */
+  struct LimitDef {
+    std::string name;
+    int maxN = 5;
+    int windowSecs = 60;
+    bool perIp = false;
+    size_t line = 0;
+  };
+  std::map<std::string, LimitDef> limits;
   std::map<std::string, Ty> rxCellTy;      /* name → NUMBER or TEXT */
   std::vector<std::string> rxCellOrder;
   struct RxDerivedDef {
@@ -660,9 +682,15 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_auth_check_csrf")
         return mapCall("luke_auth_check_csrf", Ty::flag(), true);
       if (callee == "__luke_auth_who_saw") return mapCall("luke_auth_who_saw", Ty::text(), true);
+      if (callee == "__luke_auth_who_saw_since")
+        return mapCall("luke_auth_who_saw_since", Ty::text(), true);
       if (callee == "__luke_auth_assume") return mapCall("luke_auth_assume", Ty::flag(), false);
       if (callee == "__luke_auth_attempts_left")
         return mapCall("luke_auth_attempts_left", Ty::text(), true);
+      if (callee == "__luke_auth_scrub_to_access")
+        return mapCall("luke_auth_scrub_to_access", Ty::text(), true);
+      if (callee == "__luke_auth_saw_verify")
+        return {"((double)luke_auth_saw_verify())", Ty::num()};
       if (callee == "__luke_list_new") return mapCall("luke_list_new", Ty::list(), true);
       if (callee == "__luke_list_add") return mapCall("luke_list_add", Ty::vod(), true);
       if (callee == "__luke_list_get") return mapCall("luke_list_get", Ty::text(), false);
@@ -2454,16 +2482,315 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  if (_luke_rx) luke_rx_flush(_luke_rx);\n";
     return;
   }
-  /* WHO SAW ssn — audit trail from SECRET access log (time-travel cousin). */
+  /* LIMIT login TO 5 PER MINUTE [PER ip] — scheduler-native rate-limit beachhead. */
+  if (startsWithCI(text, "LIMIT ")) {
+    auto rest = trim(text.substr(6));
+    auto U = toUpper(rest);
+    auto toPos = U.find(" TO ");
+    if (toPos == std::string::npos) {
+      bc.fail(line, "LIMIT needs: LIMIT login TO 5 PER MINUTE [PER ip]");
+      return;
+    }
+    auto limName = stripThe(trim(rest.substr(0, toPos)));
+    auto after = trim(rest.substr(toPos + 4));
+    auto aU = toUpper(after);
+    if (limName.empty()) {
+      bc.fail(line, "LIMIT needs a resource name — LIMIT login TO 5 PER MINUTE");
+      return;
+    }
+    int maxN = 0;
+    size_t i = 0;
+    while (i < after.size() && isdigit((unsigned char)after[i])) {
+      maxN = maxN * 10 + (after[i] - '0');
+      ++i;
+    }
+    if (maxN <= 0) {
+      bc.fail(line, "LIMIT needs a positive count — LIMIT login TO 5 PER MINUTE");
+      return;
+    }
+    auto unit = trim(after.substr(i));
+    auto uU = toUpper(unit);
+    int windowSecs = 60;
+    bool perIp = false;
+    if (startsWithCI(unit, "PER MINUTE")) {
+      windowSecs = 60;
+      auto restU = trim(unit.substr(10));
+      if (startsWithCI(restU, "PER IP") || startsWithCI(restU, "PER ip")) perIp = true;
+    } else if (startsWithCI(unit, "PER SECOND")) {
+      windowSecs = 1;
+      auto restU = trim(unit.substr(10));
+      if (startsWithCI(restU, "PER IP")) perIp = true;
+    } else if (startsWithCI(unit, "PER HOUR")) {
+      windowSecs = 3600;
+      auto restU = trim(unit.substr(8));
+      if (startsWithCI(restU, "PER IP")) perIp = true;
+    } else {
+      bc.fail(line, "LIMIT window needs PER MINUTE / PER SECOND / PER HOUR");
+      return;
+    }
+    (void)uU;
+    BC::LimitDef ld;
+    ld.name = limName;
+    ld.maxN = maxN;
+    ld.windowSecs = windowSecs;
+    ld.perIp = perIp;
+    ld.line = line;
+    bc.limits[limName] = ld;
+    std::string remCell = limName + ".remaining";
+    bc.usesRx = true;
+    bc.locals[remCell] = Ty::text();
+    bc.rxCellTy[remCell] = Ty::text();
+    if (!bc.rxCells.count(remCell)) bc.rxCellOrder.push_back(remCell);
+    bc.rxCells[remCell] = true;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", maxN);
+    o << "  luke_auth_configure_limit(" << maxN << ", " << windowSecs << ");\n";
+    o << "  _luke_rx_id_" << cIdent(remCell) << " = luke_rx_cell_text(_luke_rx, luke_text(\""
+      << buf << "\"));\n";
+    return;
+  }
+  /* REFRESH LIMIT login WITH db, email — push remaining into login.remaining cell. */
+  if (startsWithCI(text, "REFRESH LIMIT ")) {
+    auto rest = trim(text.substr(14));
+    auto U = toUpper(rest);
+    auto withPos = U.find(" WITH ");
+    if (withPos == std::string::npos) {
+      bc.fail(line, "REFRESH LIMIT needs: REFRESH LIMIT login WITH db, email");
+      return;
+    }
+    auto limName = stripThe(trim(rest.substr(0, withPos)));
+    auto args = trim(rest.substr(withPos + 6));
+    auto comma = args.find(',');
+    if (comma == std::string::npos) {
+      bc.fail(line, "REFRESH LIMIT needs db, email — REFRESH LIMIT login WITH db, email");
+      return;
+    }
+    auto dbName = stripThe(trim(args.substr(0, comma)));
+    auto emailE = bc.coerceText(bc.expr(trim(args.substr(comma + 1)), line));
+    if (!bc.limits.count(limName)) {
+      bc.fail(line, "REFRESH LIMIT '" + limName + "' — declare LIMIT " + limName + " TO … first");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "REFRESH LIMIT WITH needs a DATABASE");
+      return;
+    }
+    std::string remCell = limName + ".remaining";
+    bc.usesRx = true;
+    o << "  luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(remCell)
+      << ", luke_auth_attempts_left(arena, " << cIdent(dbName) << ", " << emailE.code << "));\n";
+    o << "  luke_rx_flush(_luke_rx);\n";
+    return;
+  }
+  /* ADVANCE FLOW signup — legal step transition only (collect→verify→done). */
+  if (startsWithCI(text, "ADVANCE FLOW ")) {
+    auto fname = stripThe(trim(text.substr(13)));
+    if (!bc.flows.count(fname)) {
+      bc.fail(line, "ADVANCE FLOW '" + fname + "' — declare FLOW " + fname + " … END FLOW first");
+      return;
+    }
+    auto &fl = bc.flows[fname];
+    std::string stepCell = fname + "_step";
+    bc.usesRx = true;
+    o << "  {\n";
+    o << "    LukeText _luke_fs = luke_rx_read_text(_luke_rx, _luke_rx_id_" << cIdent(stepCell)
+      << ");\n";
+    for (size_t si = 0; si + 1 < fl.steps.size(); ++si) {
+      o << "    if (luke_text_eq(_luke_fs, luke_text(\"" << esc(fl.steps[si]) << "\"))) {\n";
+      o << "      luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(stepCell) << ", luke_text(\""
+        << esc(fl.steps[si + 1]) << "\"));\n";
+      o << "    } else ";
+    }
+    o << "    { /* already at terminal or unknown */ }\n";
+    o << "    luke_rx_flush(_luke_rx);\n";
+    o << "  }\n";
+    return;
+  }
+  /* CREATE ACCOUNT FROM FLOW signup WITH db — only legal at DONE step. */
+  if (startsWithCI(text, "CREATE ACCOUNT FROM FLOW ")) {
+    auto rest = trim(text.substr(25));
+    auto U = toUpper(rest);
+    auto withPos = U.find(" WITH ");
+    if (withPos == std::string::npos) {
+      bc.fail(line, "CREATE ACCOUNT FROM FLOW needs: CREATE ACCOUNT FROM FLOW signup WITH db");
+      return;
+    }
+    auto fname = stripThe(trim(rest.substr(0, withPos)));
+    auto dbName = stripThe(trim(rest.substr(withPos + 6)));
+    if (!bc.flows.count(fname)) {
+      bc.fail(line, "CREATE ACCOUNT FROM FLOW '" + fname + "' — unknown FLOW");
+      return;
+    }
+    auto &fl = bc.flows[fname];
+    if (!fl.hasVerify || !fl.hasDone) {
+      bc.fail(line, "FLOW '" + fname + "' is incomplete — VERIFY before DONE required");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "CREATE ACCOUNT FROM FLOW WITH needs a DATABASE");
+      return;
+    }
+    std::string emailCell, passCell;
+    for (auto &f : fl.collectFields) {
+      auto Uf = toUpper(f);
+      if (Uf == "EMAIL" || Uf == "USERNAME") emailCell = fname + "_" + f;
+      if (Uf == "PASSWORD" || Uf == "PASS") passCell = fname + "_" + f;
+    }
+    if (emailCell.empty() || passCell.empty()) {
+      bc.fail(line, "FLOW '" + fname + "' COLLECT must include email and password");
+      return;
+    }
+    std::string stepCell = fname + "_step";
+    bc.usesRx = true;
+    o << "  {\n";
+    o << "    LukeText _luke_fs = luke_rx_read_text(_luke_rx, _luke_rx_id_" << cIdent(stepCell)
+      << ");\n";
+    o << "    if (!luke_text_eq(_luke_fs, luke_text(\"done\"))) {\n";
+    o << "      luke_speak_text(luke_text(\"FLOW create blocked — VERIFY not completed\"));\n";
+    o << "    } else {\n";
+    o << "      LukeText _luke_uid = luke_auth_create_account(arena, " << cIdent(dbName)
+      << ", luke_rx_read_text(_luke_rx, _luke_rx_id_" << cIdent(emailCell)
+      << "), luke_rx_read_text(_luke_rx, _luke_rx_id_" << cIdent(passCell) << "));\n";
+    o << "      luke_speak_text(luke_text_concat(arena, luke_text(\"flow_uid=\"), _luke_uid));\n";
+    o << "    }\n";
+    o << "  }\n";
+    return;
+  }
+  /* REVEAL last N OF secret AS masked — sole auditable declassification escape. */
+  if (startsWithCI(text, "REVEAL ")) {
+    auto rest = trim(text.substr(7));
+    auto U = toUpper(rest);
+    if (!startsWithCI(rest, "LAST ")) {
+      bc.fail(line, "REVEAL needs: REVEAL last 4 OF ssn AS masked");
+      return;
+    }
+    auto afterLast = trim(rest.substr(5));
+    int n = 0;
+    size_t i = 0;
+    while (i < afterLast.size() && isdigit((unsigned char)afterLast[i])) {
+      n = n * 10 + (afterLast[i] - '0');
+      ++i;
+    }
+    if (n <= 0) {
+      bc.fail(line, "REVEAL last N needs a positive N");
+      return;
+    }
+    auto mid = trim(afterLast.substr(i));
+    auto mU = toUpper(mid);
+    size_t ofPos = std::string::npos;
+    size_t ofLen = 4;
+    if (startsWithCI(mid, "OF ")) {
+      ofPos = 0;
+      ofLen = 3;
+    } else {
+      ofPos = mU.find(" OF ");
+      ofLen = 4;
+    }
+    auto asPos = mU.find(" AS ");
+    if (ofPos == std::string::npos || asPos == std::string::npos || asPos < ofPos) {
+      bc.fail(line, "REVEAL needs: REVEAL last 4 OF ssn AS masked");
+      return;
+    }
+    auto srcName = stripThe(trim(mid.substr(ofPos + ofLen, asPos - (ofPos + ofLen))));
+    auto destName = stripThe(trim(mid.substr(asPos + 4)));
+    auto srcKey = resolveRxCellName(bc.rxCells, bc.rxEntityStack, srcName);
+    if (!bc.rxSecretCells.count(srcKey) && !bc.rxSecretCells.count(srcName)) {
+      bc.fail(line, "REVEAL source '" + srcName + "' must be SECRET");
+      return;
+    }
+    if (destName.empty()) {
+      bc.fail(line, "REVEAL needs a destination name after AS");
+      return;
+    }
+    std::string destKey = rxScopedCellName(bc.rxEntityStack, destName);
+    bc.usesRx = true;
+    bc.locals[destName] = Ty::text();
+    bc.rxCellTy[destKey] = Ty::text();
+    if (!bc.rxCells.count(destKey)) bc.rxCellOrder.push_back(destKey);
+    bc.rxCells[destKey] = true;
+    /* Destination is intentionally NOT secret — declassified. */
+    o << "  {\n";
+    o << "    LukeText _luke_uid = luke_auth_current_user();\n";
+    o << "    if (!_luke_uid.len) {\n";
+    o << "      luke_speak_text(luke_text(\"REVEAL denied — CURRENT USER required\"));\n";
+    o << "      _luke_rx_id_" << cIdent(destKey) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+    o << "    } else {\n";
+    o << "      LukeText _luke_rev = luke_auth_reveal_last(arena, luke_rx_read_text(_luke_rx, _luke_rx_id_"
+      << cIdent(srcKey) << "), " << n << ");\n";
+    o << "      _luke_rx_id_" << cIdent(destKey) << " = luke_rx_cell_text(_luke_rx, _luke_rev);\n";
+    o << "      luke_auth_mark_reveal(arena, luke_text(\"" << esc(srcKey) << "\"), luke_text(\""
+      << esc(destKey) << "\"));\n";
+    o << "    }\n";
+    o << "  }\n";
+    return;
+  }
+  /* WHO SAW ssn [SINCE ts|"last week"] — audit trail (+ time filter). */
   if (startsWithCI(text, "WHO SAW ")) {
-    auto name = stripThe(trim(text.substr(8)));
+    auto rest = trim(text.substr(8));
+    auto U = toUpper(rest);
+    auto sincePos = U.find(" SINCE ");
+    std::string name;
+    std::string sinceExpr;
+    if (sincePos != std::string::npos) {
+      name = stripThe(trim(rest.substr(0, sincePos)));
+      sinceExpr = trim(rest.substr(sincePos + 7));
+    } else {
+      name = stripThe(rest);
+    }
     if (name.empty()) {
       bc.fail(line, "WHO SAW needs a field/cell name — WHO SAW ssn");
       return;
     }
     if (name.size() >= 2 && name.front() == '"' && name.back() == '"')
       name = name.substr(1, name.size() - 2);
-    o << "  luke_speak_text(luke_auth_who_saw(arena, luke_text(\"" << esc(name) << "\")));\n";
+    if (sinceExpr.empty()) {
+      o << "  luke_speak_text(luke_auth_who_saw(arena, luke_text(\"" << esc(name) << "\")));\n";
+    } else {
+      int64_t since = 0;
+      auto sU = toUpper(sinceExpr);
+      if (sU == "\"LAST WEEK\"" || sU == "LAST WEEK") {
+        o << "  luke_speak_text(luke_auth_who_saw_since(arena, luke_text(\"" << esc(name)
+          << "\"), (int64_t)time(NULL) - 7*86400));\n";
+      } else if (sinceExpr.size() >= 2 && sinceExpr.front() == '"' && sinceExpr.back() == '"') {
+        auto lit = sinceExpr.substr(1, sinceExpr.size() - 2);
+        if (toUpper(lit) == "LAST WEEK")
+          o << "  luke_speak_text(luke_auth_who_saw_since(arena, luke_text(\"" << esc(name)
+            << "\"), (int64_t)time(NULL) - 7*86400));\n";
+        else {
+          since = (int64_t)strtoll(lit.c_str(), nullptr, 10);
+          o << "  luke_speak_text(luke_auth_who_saw_since(arena, luke_text(\"" << esc(name)
+            << "\"), " << since << "LL));\n";
+        }
+      } else {
+        auto se = bc.expr(sinceExpr, line);
+        if (se.ty.k == K::Int)
+          o << "  luke_speak_text(luke_auth_who_saw_since(arena, luke_text(\"" << esc(name)
+            << "\"), " << se.code << "));\n";
+        else if (se.ty.k == K::Num)
+          o << "  luke_speak_text(luke_auth_who_saw_since(arena, luke_text(\"" << esc(name)
+            << "\"), (int64_t)" << se.code << "));\n";
+        else if (se.ty.k == K::Text)
+          o << "  luke_speak_text(luke_auth_who_saw_since(arena, luke_text(\"" << esc(name)
+            << "\"), (int64_t)atoll(" << se.code << ".ptr)));\n";
+        else
+          bc.fail(line, "WHO SAW SINCE needs a time number or \"last week\"");
+      }
+    }
+    return;
+  }
+  /* SCRUB TO access OF ssn — rewind audit cursor to first access (breach moment). */
+  if (startsWithCI(text, "SCRUB TO ACCESS OF ")) {
+    auto name = stripThe(trim(text.substr(19)));
+    if (name.empty()) {
+      bc.fail(line, "SCRUB TO access OF needs a field — SCRUB TO access OF ssn");
+      return;
+    }
+    if (name.size() >= 2 && name.front() == '"' && name.back() == '"')
+      name = name.substr(1, name.size() - 2);
+    o << "  luke_speak_text(luke_auth_scrub_to_access(arena, luke_text(\"" << esc(name)
+      << "\")));\n";
     return;
   }
   if (startsWithCI(text, "IF ")) {
@@ -4069,13 +4396,14 @@ bool parse(BC &bc, const std::string &source) {
   std::istringstream in(src);
   std::string raw;
   size_t lineNo = 0;
-  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen };
+  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen, InFlow };
   Mode mode = Top;
   Fn curFn;
   BP curBp;
   Method curM;
   BrowserWhen curWhen;
   BC::RxWhenDef curRxWhen;
+  BC::FlowDef curFlow;
   bool skipContract = false;
 
   while (std::getline(in, raw)) {
@@ -4201,6 +4529,23 @@ bool parse(BC &bc, const std::string &source) {
           curBp.parent = parent;
         }
         mode = InBp;
+        continue;
+      }
+      /* FLOW signup DO … END FLOW — auth state machine; VERIFY before DONE or compile error. */
+      if (startsWithCI(text, "FLOW ")) {
+        auto rest = trim(text.substr(5));
+        stripDo(rest);
+        /* Allow "FLOW signup:" */
+        if (!rest.empty() && rest.back() == ':') rest.pop_back();
+        rest = trim(rest);
+        if (rest.empty()) {
+          bc.fail(lineNo, "FLOW needs a name — FLOW signup DO");
+          return false;
+        }
+        curFlow = {};
+        curFlow.name = stripThe(rest);
+        curFlow.line = lineNo;
+        mode = InFlow;
         continue;
       }
       if (startsWithCI(text, "WHEN BACKGROUND REACTIVE ") ||
@@ -4335,6 +4680,103 @@ bool parse(BC &bc, const std::string &source) {
       curWhen.body.push_back(text);
       curWhen.lines.push_back(lineNo);
       continue;
+    }
+
+    if (mode == InFlow) {
+      if (toUpper(text) == "END FLOW" || toUpper(text) == "ENDFLOW") {
+        if (curFlow.hasDone && !curFlow.hasVerify) {
+          bc.fail(curFlow.line, "FLOW '" + curFlow.name +
+                                    "' — impossible auth state: DONE without VERIFY is a compile error");
+          return false;
+        }
+        if (!curFlow.hasDone) {
+          bc.fail(curFlow.line, "FLOW '" + curFlow.name + "' needs DONE → CREATE ACCOUNT (or DONE CREATE ACCOUNT)");
+          return false;
+        }
+        if (curFlow.steps.empty() || curFlow.steps[0] != "collect") {
+          bc.fail(curFlow.line, "FLOW '" + curFlow.name + "' needs COLLECT before VERIFY/DONE");
+          return false;
+        }
+        bc.flows[curFlow.name] = curFlow;
+        bc.flowOrder.push_back(curFlow.name);
+        /* Materialize reactive cells for the flow (resumable Live Graph beachhead). */
+        std::string stepCell = curFlow.name + "_step";
+        bc.top.push_back({curFlow.line, "REMEMBER " + stepCell + " AS TEXT SET TO \"collect\""});
+        for (auto &f : curFlow.collectFields) {
+          auto Uf = toUpper(f);
+          std::string cell = curFlow.name + "_" + f;
+          if (Uf == "PASSWORD" || Uf == "PASS")
+            bc.top.push_back({curFlow.line, "SECRET REMEMBER " + cell + " AS TEXT"});
+          else
+            bc.top.push_back({curFlow.line, "REMEMBER " + cell + " AS TEXT"});
+        }
+        mode = Top;
+        continue;
+      }
+      if (startsWithCI(text, "COLLECT ")) {
+        if (curFlow.hasVerify || curFlow.hasDone) {
+          bc.fail(lineNo, "FLOW COLLECT must come before VERIFY/DONE");
+          return false;
+        }
+        auto fields = trim(text.substr(8));
+        std::string cur;
+        auto flush = [&]() {
+          auto n = stripThe(trim(cur));
+          cur.clear();
+          if (n.empty()) return;
+          curFlow.collectFields.push_back(n);
+        };
+        for (char c : fields) {
+          if (c == ',' || c == ' ') {
+            flush();
+          } else {
+            cur.push_back(c);
+          }
+        }
+        flush();
+        if (curFlow.collectFields.empty()) {
+          bc.fail(lineNo, "COLLECT needs field names — COLLECT email, password");
+          return false;
+        }
+        if (curFlow.steps.empty() || curFlow.steps.back() != "collect")
+          curFlow.steps.push_back("collect");
+        continue;
+      }
+      if (startsWithCI(text, "VERIFY ")) {
+        if (curFlow.hasDone) {
+          bc.fail(lineNo, "FLOW VERIFY must come before DONE");
+          return false;
+        }
+        curFlow.hasVerify = true;
+        if (curFlow.steps.empty() || curFlow.steps.back() != "verify")
+          curFlow.steps.push_back("verify");
+        continue;
+      }
+      if (startsWithCI(text, "DONE")) {
+        auto rest = trim(text.substr(4));
+        for (;;) {
+          if (startsWithCI(rest, "->")) {
+            rest = trim(rest.substr(2));
+            continue;
+          }
+          if (rest.size() >= 3 && (unsigned char)rest[0] == 0xe2 &&
+              (unsigned char)rest[1] == 0x86 && (unsigned char)rest[2] == 0x92) {
+            rest = trim(rest.substr(3));
+            continue;
+          }
+          break;
+        }
+        auto U = toUpper(rest);
+        auto cr = U.find("CREATE");
+        if (cr != std::string::npos) rest = trim(rest.substr(cr));
+        curFlow.hasDone = true;
+        curFlow.doneAction = rest.empty() ? "CREATE ACCOUNT" : rest;
+        if (curFlow.steps.empty() || curFlow.steps.back() != "done")
+          curFlow.steps.push_back("done");
+        continue;
+      }
+      bc.fail(lineNo, "Inside FLOW: only COLLECT / VERIFY / DONE / END FLOW — got: " + text);
+      return false;
     }
 
     if (mode == InFn) {

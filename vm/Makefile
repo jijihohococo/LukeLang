@@ -428,6 +428,21 @@ test-build: build/luke
 	    echo "expected auth_secret_bad_bind compile failure"; exit 1; \
 	  fi; \
 	  grep -q 'FOR CURRENT USER\|unauthorized\|compile error\|SECRET' /tmp/luke_auth_secret_bad_bind.txt
+	./build/luke BUILD ../examples/build/auth_flow_ok.luke -o build/auth_flow_ok
+	@./build/auth_flow_ok | tee /tmp/luke_auth_flow_ok.txt | grep -q "auth_flow_ok=1"
+	@grep -q 'flow_uid=' /tmp/luke_auth_flow_ok.txt
+	@grep -q 'step2=done' /tmp/luke_auth_flow_ok.txt
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/auth_flow_bad.luke -o build/auth_flow_bad > /tmp/luke_auth_flow_bad.txt 2>&1; then \
+	    echo "expected auth_flow_bad compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'DONE without VERIFY\|impossible auth state\|compile error' /tmp/luke_auth_flow_bad.txt
+	./build/luke BUILD ../examples/build/auth_lang_ok.luke -o build/auth_lang_ok
+	@./build/auth_lang_ok | tee /tmp/luke_auth_lang_ok.txt | grep -q "auth_lang_ok=1"
+	@grep -q 'masked=1120' /tmp/luke_auth_lang_ok.txt
+	@grep -q 'remaining=5' /tmp/luke_auth_lang_ok.txt
+	@grep -q 'scrub=' /tmp/luke_auth_lang_ok.txt
+	@grep -q 'luke_auth_configure_limit\|luke_auth_reveal_last\|luke_auth_scrub_to_access' build/auth_lang_ok.luke.c
 	./build/luke BUILD ../examples/build/auth_api.luke -o build/auth_api
 	@grep -q 'luke_auth_login\|luke_auth_check_csrf\|luke_auth_require' build/auth_api.luke.c
 	@set -e; \

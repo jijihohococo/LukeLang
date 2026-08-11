@@ -533,6 +533,7 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_reply") return mapCall("luke_http_reply", Ty::flag(), false);
       if (callee == "__luke_http_sse_open") return mapCall("luke_http_sse_open", Ty::flag(), false);
       if (callee == "__luke_http_sse_data") return mapCall("luke_http_sse_data", Ty::flag(), false);
+      if (callee == "__luke_http_sse_id") return mapCall("luke_http_sse_id", Ty::flag(), false);
       if (callee == "__luke_http_sse_comment")
         return mapCall("luke_http_sse_comment", Ty::flag(), false);
       if (callee == "__luke_http_close") return mapCall("luke_http_close", Ty::flag(), false);
@@ -2870,6 +2871,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "    double _luke_watch_beats = 0;\n";
     o << "    int64_t _luke_watch_ver = -1;\n";
     o << "    int64_t _luke_watch_queries = 0;\n";
+    o << "    int64_t _luke_watch_seq = 0;\n";
     o << "    while (_luke_watch_beats < " << beats << ") {\n";
     o << "      _luke_watch_beats = _luke_watch_beats + 1;\n";
     o << "      int64_t _luke_watch_nowv = luke_db_data_version(" << cIdent(qd->dbLocal) << ");\n";
@@ -2882,6 +2884,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "          _luke_watch_last = _luke_watch_now;\n";
     o << "          luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
       << ", _luke_watch_now);\n";
+    o << "          _luke_watch_seq = _luke_watch_seq + 1;\n";
+    o << "          httpSseId(arena, " << cIdent(reqName)
+      << ", luke_integer_to_text(arena, _luke_watch_seq));\n";
     o << "          httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now);\n";
     o << "          luke_speak_text(luke_text_concat(arena, luke_text(\"row=\"), _luke_watch_now));\n";
     o << "        }\n";

@@ -302,14 +302,28 @@ function createLukeJs(getMemory, opts) {
           else if (typeof prev.abort === "function") prev.abort();
         }
       } catch (e0) {}
-      globalThis.__lukeSubscribeJobs[id] = { ready: false, body: "", state: "connecting", retryMs: 500 };
+      globalThis.__lukeSubscribeJobs[id] = {
+        ready: false,
+        body: "",
+        state: "connecting",
+        retryMs: 500,
+        lastId: null,
+      };
       console.log("[subscribe_start]", id, url);
-      function onMessage(data) {
+      function onMessage(data, eventId) {
         var job = globalThis.__lukeSubscribeJobs[id] || {};
+        var nextId = eventId == null ? job.lastId : eventId;
+        /* Ignore out-of-order / duplicate ids (reconnect resume, proxy buffering). */
+        if (nextId != null && job.lastId != null) {
+          var ni = parseInt(String(nextId), 10);
+          var pi = parseInt(String(job.lastId), 10);
+          if (!isNaN(ni) && !isNaN(pi) && ni <= pi) return;
+        }
         job.ready = true;
         job.body = data == null ? "" : String(data);
         job.state = "open";
         job.retryMs = 500;
+        if (eventId != null) job.lastId = eventId;
         globalThis.__lukeSubscribeJobs[id] = job;
         console.log("[subscribe_ready]", id);
         if (typeof globalThis.__lukeDispatchSubscribe === "function")
@@ -322,9 +336,14 @@ function createLukeJs(getMemory, opts) {
         for (var i = 0; i < parts.length; i++) {
           var lines = parts[i].split(/\r?\n/);
           var dataLines = [];
+          var curId = null;
           for (var j = 0; j < lines.length; j++) {
             var line = lines[j];
             if (line.indexOf(":") === 0) continue; /* comment / heartbeat */
+            if (line.indexOf("id:") === 0) {
+              curId = line.slice(3).trim();
+              continue;
+            }
             if (line.indexOf("data:") === 0) dataLines.push(line.slice(5).replace(/^\s/, ""));
             else if (line.indexOf("retry:") === 0) {
               var ms = parseInt(line.slice(6).trim(), 10);
@@ -332,7 +351,7 @@ function createLukeJs(getMemory, opts) {
                 globalThis.__lukeSubscribeJobs[id].retryMs = ms;
             }
           }
-          if (dataLines.length) onMessage(dataLines.join("\n"));
+          if (dataLines.length) onMessage(dataLines.join("\n"), curId);
         }
         return buf;
       }
@@ -340,7 +359,7 @@ function createLukeJs(getMemory, opts) {
         try {
           var es = new EventSource(url);
           es.onmessage = function (ev) {
-            onMessage(ev.data);
+            onMessage(ev.data, ev.lastEventId || null);
           };
           es.onerror = function () {
             console.log("[subscribe_error]", id);
@@ -381,12 +400,17 @@ function createLukeJs(getMemory, opts) {
           if (closed) return;
           var u = new URL(url);
           var lib = u.protocol === "https:" ? https : http;
+          var job = globalThis.__lukeSubscribeJobs[id] || {};
+          var lastId = job.lastId;
+          var headers = {};
+          if (lastId != null) headers["Last-Event-ID"] = String(lastId);
           var req = lib.get(
             {
               hostname: u.hostname,
               port: u.port,
               path: u.pathname + (u.search || ""),
               timeout: 10000,
+              headers: headers,
             },
             function (res) {
               var buf = "";

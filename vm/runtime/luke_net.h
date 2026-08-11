@@ -64,6 +64,12 @@ static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
   return 0;
 }
 
+static inline int luke_http_sse_id(LukeHttpRequest *req, LukeText id) {
+  (void)req;
+  (void)id;
+  return 0;
+}
+
 static inline int luke_http_sse_comment(LukeHttpRequest *req, LukeText comment) {
   (void)req;
   (void)comment;
@@ -386,6 +392,24 @@ static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
     }
   }
   if (!luke_http__send_all(req->client_fd, "\n\n", 2)) goto fail;
+  return 1;
+fail:
+  close(req->client_fd);
+  req->client_fd = -1;
+  return 0;
+}
+
+/* SSE event id line (ordering / resume).
+ * Must be called before `luke_http_sse_data` so both lines are in the same event
+ * block. This function sends only the `id:` line + trailing newline (no blank
+ * line terminator). */
+static inline int luke_http_sse_id(LukeHttpRequest *req, LukeText id) {
+  if (!req || req->client_fd < 0) return 0;
+  if (!luke_http__send_all(req->client_fd, "id: ", 4)) goto fail;
+  if (id.len && id.ptr) {
+    if (!luke_http__send_all(req->client_fd, id.ptr, id.len)) goto fail;
+  }
+  if (!luke_http__send_all(req->client_fd, "\n", 1)) goto fail;
   return 1;
 fail:
   close(req->client_fd);

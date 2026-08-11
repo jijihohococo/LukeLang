@@ -1,62 +1,150 @@
-# LukeLang — Programming with Personality
+<div align="center">
 
-LukeLang is a conversational language with a **Build-first** vision:
-write like Python, ship like Rust.
+```
+██╗     ██╗   ██╗██╗  ██╗███████╗██╗      █████╗ ███╗   ██╗ ██████╗
+██║     ██║   ██║██║ ██╔╝██╔════╝██║     ██╔══██╗████╗  ██║██╔════╝
+██║     ██║   ██║█████╔╝ █████╗  ██║     ███████║██╔██╗ ██║██║  ███╗
+██║     ██║   ██║██╔═██╗ ██╔══╝  ██║     ██╔══██║██║╚██╗██║██║   ██║
+███████╗╚██████╔╝██║  ██╗███████╗███████╗██║  ██║██║ ╚████║╚██████╔╝
+╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝
+```
 
-> **Direction:** the wedge is **reactive full-stack web** — conversational syntax + a
-> reactive engine that understands change, rendering through the browser (DOM + CSS).
-> Read [`docs/STRATEGY.md`](docs/STRATEGY.md) for the identity, the renderer decision, and the plan.
+**The conversational, reactive-native, full-stack language.**
 
-| Mode | Command | What it is |
-| --- | --- | --- |
-| **Build** (real language) | `luke BUILD file.luke` | Native / WASM / browser — **no GC**, arena memory |
-| **Show** (Build-first) | `luke SHOW file.luke` | Runs via Build when possible; Play VM fallback |
-| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer) |
+Write like you talk. Ship like systems.  
+Change finds its own way — from database row to screen pixel.
+
+[Strategy](docs/STRATEGY.md) ·
+[Live Graph](docs/LIVE_GRAPH.md) ·
+[Build Mode](docs/BUILD_MODE.md) ·
+[Reactive](docs/REACTIVE.md) ·
+[Getting Started](docs/getting_started.md)
+
+</div>
+
+---
+
+## The idea
+
+Mainstream stacks glue **three worlds** together with fetch, cache invalidation, subscriptions, and diffing.
+
+**LukeLang is one graph.**
+
+```
+DB row  →  server cell  →  [wire]  →  client cell  →  pixel
+   └────────────── one dependency graph, compiler-known ──────────────┘
+```
+
+You never fetch. Never invalidate. Never subscribe. Never diff.  
+You declare dependencies once — and change travels on its own.
+
+That graph is the **Live Graph**: the reactive substrate of the whole stack.
+
+---
+
+## Taste the language
+
+```luke
+SPEAK "Hello from Luke Build"
+
+MY NAME IS name SET TO "Luke"
+SPEAK "My name is " AND name
+
+REMEMBER count AS NUMBER SET TO 0
+WHEN THE BUTTON "inc" IS CLICKED DO
+  INCREASE count BY 1
+END WHEN
+BIND "label" TO count
+```
+
+Conversational on the surface. Precise underneath: typed Build mode, arena memory, no GC on the ship path.
+
+---
+
+## Live Graph — war cry surface
+
+```luke
+# server
+WATCH user FROM db WHERE "id = 1"
+PUSH WATCH user ON req
+
+# client
+REMEMBER user AS ""
+BIND "name" TO user
+WATCH user FROM "http://127.0.0.1:8798/watch"
+```
+
+External `UPDATE` → one SSE push → one reactive write → **exactly one region paints**.
+
+See [`docs/LIVE_GRAPH.md`](docs/LIVE_GRAPH.md).
+
+---
+
+## Quick start
 
 ```bash
-cd vm && make
+git clone https://github.com/lucasdmarshall/LukeLang.git
+cd LukeLang/vm && make
+
 ./build/luke BUILD ../examples/build/hello.luke -o hello && ./hello
 ./build/luke BUILD ../examples/build/hello_browser.luke -target browser -o web/hello
 ./build/luke SHOW  ../examples/build/hello.luke
-./build/luke SHOW  ../examples/native/closures.luke --vm
 ```
 
-Read [`docs/BUILD_MODE.md`](docs/BUILD_MODE.md) for types, memory, packages, and browser packaging.
+| Mode | Command | What you get |
+| --- | --- | --- |
+| **Build** | `luke BUILD file.luke` | Native / WASM / browser — **no GC**, arena memory |
+| **Show** | `luke SHOW file.luke` | Build when possible; Play VM fallback |
+| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer) |
 
-## Status
+Need WASI / browser targets? Install [WASI SDK](https://github.com/WebAssembly/wasi-sdk) under `.tools/wasi-sdk` (or set `LUKE_WASI_SDK`).
+
+---
+
+## What ships today
 
 | Layer | State |
 | --- | --- |
-| Build → native C | Core + functions + blueprints + IMPORT + typechecks |
-| Build → WASM | `-target wasm` (WASI) and `-target browser` (html/js glue) |
-| Build stdlib | files, json, http, server, sqlite, args, env, paths, process, js |
-| Packages | `IMPORT luke/<name>` + `luke PKG init|install|publish|lock` |
-| Collections | `LIST` / `MAP` + `ATTEMPT` / `GIVE UP` / `OTHERWISE` |
-| Tests | `luke TEST` + `MAKE SURE` / `TEST … END TEST` + GitHub Actions CI |
-| Arena scopes | `IN ARENA` / `END ARENA` |
-| Show | Prefers Build; Play VM is `--vm` / fallback |
-| Legacy JS emitters | **Removed** — see [`docs/LEGACY.md`](docs/LEGACY.md) |
+| Build → native C | Core, functions, blueprints, `IMPORT`, typechecks |
+| Build → WASM | `-target wasm` (WASI) · `-target browser` (html/js glue) |
+| Reactive engine | Cells, derived, `WHEN`, `BIND`, lists/maps, batch flush |
+| Live Graph | `WATCH` / `PUSH WATCH`, SSE ordering, IVM cache, time-travel prototype |
+| Stdlib | files, json, http, server, sqlite, args, env, paths, process, js |
+| Packages | `IMPORT luke/<name>` · `luke PKG init\|install\|publish\|lock` |
+| Frontend | Argus reactive patcher · Hanka → DOM/CSS flex |
+| Tests | `luke TEST` · GitHub Actions CI |
 
-## Quick examples
+Examples live in `examples/build/`. Play-only demos in `examples/native/` (use `--vm`).
 
-**Build (native/WASM/browser):** `examples/build/`  
-**Play-only demos:** `examples/native/` (closures, contracts, …) — use `--vm` or SHOW fallback  
-**Sample package:** `luke_modules/greeter`
+---
 
-## Design Principles
+## Design principles
 
-- Conversational keywords; words over symbols
-- **Build** is the language of record (layouts, types, arenas)
-- **Play VM** is the skateboard / compatibility layer
-- Optional JS emit only as interop later — never the identity
+1. **Be different where the user stands** — conversational syntax and reactive model, not exotic plumbing.
+2. **Build is the language of record** — layouts, types, arenas. Play VM is the skateboard.
+3. **The browser is the renderer** — Path A: compile to DOM + CSS; Argus patches surgically.
+4. **One beachhead** — win reactive full-stack web first. Mobile, game, and canvas tracks are parked until earned.
 
-## Roadmap
+Full decision record: [`docs/STRATEGY.md`](docs/STRATEGY.md).
 
-- Richer remote registry (versions, signing)
-- Explicit Python bridges (beyond C FFI)
-- Emit Play bytecode opcodes directly from Build IR nodes
-- Replace line-based Build stmt matching with a real lexer/AST (see BUILD_MODE)
+---
 
-## Legacy
+## Docs map
 
-JS emitters (`main.js` / `luke.js` / `mimo/`) were **removed**. History: [`docs/LEGACY.md`](docs/LEGACY.md). Use `vm/build/luke`.
+| Doc | For |
+| --- | --- |
+| [`STRATEGY.md`](docs/STRATEGY.md) | Identity, wedge, plan |
+| [`LIVE_GRAPH.md`](docs/LIVE_GRAPH.md) | DB row → pixel thesis |
+| [`BUILD_MODE.md`](docs/BUILD_MODE.md) | Types, memory, packages, browser packaging |
+| [`REACTIVE.md`](docs/REACTIVE.md) | Client reactive engine |
+| [`getting_started.md`](docs/getting_started.md) | First program |
+| [`FRONTEND_ROADMAP.md`](docs/FRONTEND_ROADMAP.md) | Argus / Hanka path |
+| [`LEGACY.md`](docs/LEGACY.md) | Removed JS emitters |
+
+---
+
+## The wall sentence
+
+> **Win reactive full-stack first. Keep the syntax. Let the browser render. Prove it with one app. Earn the rest later.**
+>
+> **Live Graph:** never fetch, never invalidate, never subscribe, never diff — declare dependencies once, and change finds its own way from row to pixel.

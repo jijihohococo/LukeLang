@@ -132,6 +132,8 @@ Full decision record: [`docs/STRATEGY.md`](docs/STRATEGY.md).
 
 ## Docs map
 
+Hub: [`documentations/`](documentations/README.md) · full set: [`docs/`](docs/README.md)
+
 | Doc | For |
 | --- | --- |
 | [`STRATEGY.md`](docs/STRATEGY.md) | Identity, wedge, plan |
@@ -140,6 +142,7 @@ Full decision record: [`docs/STRATEGY.md`](docs/STRATEGY.md).
 | [`REACTIVE.md`](docs/REACTIVE.md) | Client reactive engine |
 | [`getting_started.md`](docs/getting_started.md) | First program |
 | [`FRONTEND_ROADMAP.md`](docs/FRONTEND_ROADMAP.md) | Argus / Hanka path |
+| [`AUTH.md`](docs/AUTH.md) | Auth as language / secure by compiler |
 | [`LEGACY.md`](docs/LEGACY.md) | Removed JS emitters |
 
 ---

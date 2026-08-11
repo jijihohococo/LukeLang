@@ -12,9 +12,10 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 |------|--------|-------|
 | Routing — route table, path params (`/user/:id`), method dispatch | 🟡 | `httpMatch` beachhead (this ship); declarative route table still open |
 | Request parsing — query map, JSON body→value, form, headers, cookies | 🟡 | query map + header/cookie + JSON-via-body (this ship); form still open |
-| Auth / session / login | 🟡 | Argon2id (libsodium) + secure session cookie + CSRF + `REQUIRE LOGIN` / `THE CURRENT USER` / `WATCH … FOR CURRENT USER` beachhead; 2FA/OAuth/reset still open |
+| Auth / session / login | 🟡 | Argon2id (libsodium) + secure session cookie + CSRF + `REQUIRE LOGIN` / `THE CURRENT USER` / `WATCH … FOR CURRENT USER`; **auth-as-types spike** (`SECRET` → compile error unless scoped); `WHO SAW` / `REVOKE ACCESS` / `authAttemptsLeft` |
 | **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind` (this ship); prefer over raw SQL in app code |
 | `BACKEND_ROADMAP.md` track spine | ✅ | added (this ship) |
+| Auth-as-types (unauthorized = compile error) | 🟡 | narrow spike: `SECRET` + scoped `WATCH`/`BIND`; full IFC later — see [`docs/AUTH.md`](./docs/AUTH.md) |
 
 ---
 
@@ -96,4 +97,4 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## Active focus
 
-**Now:** Backend Framework (section 1) — security bind first, then routing / parsing / session beachhead + roadmap spine.
+**Now:** Backend Framework — auth as language property (SECRET spike + live revoke + audit) on the Live Graph; then declarative FLOW / LIMIT / routes.

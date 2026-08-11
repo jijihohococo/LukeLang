@@ -1,5 +1,6 @@
 // IMPORT std/auth — Argon2id (libsodium) passwords + secure sessions + CSRF
 // Links -lsodium. Never stores plaintext passwords. Set LUKE_AUTH_SECURE=1 behind HTTPS.
+// Auth-as-types: SECRET cells + WATCH … FOR CURRENT USER; WHO SAW / REVOKE ACCESS; attempts-left.
 
 THIS IS FUNCTION authInit WITH db AS DATABASE GIVES BACK FLAG DO
   GIVE BACK __luke_auth_init(db)
@@ -27,4 +28,18 @@ END FUNCTION
 
 THIS IS FUNCTION authCheckCsrf WITH db AS DATABASE, req AS REQUEST GIVES BACK FLAG DO
   GIVE BACK __luke_auth_check_csrf(db, req)
+END FUNCTION
+
+// CLI/tests: set THE CURRENT USER without HTTP (production → authLogin / REQUIRE LOGIN).
+THIS IS FUNCTION authAssume WITH uid AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_auth_assume(uid)
+END FUNCTION
+
+THIS IS FUNCTION authWhoSaw WITH field AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_auth_who_saw(field)
+END FUNCTION
+
+// Reactive rate-limit UX beachhead — remaining attempts in the fail window.
+THIS IS FUNCTION authAttemptsLeft WITH db AS DATABASE, email AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_auth_attempts_left(db, email)
 END FUNCTION

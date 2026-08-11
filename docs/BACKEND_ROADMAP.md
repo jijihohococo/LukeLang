@@ -26,11 +26,12 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 | Headers / cookies | ✅ | `httpHeader` / `httpCookie` / `httpSetCookie` |
 | JSON body | 🟡 | `httpBody` + `jsonParse` (stdlib sugar later) |
 | Form body (`application/x-www-form-urlencoded`) | ⬜ | |
-| Auth / session / login | 🟡 | `std/auth` — Argon2id (`crypto_pwhash`), HttpOnly+SameSite session, CSRF header check, `REQUIRE LOGIN`, `THE CURRENT USER`, `WATCH … FOR CURRENT USER` |
+| Auth / session / login | 🟡 | `std/auth` — Argon2id, HttpOnly+SameSite session, CSRF, `REQUIRE LOGIN`, `THE CURRENT USER`, `WATCH … FOR CURRENT USER`; **SECRET auth-as-types spike**, `WHO SAW`, `REVOKE ACCESS`, `authAttemptsLeft` |
 | Middleware / filters | ⬜ | |
 | Declarative route table syntax | ⬜ | |
 | SSE channel auth / backpressure | ⬜ | see Live Graph wire hardening |
-| Password reset / 2FA / OAuth | ⬜ | |
+| Password reset / 2FA / OAuth / `FLOW` | ⬜ | declarative auth flows — see AUTH.md |
+| Declarative `LIMIT` + reactive remaining | 🟡 | `authAttemptsLeft` beachhead |
 | Migrations / schema helpers | ⬜ | |
 
 ### Auth rules (non-negotiable)
@@ -39,8 +40,9 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 2. **Password = hash, not encryption** — plaintext never stored; “auto encrypt everything” is out of scope (key management is the hard part).
 3. **Secure path together** — hash + timing-safe verify + session cookie (HttpOnly, SameSite=Lax; `LUKE_AUTH_SECURE=1` adds Secure) + CSRF. Not hash-only.
 4. **Live Graph + auth** — `WATCH … FOR CURRENT USER` binds `user_id = ?` per request (no shared IVM across tenants).
+5. **Auth-as-types** — `SECRET` data on an unscoped path is a **compile error** (library checks can be forgotten; the compiler cannot). See [`AUTH.md`](./AUTH.md).
 
-Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`.
+Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok.luke` (+ negative `auth_secret_bad_*.luke`).
 
 ---
 

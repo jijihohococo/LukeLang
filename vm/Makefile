@@ -403,7 +403,7 @@ test-build: build/luke
 	@grep -q '9007199254740993' /tmp/luke_json_integer.txt
 	./build/luke BUILD ../examples/build/sql_bind.luke -o build/sql_bind
 	@./build/sql_bind | tee /tmp/luke_sql_bind.txt | grep -q "sql_bind_ok=1"
-	@grep -q "name2=Bobby'); DROP TABLE users;--" /tmp/luke_sql_bind.txt
+	@grep -qF "name2=Bobby'); DROP TABLE users;--" /tmp/luke_sql_bind.txt
 	@grep -q 'luke_db_exec_bind\|luke_db_query_bind_text' build/sql_bind.luke.c
 	./build/luke BUILD ../examples/build/auth_unit.luke -o build/auth_unit
 	@./build/auth_unit | tee /tmp/luke_auth_unit.txt | grep -q "auth_unit_ok=1"
@@ -412,6 +412,22 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/auth_scoped.luke -o build/auth_scoped
 	@./build/auth_scoped | tee /tmp/luke_auth_scoped.txt | grep -q "auth_scoped_ok=1"
 	@grep -q 'luke_auth_current_user\|FOR CURRENT USER\|luke_db_query_bind_text' build/auth_scoped.luke.c
+	./build/luke BUILD ../examples/build/auth_secret_ok.luke -o build/auth_secret_ok
+	@./build/auth_secret_ok | tee /tmp/luke_auth_secret_ok.txt | grep -q "auth_secret_ok=1"
+	@grep -q '078-05-1120' /tmp/luke_auth_secret_ok.txt
+	@grep -q 'luke_auth_mark_saw\|luke_auth_revoke\|luke_auth_who_saw' build/auth_secret_ok.luke.c
+	@grep -q 'after_revoke_user=' /tmp/luke_auth_secret_ok.txt
+	@grep 'after_revoke_ssn=' /tmp/luke_auth_secret_ok.txt | grep -qv '078-05-1120'
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/auth_secret_bad_watch.luke -o build/auth_secret_bad_watch > /tmp/luke_auth_secret_bad_watch.txt 2>&1; then \
+	    echo "expected auth_secret_bad_watch compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'FOR CURRENT USER\|unauthorized\|compile error\|SECRET' /tmp/luke_auth_secret_bad_watch.txt
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/auth_secret_bad_bind.luke -o build/auth_secret_bad_bind > /tmp/luke_auth_secret_bad_bind.txt 2>&1; then \
+	    echo "expected auth_secret_bad_bind compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'FOR CURRENT USER\|unauthorized\|compile error\|SECRET' /tmp/luke_auth_secret_bad_bind.txt
 	./build/luke BUILD ../examples/build/auth_api.luke -o build/auth_api
 	@grep -q 'luke_auth_login\|luke_auth_check_csrf\|luke_auth_require' build/auth_api.luke.c
 	@set -e; \

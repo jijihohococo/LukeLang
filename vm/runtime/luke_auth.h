@@ -80,6 +80,26 @@ static inline LukeText luke_auth_user_sql(LukeArena *a, LukeText sql) {
   (void)sql;
   return luke_text("");
 }
+static inline void luke_auth_mark_saw(LukeArena *a, LukeText field) {
+  (void)a;
+  (void)field;
+}
+static inline LukeText luke_auth_who_saw(LukeArena *a, LukeText field) {
+  (void)a;
+  (void)field;
+  return luke_text("");
+}
+static inline void luke_auth_revoke(void) {}
+static inline int luke_auth_assume(LukeText uid) {
+  (void)uid;
+  return 0;
+}
+static inline LukeText luke_auth_attempts_left(LukeArena *a, LukeDb *db, LukeText email) {
+  (void)a;
+  (void)db;
+  (void)email;
+  return luke_text("0");
+}
 
 #else /* !__wasi__ */
 
@@ -97,6 +117,19 @@ static __thread char luke_auth_tls_uid[65];
 static __thread char luke_auth_tls_csrf[65];
 static __thread int luke_auth_tls_ok;
 static int luke_auth_sodium_ready;
+
+/* In-memory audit ring — SECRET BIND / scoped WATCH → free "WHO SAW" trail (time-travel cousin). */
+#ifndef LUKE_AUTH_SAW_MAX
+#define LUKE_AUTH_SAW_MAX 256
+#endif
+typedef struct {
+  char uid[65];
+  char field[96];
+  int64_t ts;
+} LukeAuthSaw;
+static LukeAuthSaw luke_auth_saw_log[LUKE_AUTH_SAW_MAX];
+static int luke_auth_saw_n;
+static int luke_auth_saw_i;
 
 static inline int luke_auth__sodium(void) {
   if (luke_auth_sodium_ready) return 1;
@@ -414,6 +447,81 @@ static inline LukeText luke_auth_user_sql(LukeArena *a, LukeText sql) {
   p[o++] = '\'';
   p[o] = '\0';
   return luke_text_n(p, o);
+}
+
+/* Test/CLI: set CURRENT USER without HTTP login (production uses login/require). */
+static inline int luke_auth_assume(LukeText uid) {
+  luke_auth__set_tls(uid, luke_text(""));
+  return luke_auth_tls_ok;
+}
+
+/* Live permission revoke — clear session TLS; codegen also empties SECRET reactive cells. */
+static inline void luke_auth_revoke(void) {
+  luke_auth_tls_ok = 0;
+  luke_auth_tls_uid[0] = 0;
+  luke_auth_tls_csrf[0] = 0;
+}
+
+static inline void luke_auth_mark_saw(LukeArena *a, LukeText field) {
+  (void)a;
+  if (!field.len || field.len >= sizeof(luke_auth_saw_log[0].field)) return;
+  LukeText uid = luke_auth_current_user();
+  LukeAuthSaw *e = &luke_auth_saw_log[luke_auth_saw_i % LUKE_AUTH_SAW_MAX];
+  memset(e, 0, sizeof(*e));
+  if (uid.len && uid.len < sizeof(e->uid) && luke_auth__is_hex(uid)) {
+    memcpy(e->uid, uid.ptr, uid.len);
+    e->uid[uid.len] = 0;
+  }
+  memcpy(e->field, field.ptr, field.len);
+  e->field[field.len] = 0;
+  e->ts = luke_auth__now();
+  luke_auth_saw_i++;
+  if (luke_auth_saw_n < LUKE_AUTH_SAW_MAX) luke_auth_saw_n++;
+}
+
+/* "who, when" lines for a SECRET field — compliance beachhead from the access log. */
+static inline LukeText luke_auth_who_saw(LukeArena *a, LukeText field) {
+  if (!a || !field.len) return luke_text("");
+  size_t cap = 1;
+  for (int k = 0; k < luke_auth_saw_n; ++k) {
+    LukeAuthSaw *e = &luke_auth_saw_log[(luke_auth_saw_i - luke_auth_saw_n + k + LUKE_AUTH_SAW_MAX * 2) %
+                                        LUKE_AUTH_SAW_MAX];
+    if (e->field[0] && field.len == strlen(e->field) && memcmp(e->field, field.ptr, field.len) == 0)
+      cap += strlen(e->uid) + 24;
+  }
+  char *p = (char *)luke_arena_alloc(a, cap + 1, 1);
+  size_t o = 0;
+  for (int k = 0; k < luke_auth_saw_n; ++k) {
+    LukeAuthSaw *e = &luke_auth_saw_log[(luke_auth_saw_i - luke_auth_saw_n + k + LUKE_AUTH_SAW_MAX * 2) %
+                                        LUKE_AUTH_SAW_MAX];
+    if (!e->field[0] || field.len != strlen(e->field) || memcmp(e->field, field.ptr, field.len) != 0)
+      continue;
+    int n = snprintf(p + o, cap - o, "%s %lld\n", e->uid[0] ? e->uid : "-", (long long)e->ts);
+    if (n > 0) o += (size_t)n;
+  }
+  return luke_text_n(p, o);
+}
+
+/* Reactive rate-limit UX beachhead — remaining login attempts in the fail window. */
+static inline LukeText luke_auth_attempts_left(LukeArena *a, LukeDb *db, LukeText email) {
+  if (!a || !db) return luke_text("0");
+  LukeText em = luke_auth__norm_email(a, email);
+  if (!luke_auth__email_ok(em)) return luke_text("0");
+  if (luke_auth__locked(a, db, em)) return luke_text("0");
+  LukeList *p = luke_list_new(a);
+  luke_list_add(a, p, em);
+  LukeText row = luke_db_query_bind_text(
+      a, db, luke_text("SELECT fails || ' ' || window_start FROM luke_auth_attempts WHERE email = ?"),
+      p);
+  long fails = 0, win = 0;
+  if (row.len) sscanf(row.ptr, "%ld %ld", &fails, &win);
+  int64_t now = luke_auth__now();
+  if ((now - win) >= LUKE_AUTH_LOCK_SECS) fails = 0;
+  long left = (long)LUKE_AUTH_MAX_FAILS - fails;
+  if (left < 0) left = 0;
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%ld", left);
+  return luke_text(buf);
 }
 
 #endif /* !__wasi__ */

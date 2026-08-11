@@ -223,6 +223,7 @@ struct Field {
   Ty ty;
   std::string defRaw;
   bool priv = false;
+  bool secret = false; /* auth-as-types: information-flow SECRET (≠ OOP PRIVATE) */
   std::string owner;
 };
 struct Method {
@@ -291,6 +292,8 @@ struct BC {
   std::string rxGraphVar = "_luke_rx";
   std::map<std::string, bool> rxCells;     /* name → cell or derived id */
   std::map<std::string, bool> rxDerived;   /* name → derived */
+  std::map<std::string, bool> rxSecretCells; /* auth-as-types: SECRET cells */
+  std::map<std::string, bool> rxScopedSecretOk; /* SECRET cell allowed via FOR CURRENT USER WATCH */
   std::map<std::string, Ty> rxCellTy;      /* name → NUMBER or TEXT */
   std::vector<std::string> rxCellOrder;
   struct RxDerivedDef {
@@ -457,6 +460,71 @@ struct BC {
     return Ty::vod();
   }
 
+  /* Strip leading SECRET from a type phrase; returns remaining type string. */
+  std::string stripSecretTy(std::string t, bool *secretOut) {
+    t = trim(t);
+    if (startsWithCI(t, "SECRET ")) {
+      if (secretOut) *secretOut = true;
+      return trim(t.substr(7));
+    }
+    if (toUpper(t) == "SECRET") {
+      if (secretOut) *secretOut = true;
+      return "TEXT";
+    }
+    return t;
+  }
+
+  /* Names referenced by a simple BIND expression (identifiers + dotted cells). */
+  std::vector<std::string> secretTouchNames(const std::string &exprRaw) {
+    std::vector<std::string> out;
+    std::string cur;
+    auto flush = [&]() {
+      auto n = stripThe(trim(cur));
+      cur.clear();
+      if (n.empty()) return;
+      auto U = toUpper(n);
+      if (U == "AND" || U == "OR" || U == "NOT" || U == "THE" || U == "CURRENT" || U == "USER")
+        return;
+      out.push_back(n);
+    };
+    for (size_t i = 0; i < exprRaw.size(); ++i) {
+      char c = exprRaw[i];
+      if (isalnum((unsigned char)c) || c == '_' || c == '.') {
+        cur.push_back(c);
+      } else {
+        flush();
+      }
+    }
+    flush();
+    return out;
+  }
+
+  void lintSecretBind(size_t line, const std::string &exprRaw) {
+    for (auto &n : secretTouchNames(exprRaw)) {
+      auto key = resolveRxCellName(rxCells, rxEntityStack, n);
+      bool isSecret = rxSecretCells.count(key) || rxSecretCells.count(n);
+      if (!isSecret) {
+        /* Blueprint field: name after last dot, or bare field marked secret on any BP. */
+        auto dot = n.find('.');
+        std::string field = dot == std::string::npos ? n : n.substr(dot + 1);
+        for (auto &kv : bps) {
+          for (auto &f : kv.second.fields)
+            if (f.name == field && f.secret) {
+              isSecret = true;
+              key = field;
+              break;
+            }
+          if (isSecret) break;
+        }
+      }
+      if (!isSecret) continue;
+      if (rxScopedSecretOk.count(key) || rxScopedSecretOk.count(n)) continue;
+      fail(line, "SECRET '" + n + "' can only BIND when WATCH … FOR CURRENT USER scopes it — "
+                 "unauthorized access is a compile error");
+      return;
+    }
+  }
+
   Param parseParam(const std::string &raw) {
     Param p;
     auto s = trim(raw);
@@ -591,6 +659,10 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_auth_csrf") return mapCall("luke_auth_csrf", Ty::text(), true);
       if (callee == "__luke_auth_check_csrf")
         return mapCall("luke_auth_check_csrf", Ty::flag(), true);
+      if (callee == "__luke_auth_who_saw") return mapCall("luke_auth_who_saw", Ty::text(), true);
+      if (callee == "__luke_auth_assume") return mapCall("luke_auth_assume", Ty::flag(), false);
+      if (callee == "__luke_auth_attempts_left")
+        return mapCall("luke_auth_attempts_left", Ty::text(), true);
       if (callee == "__luke_list_new") return mapCall("luke_list_new", Ty::list(), true);
       if (callee == "__luke_list_add") return mapCall("luke_list_add", Ty::vod(), true);
       if (callee == "__luke_list_get") return mapCall("luke_list_get", Ty::text(), false);
@@ -1464,8 +1536,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  return 0;\n";
     return;
   }
-  if (startsWithCI(text, "REMEMBER ")) {
-    auto rest = trim(text.substr(9));
+  if (startsWithCI(text, "SECRET REMEMBER ") || startsWithCI(text, "REMEMBER ")) {
+    bool forceSecret = startsWithCI(text, "SECRET REMEMBER ");
+    auto rest = forceSecret ? trim(text.substr(16)) : trim(text.substr(9));
     auto U = toUpper(rest);
     auto asPos = U.find(" AS ");
     if (asPos == std::string::npos) {
@@ -1500,6 +1573,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.rxCellTy[key] = Ty::text();
       if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
       bc.rxCells[key] = true;
+      if (forceSecret) bc.rxSecretCells[key] = true;
       {
         auto sql = unquoteText(trim(qrest.substr(qAs + 4)));
         BC::RxQueryDef qd;
@@ -1515,21 +1589,29 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         << cIdent(dbName) << ", " << sqlE.code << ");\n";
       return;
     }
-    /* Optional: REMEMBER x AS NUMBER SET TO 100 */
+    /* Optional: REMEMBER x AS [SECRET] NUMBER SET TO 100 */
     auto vU = toUpper(valRaw);
     auto setPos = vU.find(" SET TO ");
     Ty forced = Ty::vod();
+    bool isSecret = forceSecret;
     if (setPos != std::string::npos) {
-      forced = bc.parseTy(trim(valRaw.substr(0, setPos)));
+      auto tyPart = bc.stripSecretTy(trim(valRaw.substr(0, setPos)), &isSecret);
+      forced = bc.parseTy(tyPart);
       valRaw = trim(valRaw.substr(setPos + 8));
     } else {
-      Ty maybe = bc.parseTy(valRaw);
-      if (maybe.k != K::Void && valRaw.find(' ') == std::string::npos &&
-          !std::isdigit((unsigned char)valRaw[0]) && valRaw[0] != '-' && valRaw[0] != '"' &&
-          toUpper(valRaw) != "TRUE" && toUpper(valRaw) != "FALSE") {
-        /* REMEMBER x AS NUMBER|TEXT|LIST|MAP — typed empty cell/collection */
+      auto tyPart = bc.stripSecretTy(valRaw, &isSecret);
+      Ty maybe = bc.parseTy(tyPart);
+      if (maybe.k != K::Void && tyPart.find(' ') == std::string::npos &&
+          !std::isdigit((unsigned char)tyPart[0]) && tyPart[0] != '-' && tyPart[0] != '"' &&
+          toUpper(tyPart) != "TRUE" && toUpper(tyPart) != "FALSE") {
+        /* REMEMBER x AS [SECRET] NUMBER|TEXT|LIST|MAP — typed empty cell/collection */
         forced = maybe;
         valRaw.clear();
+      } else if (isSecret && maybe.k == K::Void && toUpper(tyPart) == "TEXT") {
+        forced = Ty::text();
+        valRaw.clear();
+      } else {
+        valRaw = tyPart;
       }
     }
     /* Reactive collections */
@@ -1574,6 +1656,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     bc.rxCellTy[cellKey] = e.ty;
     if (!bc.rxCells.count(cellKey)) bc.rxCellOrder.push_back(cellKey);
     bc.rxCells[cellKey] = true;
+    if (isSecret) bc.rxSecretCells[cellKey] = true;
     if (e.ty.k == K::Text)
       o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell_text(_luke_rx, " << e.code
         << ");\n";
@@ -1847,6 +1930,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "BIND needs an expression after TO");
       return;
     }
+    bc.lintSecretBind(line, exprRaw);
+    if (bc.bad) return;
     bc.usesRx = true;
     bc.usesRxUi = true;
     int seq = ++bc.rxBindSeq;
@@ -1860,6 +1945,27 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect(_luke_rx, _luke_rx_bind_" << seq
       << ", NULL);\n";
     o << "  luke_rx_flush(_luke_rx);\n";
+    /* Auth audit: mark that CURRENT USER saw each SECRET cell in this bind. */
+    for (auto &n : bc.secretTouchNames(exprRaw)) {
+      auto key = resolveRxCellName(bc.rxCells, bc.rxEntityStack, n);
+      bool isSecret = bc.rxSecretCells.count(key) || bc.rxSecretCells.count(n);
+      std::string auditName = key;
+      if (!isSecret) {
+        auto dot = n.find('.');
+        std::string field = dot == std::string::npos ? n : n.substr(dot + 1);
+        for (auto &kv : bc.bps) {
+          for (auto &f : kv.second.fields)
+            if (f.name == field && f.secret) {
+              isSecret = true;
+              auditName = field;
+              break;
+            }
+          if (isSecret) break;
+        }
+      }
+      if (isSecret)
+        o << "  luke_auth_mark_saw(arena, luke_text(\"" << esc(auditName) << "\"));\n";
+    }
     return;
   }
   /* UPDATE "greeting" WITH expr — one-shot Argus text write + dirty paint. */
@@ -2327,6 +2433,37 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "    dbClose(arena, " << cIdent(dbName) << ");\n";
     o << "    return 0;\n";
     o << "  }\n";
+    return;
+  }
+  /* REVOKE ACCESS — clear CURRENT USER + empty SECRET reactive cells (live revoke). */
+  if (toUpper(text) == "REVOKE ACCESS") {
+    o << "  luke_auth_revoke();\n";
+    for (auto &kv : bc.rxSecretCells) {
+      if (!bc.rxCells.count(kv.first)) continue;
+      Ty ty = bc.rxCellTy.count(kv.first) ? bc.rxCellTy[kv.first] : Ty::text();
+      if (ty.k == K::Text)
+        o << "  if (_luke_rx) luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(kv.first)
+          << ", luke_text(\"\"));\n";
+      else if (ty.k == K::Int)
+        o << "  if (_luke_rx) luke_rx_write_int(_luke_rx, _luke_rx_id_" << cIdent(kv.first)
+          << ", 0LL);\n";
+      else if (ty.k == K::Num)
+        o << "  if (_luke_rx) luke_rx_write_num(_luke_rx, _luke_rx_id_" << cIdent(kv.first)
+          << ", 0.0);\n";
+    }
+    o << "  if (_luke_rx) luke_rx_flush(_luke_rx);\n";
+    return;
+  }
+  /* WHO SAW ssn — audit trail from SECRET access log (time-travel cousin). */
+  if (startsWithCI(text, "WHO SAW ")) {
+    auto name = stripThe(trim(text.substr(8)));
+    if (name.empty()) {
+      bc.fail(line, "WHO SAW needs a field/cell name — WHO SAW ssn");
+      return;
+    }
+    if (name.size() >= 2 && name.front() == '"' && name.back() == '"')
+      name = name.substr(1, name.size() - 2);
+    o << "  luke_speak_text(luke_auth_who_saw(arena, luke_text(\"" << esc(name) << "\")));\n";
     return;
   }
   if (startsWithCI(text, "IF ")) {
@@ -2957,6 +3094,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         bc.rxCellTy[key] = Ty::text();
         if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
         bc.rxCells[key] = true;
+        /* Auth-as-types: FOR CURRENT USER unlocks SECRET binds for this cell. */
+        bc.rxScopedSecretOk[key] = true;
+        bc.rxScopedSecretOk[cellName] = true;
         o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
         o << "  {\n";
         o << "    LukeText _luke_uid = luke_auth_current_user();\n";
@@ -2966,8 +3106,17 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         o << "      luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(key)
           << ", luke_db_query_bind_text(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(sql)
           << "\"), _luke_ub));\n";
+        if (bc.rxSecretCells.count(key) || bc.rxSecretCells.count(cellName)) {
+          o << "      luke_auth_mark_saw(arena, luke_text(\"" << esc(key) << "\"));\n";
+        }
         o << "    }\n";
         o << "  }\n";
+        return;
+      }
+      /* Auth-as-types: SECRET cells must be WATCH'd with FOR CURRENT USER. */
+      if (bc.rxSecretCells.count(key) || bc.rxSecretCells.count(cellName)) {
+        bc.fail(line, "SECRET '" + cellName + "' requires WATCH … FOR CURRENT USER — "
+                      "unauthorized access is a compile error");
         return;
       }
       if (!baseTable.empty()) {
@@ -4210,7 +4359,8 @@ bool parse(BC &bc, const std::string &source) {
       }
       if (startsWithCI(text, "HAS ") || startsWithCI(text, "PRIVATE ") ||
           startsWithCI(text, "SECRET ")) {
-        bool priv = startsWithCI(text, "PRIVATE ") || startsWithCI(text, "SECRET ");
+        bool priv = startsWithCI(text, "PRIVATE ");
+        bool secret = startsWithCI(text, "SECRET ");
         std::string rest = text;
         if (startsWithCI(rest, "PRIVATE ")) rest = trim(rest.substr(8));
         else if (startsWithCI(rest, "SECRET ")) rest = trim(rest.substr(7));
@@ -4220,6 +4370,7 @@ bool parse(BC &bc, const std::string &source) {
           if (startsWithCI(rest, "HAS ")) rest = trim(rest.substr(4));
           Field f;
           f.priv = priv;
+          f.secret = secret;
           f.owner = curBp.name;
           auto U = toUpper(rest);
           auto as = U.find(" AS ");
@@ -4228,11 +4379,16 @@ bool parse(BC &bc, const std::string &source) {
             f.name = trim(rest.substr(0, as));
             auto after = trim(rest.substr(as + 4));
             auto set2 = toUpper(after).find(" SET TO ");
+            bool tySecret = false;
             if (set2 != std::string::npos) {
-              f.ty = bc.parseTy(trim(after.substr(0, set2)));
+              auto tyPart = bc.stripSecretTy(trim(after.substr(0, set2)), &tySecret);
+              f.ty = bc.parseTy(tyPart);
               f.defRaw = trim(after.substr(set2 + 8));
-            } else
-              f.ty = bc.parseTy(after);
+            } else {
+              auto tyPart = bc.stripSecretTy(after, &tySecret);
+              f.ty = bc.parseTy(tyPart);
+            }
+            if (tySecret) f.secret = true;
           } else if (set != std::string::npos) {
             f.name = trim(rest.substr(0, set));
             f.defRaw = trim(rest.substr(set + 8));

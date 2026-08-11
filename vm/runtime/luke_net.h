@@ -12,7 +12,9 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 #endif
 
@@ -35,6 +37,10 @@ typedef struct LukeHttpRequest {
   LukeText user_id;       /* filled by luke_auth_require / login */
   LukeText csrf;          /* session CSRF (server-side; also on req after auth) */
   int client_fd;
+  int keep_alive;         /* HTTP/1.1 keep-alive (unless Connection: close) */
+  int replied;            /* httpReply / chunk / SSE already wrote */
+  int streaming;          /* chunked or SSE — connection not reused after */
+  char peer_ip[48];       /* direct peer; X-Forwarded-For if LUKE_TRUST_PROXY=1 */
 } LukeHttpRequest;
 
 static inline LukeText luke_http__dup(LukeArena *a, const char *s, size_t n) {
@@ -45,65 +51,6 @@ static inline LukeText luke_http__dup(LukeArena *a, const char *s, size_t n) {
 }
 
 #if defined(__wasi__)
-
-static inline LukeHttpServer *luke_http_listen(LukeArena *a, double port) {
-  (void)a;
-  (void)port;
-  return NULL;
-}
-
-static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s) {
-  (void)a;
-  (void)s;
-  return NULL;
-}
-
-static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText content_type,
-                                  LukeText body) {
-  (void)req;
-  (void)status;
-  (void)content_type;
-  (void)body;
-  return 0;
-}
-
-static inline int luke_http_sse_open(LukeHttpRequest *req) {
-  (void)req;
-  return 0;
-}
-
-static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
-  (void)req;
-  (void)data;
-  return 0;
-}
-
-static inline int luke_http_sse_id(LukeHttpRequest *req, LukeText id) {
-  (void)req;
-  (void)id;
-  return 0;
-}
-
-static inline int luke_http_sse_comment(LukeHttpRequest *req, LukeText comment) {
-  (void)req;
-  (void)comment;
-  return 0;
-}
-
-static inline int luke_http_close(LukeHttpRequest *req) {
-  (void)req;
-  return 0;
-}
-
-static inline int luke_http_serve(LukeHttpServer *s, void (*handler)(LukeArena *, LukeHttpRequest *),
-                                  double max_conn) {
-  (void)s;
-  (void)handler;
-  (void)max_conn;
-  return 0;
-}
-
-#else /* !__wasi__ */
 
 static inline LukeHttpServer *luke_http_listen(LukeArena *a, double port) {
   int p = (int)port;
@@ -125,7 +72,10 @@ static inline LukeHttpServer *luke_http_listen(LukeArena *a, double port) {
     close(fd);
     return NULL;
   }
-  if (listen(fd, 16) < 0) {
+#ifndef LUKE_HTTP_BACKLOG
+#define LUKE_HTTP_BACKLOG 512
+#endif
+  if (listen(fd, LUKE_HTTP_BACKLOG) < 0) {
     close(fd);
     return NULL;
   }
@@ -174,18 +124,145 @@ static inline long luke_http__content_length(const char *hdrs, size_t hdr_len) {
   return -1;
 }
 
-static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s) {
-  if (!s || s->fd < 0) return NULL;
+#ifndef LUKE_HTTP_TIMEOUT_MS
+#define LUKE_HTTP_TIMEOUT_MS 10000
+#endif
+#ifndef LUKE_HTTP_KEEPALIVE_MAX
+#define LUKE_HTTP_KEEPALIVE_MAX 100
+#endif
 
-  int cfd = accept(s->fd, NULL, NULL);
-  if (cfd < 0) return NULL;
+static inline void luke_http__set_timeouts(int fd) {
+  int ms = LUKE_HTTP_TIMEOUT_MS;
+  const char *e = getenv("LUKE_HTTP_TIMEOUT_MS");
+  if (e && e[0]) ms = atoi(e);
+  if (ms <= 0) return;
+  struct timeval tv;
+  tv.tv_sec = ms / 1000;
+  tv.tv_usec = (long)(ms % 1000) * 1000L;
+  (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+  (void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+}
+
+static inline void luke_http__peer_ip(int cfd, char *out, size_t out_n) {
+  if (!out || out_n == 0) return;
+  out[0] = '\0';
+  struct sockaddr_in peer;
+  socklen_t plen = sizeof(peer);
+  if (getpeername(cfd, (struct sockaddr *)&peer, &plen) == 0)
+    inet_ntop(AF_INET, &peer.sin_addr, out, (socklen_t)out_n);
+}
+
+/* Connection: close → 0; Connection: keep-alive → 1; else HTTP/1.1 default 1, HTTP/1.0 default 0. */
+static inline int luke_http__want_keepalive(const char *buf, size_t hdr_end, int http11) {
+  int explicit_close = 0, explicit_ka = 0;
+  size_t h = 0;
+  while (h < hdr_end) {
+    size_t line0 = h;
+    while (h < hdr_end && buf[h] != '\n') ++h;
+    size_t line1 = h;
+    if (h < hdr_end) ++h;
+    size_t L = line1 > line0 && buf[line1 - 1] == '\r' ? line1 - 1 : line1;
+    if (L <= line0) continue;
+    const char *key = "connection:";
+    size_t klen = 11;
+    if (L - line0 < klen) continue;
+    int match = 1;
+    for (size_t k = 0; k < klen; ++k) {
+      char c = buf[line0 + k];
+      if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+      if (c != key[k]) {
+        match = 0;
+        break;
+      }
+    }
+    if (!match) continue;
+    size_t v0 = line0 + klen;
+    while (v0 < L && (buf[v0] == ' ' || buf[v0] == '\t')) ++v0;
+    /* scan token list */
+    for (size_t i = v0; i < L; ++i) {
+      char c = buf[i];
+      if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+      if ((c == 'c') && i + 4 < L) {
+        int ok = 1;
+        const char *w = "close";
+        for (int j = 0; j < 5; ++j) {
+          char d = buf[i + j];
+          if (d >= 'A' && d <= 'Z') d = (char)(d - 'A' + 'a');
+          if (d != w[j]) {
+            ok = 0;
+            break;
+          }
+        }
+        if (ok) explicit_close = 1;
+      }
+      if ((c == 'k') && i + 9 < L) {
+        int ok = 1;
+        const char *w = "keep-alive";
+        for (int j = 0; j < 10; ++j) {
+          char d = buf[i + j];
+          if (d >= 'A' && d <= 'Z') d = (char)(d - 'A' + 'a');
+          if (d != w[j]) {
+            ok = 0;
+            break;
+          }
+        }
+        if (ok) explicit_ka = 1;
+      }
+    }
+  }
+  if (explicit_close) return 0;
+  if (explicit_ka) return 1;
+  return http11 ? 1 : 0;
+}
+
+static inline void luke_http__apply_forwarded(LukeHttpRequest *req) {
+  if (!req) return;
+  const char *trust = getenv("LUKE_TRUST_PROXY");
+  if (!trust || trust[0] != '1') return;
+  /* First X-Forwarded-For hop */
+  const char *buf = req->headers.ptr;
+  size_t hdr_end = req->headers.len;
+  if (!buf || !hdr_end) return;
+  size_t h = 0;
+  while (h < hdr_end) {
+    size_t line0 = h;
+    while (h < hdr_end && buf[h] != '\n') ++h;
+    size_t line1 = h;
+    if (h < hdr_end) ++h;
+    size_t L = line1 > line0 && buf[line1 - 1] == '\r' ? line1 - 1 : line1;
+    if (L <= line0) continue;
+    const char *key = "x-forwarded-for:";
+    size_t klen = 16;
+    if (L - line0 < klen) continue;
+    int match = 1;
+    for (size_t k = 0; k < klen; ++k) {
+      char c = buf[line0 + k];
+      if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+      if (c != key[k]) {
+        match = 0;
+        break;
+      }
+    }
+    if (!match) continue;
+    size_t v0 = line0 + klen;
+    while (v0 < L && (buf[v0] == ' ' || buf[v0] == '\t')) ++v0;
+    size_t v1 = v0;
+    while (v1 < L && buf[v1] != ',' && buf[v1] != ' ') ++v1;
+    size_t n = v1 - v0;
+    if (n == 0 || n >= sizeof(req->peer_ip)) return;
+    memcpy(req->peer_ip, buf + v0, n);
+    req->peer_ip[n] = '\0';
+    return;
+  }
+}
+
+/* Parse one HTTP request from an already-accepted client fd (worker-side). */
+static inline LukeHttpRequest *luke_http_read_request(LukeArena *a, int cfd) {
+  if (!a || cfd < 0) return NULL;
 
   size_t cap = 8192, len = 0;
   char *buf = (char *)malloc(cap);
-  if (!buf) {
-    close(cfd);
-    return NULL;
-  }
+  if (!buf) return NULL;
 
   int hdr_end = -1;
   long need_body = -1;
@@ -195,7 +272,6 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
       char *nb = (char *)realloc(buf, cap);
       if (!nb) {
         free(buf);
-        close(cfd);
         return NULL;
       }
       buf = nb;
@@ -203,7 +279,6 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     ssize_t got = recv(cfd, buf + len, cap - len - 1, 0);
     if (got <= 0) {
       free(buf);
-      close(cfd);
       return NULL;
     }
     len += (size_t)got;
@@ -212,18 +287,16 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     if (hdr_end < 0) {
       hdr_end = luke_http__hdr_end(buf, len);
       if (hdr_end < 0) {
-        if (len > (1u << 20)) { /* 1 MiB header cap */
+        if (len > (1u << 20)) {
           free(buf);
-          close(cfd);
           return NULL;
         }
         continue;
       }
       need_body = luke_http__content_length(buf, (size_t)hdr_end);
       if (need_body < 0) need_body = 0;
-      if (need_body > (1L << 20)) { /* 1 MiB body cap */
+      if (need_body > (1L << 20)) {
         free(buf);
-        close(cfd);
         return NULL;
       }
     }
@@ -231,7 +304,7 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     if (hdr_end >= 0 && (long)(len - (size_t)hdr_end) >= need_body) break;
   }
 
-  /* Request line: METHOD SP path[?query] SP HTTP/... */
+  /* Request line: METHOD SP path[?query] SP HTTP/x.y */
   size_t i = 0;
   while (i < (size_t)hdr_end && buf[i] != ' ' && buf[i] != '\r' && buf[i] != '\n') ++i;
   LukeText method = luke_http__dup(a, buf, i);
@@ -248,17 +321,16 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     while (i < (size_t)hdr_end && buf[i] != ' ' && buf[i] != '\r' && buf[i] != '\n') ++i;
     query = luke_http__dup(a, buf + q0, i - q0);
   }
+  while (i < (size_t)hdr_end && buf[i] == ' ') ++i;
+  int http11 = 1;
+  if (i + 8 <= (size_t)hdr_end && memcmp(buf + i, "HTTP/1.0", 8) == 0) http11 = 0;
 
   LukeText body = luke_text("");
-  if (need_body > 0) {
-    body = luke_http__dup(a, buf + hdr_end, (size_t)need_body);
-  }
+  if (need_body > 0) body = luke_http__dup(a, buf + hdr_end, (size_t)need_body);
 
-  /* Scan headers for Last-Event-ID (SSE resume). Capture raw header block. */
   LukeText last_event_id = luke_text("");
   LukeText headers = luke_text("");
   {
-    /* Skip request line; keep rest of header block (through final CRLF before body). */
     size_t line_end = 0;
     while (line_end < (size_t)hdr_end && buf[line_end] != '\n') ++line_end;
     if (line_end < (size_t)hdr_end) ++line_end;
@@ -270,12 +342,10 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
       size_t line0 = h;
       while (h < (size_t)hdr_end && buf[h] != '\n') ++h;
       size_t line1 = h;
-      if (h < (size_t)hdr_end) ++h; /* skip \n */
-      /* skip request line */
+      if (h < (size_t)hdr_end) ++h;
       if (line0 == 0) continue;
       size_t L = line1 > line0 && buf[line1 - 1] == '\r' ? line1 - 1 : line1;
       if (L <= line0) continue;
-      /* case-insensitive match "Last-Event-ID:" */
       const char *key = "last-event-id:";
       size_t klen = 14;
       if (L - line0 < klen) continue;
@@ -296,9 +366,11 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     }
   }
 
+  int keep_alive = luke_http__want_keepalive(buf, (size_t)hdr_end, http11);
   free(buf);
 
   LukeHttpRequest *req = (LukeHttpRequest *)luke_arena_alloc(a, sizeof(LukeHttpRequest), 8);
+  memset(req, 0, sizeof(*req));
   req->method = method;
   req->path = path;
   req->query = query;
@@ -309,8 +381,30 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
   req->user_id = luke_text("");
   req->csrf = luke_text("");
   req->client_fd = cfd;
+  req->keep_alive = keep_alive;
+  req->replied = 0;
+  req->streaming = 0;
+  luke_http__peer_ip(cfd, req->peer_ip, sizeof(req->peer_ip));
+  luke_http__apply_forwarded(req);
   return req;
 }
+
+static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s) {
+  if (!s || s->fd < 0) return NULL;
+  int cfd = accept(s->fd, NULL, NULL);
+  if (cfd < 0) return NULL;
+  luke_http__set_timeouts(cfd);
+  LukeHttpRequest *req = luke_http_read_request(a, cfd);
+  if (!req) {
+    close(cfd);
+    return NULL;
+  }
+  return req;
+}
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 
 static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText content_type,
                                   LukeText body) {
@@ -348,7 +442,7 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
   }
   ctype[ct_n] = '\0';
 
-  /* Build header block; support multiple Set-Cookie lines (\\n-separated). */
+  int ka = req->keep_alive && !req->streaming;
   char hdr[2048];
   int hlen = snprintf(hdr, sizeof(hdr),
                       "HTTP/1.1 %d %s\r\n"
@@ -381,8 +475,9 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
   {
     int add = snprintf(hdr + hlen, sizeof(hdr) - (size_t)hlen,
                        "Access-Control-Allow-Origin: *\r\n"
-                       "Connection: close\r\n"
-                       "\r\n");
+                       "Connection: %s\r\n"
+                       "\r\n",
+                       ka ? "keep-alive" : "close");
     if (add < 0 || (size_t)hlen + (size_t)add >= sizeof(hdr)) {
       close(req->client_fd);
       req->client_fd = -1;
@@ -390,15 +485,10 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
     }
     hlen += add;
   }
-  if (hlen < 0 || (size_t)hlen >= sizeof(hdr)) {
-    close(req->client_fd);
-    req->client_fd = -1;
-    return 0;
-  }
 
   size_t sent = 0;
   while (sent < (size_t)hlen) {
-    ssize_t n = send(req->client_fd, hdr + sent, (size_t)hlen - sent, 0);
+    ssize_t n = send(req->client_fd, hdr + sent, (size_t)hlen - sent, MSG_NOSIGNAL);
     if (n <= 0) {
       close(req->client_fd);
       req->client_fd = -1;
@@ -408,7 +498,7 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
   }
   sent = 0;
   while (sent < body.len) {
-    ssize_t n = send(req->client_fd, body.ptr + sent, body.len - sent, 0);
+    ssize_t n = send(req->client_fd, body.ptr + sent, body.len - sent, MSG_NOSIGNAL);
     if (n <= 0) {
       close(req->client_fd);
       req->client_fd = -1;
@@ -417,16 +507,15 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
     sent += (size_t)n;
   }
 
-  close(req->client_fd);
-  req->client_fd = -1;
+  req->replied = 1;
+  if (!ka) {
+    close(req->client_fd);
+    req->client_fd = -1;
+  }
   return 1;
 }
 
 /* ---------- SSE (Server-Sent Events) — keep connection open ---------- */
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
 
 static inline int luke_http__send_all(int fd, const char *buf, size_t len) {
   size_t sent = 0;
@@ -440,6 +529,8 @@ static inline int luke_http__send_all(int fd, const char *buf, size_t len) {
 
 static inline int luke_http_sse_open(LukeHttpRequest *req) {
   if (!req || req->client_fd < 0) return 0;
+  req->streaming = 1;
+  req->keep_alive = 0;
   const char *hdr = "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/event-stream\r\n"
                     "Cache-Control: no-cache\r\n"
@@ -451,12 +542,12 @@ static inline int luke_http_sse_open(LukeHttpRequest *req) {
     req->client_fd = -1;
     return 0;
   }
-  /* Opening comment — keeps intermediaries from buffering an empty stream. */
   if (!luke_http__send_all(req->client_fd, ": luke-sse\n\n", 12)) {
     close(req->client_fd);
     req->client_fd = -1;
     return 0;
   }
+  req->replied = 1;
   return 1;
 }
 
@@ -464,7 +555,6 @@ static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
   if (!req || req->client_fd < 0) return 0;
   if (!luke_http__send_all(req->client_fd, "data: ", 6)) goto fail;
   if (data.len && data.ptr) {
-    /* Split embedded newlines into multiple SSE data lines. */
     size_t i = 0;
     while (i < data.len) {
       size_t j = i;
@@ -490,10 +580,6 @@ fail:
   return 0;
 }
 
-/* SSE event id line (ordering / resume).
- * Must be called before `luke_http_sse_data` so both lines are in the same event
- * block. This function sends only the `id:` line + trailing newline (no blank
- * line terminator). */
 static inline int luke_http_sse_id(LukeHttpRequest *req, LukeText id) {
   if (!req || req->client_fd < 0) return 0;
   if (!luke_http__send_all(req->client_fd, "id: ", 4)) goto fail;
@@ -508,7 +594,6 @@ fail:
   return 0;
 }
 
-/* SSE comment / heartbeat — ignored by EventSource onmessage, keeps connection warm. */
 static inline int luke_http_sse_comment(LukeHttpRequest *req, LukeText comment) {
   if (!req || req->client_fd < 0) return 0;
   if (!luke_http__send_all(req->client_fd, ": ", 2)) goto fail;
@@ -530,14 +615,81 @@ static inline int luke_http_close(LukeHttpRequest *req) {
   return 1;
 }
 
+/* ---------- Chunked transfer (response streaming beachhead) ---------- */
+
+static inline int luke_http_chunk_open(LukeHttpRequest *req, double status, LukeText content_type) {
+  if (!req || req->client_fd < 0) return 0;
+  int code = (int)status;
+  if (code < 100 || code > 599) code = 200;
+  char ctype[256];
+  size_t ct_n = content_type.len < sizeof(ctype) - 1 ? content_type.len : sizeof(ctype) - 1;
+  if (ct_n == 0) {
+    memcpy(ctype, "text/plain; charset=utf-8", 25);
+    ct_n = 25;
+  } else {
+    memcpy(ctype, content_type.ptr, ct_n);
+  }
+  ctype[ct_n] = '\0';
+  char hdr[512];
+  int hlen = snprintf(hdr, sizeof(hdr),
+                      "HTTP/1.1 %d OK\r\n"
+                      "Content-Type: %s\r\n"
+                      "Transfer-Encoding: chunked\r\n"
+                      "Access-Control-Allow-Origin: *\r\n"
+                      "Connection: close\r\n"
+                      "\r\n",
+                      code, ctype);
+  if (hlen < 0 || !luke_http__send_all(req->client_fd, hdr, (size_t)hlen)) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
+  }
+  req->streaming = 1;
+  req->keep_alive = 0;
+  req->replied = 1;
+  return 1;
+}
+
+static inline int luke_http_chunk(LukeHttpRequest *req, LukeText data) {
+  if (!req || req->client_fd < 0) return 0;
+  if (!data.len) return 1;
+  char line[32];
+  int n = snprintf(line, sizeof(line), "%zx\r\n", data.len);
+  if (n < 0 || !luke_http__send_all(req->client_fd, line, (size_t)n)) goto fail;
+  if (!luke_http__send_all(req->client_fd, data.ptr, data.len)) goto fail;
+  if (!luke_http__send_all(req->client_fd, "\r\n", 2)) goto fail;
+  return 1;
+fail:
+  close(req->client_fd);
+  req->client_fd = -1;
+  return 0;
+}
+
+static inline int luke_http_chunk_end(LukeHttpRequest *req) {
+  if (!req || req->client_fd < 0) return 0;
+  if (!luke_http__send_all(req->client_fd, "0\r\n\r\n", 5)) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
+  }
+  close(req->client_fd);
+  req->client_fd = -1;
+  return 1;
+}
+
+static inline LukeText luke_http_client_ip(LukeArena *a, LukeHttpRequest *req) {
+  (void)a;
+  if (!req || !req->peer_ip[0]) return luke_text("");
+  return luke_text(req->peer_ip);
+}
+
 /* ---------- Concurrent serve (bounded worker pool) ---------- */
 
 typedef void (*LukeHttpHandler)(LukeArena *arena, LukeHttpRequest *req);
 
 typedef struct LukeHttpServeJob {
   LukeHttpHandler handler;
-  LukeArena *arena;
-  LukeHttpRequest *req;
+  int client_fd; /* parse happens on the worker — accept path stays non-blocking */
 } LukeHttpServeJob;
 
 #ifndef LUKE_HTTP_POOL_WORKERS
@@ -558,6 +710,13 @@ typedef struct LukeHttpPool {
   LukeHttpHandler handler;
 } LukeHttpPool;
 
+static volatile sig_atomic_t luke_http__stop_flag = 0;
+
+static void luke_http__on_signal(int sig) {
+  (void)sig;
+  luke_http__stop_flag = 1;
+}
+
 static inline void *luke_http__pool_worker(void *arg) {
   LukeHttpPool *pool = (LukeHttpPool *)arg;
   for (;;) {
@@ -573,34 +732,64 @@ static inline void *luke_http__pool_worker(void *arg) {
     pthread_cond_signal(&pool->not_full);
     pthread_mutex_unlock(&pool->mu);
 
-    if (job && job->handler && job->arena && job->req) job->handler(job->arena, job->req);
     if (job) {
-      if (job->req && job->req->client_fd >= 0) {
-        close(job->req->client_fd);
-        job->req->client_fd = -1;
-      }
-      if (job->arena) {
-        luke_arena_free(job->arena);
-        free(job->arena);
-      }
+      int cfd = job->client_fd;
+      LukeHttpHandler handler = job->handler ? job->handler : pool->handler;
       free(job);
+      int ka_left = LUKE_HTTP_KEEPALIVE_MAX;
+      while (cfd >= 0 && ka_left-- > 0) {
+        LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
+        if (!arena) break;
+        luke_arena_init(arena, 1u << 16);
+        LukeHttpRequest *req = luke_http_read_request(arena, cfd);
+        if (!req) {
+          luke_arena_free(arena);
+          free(arena);
+          break;
+        }
+        if (handler) handler(arena, req);
+        int reuse = req->client_fd >= 0 && req->keep_alive && !req->streaming && req->replied;
+        if (!reuse && req->client_fd >= 0) {
+          close(req->client_fd);
+          req->client_fd = -1;
+          cfd = -1;
+        } else if (reuse) {
+          cfd = req->client_fd;
+        } else {
+          cfd = -1;
+        }
+        luke_arena_free(arena);
+        free(arena);
+        if (!reuse) break;
+      }
+      if (cfd >= 0) close(cfd);
     }
   }
   return NULL;
 }
 
-/* Accept up to max_conn connections (max_conn<=0 → forever until accept fails).
- * Bounded worker pool (LUKE_HTTP_POOL_WORKERS): accept path enqueues; workers run handlers.
- * Evented accept beachhead: listen fd is O_NONBLOCK + poll(POLLIN) before accept.
- * Positive max_conn = lifetime accept budget, then drain queue and join workers.
- * Each connection runs `handler` with a private arena. */
+/* Accept up to max_conn connections (max_conn<=0 → forever until stop/accept fails).
+ * Bounded worker pool: accept enqueues bare fds; workers parse + handle (slow clients
+ * no longer stall the accept loop). Evented accept: O_NONBLOCK listen + poll(POLLIN).
+ * SIGTERM/SIGINT → graceful stop (drain queue, join workers).
+ * Per-socket SO_RCVTIMEO/SO_SNDTIMEO (LUKE_HTTP_TIMEOUT_MS, default 30s).
+ * HTTP/1.1 keep-alive reuse up to LUKE_HTTP_KEEPALIVE_MAX requests per connection. */
 static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
   if (!s || s->fd < 0 || !handler) return 0;
   int left = (int)max_conn;
   int unlimited = left <= 0;
   int started = 0;
 
-  /* Evented accept: non-blocking listen + poll readiness. */
+  luke_http__stop_flag = 0;
+  {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = luke_http__on_signal;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+  }
+
   {
     int fl = fcntl(s->fd, F_GETFL, 0);
     if (fl >= 0) fcntl(s->fd, F_SETFL, fl | O_NONBLOCK);
@@ -626,66 +815,65 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
     }
   }
 
-  while (unlimited || left > 0) {
+  while ((unlimited || left > 0) && !luke_http__stop_flag) {
     struct pollfd pfd;
     pfd.fd = s->fd;
     pfd.events = POLLIN;
     pfd.revents = 0;
-    int pr = poll(&pfd, 1, 250); /* 250ms — evented wait, not spinning accept */
+    int pr = poll(&pfd, 1, 250);
+    if (luke_http__stop_flag) break;
     if (pr < 0) {
       if (errno == EINTR) continue;
       break;
     }
-    if (pr == 0) continue; /* timeout — keep waiting for budget / next client */
+    if (pr == 0) continue;
     if (!(pfd.revents & POLLIN)) continue;
 
-    LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
-    if (!arena) break;
-    luke_arena_init(arena, 1u << 16);
-    LukeHttpRequest *req = luke_http_accept(arena, s);
-    if (!req) {
-      luke_arena_free(arena);
-      free(arena);
-      if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
-      break;
-    }
-    LukeHttpServeJob *job = (LukeHttpServeJob *)calloc(1, sizeof(LukeHttpServeJob));
-    if (!job) {
-      close(req->client_fd);
-      req->client_fd = -1;
-      luke_arena_free(arena);
-      free(arena);
-      break;
-    }
-    job->handler = handler;
-    job->arena = arena;
-    job->req = req;
+    for (;;) {
+      int cfd = accept(s->fd, NULL, NULL);
+      if (cfd < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+        if (errno == EINTR) continue;
+        luke_http__stop_flag = 1;
+        break;
+      }
+      luke_http__set_timeouts(cfd);
 
-    pthread_mutex_lock(&pool.mu);
-    while (pool.len >= LUKE_HTTP_POOL_QUEUE && !pool.stop)
-      pthread_cond_wait(&pool.not_full, &pool.mu);
-    if (pool.stop) {
+      LukeHttpServeJob *job = (LukeHttpServeJob *)calloc(1, sizeof(LukeHttpServeJob));
+      if (!job) {
+        close(cfd);
+        break;
+      }
+      job->handler = handler;
+      job->client_fd = cfd;
+
+      pthread_mutex_lock(&pool.mu);
+      while (pool.len >= LUKE_HTTP_POOL_QUEUE && !pool.stop && !luke_http__stop_flag)
+        pthread_cond_wait(&pool.not_full, &pool.mu);
+      if (pool.stop || luke_http__stop_flag) {
+        pthread_mutex_unlock(&pool.mu);
+        close(cfd);
+        free(job);
+        break;
+      }
+      int slot = (pool.head + pool.len) % LUKE_HTTP_POOL_QUEUE;
+      pool.q[slot] = job;
+      pool.len++;
+      pthread_cond_signal(&pool.not_empty);
       pthread_mutex_unlock(&pool.mu);
-      close(req->client_fd);
-      req->client_fd = -1;
-      luke_arena_free(arena);
-      free(arena);
-      free(job);
-      break;
-    }
-    int slot = (pool.head + pool.len) % LUKE_HTTP_POOL_QUEUE;
-    pool.q[slot] = job;
-    pool.len++;
-    pthread_cond_signal(&pool.not_empty);
-    pthread_mutex_unlock(&pool.mu);
 
-    started++;
-    if (!unlimited) left--;
+      started++;
+      if (!unlimited) {
+        left--;
+        if (left <= 0) break;
+      }
+    }
   }
 
   pthread_mutex_lock(&pool.mu);
   pool.stop = 1;
   pthread_cond_broadcast(&pool.not_empty);
+  pthread_cond_broadcast(&pool.not_full);
   pthread_mutex_unlock(&pool.mu);
   for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) pthread_join(workers[i], NULL);
   pthread_mutex_destroy(&pool.mu);

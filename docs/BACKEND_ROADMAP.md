@@ -33,6 +33,9 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 | Password reset / 2FA / OAuth | 🟡 | `FLOW` + `VERIFY BY CODE\|TOTP\|OAUTH` wrapper only — **no invented providers** (interop/conformance) |
 | Declarative `LIMIT` + reactive remaining | 🟡 | `LIMIT login TO N PER …` + `login.remaining` + `REFRESH LIMIT` |
 | Migrations / schema helpers | ✅ | `SCHEMA` / `ENSURE SCHEMA`; `MIGRATION` / `MIGRATE` / `REWIND` + `luke_schema_migrations` |
+| C10K concurrency (pool / evented I/O) | ✅ | Worker-side parse + poll accept; keep-alive; timeouts; graceful SIGTERM — see [`DEPLOY.md`](./DEPLOY.md) |
+| HTTP/1.1 keep-alive / chunked / streaming | ✅ | keep-alive reuse; `httpChunkOpen`/`httpChunk`/`httpChunkEnd`; SSE unchanged |
+| TLS | ✅ | **Reverse proxy** (Caddy/nginx) — no invented in-process TLS; `LUKE_TRUST_PROXY` + `httpClientIp` |
 
 ### Auth rules (non-negotiable)
 

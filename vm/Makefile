@@ -358,6 +358,7 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/concurrent_server.luke -o build/concurrent_server
 	@grep -q 'luke_http_serve\|luke_http_wrap_' build/concurrent_server.luke.c
 	@grep -q 'LUKE_HTTP_POOL_WORKERS\|luke_http__pool_worker' runtime/luke_net.h
+	@grep -q 'luke_http_read_request\|luke_http_chunk_open\|luke_http__stop_flag' runtime/luke_net.h
 	@set -e; \
 	  rm -f /tmp/luke_conc_server.pid /tmp/luke_conc_fast.txt /tmp/luke_conc_slow.txt; \
 	  ./build/concurrent_server > /tmp/luke_conc_server.log 2>&1 & echo $$! > /tmp/luke_conc_server.pid; \
@@ -370,6 +371,63 @@ test-build: build/luke
 	  test -f /tmp/luke_conc_slow.txt && grep -q '^slow$$' /tmp/luke_conc_slow.txt; \
 	  kill $$(cat /tmp/luke_conc_server.pid) 2>/dev/null || true; \
 	  wait $$(cat /tmp/luke_conc_server.pid) 2>/dev/null || true
+	./build/luke BUILD ../examples/build/http_c10k_ok.luke -o build/http_c10k_ok
+	@grep -q 'luke_http_chunk_open\|luke_http_client_ip' build/http_c10k_ok.luke.c
+	@set -e; \
+	  fuser -k 8804/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_c10k.pid /tmp/luke_c10k.log /tmp/luke_c10k_out.txt; \
+	  ./build/http_c10k_ok > /tmp/luke_c10k.log 2>&1 & echo $$! > /tmp/luke_c10k.pid; \
+	  sleep 0.35; \
+	  python3 -c 'import socket,re; s=socket.create_connection(("127.0.0.1",8804),2); \
+s.sendall(b"GET /ka HTTP/1.1\r\nHost: x\r\nConnection: keep-alive\r\n\r\n"); \
+buf=b""; \
+\
+def read_one(sock):\
+  global buf;\
+  while b"\r\n\r\n" not in buf: buf+=sock.recv(4096);\
+  h,rest=buf.split(b"\r\n\r\n",1); \
+  m=re.search(br"Content-Length:\s*(\d+)",h,re.I); \
+  n=int(m.group(1)) if m else 0; \
+  while len(rest)<n: rest+=sock.recv(4096); \
+  body,rest=rest[:n],rest[n:]; buf=rest; return h,body; \
+h1,b1=read_one(s); \
+assert b"Connection: keep-alive" in h1 or b"keep-alive" in h1.lower(); \
+assert b1.startswith(b"ka="); \
+s.sendall(b"GET /chunk HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"); \
+buf2=b""; \
+while b"0\r\n\r\n" not in buf2: \
+  chunk=s.recv(4096); \
+  if not chunk: break; \
+  buf2+=chunk; \
+assert b"Transfer-Encoding: chunked" in buf2; \
+assert b"hello " in buf2 and b"chunked" in buf2; \
+s.close(); \
+open("/tmp/luke_c10k_out.txt","w").write("ka_chunk_ok")'; \
+	  grep -q ka_chunk_ok /tmp/luke_c10k_out.txt; \
+	  wait $$(cat /tmp/luke_c10k.pid); \
+	  grep -q "c10k_done=1" /tmp/luke_c10k.log; \
+	  grep -q "served=ka" /tmp/luke_c10k.log; \
+	  grep -q "served=chunk" /tmp/luke_c10k.log; \
+	  fuser -k 8804/tcp 2>/dev/null || true
+	@set -e; \
+	  fuser -k 8805/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_c10k_grace.pid /tmp/luke_c10k_grace.log; \
+	  printf '%s\n' \
+	    '// graceful shutdown probe' \
+	    'IMPORT std/server' \
+	    'THIS IS FUNCTION handle WITH req AS REQUEST DO' \
+	    '  ASK httpReply WITH req, 200, "text/plain", "ok"' \
+	    'END FUNCTION' \
+	    'MY NAME IS server SET TO ASK httpListen WITH 8805' \
+	    'ASK httpServe WITH server, handle, 0' \
+	    'SPEAK "graceful=1"' > /tmp/luke_c10k_grace.luke; \
+	  ./build/luke BUILD /tmp/luke_c10k_grace.luke -o build/http_c10k_grace; \
+	  ./build/http_c10k_grace > /tmp/luke_c10k_grace.log 2>&1 & echo $$! > /tmp/luke_c10k_grace.pid; \
+	  sleep 0.35; \
+	  kill -TERM $$(cat /tmp/luke_c10k_grace.pid); \
+	  wait $$(cat /tmp/luke_c10k_grace.pid); \
+	  grep -q "graceful=1" /tmp/luke_c10k_grace.log; \
+	  fuser -k 8805/tcp 2>/dev/null || true
 	./build/luke BUILD ../examples/build/live_graph_server.luke -o build/live_graph_server
 	./build/luke BUILD ../examples/build/live_graph_client.luke -target browser -o build/live_graph_client
 	./build/luke BUILD ../examples/build/live_graph_updater.luke -o build/live_graph_updater

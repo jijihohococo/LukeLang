@@ -184,7 +184,17 @@ Inference (v0):
 
 ### Backend concurrency ceiling
 
-`httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS` default 8, queue 64): accept enqueues; workers run handlers with private arenas. The listen socket is **non-blocking** and the accept loop **`poll`s for `POLLIN`** (250 ms) before `accept` — an evented-accept beachhead, not a busy spin. Positive `maxConn` is a lifetime accept budget (then drain + join); `maxConn ≤ 0` accepts until failure. Request parse still happens on the accept path (a slow client can stall accepts). Long-lived SSE holds one pool worker for the life of the stream. Full evented request I/O remains a next ceiling.
+`httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS` default 8, queue 64):
+
+- **Evented accept** — listen socket is `O_NONBLOCK` + `poll(POLLIN)` (250 ms).
+- **Parse on workers** — accept enqueues bare client fds; workers run `read`/`parse` + handler so slow clients do not stall accepts.
+- **HTTP/1.1 keep-alive** — reuse up to `LUKE_HTTP_KEEPALIVE_MAX` requests per connection.
+- **Timeouts** — `SO_RCVTIMEO` / `SO_SNDTIMEO` (`LUKE_HTTP_TIMEOUT_MS`, default 10 s).
+- **Graceful stop** — `SIGTERM`/`SIGINT` stop accepting, drain queue, join workers.
+- **Chunked responses** — `httpChunkOpen` / `httpChunk` / `httpChunkEnd`.
+- **Proxy / TLS** — terminate TLS at Caddy/nginx; set `LUKE_TRUST_PROXY=1` for `httpClientIp` via `X-Forwarded-For`. See [`DEPLOY.md`](./DEPLOY.md).
+
+Positive `maxConn` is a lifetime **accept** budget (then drain + join); `maxConn ≤ 0` accepts until signal/failure. Long-lived SSE still holds one pool worker for the stream lifetime. Full `epoll`/`io_uring` event loops remain optional next ceilings — the worker-pool path is the C10K beachhead.
 
 ## Memory (Luke words)
 

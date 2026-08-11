@@ -90,11 +90,11 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **Mount path:** Argus id hash index (was O(N²)); arena grows by **block chain** (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.
 - **INTEGER:** exact `int64_t` with checked overflow + documented conversion rules ([`INTEGER.md`](./INTEGER.md)).
 - **SSE hardening:** heartbeats (`httpSseComment`), SIGPIPE-safe sends, Node reconnect + idle timeout (browser EventSource still owns reconnect).
-- **Concurrency ceiling:** `httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS`, default 8) plus an **evented accept beachhead** (`O_NONBLOCK` listen + `poll(POLLIN)`). Request body read is still blocking on the accept path — full C10K I/O is still ahead. See [`BUILD_MODE.md`](./BUILD_MODE.md).
+- **Concurrency ceiling:** `httpServe` bounded worker pool + evented accept + **worker-side parse**, HTTP/1.1 keep-alive, timeouts, graceful `SIGTERM`, chunked streaming. TLS via reverse proxy ([`DEPLOY.md`](./DEPLOY.md)). See [`BUILD_MODE.md`](./BUILD_MODE.md).
 - **Live Graph:** `PRAGMA data_version` gate + trigger IVM cache + **NEW/OLD differential triggers** for `id = N` watches + **multi-join recompute IVM** + **causal event log** with `Last-Event-ID` resume + **client scrub UI**. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
 - **LSP beachhead:** `luke LSP` — stdio JSON-RPC diagnostics via `analyzeLukeBuild`.
 - **Backend framework beachhead:** parameterized `dbExecBind` / `dbQueryBind`; `httpMatch` path params; `httpQueryMap` / `httpHeader` / `httpCookie` / `httpSetCookie`; **`std/auth`** (libsodium Argon2id, secure session + CSRF, `REQUIRE LOGIN`, `THE CURRENT USER`, `WATCH … FOR CURRENT USER`). See [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) + [`TaskList.md`](../TaskList.md).
-- Next ceilings: full evented request I/O; true multi-join differential dataflow; server-seq DevTools scrub; Backend 2FA/OAuth/reset + middleware.
+- Next ceilings: optional epoll/io_uring; true multi-join differential dataflow; server-seq DevTools scrub; Backend OAuth/TOTP **interop wrappers** (no invented providers).
 
 ### Phase 3 — Expand from strength
 - Grow the **Live Graph** one tier at a time ([`LIVE_GRAPH.md`](./LIVE_GRAPH.md)): true IVM / differential dataflow next, then distributed time-travel / graph-parallelism as consequences — not separate products.

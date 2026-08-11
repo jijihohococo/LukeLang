@@ -12,6 +12,24 @@ THIS IS FUNCTION httpReply WITH req AS REQUEST, status AS NUMBER, contentType AS
   GIVE BACK __luke_http_reply(req, status, contentType, body)
 END FUNCTION
 
+// Chunked transfer — stream response body without Content-Length.
+THIS IS FUNCTION httpChunkOpen WITH req AS REQUEST, status AS NUMBER, contentType AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_chunk_open(req, status, contentType)
+END FUNCTION
+
+THIS IS FUNCTION httpChunk WITH req AS REQUEST, data AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_chunk(req, data)
+END FUNCTION
+
+THIS IS FUNCTION httpChunkEnd WITH req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_http_chunk_end(req)
+END FUNCTION
+
+// Peer address (or first X-Forwarded-For hop when LUKE_TRUST_PROXY=1).
+THIS IS FUNCTION httpClientIp WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_client_ip(req)
+END FUNCTION
+
 THIS IS FUNCTION httpSseOpen WITH req AS REQUEST GIVES BACK FLAG DO
   GIVE BACK __luke_http_sse_open(req)
 END FUNCTION

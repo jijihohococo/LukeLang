@@ -705,6 +705,13 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_accept")
         return mapCall("luke_http_accept", Ty::ptr("__HttpReq"), true);
       if (callee == "__luke_http_reply") return mapCall("luke_http_reply", Ty::flag(), false);
+      if (callee == "__luke_http_chunk_open")
+        return mapCall("luke_http_chunk_open", Ty::flag(), false);
+      if (callee == "__luke_http_chunk") return mapCall("luke_http_chunk", Ty::flag(), false);
+      if (callee == "__luke_http_chunk_end")
+        return mapCall("luke_http_chunk_end", Ty::flag(), false);
+      if (callee == "__luke_http_client_ip")
+        return mapCall("luke_http_client_ip", Ty::text(), true);
       if (callee == "__luke_http_sse_open") return mapCall("luke_http_sse_open", Ty::flag(), false);
       if (callee == "__luke_http_sse_data") return mapCall("luke_http_sse_data", Ty::flag(), false);
       if (callee == "__luke_http_sse_id") return mapCall("luke_http_sse_id", Ty::flag(), false);

@@ -44,7 +44,7 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 | a11y roles / labels | ✅ | `argus_a11y` defaults + aria-label |
 | Motion polish | ✅ | `SET THE OPACITY OF` · `FADE … OVER ms` (rAF + ease-out) |
 | `luke PUBLISH WEB` | ✅ | alias of browser BUILD + ship checklist |
-| Production stress app | ✅ | `frontend_stress.luke` (100 nodes + `THE CLOCK`) |
+| Production stress app | ✅ | `frontend_stress.luke` (100) · `frontend_pressure.luke` (2500) |
 | Benchmarks / CI matrix | 🟡 | native `ms=` in stress; CI matrix next |
 | Live DevTools UI / time-travel | ⬜ | after Reactive DevTools APIs merge |
 

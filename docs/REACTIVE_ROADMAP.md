@@ -104,10 +104,10 @@ Normative semantics: [`REACTIVE_SPEC.md`](./REACTIVE_SPEC.md)
 
 ---
 
-- Benchmark suite vs full rerender baseline — **1K/10K shipped** ([`BENCHMARKS.md`](./BENCHMARKS.md))
+- Benchmark suite vs full rerender baseline — **1K/10K shipped** ([`BENCHMARKS.md`](./BENCHMARKS.md)); **100K pressure** via `make pressure`
 - One **signature reference app** — **dashboard** (`examples/build/dashboard_*.luke`)
 - WASM/native conformance CI matrix
-- 100K node workload still open
+- 100K node workload — **green** (`examples/build/reactive_pressure.luke`)
 
 ---
 

@@ -10,6 +10,8 @@ Project documentation hub. Canonical long-form docs live under [`../docs/`](../d
 | [02 Frontend: Argus & Hanka](./papers/02-frontend-argus-hanka.md) | Layout + surgical paint, Path A |
 | [03 Live Graph](./papers/03-live-graph.md) | DB row → pixel, IVM, SSE, time-travel |
 | [04 Auth: Secure by Compiler](./papers/04-auth.md) | SECRET / FLOW / LIMIT / REVEAL |
+| [05 Request Pipeline / Middleware](./papers/05-middleware.md) | ROUTES, capabilities, FORM/SCHEMA compile gates |
+| [06 OAuth & Auth Flows](./papers/06-oauth.md) | VERIFY BY OAUTH / FLOW state machines |
 
 Index: [`papers/README.md`](./papers/README.md).
 

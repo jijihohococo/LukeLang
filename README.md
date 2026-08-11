@@ -132,7 +132,7 @@ Full decision record: [`docs/STRATEGY.md`](docs/STRATEGY.md).
 
 ## Docs map
 
-Hub: [`documentations/`](documentations/README.md) · full set: [`docs/`](docs/README.md)
+Hub: [`documentations/`](documentations/README.md) · papers: [`documentations/papers/`](documentations/papers/README.md) · full set: [`docs/`](docs/README.md)
 
 | Doc | For |
 | --- | --- |

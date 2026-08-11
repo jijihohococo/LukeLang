@@ -2868,22 +2868,31 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  {\n";
     o << "    LukeText _luke_watch_last = luke_text(\"\");\n";
     o << "    double _luke_watch_beats = 0;\n";
+    o << "    int64_t _luke_watch_ver = -1;\n";
+    o << "    int64_t _luke_watch_queries = 0;\n";
     o << "    while (_luke_watch_beats < " << beats << ") {\n";
     o << "      _luke_watch_beats = _luke_watch_beats + 1;\n";
-    o << "      LukeText _luke_watch_now = luke_db_query_text(arena, " << cIdent(qd->dbLocal)
+    o << "      int64_t _luke_watch_nowv = luke_db_data_version(" << cIdent(qd->dbLocal) << ");\n";
+    o << "      if (_luke_watch_nowv != _luke_watch_ver) {\n";
+    o << "        _luke_watch_ver = _luke_watch_nowv;\n";
+    o << "        _luke_watch_queries = _luke_watch_queries + 1;\n";
+    o << "        LukeText _luke_watch_now = luke_db_query_text(arena, " << cIdent(qd->dbLocal)
       << ", luke_text(\"" << esc(qd->sql) << "\"));\n";
-    o << "      if (!luke_text_eq(_luke_watch_now, _luke_watch_last)) {\n";
-    o << "        _luke_watch_last = _luke_watch_now;\n";
-    o << "        luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
+    o << "        if (!luke_text_eq(_luke_watch_now, _luke_watch_last)) {\n";
+    o << "          _luke_watch_last = _luke_watch_now;\n";
+    o << "          luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
       << ", _luke_watch_now);\n";
-    o << "        httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now);\n";
-    o << "        luke_speak_text(luke_text_concat(arena, luke_text(\"row=\"), _luke_watch_now));\n";
+    o << "          httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now);\n";
+    o << "          luke_speak_text(luke_text_concat(arena, luke_text(\"row=\"), _luke_watch_now));\n";
+    o << "        }\n";
     o << "      }\n";
     o << "      httpSseComment(arena, " << cIdent(reqName) << ", luke_text(\"cdc\"));\n";
     o << "      double _luke_watch_t0 = argus_now_ms();\n";
     o << "      while ((argus_now_ms() - _luke_watch_t0) < " << everyMs << ") {\n";
     o << "      }\n";
     o << "    }\n";
+    o << "    luke_speak_text(luke_text_concat(arena, luke_text(\"watch_queries=\"), "
+      << "luke_integer_to_text(arena, _luke_watch_queries)));\n";
     o << "  }\n";
     o << "  httpClose(arena, " << cIdent(reqName) << ");\n";
     return;

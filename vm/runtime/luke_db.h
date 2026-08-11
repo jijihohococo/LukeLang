@@ -45,6 +45,11 @@ static inline int luke_db_close(LukeDb *db) {
   return 0;
 }
 
+static inline int64_t luke_db_data_version(LukeDb *db) {
+  (void)db;
+  return 0;
+}
+
 #else /* !__wasi__ */
 
 struct LukeDb {
@@ -136,6 +141,17 @@ static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql
   out[len] = '\0';
   free(buf);
   return luke_text_n(out, len);
+}
+
+/* Cross-connection change detector — increments when any commit modifies the DB file. */
+static inline int64_t luke_db_data_version(LukeDb *db) {
+  if (!db || !db->db) return 0;
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(db->db, "PRAGMA data_version", -1, &stmt, NULL) != SQLITE_OK) return 0;
+  int64_t v = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) v = sqlite3_column_int64(stmt, 0);
+  sqlite3_finalize(stmt);
+  return v;
 }
 
 static inline int luke_db_close(LukeDb *db) {

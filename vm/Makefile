@@ -499,6 +499,7 @@ test-build: build/luke
 	  test "$$(curl -s -m 2 http://127.0.0.1:8803/missing)" = "not found"; \
 	  wait $$(cat /tmp/luke_routes_serve.pid); \
 	  grep -q "routes_serve_done=1" /tmp/luke_routes_serve.log; \
+	  kill $$(cat /tmp/luke_routes_serve.pid) 2>/dev/null || true; \
 	  fuser -k 8803/tcp 2>/dev/null || true
 	@set -e; \
 	  if ./build/luke BUILD ../examples/build/backend_routes_bad_link.luke -o build/backend_routes_bad_link > /tmp/luke_br_bad_link.txt 2>&1; then \

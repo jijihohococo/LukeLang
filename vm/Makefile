@@ -356,6 +356,7 @@ test-build: build/luke
 	@! grep -q "should_not_reach" /tmp/luke_i64_ov.txt
 	./build/luke BUILD ../examples/build/concurrent_server.luke -o build/concurrent_server
 	@grep -q 'luke_http_serve\|luke_http_wrap_' build/concurrent_server.luke.c
+	@grep -q 'LUKE_HTTP_POOL_WORKERS\|luke_http__pool_worker' runtime/luke_net.h
 	@set -e; \
 	  rm -f /tmp/luke_conc_server.pid /tmp/luke_conc_fast.txt /tmp/luke_conc_slow.txt; \
 	  ./build/concurrent_server > /tmp/luke_conc_server.log 2>&1 & echo $$! > /tmp/luke_conc_server.pid; \
@@ -375,13 +376,22 @@ test-build: build/luke
 	@grep -q 'luke_db_data_version' build/live_graph_server.luke.c
 	@grep -q 'luke_db_query_text\|httpSseData' build/live_graph_server.luke.c
 	@grep -q 'luke_ivm_' build/live_graph_server.luke.c
-	@grep -q 'group_concat(name' build/live_graph_server.luke.c
+	@grep -q 'group_concat(name\|NEW.name' build/live_graph_server.luke.c
+	@grep -q 'luke_ivm_log_' build/live_graph_server.luke.c
+	@grep -q 'luke_db_log_append\|luke_http_last_event_id' build/live_graph_server.luke.c
 	@grep -qE 'WATCH user FROM db' ../examples/build/live_graph_server.luke
 	@grep -qE 'PUSH WATCH' ../examples/build/live_graph_server.luke
 	@! grep -qE 'dbQuery|httpSseData|httpSseOpen|REFRESH QUERY' ../examples/build/live_graph_server.luke
 	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/live_graph_client.luke.c
 	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
 	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke
+	./build/luke BUILD ../examples/build/json_integer.luke -o build/json_integer
+	@./build/json_integer | tee /tmp/luke_json_integer.txt | grep -q "json_integer_ok=1"
+	@grep -q "id=9007199254740993" /tmp/luke_json_integer.txt
+	@grep -q '9007199254740993' /tmp/luke_json_integer.txt
+	./build/luke BUILD ../examples/build/syntax_stress.luke -target browser -o build/syntax_stress
+	@grep -q 'Luke Syntax Stress' build/syntax_stress.html
+	@node ../scripts/luke_browser_loader.cjs build/syntax_stress.wasm 2>&1 | tee /tmp/luke_syntax_stress.txt | grep -q "syntax_stress_ok=1"
 	@set -e; \
 	  fuser -k 8798/tcp 2>/dev/null || true; \
 	  rm -f /tmp/luke_live_graph.db /tmp/luke_live_graph.db-wal /tmp/luke_live_graph.db-shm \

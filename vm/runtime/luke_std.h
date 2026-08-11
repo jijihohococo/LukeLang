@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 #if !defined(__wasi__)
 /* popen/pclose for httpGet — need POSIX decls under pedantic C. */
@@ -80,6 +82,7 @@ typedef enum {
   LUKE_JSON_NULL = 0,
   LUKE_JSON_BOOL,
   LUKE_JSON_NUMBER,
+  LUKE_JSON_INTEGER,
   LUKE_JSON_STRING,
   LUKE_JSON_ARRAY,
   LUKE_JSON_OBJECT
@@ -91,6 +94,7 @@ struct LukeJson {
   LukeJsonKind kind;
   int boolean;
   double number;
+  int64_t integer;
   LukeText string;
   LukeJson **items;
   size_t len;
@@ -284,7 +288,7 @@ static inline LukeJson *luke_json_parse_value(LukeJsonParser *p) {
     p->i += 4;
     return luke_json_new(p->a, LUKE_JSON_NULL);
   }
-  /* number */
+  /* number — prefer exact INTEGER when no fraction/exponent and fits int64 */
   size_t start = p->i;
   if (c == '-' ) ++p->i;
   if (p->i >= p->n || !isdigit((unsigned char)p->s[p->i])) {
@@ -292,11 +296,14 @@ static inline LukeJson *luke_json_parse_value(LukeJsonParser *p) {
     return luke_json_new(p->a, LUKE_JSON_NULL);
   }
   while (p->i < p->n && isdigit((unsigned char)p->s[p->i])) ++p->i;
+  int is_int = 1;
   if (p->i < p->n && p->s[p->i] == '.') {
+    is_int = 0;
     ++p->i;
     while (p->i < p->n && isdigit((unsigned char)p->s[p->i])) ++p->i;
   }
   if (p->i < p->n && (p->s[p->i] == 'e' || p->s[p->i] == 'E')) {
+    is_int = 0;
     ++p->i;
     if (p->i < p->n && (p->s[p->i] == '+' || p->s[p->i] == '-')) ++p->i;
     while (p->i < p->n && isdigit((unsigned char)p->s[p->i])) ++p->i;
@@ -306,6 +313,17 @@ static inline LukeJson *luke_json_parse_value(LukeJsonParser *p) {
   if (len >= sizeof(tmp)) len = sizeof(tmp) - 1;
   memcpy(tmp, p->s + start, len);
   tmp[len] = '\0';
+  if (is_int) {
+    char *end = NULL;
+    errno = 0;
+    long long iv = strtoll(tmp, &end, 10);
+    if (errno == 0 && end && *end == '\0' && iv >= LLONG_MIN && iv <= LLONG_MAX) {
+      LukeJson *v = luke_json_new(p->a, LUKE_JSON_INTEGER);
+      v->integer = (int64_t)iv;
+      v->number = (double)iv; /* widen for jsonAsNumber callers */
+      return v;
+    }
+  }
   LukeJson *v = luke_json_new(p->a, LUKE_JSON_NUMBER);
   v->number = atof(tmp);
   return v;
@@ -366,6 +384,14 @@ static inline LukeText luke_json_as_text(LukeArena *a, LukeJson *v) {
   if (v->kind == LUKE_JSON_STRING) return v->string;
   if (v->kind == LUKE_JSON_BOOL) return luke_text(v->boolean ? "true" : "false");
   if (v->kind == LUKE_JSON_NULL) return luke_text("null");
+  if (v->kind == LUKE_JSON_INTEGER) {
+    char buf[64];
+    int k = snprintf(buf, sizeof(buf), "%lld", (long long)v->integer);
+    if (k < 0) k = 0;
+    char *p = (char *)luke_arena_alloc(a, (size_t)k + 1, 1);
+    memcpy(p, buf, (size_t)k + 1);
+    return luke_text_n(p, (size_t)k);
+  }
   if (v->kind == LUKE_JSON_NUMBER) {
     char buf[64];
     int k = snprintf(buf, sizeof(buf), "%.10g", v->number);
@@ -379,8 +405,17 @@ static inline LukeText luke_json_as_text(LukeArena *a, LukeJson *v) {
 
 static inline double luke_json_as_number(LukeJson *v) {
   if (!v) return 0;
+  if (v->kind == LUKE_JSON_INTEGER) return (double)v->integer;
   if (v->kind == LUKE_JSON_NUMBER) return v->number;
   if (v->kind == LUKE_JSON_BOOL) return v->boolean ? 1.0 : 0.0;
+  return 0;
+}
+
+static inline int64_t luke_json_as_integer(LukeJson *v) {
+  if (!v) return 0;
+  if (v->kind == LUKE_JSON_INTEGER) return v->integer;
+  if (v->kind == LUKE_JSON_NUMBER) return luke_number_to_integer(v->number);
+  if (v->kind == LUKE_JSON_BOOL) return v->boolean ? 1 : 0;
   return 0;
 }
 
@@ -388,6 +423,7 @@ static inline int luke_json_as_flag(LukeJson *v) {
   if (!v) return 0;
   if (v->kind == LUKE_JSON_BOOL) return v->boolean;
   if (v->kind == LUKE_JSON_NULL) return 0;
+  if (v->kind == LUKE_JSON_INTEGER) return v->integer != 0;
   if (v->kind == LUKE_JSON_NUMBER) return v->number != 0;
   return 1;
 }
@@ -475,6 +511,12 @@ static inline void luke_json_stringify_into(LukeJsonBuf *b, LukeJson *v) {
     case LUKE_JSON_NUMBER: {
       char tmp[64];
       snprintf(tmp, sizeof(tmp), "%.10g", v->number);
+      luke_json_buf_puts(b, tmp);
+      break;
+    }
+    case LUKE_JSON_INTEGER: {
+      char tmp[64];
+      snprintf(tmp, sizeof(tmp), "%lld", (long long)v->integer);
       luke_json_buf_puts(b, tmp);
       break;
     }

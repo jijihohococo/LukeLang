@@ -90,9 +90,9 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **Mount path:** Argus id hash index (was O(N²)); arena grows by **block chain** (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.
 - **INTEGER:** exact `int64_t` with checked overflow + documented conversion rules ([`INTEGER.md`](./INTEGER.md)).
 - **SSE hardening:** heartbeats (`httpSseComment`), SIGPIPE-safe sends, Node reconnect + idle timeout (browser EventSource still owns reconnect).
-- **Concurrency ceiling (honest):** `httpServe` is thread-per-connection — correct for dozens of clients, not C10K. Next: bounded worker pool / event-driven I/O. See [`BUILD_MODE.md`](./BUILD_MODE.md).
-- **Live Graph tier 3:** `PRAGMA data_version` gates `PUSH WATCH` — SELECT only when the DB file changes; `watch_queries≈2` across 50 beats; external `UPDATE` still → `region=1`. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
-- Next ceilings: richer JSON integer round-trip; worker-pool serve; Live Graph IVM (true incremental views); Backend track expansion; ecosystem / LSP.
+- **Concurrency ceiling:** `httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS`, default 8) with a fixed accept queue — still not C10K/evented I/O, but no longer unbounded thread-per-connection. See [`BUILD_MODE.md`](./BUILD_MODE.md).
+- **Live Graph:** `PRAGMA data_version` gate + trigger IVM cache + **NEW/OLD differential triggers** for `id = N` watches + **causal event log** with `Last-Event-ID` resume. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
+- Next ceilings: evented I/O serve; full multi-join differential dataflow; Backend track expansion; ecosystem / LSP.
 
 ### Phase 3 — Expand from strength
 - Grow the **Live Graph** one tier at a time ([`LIVE_GRAPH.md`](./LIVE_GRAPH.md)): true IVM / differential dataflow next, then distributed time-travel / graph-parallelism as consequences — not separate products.

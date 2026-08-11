@@ -44,4 +44,4 @@ Nail these rules before money / IDs / counters rely on them.
 
 - No arbitrary-precision integers
 - No saturating arithmetic
-- JSON still parses numbers as `double` today (richer JSON integer round-trip is a follow-up)
+- JSON parses whole numbers as `LUKE_JSON_INTEGER` (`int64_t`) when they fit; fractions/exponents stay `NUMBER`. Use `jsonAsInteger` / stringify for exact round-trip past 2⁵³ (`examples/build/json_integer.luke`).

@@ -1,0 +1,103 @@
+// Syntax stress-test — one complex screen in conversational Luke.
+// Compare readability against an equivalent JSX dashboard of similar density.
+// Build: luke BUILD examples/build/syntax_stress.luke -target browser -o build/syntax_stress
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "Luke Syntax Stress"
+
+WEAR STYLE """
+html, body { margin: 0; background: #10140f; color: #f2f7f0; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
+#brand { font-size: 42px; letter-spacing: -0.02em; }
+#eyebrow { opacity: 0.65; font-size: 14px; }
+#metric { font-size: 28px; }
+#note { opacity: 0.75; font-size: 15px; }
+#inbox { font-size: 18px; }
+button { font: inherit; }
+"""
+
+REMEMBER brand AS "LukeLang"
+REMEMBER title AS "Ops board"
+REMEMBER reqs AS NUMBER SET TO 0
+REMEMBER errors AS NUMBER SET TO 0
+REMEMBER selected AS ""
+REMEMBER note AS "Conversational surface. Reactive core. One graph."
+REMEMBER inbox AS LIST
+REMEMBER filter AS "all"
+REMEMBER dirty AS NUMBER SET TO 0
+
+ADD "Ada — deploy green" TO inbox
+ADD "Tom — retry payment" TO inbox
+ADD "Nia — bump quota" TO inbox
+
+BEGIN COLUMN AT 32, 28 SIZE 880, 640 PAD 0 GAP 18
+  SLOT TEXT "eyebrow" SIZE AUTO, 24 SAY "syntax stress · complex screen"
+  SLOT TEXT "brand" SIZE AUTO, 52 SAY "LukeLang"
+  SLOT TEXT "title" SIZE AUTO, 36 SAY "Ops board"
+
+  BEGIN ROW AT 0, 0 SIZE AUTO, 64 PAD 0 GAP 28
+    SLOT TEXT "metric" SIZE AUTO, 40 SAY "reqs: 0"
+    SLOT TEXT "errs" SIZE AUTO, 40 SAY "errors: 0"
+    SLOT BUTTON "tick" SIZE 120, 44 SAY "Tick"
+    SLOT BUTTON "fail" SIZE 120, 44 SAY "Fail"
+  END ROW
+
+  BEGIN ROW AT 0, 0 SIZE AUTO, 48 PAD 0 GAP 12
+    SLOT BUTTON "all" SIZE 88, 40 SAY "All"
+    SLOT BUTTON "open" SIZE 88, 40 SAY "Open"
+    SLOT TEXT "filter" SIZE AUTO, 36 SAY "filter: all"
+  END ROW
+
+  SLOT TEXT "inbox" SIZE AUTO, 120 SAY "inbox…"
+  SLOT TEXT "note" SIZE AUTO, 48 SAY "note"
+  SLOT TEXT "selected" SIZE AUTO, 36 SAY "selected: —"
+  SLOT BUTTON "pick0" SIZE 160, 40 SAY "Pick first"
+  SLOT BUTTON "clear" SIZE 120, 40 SAY "Clear sel"
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND "brand" TO brand
+BIND "title" TO title
+BIND "metric" TO reqs
+BIND "errs" TO errors
+BIND "note" TO note
+BIND "filter" TO filter
+BIND "selected" TO selected
+
+WHEN "tick" IS CLICKED DO
+  INCREASE reqs BY 1
+  CHANGE dirty TO 1
+  CHANGE note TO "Traffic pulsed."
+END WHEN
+
+WHEN "fail" IS CLICKED DO
+  INCREASE errors BY 1
+  CHANGE note TO "Error recorded — region stays surgical."
+END WHEN
+
+WHEN "all" IS CLICKED DO
+  CHANGE filter TO "all"
+END WHEN
+
+WHEN "open" IS CLICKED DO
+  CHANGE filter TO "open"
+END WHEN
+
+WHEN "pick0" IS CLICKED DO
+  CHANGE selected TO ITEM 0 OF inbox
+  CHANGE note TO "Selected from LIST — still one graph."
+END WHEN
+
+WHEN "clear" IS CLICKED DO
+  CHANGE selected TO ""
+END WHEN
+
+WHEN REACTIVE dirty CHANGES DO
+  CHANGE dirty TO 0
+END WHEN REACTIVE
+
+SPEAK "syntax_stress_ok=1"

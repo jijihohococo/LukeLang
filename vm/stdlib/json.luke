@@ -29,6 +29,10 @@ THIS IS FUNCTION jsonAsNumber WITH value AS JSON GIVES BACK NUMBER DO
   GIVE BACK __luke_json_as_number(value)
 END FUNCTION
 
+THIS IS FUNCTION jsonAsInteger WITH value AS JSON GIVES BACK INTEGER DO
+  GIVE BACK __luke_json_as_integer(value)
+END FUNCTION
+
 THIS IS FUNCTION jsonAsFlag WITH value AS JSON GIVES BACK FLAG DO
   GIVE BACK __luke_json_as_flag(value)
 END FUNCTION

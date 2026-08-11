@@ -53,12 +53,17 @@ WHEN REACTIVE user CHANGES DO
   END IF
 END WHEN REACTIVE
 
-WHEN WATCH user IS READY DO
+// Region paint is counted on the BIND flush for `display` (may be deferred
+// when nested under the user-cell flush from SSE).
+WHEN REACTIVE display CHANGES DO
   CHANGE region_now TO THE REGION PAINT COUNT
+  SPEAK "region=" AND region_now
+END WHEN REACTIVE
+
+WHEN WATCH user IS READY DO
   CHANGE events TO events ADD 1
   SPEAK "user=" AND user
   SPEAK "display=" AND display
-  SPEAK "region=" AND region_now
   SPEAK "events=" AND events
   UPDATE "hint" WITH "live — region paints: " AND region_now
 END WHEN

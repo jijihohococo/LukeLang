@@ -50,6 +50,35 @@ static inline int64_t luke_db_data_version(LukeDb *db) {
   return 0;
 }
 
+static inline int64_t luke_db_last_insert_rowid(LukeDb *db) {
+  (void)db;
+  return 0;
+}
+
+static inline int64_t luke_db_query_i64(LukeDb *db, LukeText sql) {
+  (void)db;
+  (void)sql;
+  return 0;
+}
+
+static inline int64_t luke_db_log_append(LukeDb *db, LukeText table, LukeText value) {
+  (void)db;
+  (void)table;
+  (void)value;
+  return 0;
+}
+
+static inline int luke_db_log_replay(LukeArena *a, LukeDb *db, LukeText table, int64_t after_seq,
+                                     void (*fn)(void *, int64_t, LukeText), void *ctx) {
+  (void)a;
+  (void)db;
+  (void)table;
+  (void)after_seq;
+  (void)fn;
+  (void)ctx;
+  return 0;
+}
+
 #else /* !__wasi__ */
 
 struct LukeDb {
@@ -152,6 +181,75 @@ static inline int64_t luke_db_data_version(LukeDb *db) {
   if (sqlite3_step(stmt) == SQLITE_ROW) v = sqlite3_column_int64(stmt, 0);
   sqlite3_finalize(stmt);
   return v;
+}
+
+static inline int64_t luke_db_last_insert_rowid(LukeDb *db) {
+  if (!db || !db->db) return 0;
+  return (int64_t)sqlite3_last_insert_rowid(db->db);
+}
+
+static inline int64_t luke_db_query_i64(LukeDb *db, LukeText sql) {
+  if (!db || !db->db) return 0;
+  char *q = (char *)malloc(sql.len + 1);
+  if (!q) return 0;
+  if (sql.len) memcpy(q, sql.ptr, sql.len);
+  q[sql.len] = '\0';
+  sqlite3_stmt *stmt = NULL;
+  int64_t v = 0;
+  if (sqlite3_prepare_v2(db->db, q, -1, &stmt, NULL) == SQLITE_OK) {
+    if (sqlite3_step(stmt) == SQLITE_ROW) v = sqlite3_column_int64(stmt, 0);
+    sqlite3_finalize(stmt);
+  }
+  free(q);
+  return v;
+}
+
+/* Append a TEXT row to an AUTOINCREMENT log table; returns new seq (rowid). */
+static inline int64_t luke_db_log_append(LukeDb *db, LukeText table, LukeText value) {
+  if (!db || !db->db || table.len == 0) return 0;
+  char sql[192];
+  size_t n = table.len < 120 ? table.len : 120;
+  char tname[128];
+  memcpy(tname, table.ptr, n);
+  tname[n] = '\0';
+  snprintf(sql, sizeof(sql), "INSERT INTO %s(v) VALUES(?)", tname);
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL) != SQLITE_OK) return 0;
+  sqlite3_bind_text(stmt, 1, value.ptr ? value.ptr : "", (int)value.len, SQLITE_TRANSIENT);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) return 0;
+  return (int64_t)sqlite3_last_insert_rowid(db->db);
+}
+
+typedef void (*LukeDbLogReplayFn)(void *ctx, int64_t seq, LukeText value);
+
+static inline int luke_db_log_replay(LukeArena *a, LukeDb *db, LukeText table, int64_t after_seq,
+                                     LukeDbLogReplayFn fn, void *ctx) {
+  if (!db || !db->db || !fn || table.len == 0) return 0;
+  char tname[128];
+  size_t n = table.len < 120 ? table.len : 120;
+  memcpy(tname, table.ptr, n);
+  tname[n] = '\0';
+  char sql[256];
+  snprintf(sql, sizeof(sql), "SELECT seq, v FROM %s WHERE seq > %lld ORDER BY seq", tname,
+           (long long)after_seq);
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL) != SQLITE_OK) return 0;
+  int count = 0;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    int64_t seq = sqlite3_column_int64(stmt, 0);
+    const unsigned char *tv = sqlite3_column_text(stmt, 1);
+    const char *ts = tv ? (const char *)tv : "";
+    size_t len = strlen(ts);
+    char *p = (char *)luke_arena_alloc(a, len + 1, 1);
+    if (len) memcpy(p, ts, len);
+    p[len] = '\0';
+    fn(ctx, seq, luke_text_n(p, len));
+    count++;
+  }
+  sqlite3_finalize(stmt);
+  return count;
 }
 
 static inline int luke_db_close(LukeDb *db) {

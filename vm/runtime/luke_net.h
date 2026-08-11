@@ -27,6 +27,7 @@ typedef struct LukeHttpRequest {
   LukeText path;
   LukeText query;
   LukeText body;
+  LukeText last_event_id; /* SSE Last-Event-ID header (may be empty) */
   int client_fd;
 } LukeHttpRequest;
 
@@ -247,6 +248,40 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     body = luke_http__dup(a, buf + hdr_end, (size_t)need_body);
   }
 
+  /* Scan headers for Last-Event-ID (SSE resume). */
+  LukeText last_event_id = luke_text("");
+  {
+    size_t h = 0;
+    while (h < (size_t)hdr_end) {
+      size_t line0 = h;
+      while (h < (size_t)hdr_end && buf[h] != '\n') ++h;
+      size_t line1 = h;
+      if (h < (size_t)hdr_end) ++h; /* skip \n */
+      /* skip request line */
+      if (line0 == 0) continue;
+      size_t L = line1 > line0 && buf[line1 - 1] == '\r' ? line1 - 1 : line1;
+      if (L <= line0) continue;
+      /* case-insensitive match "Last-Event-ID:" */
+      const char *key = "last-event-id:";
+      size_t klen = 14;
+      if (L - line0 < klen) continue;
+      int match = 1;
+      for (size_t k = 0; k < klen; ++k) {
+        char c = buf[line0 + k];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        if (c != key[k]) {
+          match = 0;
+          break;
+        }
+      }
+      if (!match) continue;
+      size_t v0 = line0 + klen;
+      while (v0 < L && (buf[v0] == ' ' || buf[v0] == '\t')) ++v0;
+      last_event_id = luke_http__dup(a, buf + v0, L - v0);
+      break;
+    }
+  }
+
   free(buf);
 
   LukeHttpRequest *req = (LukeHttpRequest *)luke_arena_alloc(a, sizeof(LukeHttpRequest), 8);
@@ -254,6 +289,7 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
   req->path = path;
   req->query = query;
   req->body = body;
+  req->last_event_id = last_event_id;
   req->client_fd = cfd;
   return req;
 }
@@ -439,7 +475,7 @@ static inline int luke_http_close(LukeHttpRequest *req) {
   return 1;
 }
 
-/* ---------- Concurrent serve (thread-per-connection) ---------- */
+/* ---------- Concurrent serve (bounded worker pool) ---------- */
 
 typedef void (*LukeHttpHandler)(LukeArena *arena, LukeHttpRequest *req);
 
@@ -449,40 +485,85 @@ typedef struct LukeHttpServeJob {
   LukeHttpRequest *req;
 } LukeHttpServeJob;
 
-static inline void *luke_http__serve_worker(void *arg) {
-  LukeHttpServeJob *job = (LukeHttpServeJob *)arg;
-  if (job && job->handler && job->arena && job->req) job->handler(job->arena, job->req);
-  if (job) {
-    if (job->req && job->req->client_fd >= 0) {
-      close(job->req->client_fd);
-      job->req->client_fd = -1;
+#ifndef LUKE_HTTP_POOL_WORKERS
+#define LUKE_HTTP_POOL_WORKERS 8
+#endif
+#ifndef LUKE_HTTP_POOL_QUEUE
+#define LUKE_HTTP_POOL_QUEUE 64
+#endif
+
+typedef struct LukeHttpPool {
+  pthread_mutex_t mu;
+  pthread_cond_t not_empty;
+  pthread_cond_t not_full;
+  LukeHttpServeJob *q[LUKE_HTTP_POOL_QUEUE];
+  int head;
+  int len;
+  int stop;
+  LukeHttpHandler handler;
+} LukeHttpPool;
+
+static inline void *luke_http__pool_worker(void *arg) {
+  LukeHttpPool *pool = (LukeHttpPool *)arg;
+  for (;;) {
+    pthread_mutex_lock(&pool->mu);
+    while (pool->len == 0 && !pool->stop) pthread_cond_wait(&pool->not_empty, &pool->mu);
+    if (pool->len == 0 && pool->stop) {
+      pthread_mutex_unlock(&pool->mu);
+      break;
     }
-    if (job->arena) {
-      luke_arena_free(job->arena);
-      free(job->arena);
+    LukeHttpServeJob *job = pool->q[pool->head];
+    pool->head = (pool->head + 1) % LUKE_HTTP_POOL_QUEUE;
+    pool->len--;
+    pthread_cond_signal(&pool->not_full);
+    pthread_mutex_unlock(&pool->mu);
+
+    if (job && job->handler && job->arena && job->req) job->handler(job->arena, job->req);
+    if (job) {
+      if (job->req && job->req->client_fd >= 0) {
+        close(job->req->client_fd);
+        job->req->client_fd = -1;
+      }
+      if (job->arena) {
+        luke_arena_free(job->arena);
+        free(job->arena);
+      }
+      free(job);
     }
-    free(job);
   }
   return NULL;
 }
 
 /* Accept up to max_conn connections (max_conn<=0 → forever until accept fails).
- * Thread-per-connection: correct for dozens of clients, not C10K.
- * Positive max_conn = lifetime accept budget, then join workers before return.
- * max_conn <= 0 detaches workers with no bound (dev only).
- * Each connection runs `handler` on its own thread with a private arena. */
+ * Bounded worker pool (LUKE_HTTP_POOL_WORKERS): accept path enqueues; workers run handlers.
+ * Positive max_conn = lifetime accept budget, then drain queue and join workers.
+ * Each connection runs `handler` with a private arena. */
 static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
   if (!s || s->fd < 0 || !handler) return 0;
   int left = (int)max_conn;
   int unlimited = left <= 0;
   int started = 0;
-  pthread_t *ths = NULL;
-  int th_cap = 0;
-  if (!unlimited) {
-    th_cap = left;
-    ths = (pthread_t *)calloc((size_t)th_cap, sizeof(pthread_t));
-    if (!ths) return 0;
+
+  LukeHttpPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.handler = handler;
+  pthread_mutex_init(&pool.mu, NULL);
+  pthread_cond_init(&pool.not_empty, NULL);
+  pthread_cond_init(&pool.not_full, NULL);
+
+  pthread_t workers[LUKE_HTTP_POOL_WORKERS];
+  for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) {
+    if (pthread_create(&workers[i], NULL, luke_http__pool_worker, &pool) != 0) {
+      pool.stop = 1;
+      pthread_cond_broadcast(&pool.not_empty);
+      for (int j = 0; j < i; ++j) pthread_join(workers[j], NULL);
+      pthread_mutex_destroy(&pool.mu);
+      pthread_cond_destroy(&pool.not_empty);
+      pthread_cond_destroy(&pool.not_full);
+      return 0;
+    }
   }
+
   while (unlimited || left > 0) {
     LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
     if (!arena) break;
@@ -504,8 +585,12 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
     job->handler = handler;
     job->arena = arena;
     job->req = req;
-    pthread_t th;
-    if (pthread_create(&th, NULL, luke_http__serve_worker, job) != 0) {
+
+    pthread_mutex_lock(&pool.mu);
+    while (pool.len >= LUKE_HTTP_POOL_QUEUE && !pool.stop)
+      pthread_cond_wait(&pool.not_full, &pool.mu);
+    if (pool.stop) {
+      pthread_mutex_unlock(&pool.mu);
       close(req->client_fd);
       req->client_fd = -1;
       luke_arena_free(arena);
@@ -513,18 +598,24 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
       free(job);
       break;
     }
-    if (unlimited) {
-      pthread_detach(th);
-    } else {
-      ths[started] = th;
-    }
+    int slot = (pool.head + pool.len) % LUKE_HTTP_POOL_QUEUE;
+    pool.q[slot] = job;
+    pool.len++;
+    pthread_cond_signal(&pool.not_empty);
+    pthread_mutex_unlock(&pool.mu);
+
     started++;
     if (!unlimited) left--;
   }
-  if (ths) {
-    for (int i = 0; i < started; ++i) pthread_join(ths[i], NULL);
-    free(ths);
-  }
+
+  pthread_mutex_lock(&pool.mu);
+  pool.stop = 1;
+  pthread_cond_broadcast(&pool.not_empty);
+  pthread_mutex_unlock(&pool.mu);
+  for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) pthread_join(workers[i], NULL);
+  pthread_mutex_destroy(&pool.mu);
+  pthread_cond_destroy(&pool.not_empty);
+  pthread_cond_destroy(&pool.not_full);
   return started > 0 ? 1 : 0;
 }
 
@@ -544,6 +635,10 @@ static inline LukeText luke_http_query(LukeHttpRequest *req) {
 
 static inline LukeText luke_http_body(LukeHttpRequest *req) {
   return req ? req->body : luke_text("");
+}
+
+static inline LukeText luke_http_last_event_id(LukeHttpRequest *req) {
+  return req ? req->last_event_id : luke_text("");
 }
 
 #ifdef __cplusplus

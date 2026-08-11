@@ -330,7 +330,11 @@ struct BC {
     std::string baseTable; /* when set, WATCH … FROM db WHERE … can IVM-cache via triggers */
     std::string ivmTable;   /* maintained view table */
     std::string ivmValueSql; /* scalar SELECT that produces the maintained TEXT v */
+    std::string eventLog;    /* append-only causal log for SSE resume / time-travel */
+    std::string wherePred;
+    std::string ivmColExpr;
     bool hasIvm = false;
+    bool hasDiffTrig = false; /* NEW/OLD differential triggers (simple id= pred) */
     size_t line = 0;
   };
   std::vector<RxQueryDef> rxQueryDefs;
@@ -527,6 +531,8 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_json_has") return mapCall("luke_json_has", Ty::flag(), false);
       if (callee == "__luke_json_as_text") return mapCall("luke_json_as_text", Ty::text(), true);
       if (callee == "__luke_json_as_number") return mapCall("luke_json_as_number", Ty::num(), false);
+      if (callee == "__luke_json_as_integer")
+        return mapCall("luke_json_as_integer", Ty::integer(), false);
       if (callee == "__luke_json_as_flag") return mapCall("luke_json_as_flag", Ty::flag(), false);
       if (callee == "__luke_json_stringify") return mapCall("luke_json_stringify", Ty::text(), true);
       if (callee == "__luke_json_is_null") return mapCall("luke_json_is_null", Ty::flag(), false);
@@ -546,6 +552,8 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_method") return mapCall("luke_http_method", Ty::text(), false);
       if (callee == "__luke_http_query") return mapCall("luke_http_query", Ty::text(), false);
       if (callee == "__luke_http_body") return mapCall("luke_http_body", Ty::text(), false);
+      if (callee == "__luke_http_last_event_id")
+        return mapCall("luke_http_last_event_id", Ty::text(), false);
       if (callee == "__luke_db_open") return mapCall("luke_db_open", Ty::ptr("__Db"), true);
       if (callee == "__luke_db_exec") return mapCall("luke_db_exec", Ty::flag(), false);
       if (callee == "__luke_db_query") return mapCall("luke_db_query_text", Ty::text(), true);
@@ -1459,7 +1467,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.rxCells[key] = true;
       {
         auto sql = unquoteText(trim(qrest.substr(qAs + 4)));
-        bc.rxQueryDefs.push_back({key, dbName, sql, sql, "", "", "", false, line});
+        BC::RxQueryDef qd;
+        qd.name = key;
+        qd.dbLocal = dbName;
+        qd.sql = sql;
+        qd.readSql = sql;
+        qd.line = line;
+        bc.rxQueryDefs.push_back(qd);
       }
       o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
       o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
@@ -2803,42 +2817,110 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         return out;
       };
 
-        std::string readSql = sql;
+      std::string readSql = sql;
       std::string ivmTable;
-        std::string ivmValueSql;
+      std::string ivmValueSql;
+      std::string eventLog;
       if (!baseTable.empty()) {
-        /* Tier 4-ish: incremental view maintenance cache. */
+        /* Differential IVM cache + causal event log for SSE resume. */
         ivmTable = "luke_ivm_" + sanitizeSqlIdent(key);
+        eventLog = "luke_ivm_log_" + sanitizeSqlIdent(key);
         readSql = "SELECT v FROM " + ivmTable + " WHERE k = 1";
-          ivmValueSql = "SELECT group_concat(" + ivmColExpr + ", '\\n') FROM " + baseTable +
-                         " WHERE " + wherePred;
-          bc.rxQueryDefs.push_back({key, dbName, sql, readSql, baseTable, ivmTable, ivmValueSql, true, line});
+        ivmValueSql = "SELECT group_concat(" + ivmColExpr + ", '\\n') FROM " + baseTable +
+                       " WHERE " + wherePred;
 
-        /* Setup maintained view + triggers (runs once at server start). */
+        /* Prefer NEW/OLD differential triggers for simple `id = N` + single column. */
+        bool simpleCol = !ivmColExpr.empty() && ivmColExpr.find(' ') == std::string::npos &&
+                         ivmColExpr.find('(') == std::string::npos;
+        auto wU = toUpper(wherePred);
+        bool idPred = wU.find("ID =") != std::string::npos || wU.find("ID=") != std::string::npos;
+        bool hasDiff = simpleCol && idPred;
+
+        BC::RxQueryDef qd;
+        qd.name = key;
+        qd.dbLocal = dbName;
+        qd.sql = sql;
+        qd.readSql = readSql;
+        qd.baseTable = baseTable;
+        qd.ivmTable = ivmTable;
+        qd.ivmValueSql = ivmValueSql;
+        qd.eventLog = eventLog;
+        qd.wherePred = wherePred;
+        qd.ivmColExpr = ivmColExpr;
+        qd.hasIvm = true;
+        qd.hasDiffTrig = hasDiff;
+        qd.line = line;
+        bc.rxQueryDefs.push_back(qd);
+
         std::string createTbl = "CREATE TABLE IF NOT EXISTS " + ivmTable +
                                  "(k INTEGER PRIMARY KEY, v TEXT)";
+        std::string createLog = "CREATE TABLE IF NOT EXISTS " + eventLog +
+                                 "(seq INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT)";
         std::string initRow = "INSERT OR REPLACE INTO " + ivmTable +
-                                "(k, v) VALUES(1, (" + ivmValueSql + "))";
-        std::string aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                             "_ai AFTER INSERT ON " + baseTable + " BEGIN " +
-                             "INSERT OR REPLACE INTO " + ivmTable +
-                               "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
-        std::string auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                             "_au AFTER UPDATE ON " + baseTable + " BEGIN " +
-                             "INSERT OR REPLACE INTO " + ivmTable +
-                               "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
-        std::string adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                             "_ad AFTER DELETE ON " + baseTable + " BEGIN " +
-                             "INSERT OR REPLACE INTO " + ivmTable +
-                               "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+                               "(k, v) VALUES(1, (" + ivmValueSql + "))";
+        std::string aiTrig, auTrig, adTrig;
+        if (hasDiff) {
+          /* Rewrite bare `id` → NEW.id / OLD.id for trigger WHEN clauses. */
+          auto rewriteId = [](const std::string &pred, const char *qual) {
+            std::string out;
+            for (size_t i = 0; i < pred.size();) {
+              if ((i == 0 || !isalnum((unsigned char)pred[i - 1])) &&
+                  (pred[i] == 'i' || pred[i] == 'I') && i + 1 < pred.size() &&
+                  (pred[i + 1] == 'd' || pred[i + 1] == 'D') &&
+                  (i + 2 >= pred.size() || !isalnum((unsigned char)pred[i + 2]))) {
+                out += qual;
+                out += "id";
+                i += 2;
+              } else {
+                out.push_back(pred[i]);
+                ++i;
+              }
+            }
+            return out;
+          };
+          std::string whenNew = rewriteId(wherePred, "NEW.");
+          std::string whenOld = rewriteId(wherePred, "OLD.");
+          aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                   "_ai AFTER INSERT ON " + baseTable + " WHEN " + whenNew +
+                   " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, NEW." +
+                   ivmColExpr + "); END";
+          auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                   "_au AFTER UPDATE ON " + baseTable + " WHEN " + whenNew +
+                   " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, NEW." +
+                   ivmColExpr + "); END";
+          adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                   "_ad AFTER DELETE ON " + baseTable + " WHEN " + whenOld +
+                   " BEGIN INSERT OR REPLACE INTO " + ivmTable +
+                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+        } else {
+          aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                   "_ai AFTER INSERT ON " + baseTable + " BEGIN " +
+                   "INSERT OR REPLACE INTO " + ivmTable +
+                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                   "_au AFTER UPDATE ON " + baseTable + " BEGIN " +
+                   "INSERT OR REPLACE INTO " + ivmTable +
+                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                   "_ad AFTER DELETE ON " + baseTable + " BEGIN " +
+                   "INSERT OR REPLACE INTO " + ivmTable +
+                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+        }
 
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(aiTrig) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(auTrig) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(adTrig) << "\"));\n";
       } else {
-        bc.rxQueryDefs.push_back({key, dbName, sql, sql, "", "", "", false, line});
+        BC::RxQueryDef qd;
+        qd.name = key;
+        qd.dbLocal = dbName;
+        qd.sql = sql;
+        qd.readSql = sql;
+        qd.line = line;
+        bc.rxQueryDefs.push_back(qd);
       }
 
       bc.usesRx = true;
@@ -2959,6 +3041,47 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "    int64_t _luke_watch_ver = -1;\n";
     o << "    int64_t _luke_watch_queries = 0;\n";
     o << "    int64_t _luke_watch_seq = 0;\n";
+    if (!qd->eventLog.empty()) {
+      /* Distributed time-travel: resume from Last-Event-ID via causal event log. */
+      o << "    {\n";
+      o << "      LukeText _luke_lei = luke_http_last_event_id(" << cIdent(reqName) << ");\n";
+      o << "      int64_t _luke_resume = 0;\n";
+      o << "      if (_luke_lei.len > 0) {\n";
+      o << "        char _luke_leib[64]; size_t _luke_lein = _luke_lei.len < 63 ? _luke_lei.len : 63;\n";
+      o << "        memcpy(_luke_leib, _luke_lei.ptr, _luke_lein); _luke_leib[_luke_lein] = 0;\n";
+      o << "        _luke_resume = (int64_t)atoll(_luke_leib);\n";
+      o << "      }\n";
+      o << "      char _luke_sqlbuf[256];\n";
+      o << "      snprintf(_luke_sqlbuf, sizeof(_luke_sqlbuf),\n";
+      o << "        \"SELECT seq, v FROM " << esc(qd->eventLog)
+        << " WHERE seq > %lld ORDER BY seq\", (long long)_luke_resume);\n";
+      o << "      sqlite3_stmt *_luke_st = NULL;\n";
+      o << "      if (" << cIdent(qd->dbLocal) << " && " << cIdent(qd->dbLocal)
+        << "->db &&\n";
+      o << "          sqlite3_prepare_v2(" << cIdent(qd->dbLocal)
+        << "->db, _luke_sqlbuf, -1, &_luke_st, NULL) == SQLITE_OK) {\n";
+      o << "        while (sqlite3_step(_luke_st) == SQLITE_ROW) {\n";
+      o << "          int64_t _luke_s = sqlite3_column_int64(_luke_st, 0);\n";
+      o << "          const unsigned char *_luke_tv = sqlite3_column_text(_luke_st, 1);\n";
+      o << "          const char *_luke_ts = _luke_tv ? (const char *)_luke_tv : \"\";\n";
+      o << "          size_t _luke_tl = strlen(_luke_ts);\n";
+      o << "          char *_luke_tp = (char *)luke_arena_alloc(arena, _luke_tl + 1, 1);\n";
+      o << "          if (_luke_tl) memcpy(_luke_tp, _luke_ts, _luke_tl);\n";
+      o << "          _luke_tp[_luke_tl] = 0;\n";
+      o << "          LukeText _luke_v = luke_text_n(_luke_tp, _luke_tl);\n";
+      o << "          _luke_watch_last = _luke_v;\n";
+      o << "          _luke_watch_seq = _luke_s;\n";
+      o << "          luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
+        << ", _luke_v);\n";
+      o << "          httpSseId(arena, " << cIdent(reqName)
+        << ", luke_integer_to_text(arena, _luke_s));\n";
+      o << "          httpSseData(arena, " << cIdent(reqName) << ", _luke_v);\n";
+      o << "          luke_speak_text(luke_text_concat(arena, luke_text(\"replay=\"), _luke_v));\n";
+      o << "        }\n";
+      o << "        sqlite3_finalize(_luke_st);\n";
+      o << "      }\n";
+      o << "    }\n";
+    }
     o << "    while (_luke_watch_beats < " << beats << ") {\n";
     o << "      _luke_watch_beats = _luke_watch_beats + 1;\n";
     o << "      int64_t _luke_watch_nowv = luke_db_data_version(" << cIdent(qd->dbLocal) << ");\n";
@@ -2974,7 +3097,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "          _luke_watch_last = _luke_watch_now;\n";
     o << "          luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
       << ", _luke_watch_now);\n";
-    o << "          _luke_watch_seq = _luke_watch_seq + 1;\n";
+    if (!qd->eventLog.empty()) {
+      o << "          _luke_watch_seq = luke_db_log_append(" << cIdent(qd->dbLocal)
+        << ", luke_text(\"" << esc(qd->eventLog) << "\"), _luke_watch_now);\n";
+    } else {
+      o << "          _luke_watch_seq = _luke_watch_seq + 1;\n";
+    }
     o << "          httpSseId(arena, " << cIdent(reqName)
       << ", luke_integer_to_text(arena, _luke_watch_seq));\n";
     o << "          httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now);\n";
@@ -4360,6 +4488,8 @@ std::string emit(BC &bc) {
       bc.rxGraphVar = "g";
       o << "static void _luke_rx_when_" << w.seq << "(LukeRxGraph *g, void *ctx) {\n";
       o << "  (void)ctx;\n";
+      o << "  LukeArena *arena = g->arena;\n";
+      o << "  (void)arena;\n";
       auto watchCell = resolveRxCellName(bc.rxCells, bc.rxEntityStack, w.cellName);
       if (!bc.rxCells.count(watchCell)) {
         bc.fail(w.line, "WHEN REACTIVE needs a REMEMBER'd cell — not '" + w.cellName + "'");

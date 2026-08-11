@@ -1,6 +1,6 @@
 # Live Graph — DB row → pixel
 
-> **Status:** tier 3 green (`data_version`-gated CDC)  
+> **Status:** differential IVM + causal resume green  
 > **Thesis:** In LukeLang you never fetch, never invalidate, never subscribe, never diff. You declare dependencies once, and change finds its own way from row to pixel.
 
 ## One graph
@@ -12,21 +12,18 @@ DB row  →  server cell  →  [wire]  →  client cell  →  pixel
 
 Mainstream stacks glue three separate worlds (DB / server / client) with queries, cache invalidation, refetching, subscriptions, and diffing. LukeLang's reactive engine already answers "when X changes, what needs to update?" inside the client. The Live Graph answers it for the **whole stack**.
 
-## Tier 3 (this release)
-
-**New:** `PUSH WATCH` only re-runs the SELECT when SQLite `PRAGMA data_version` changes — idle beats are free. Still catches out-of-process `UPDATE`s. Measurement: `watch_queries` stays tiny (≈2 for seed+Ada across 50 beats), not one query per beat.
+## This release
 
 | Piece | Role |
 | --- | --- |
-| `luke_db_data_version` | Cross-connection change detector |
-| Gated `PUSH WATCH` | Query only on version bump; SSE push only on value change |
-| Tier 2 surface | Unchanged — `WATCH … FROM db` + client `WATCH`/`BIND` |
+| `WATCH … FROM db WHERE …` | Declares a DB-backed reactive cell |
+| Trigger IVM cache (`luke_ivm_*`) | Maintained TEXT snapshot |
+| **Differential triggers** | For simple `id = N` + single column: `NEW.col` / `OLD` — no full `group_concat` rewrite |
+| Causal log (`luke_ivm_log_*`) | Append on each pushed change |
+| `Last-Event-ID` | Parsed on the request; `PUSH WATCH` replays log rows with `seq > id` |
+| `data_version` gate | Idle beats skip even the cache read |
 
-Acceptance: external `UPDATE` → `name=Ada` → `region=1` **and** `watch_queries<=4` in the server log.
-
-## Tier 2 (prior)
-
-Server declares `WATCH user FROM db WHERE "id = 1"`; `PUSH WATCH` streams CDC. No hand-rolled `dbQuery` / SSE loop in app code.
+Acceptance: external `UPDATE` → pixel with `region=1`; reconnect resumes from the log; `watch_queries` stays bounded.
 
 ### War cry surface
 
@@ -41,20 +38,22 @@ BIND "name" TO user
 WATCH user FROM "http://127.0.0.1:8798/watch"
 ```
 
-## Spike 1 (prior)
+## Prior tiers
 
-Client `WATCH` + server hand-rolled poll — proved DB write → pixel with `region=1`.
+1. Spike — hand-rolled CDC poll → `region=1`
+2. Server `WATCH` / `PUSH WATCH` surface
+3. `PRAGMA data_version` gate
+4. Trigger-maintained cache (`group_concat`)
+5. **Now:** NEW/OLD differential triggers + event-log resume
 
-## What falls out of the same graph (roadmap)
+## What falls out next
 
-1. **Free multicore parallelism** — independent reactions have no shared deps; the compiler can schedule them without races.
-2. **Time-travel the distributed app** — causality is recorded on both sides; rewind and "why did this pixel change?" back to the DB write.
-3. **The database as a reactive cell** — true incremental view maintenance / differential dataflow (tier 3 is the cheap gate; full IVM is next).
-
-Prove one tier at a time. Distributed concerns (reconnect, ordering, partial failure) get a real story before claiming production Live Graph.
+1. **Free multicore parallelism** — independent reactions; compiler schedules without races
+2. **Richer distributed time-travel UI** — scrub by log seq across server+client (log + resume shipped; DevTools scrub still open)
+3. **Multi-join differential dataflow** — beyond single-table `id = N` shapes
 
 ## Related
 
 - [`STRATEGY.md`](./STRATEGY.md) — identity and phased plan
 - [`REACTIVE.md`](./REACTIVE.md) — client reactive engine
-- Spike A push: `SUBSCRIBE` + SSE (`subscribe_cell_*`) — the wire primitive client `WATCH` sits on
+- Spike A push: `SUBSCRIBE` + SSE — the wire primitive client `WATCH` sits on

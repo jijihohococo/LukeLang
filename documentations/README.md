@@ -1,6 +1,17 @@
 # LukeLang — Documentations
 
-Project documentation hub. Canonical long-form docs live under [`../docs/`](../docs/).
+Project documentation hub. Canonical long-form docs live under [`../docs/`](../docs/). Technical papers live under [`papers/`](./papers/README.md).
+
+## Technical papers
+
+| Paper | Subject |
+|-------|---------|
+| [01 Reactive Engine](./papers/01-reactive-engine.md) | Cells, dependency graph, scheduler, memory, tooling, perf |
+| [02 Frontend: Argus & Hanka](./papers/02-frontend-argus-hanka.md) | Layout + surgical paint, Path A |
+| [03 Live Graph](./papers/03-live-graph.md) | DB row → pixel, IVM, SSE, time-travel |
+| [04 Auth: Secure by Compiler](./papers/04-auth.md) | SECRET / FLOW / LIMIT / REVEAL |
+
+Index: [`papers/README.md`](./papers/README.md).
 
 ## Start here
 
@@ -26,6 +37,7 @@ Project documentation hub. Canonical long-form docs live under [`../docs/`](../d
 |-----|------|
 | [Auth](../docs/AUTH.md) | SECRET / FLOW / LIMIT / REVEAL / audit |
 | [Backend Roadmap](../docs/BACKEND_ROADMAP.md) | HTTP / session / framework gaps |
+| [Paper 04 — Auth](./papers/04-auth.md) | Long-form secure-by-compiler |
 
 ## Reactive & Live Graph
 
@@ -35,6 +47,8 @@ Project documentation hub. Canonical long-form docs live under [`../docs/`](../d
 | [Reactive](../docs/REACTIVE.md) | Client reactive engine |
 | [Reactive Spec](../docs/REACTIVE_SPEC.md) | Scheduler contract |
 | [Reactive Roadmap](../docs/REACTIVE_ROADMAP.md) | Production milestones |
+| [Paper 01 — Reactive](./papers/01-reactive-engine.md) | Long-form engine paper |
+| [Paper 03 — Live Graph](./papers/03-live-graph.md) | Long-form Live Graph paper |
 
 ## Frontend / render
 
@@ -46,6 +60,7 @@ Project documentation hub. Canonical long-form docs live under [`../docs/`](../d
 | [Production Web](../docs/PRODUCTION_WEB.md) | Forms, routes, deploy |
 | [Rendering Engine](../docs/RENDERING_ENGINE.md) | Engine notes |
 | [Layout Engine](../docs/LAYOUT_ENGINE.md) | Layout notes |
+| [Paper 02 — Frontend](./papers/02-frontend-argus-hanka.md) | Long-form Argus/Hanka paper |
 
 ## Other
 

@@ -16,7 +16,7 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ make python3 libsqlite3-dev curl ca-certificates
+          sudo apt-get install -y g++ make python3 libsqlite3-dev libsodium-dev curl ca-certificates
 
       - uses: actions/setup-node@v4
         with:

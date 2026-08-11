@@ -346,6 +346,12 @@ test-build: build/luke
 	@grep -q "cents=200" /tmp/luke_integer.txt
 	@grep -q "id=9007199254740994" /tmp/luke_integer.txt
 	@grep -q "rx=15" /tmp/luke_integer.txt
+	./build/luke BUILD ../examples/build/expr_parens_ok.luke -o build/expr_parens_ok
+	@./build/expr_parens_ok | tee /tmp/luke_expr_parens.txt | grep -q "expr_parens_ok=1"
+	@grep -q 'elapsed=4' /tmp/luke_expr_parens.txt
+	@grep -q 'nested=14' /tmp/luke_expr_parens.txt
+	@test -f include/luke_ast.hpp
+	@grep -q 'stripOuterParens\|AstKind' src/build_c.cpp include/luke_ast.hpp
 	./build/luke BUILD ../examples/build/integer_rules.luke -o build/integer_rules
 	@grep -q 'luke_i64_mul\|luke_i64_add' build/integer_rules.luke.c
 	@./build/integer_rules | tee /tmp/luke_integer_rules.txt | grep -q "mix=1"

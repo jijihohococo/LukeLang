@@ -52,9 +52,9 @@ See [`docs/STRATEGY.md`](./docs/STRATEGY.md), [`docs/FRONTEND_ROADMAP.md`](./doc
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Replace line-based parser with real lexer/AST | ⬜ | parenthesis / nested expr ceiling (e.g. `(t1 SUBTRACT t0)`) |
+| Replace line-based parser with real lexer/AST | 🟡 | expr parens + outside-paren op scan; `luke_ast.hpp` IR beachhead — stmts still line-based |
 | Error UX / stack traces at scale | ⬜ | |
-| `standard_library.md` drift (e.g. “File ops not yet implemented”) | ⬜ | Build `std/files` exists — doc must catch up |
+| `standard_library.md` drift (e.g. “File ops not yet implemented”) | ✅ | docs now match Build `std/files` |
 
 See [`docs/BUILD_MODE.md`](./docs/BUILD_MODE.md).
 
@@ -100,4 +100,4 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## Active focus
 
-**Now:** Backend Framework — routes/form/migrate beachheads shipped; deepen auth interop (textbook OAuth/TOTP wrappers only) + IVM-linked scrub.
+**Now:** Language fundamentals — expression AST/parens beachhead; then true Live Graph differential (vision claim); one deployed app; tooling rides the AST. Do not dilute with mobile/game/registry-first.

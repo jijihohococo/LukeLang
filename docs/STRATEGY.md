@@ -104,6 +104,26 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 
 ---
 
+## Scorecard vs vision (do not dilute)
+
+External “A+ language” checklists are useful **evidence bars**. They do **not** redefine Luke’s identity.
+
+| Scorecard item | Changes the vision? | Role |
+| --- | --- | --- |
+| Lexer + AST (expr → then stmts) | **No** — removes a ceiling | Foundation so Live Graph / reactive code can be written without parser traps |
+| True multi-join differential IVM | **No** — *is* the vision claim | Execution truth for DB→pixel |
+| Live Graph wire hardening | **No** — defends the claim | Backpressure / heartbeat / SSE auth |
+| WASM in default CI | **No** | Evidence the browser target is real |
+| LSP / formatter / debugger | **No** | Adoption after AST exists |
+| Package registry + signing | **No** (later) | Earn after one proven app |
+| One deployed Luke app | **No** — *is* the wall sentence | Proof, not a new product idea |
+| Doc↔test honesty CI | **No** | Keeps claims credible |
+| Un-parking mobile / game | **Would dilute** | Stay parked |
+
+**Order that serves the wall sentence:** (1) expression AST / paren ceiling, (2) true differential Live Graph, (3) one deployed app, (4) tooling that reads the AST, (5) registry/site. Ambition stays on reactive full-stack — not a general-purpose scoreboard chase.
+
+---
+
 ## Parked tracks (earn them later)
 
 These are **not cancelled** — they are sequenced after the beachhead is won, and are picked up from a position of strength (real users, a proven reactive core).

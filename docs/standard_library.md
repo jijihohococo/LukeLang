@@ -29,9 +29,19 @@ SET name TO ASK USER FOR "What is your name? "
 name = ASK USER FOR "What is your name? "
 ```
 
-## 2. File System
+## 2. File System — Build `IMPORT std/files`
 
-File system operations are not yet implemented in the standard library but are planned for a future release.
+File ops ship in Build via `std/files` (native; arena-backed TEXT):
+
+```luke
+IMPORT std/files
+
+MY NAME IS body SET TO ASK readFile WITH "hello.txt"
+ASK writeFile WITH "out.txt", "hello from Luke"
+```
+
+See `vm/stdlib/files.luke` and `examples/build/modules.luke`.
+Play/VM scripting file APIs remain a separate track.
 
 ## 3. Utility Functions
 
@@ -53,4 +63,4 @@ LET num BE 3.14
 SPEAK ROUND(num) // Outputs: 3
 ```
 
-This standard library is continuously evolving. For the latest updates, please refer to the official LukeLang repository.
+This standard library is continuously evolving. Prefer Build `vm/stdlib/*.luke` and `make test` over stale prose — see [`BUILD_MODE.md`](./BUILD_MODE.md).

@@ -1,4 +1,5 @@
 #include "luke/build.hpp"
+#include "luke_ast.hpp"
 
 #include <cctype>
 #include <cerrno>
@@ -125,6 +126,7 @@ size_t findOutsideQuotes(const std::string &orig, const std::string &origUpper,
                          const std::string &needleUpper) {
   bool q = false;
   char qc = 0;
+  int depth = 0; /* skip operators nested inside ( … ) — expr AST beachhead */
   for (size_t i = 0; i + needleUpper.size() <= origUpper.size(); ++i) {
     char c = orig[i];
     if (q) {
@@ -136,9 +138,48 @@ size_t findOutsideQuotes(const std::string &orig, const std::string &origUpper,
       qc = c;
       continue;
     }
+    if (c == '(') {
+      ++depth;
+      continue;
+    }
+    if (c == ')') {
+      if (depth > 0) --depth;
+      continue;
+    }
+    if (depth != 0) continue;
     if (origUpper.compare(i, needleUpper.size(), needleUpper) == 0) return i;
   }
   return std::string::npos;
+}
+
+/* Strip one layer of matching outer parentheses: "(t1 SUBTRACT t0)" → "t1 SUBTRACT t0". */
+std::string stripOuterParens(std::string e) {
+  e = trim(e);
+  for (;;) {
+    if (e.size() < 2 || e.front() != '(') return e;
+    int depth = 0;
+    bool wrapped = false;
+    for (size_t i = 0; i < e.size(); ++i) {
+      char c = e[i];
+      if (c == '"' || c == '\'') {
+        char qc = c;
+        ++i;
+        while (i < e.size() && e[i] != qc) ++i;
+        continue;
+      }
+      if (c == '(') ++depth;
+      else if (c == ')') {
+        --depth;
+        if (depth == 0) {
+          wrapped = (i + 1 == e.size());
+          break;
+        }
+        if (depth < 0) return e;
+      }
+    }
+    if (!wrapped || depth != 0) return e;
+    e = trim(e.substr(1, e.size() - 2));
+  }
 }
 
 std::string unquoteText(std::string s) {
@@ -947,7 +988,7 @@ Expr BC::primary(std::string e, size_t line) {
 }
 
 Expr BC::expr(std::string e, size_t line) {
-  e = trim(e);
+  e = stripOuterParens(trim(e));
   if (e.empty()) return {"0", Ty::num()};
 
   {

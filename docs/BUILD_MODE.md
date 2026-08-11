@@ -311,4 +311,4 @@ That is why today’s surface is productive and conversational — and also why 
 | One line ≈ one stmt | Soft line-wrap / continued statements |
 | Hand-rolled expression splits (`AND`, `ADD`, …) | Precedence tables / proper AST |
 
-**Roadmap:** keep shipping features on the line-based front-end until a shared tokenize → AST → Build-IR path can replace `stmt(...)` without breaking demos. Do not reintroduce a parallel JS parser.
+**Roadmap:** expression parentheses + paren-aware op scan shipped (`stripOuterParens`, `luke_ast.hpp` IR stub). Next: tokenize → Pratt expr AST → lower into Build codegen; then statement AST so LSP/formatter share one tree. Do not reintroduce a parallel JS parser.

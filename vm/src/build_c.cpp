@@ -326,6 +326,10 @@ struct BC {
     std::string name;
     std::string dbLocal;
     std::string sql;
+    std::string readSql;   /* sql used to read the current cell value */
+    std::string baseTable; /* when set, WATCH … FROM db WHERE … can IVM-cache via triggers */
+    std::string ivmTable;   /* maintained view table */
+    bool hasIvm = false;
     size_t line = 0;
   };
   std::vector<RxQueryDef> rxQueryDefs;
@@ -1452,7 +1456,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.rxCellTy[key] = Ty::text();
       if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
       bc.rxCells[key] = true;
-      bc.rxQueryDefs.push_back({key, dbName, unquoteText(trim(qrest.substr(qAs + 4))), line});
+      {
+        auto sql = unquoteText(trim(qrest.substr(qAs + 4)));
+        bc.rxQueryDefs.push_back({key, dbName, sql, sql, "", "", false, line});
+      }
       o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
       o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
         << cIdent(dbName) << ", " << sqlE.code << ");\n";
@@ -2731,6 +2738,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         return;
       }
       std::string sql;
+      std::string baseTable;
       if (asPos != std::string::npos) {
         auto sqlRaw = trim(after.substr(asPos + 4));
         sql = unquoteText(sqlRaw);
@@ -2746,6 +2754,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         }
         std::string table = cellName;
         if (table.empty() || table.back() != 's') table += "s";
+        baseTable = table;
         sql = "SELECT name FROM " + table + " WHERE " + pred;
       }
       if (sql.empty()) {
@@ -2753,15 +2762,61 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         return;
       }
       std::string key = rxScopedCellName(bc.rxEntityStack, cellName);
+      auto sanitizeSqlIdent = [&](const std::string &s) -> std::string {
+        std::string out;
+        for (char c : s) {
+          if (isalnum((unsigned char)c) || c == '_')
+            out.push_back(c);
+          else
+            out.push_back('_');
+        }
+        if (out.empty()) out = "x";
+        return out;
+      };
+
+      std::string readSql = sql;
+      std::string ivmTable;
+      if (!baseTable.empty()) {
+        /* Tier 4-ish: incremental view maintenance cache. */
+        ivmTable = "luke_ivm_" + sanitizeSqlIdent(key);
+        readSql = "SELECT v FROM " + ivmTable + " WHERE k = 1";
+        bc.rxQueryDefs.push_back({key, dbName, sql, readSql, baseTable, ivmTable, true, line});
+
+        /* Setup maintained view + triggers (runs once at server start). */
+        std::string createTbl = "CREATE TABLE IF NOT EXISTS " + ivmTable +
+                                 "(k INTEGER PRIMARY KEY, v TEXT)";
+        std::string initRow = "INSERT OR REPLACE INTO " + ivmTable +
+                               "(k, v) VALUES(1, (" + sql + "))";
+        std::string aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                             "_ai AFTER INSERT ON " + baseTable + " BEGIN " +
+                             "INSERT OR REPLACE INTO " + ivmTable +
+                             "(k, v) VALUES(1, (" + sql + ")); END";
+        std::string auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                             "_au AFTER UPDATE ON " + baseTable + " BEGIN " +
+                             "INSERT OR REPLACE INTO " + ivmTable +
+                             "(k, v) VALUES(1, (" + sql + ")); END";
+        std::string adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                             "_ad AFTER DELETE ON " + baseTable + " BEGIN " +
+                             "INSERT OR REPLACE INTO " + ivmTable +
+                             "(k, v) VALUES(1, (" + sql + ")); END";
+
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(aiTrig) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(auTrig) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(adTrig) << "\"));\n";
+      } else {
+        bc.rxQueryDefs.push_back({key, dbName, sql, sql, "", "", false, line});
+      }
+
       bc.usesRx = true;
       bc.locals[cellName] = Ty::text();
       bc.rxCellTy[key] = Ty::text();
       if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
       bc.rxCells[key] = true;
-      bc.rxQueryDefs.push_back({key, dbName, sql, line});
       o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
       o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
-        << cIdent(dbName) << ", luke_text(\"" << esc(sql) << "\"));\n";
+        << cIdent(dbName) << ", luke_text(\"" << esc(readSql) << "\"));\n";
       return;
     }
 
@@ -2878,8 +2933,11 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "      if (_luke_watch_nowv != _luke_watch_ver) {\n";
     o << "        _luke_watch_ver = _luke_watch_nowv;\n";
     o << "        _luke_watch_queries = _luke_watch_queries + 1;\n";
-    o << "        LukeText _luke_watch_now = luke_db_query_text(arena, " << cIdent(qd->dbLocal)
-      << ", luke_text(\"" << esc(qd->sql) << "\"));\n";
+    {
+      auto querySql = qd->hasIvm ? qd->readSql : qd->sql;
+      o << "        LukeText _luke_watch_now = luke_db_query_text(arena, " << cIdent(qd->dbLocal)
+        << ", luke_text(\"" << esc(querySql) << "\"));\n";
+    }
     o << "        if (!luke_text_eq(_luke_watch_now, _luke_watch_last)) {\n";
     o << "          _luke_watch_last = _luke_watch_now;\n";
     o << "          luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)

@@ -18,7 +18,8 @@ Change finds its own way — from database row to screen pixel.
 [Live Graph](docs/LIVE_GRAPH.md) ·
 [Build Mode](docs/BUILD_MODE.md) ·
 [Reactive](docs/REACTIVE.md) ·
-[Getting Started](docs/getting_started.md)
+[Getting Started](docs/getting_started.md) ·
+[Documentations](documentations/README.md)
 
 </div>
 

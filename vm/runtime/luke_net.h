@@ -53,6 +53,89 @@ static inline LukeText luke_http__dup(LukeArena *a, const char *s, size_t n) {
 #if defined(__wasi__)
 
 static inline LukeHttpServer *luke_http_listen(LukeArena *a, double port) {
+  (void)a;
+  (void)port;
+  return NULL;
+}
+
+static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s) {
+  (void)a;
+  (void)s;
+  return NULL;
+}
+
+static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText content_type,
+                                  LukeText body) {
+  (void)req;
+  (void)status;
+  (void)content_type;
+  (void)body;
+  return 0;
+}
+
+static inline int luke_http_sse_open(LukeHttpRequest *req) {
+  (void)req;
+  return 0;
+}
+
+static inline int luke_http_sse_data(LukeHttpRequest *req, LukeText data) {
+  (void)req;
+  (void)data;
+  return 0;
+}
+
+static inline int luke_http_sse_id(LukeHttpRequest *req, LukeText id) {
+  (void)req;
+  (void)id;
+  return 0;
+}
+
+static inline int luke_http_sse_comment(LukeHttpRequest *req, LukeText comment) {
+  (void)req;
+  (void)comment;
+  return 0;
+}
+
+static inline int luke_http_close(LukeHttpRequest *req) {
+  (void)req;
+  return 0;
+}
+
+static inline int luke_http_serve(LukeHttpServer *s, void (*handler)(LukeArena *, LukeHttpRequest *),
+                                  double max_conn) {
+  (void)s;
+  (void)handler;
+  (void)max_conn;
+  return 0;
+}
+
+static inline int luke_http_chunk_open(LukeHttpRequest *req, double status, LukeText content_type) {
+  (void)req;
+  (void)status;
+  (void)content_type;
+  return 0;
+}
+
+static inline int luke_http_chunk(LukeHttpRequest *req, LukeText data) {
+  (void)req;
+  (void)data;
+  return 0;
+}
+
+static inline int luke_http_chunk_end(LukeHttpRequest *req) {
+  (void)req;
+  return 0;
+}
+
+static inline LukeText luke_http_client_ip(LukeArena *a, LukeHttpRequest *req) {
+  (void)a;
+  (void)req;
+  return luke_text("");
+}
+
+#else /* !__wasi__ */
+
+static inline LukeHttpServer *luke_http_listen(LukeArena *a, double port) {
   int p = (int)port;
   if (p <= 0 || p > 65535) return NULL;
 

@@ -378,31 +378,7 @@ test-build: build/luke
 	  rm -f /tmp/luke_c10k.pid /tmp/luke_c10k.log /tmp/luke_c10k_out.txt; \
 	  ./build/http_c10k_ok > /tmp/luke_c10k.log 2>&1 & echo $$! > /tmp/luke_c10k.pid; \
 	  sleep 0.35; \
-	  python3 -c 'import socket,re; s=socket.create_connection(("127.0.0.1",8804),2); \
-s.sendall(b"GET /ka HTTP/1.1\r\nHost: x\r\nConnection: keep-alive\r\n\r\n"); \
-buf=b""; \
-\
-def read_one(sock):\
-  global buf;\
-  while b"\r\n\r\n" not in buf: buf+=sock.recv(4096);\
-  h,rest=buf.split(b"\r\n\r\n",1); \
-  m=re.search(br"Content-Length:\s*(\d+)",h,re.I); \
-  n=int(m.group(1)) if m else 0; \
-  while len(rest)<n: rest+=sock.recv(4096); \
-  body,rest=rest[:n],rest[n:]; buf=rest; return h,body; \
-h1,b1=read_one(s); \
-assert b"Connection: keep-alive" in h1 or b"keep-alive" in h1.lower(); \
-assert b1.startswith(b"ka="); \
-s.sendall(b"GET /chunk HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"); \
-buf2=b""; \
-while b"0\r\n\r\n" not in buf2: \
-  chunk=s.recv(4096); \
-  if not chunk: break; \
-  buf2+=chunk; \
-assert b"Transfer-Encoding: chunked" in buf2; \
-assert b"hello " in buf2 and b"chunked" in buf2; \
-s.close(); \
-open("/tmp/luke_c10k_out.txt","w").write("ka_chunk_ok")'; \
+	  python3 ../scripts/luke_c10k_probe.py; \
 	  grep -q ka_chunk_ok /tmp/luke_c10k_out.txt; \
 	  wait $$(cat /tmp/luke_c10k.pid); \
 	  grep -q "c10k_done=1" /tmp/luke_c10k.log; \

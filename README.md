@@ -136,6 +136,8 @@ Hub: [`documentations/`](documentations/README.md) · papers: [`documentations/p
 | [`getting_started.md`](docs/getting_started.md) | First program |
 | [`FRONTEND_ROADMAP.md`](docs/FRONTEND_ROADMAP.md) | Argus / Hanka path |
 | [`AUTH.md`](docs/AUTH.md) | Auth as language / secure by compiler |
+| [`BACKEND_ROADMAP.md`](docs/BACKEND_ROADMAP.md) | HTTP framework / routes / migrations |
+| [`DEPLOY.md`](docs/DEPLOY.md) | TLS via reverse proxy, C10K knobs |
 | [`LEGACY.md`](docs/LEGACY.md) | Removed JS emitters |
 
 ---

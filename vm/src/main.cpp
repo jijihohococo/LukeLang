@@ -28,6 +28,7 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " PKG lock                   Write luke.lock from luke_modules/\n"
       << "  " << argv0 << " PUBLISH WEB <file.luke>    Build browser dist (html+wasm+fonts)\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
+      << "  " << argv0 << " LSP                        Stdio language server (diagnostics)\n"
       << "\n"
       << "Build options:\n"
       << "  -o <path>                       output binary / wasm / browser stem\n"
@@ -586,6 +587,11 @@ int main(int argc, char **argv) {
       std::cerr << "Wrote " << outPath << "\n";
     }
     return ir.ok ? 0 : 2;
+  }
+
+  if (cmd == "LSP") {
+    auto opt = makeBuildOptions(".", "native");
+    return luke::runLspStdio(opt);
   }
 
   if (cmd == "PKG" || cmd == "PACKAGE") {

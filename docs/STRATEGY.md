@@ -90,9 +90,10 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **Mount path:** Argus id hash index (was O(N²)); arena grows by **block chain** (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.
 - **INTEGER:** exact `int64_t` with checked overflow + documented conversion rules ([`INTEGER.md`](./INTEGER.md)).
 - **SSE hardening:** heartbeats (`httpSseComment`), SIGPIPE-safe sends, Node reconnect + idle timeout (browser EventSource still owns reconnect).
-- **Concurrency ceiling:** `httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS`, default 8) with a fixed accept queue — still not C10K/evented I/O, but no longer unbounded thread-per-connection. See [`BUILD_MODE.md`](./BUILD_MODE.md).
-- **Live Graph:** `PRAGMA data_version` gate + trigger IVM cache + **NEW/OLD differential triggers** for `id = N` watches + **causal event log** with `Last-Event-ID` resume. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
-- Next ceilings: evented I/O serve; full multi-join differential dataflow; Backend track expansion; ecosystem / LSP.
+- **Concurrency ceiling:** `httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS`, default 8) plus an **evented accept beachhead** (`O_NONBLOCK` listen + `poll(POLLIN)`). Request body read is still blocking on the accept path — full C10K I/O is still ahead. See [`BUILD_MODE.md`](./BUILD_MODE.md).
+- **Live Graph:** `PRAGMA data_version` gate + trigger IVM cache + **NEW/OLD differential triggers** for `id = N` watches + **multi-join recompute IVM** + **causal event log** with `Last-Event-ID` resume + **client scrub UI**. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
+- **LSP beachhead:** `luke LSP` — stdio JSON-RPC diagnostics via `analyzeLukeBuild`.
+- Next ceilings: full evented request I/O; true multi-join differential dataflow; server-seq DevTools scrub; Backend track expansion.
 
 ### Phase 3 — Expand from strength
 - Grow the **Live Graph** one tier at a time ([`LIVE_GRAPH.md`](./LIVE_GRAPH.md)): true IVM / differential dataflow next, then distributed time-travel / graph-parallelism as consequences — not separate products.

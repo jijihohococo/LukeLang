@@ -61,4 +61,7 @@ std::string softenBuildSurfaceForPlay(const std::string &expanded);
 
 BuildResult analyzeLukeBuild(const std::string &source, const BuildOptions &options = {});
 
+/* Minimal stdio JSON-RPC language server (diagnostics beachhead). */
+int runLspStdio(const BuildOptions &baseOpts = {});
+
 }  // namespace luke

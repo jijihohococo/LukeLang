@@ -13,6 +13,7 @@ luke BUILD examples/build/hello.luke              # Build — native binary, no 
 luke BUILD examples/build/hello.luke -o hello
 luke BUILD examples/build/hello_wasm.luke -target wasm -o hello.wasm
 luke BUILD examples/build/hello_browser.luke -target browser -o hello_web
+luke LSP                                          # stdio JSON-RPC diagnostics beachhead
 # run wasm (WASI): node scripts/run_wasi.cjs hello.wasm
 # run browser wasm headless: node scripts/luke_browser_loader.cjs hello_web.wasm
 # or open hello_web.html in a browser
@@ -178,7 +179,7 @@ Inference (v0):
 
 ### Backend concurrency ceiling
 
-`httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS` default 8, queue 64): accept enqueues; workers run handlers with private arenas. Positive `maxConn` is a lifetime accept budget (then drain + join); `maxConn ≤ 0` accepts until failure. Request parse still happens on the accept path (a slow client can stall accepts). Long-lived SSE holds one pool worker for the life of the stream. True C10K still wants event-driven I/O — listed as a next ceiling.
+`httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS` default 8, queue 64): accept enqueues; workers run handlers with private arenas. The listen socket is **non-blocking** and the accept loop **`poll`s for `POLLIN`** (250 ms) before `accept` — an evented-accept beachhead, not a busy spin. Positive `maxConn` is a lifetime accept budget (then drain + join); `maxConn ≤ 0` accepts until failure. Request parse still happens on the accept path (a slow client can stall accepts). Long-lived SSE holds one pool worker for the life of the stream. Full evented request I/O remains a next ceiling.
 
 ## Memory (Luke words)
 

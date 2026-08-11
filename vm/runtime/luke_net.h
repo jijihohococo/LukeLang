@@ -8,7 +8,9 @@
 #if !defined(__wasi__)
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -536,6 +538,7 @@ static inline void *luke_http__pool_worker(void *arg) {
 
 /* Accept up to max_conn connections (max_conn<=0 → forever until accept fails).
  * Bounded worker pool (LUKE_HTTP_POOL_WORKERS): accept path enqueues; workers run handlers.
+ * Evented accept beachhead: listen fd is O_NONBLOCK + poll(POLLIN) before accept.
  * Positive max_conn = lifetime accept budget, then drain queue and join workers.
  * Each connection runs `handler` with a private arena. */
 static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
@@ -543,6 +546,12 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
   int left = (int)max_conn;
   int unlimited = left <= 0;
   int started = 0;
+
+  /* Evented accept: non-blocking listen + poll readiness. */
+  {
+    int fl = fcntl(s->fd, F_GETFL, 0);
+    if (fl >= 0) fcntl(s->fd, F_SETFL, fl | O_NONBLOCK);
+  }
 
   LukeHttpPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -565,6 +574,18 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
   }
 
   while (unlimited || left > 0) {
+    struct pollfd pfd;
+    pfd.fd = s->fd;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    int pr = poll(&pfd, 1, 250); /* 250ms — evented wait, not spinning accept */
+    if (pr < 0) {
+      if (errno == EINTR) continue;
+      break;
+    }
+    if (pr == 0) continue; /* timeout — keep waiting for budget / next client */
+    if (!(pfd.revents & POLLIN)) continue;
+
     LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
     if (!arena) break;
     luke_arena_init(arena, 1u << 16);
@@ -572,6 +593,7 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
     if (!req) {
       luke_arena_free(arena);
       free(arena);
+      if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
       break;
     }
     LukeHttpServeJob *job = (LukeHttpServeJob *)calloc(1, sizeof(LukeHttpServeJob));

@@ -10,6 +10,7 @@ SRCS := \
 	src/vm.cpp \
 	src/compiler.cpp \
 	src/build_c.cpp \
+	src/lsp.cpp \
 	src/main.cpp
 
 OBJS := $(SRCS:src/%.cpp=build/%.o)
@@ -385,6 +386,17 @@ test-build: build/luke
 	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/live_graph_client.luke.c
 	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
 	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke
+	@grep -q 'poll(\|O_NONBLOCK' runtime/luke_net.h
+	./build/luke BUILD ../examples/build/live_graph_join.luke -o build/live_graph_join
+	@./build/live_graph_join | tee /tmp/luke_live_graph_join.txt | grep -q "join_ivm_ok=1"
+	@grep -q "v0=Ada · Engineer" /tmp/luke_live_graph_join.txt
+	@grep -q "v1=Ada Lovelace · Founder" /tmp/luke_live_graph_join.txt
+	@grep -q 'luke_ivm_card_t1_\|luke_ivm_card_t2_' build/live_graph_join.luke.c
+	./build/luke BUILD ../examples/build/live_graph_scrub.luke -target browser -o build/live_graph_scrub
+	@grep -q '◀ Back\|Forward ▶\|Live' build/live_graph_scrub.html
+	@node ../scripts/luke_browser_loader.cjs build/live_graph_scrub.wasm 2>&1 | tee /tmp/luke_live_graph_scrub.txt | grep -q "scrub_ok=1"
+	@grep -q 'luke_rx_list_add\|luke_list_get' build/live_graph_scrub.luke.c
+	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"THIS IS NOT VALID LUKE\n"}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"publishDiagnostics" in out and b"Unsupported Build statement" in out and b"lukelang" in out'
 	./build/luke BUILD ../examples/build/json_integer.luke -o build/json_integer
 	@./build/json_integer | tee /tmp/luke_json_integer.txt | grep -q "json_integer_ok=1"
 	@grep -q "id=9007199254740993" /tmp/luke_json_integer.txt

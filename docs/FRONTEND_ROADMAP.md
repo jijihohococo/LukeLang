@@ -46,7 +46,7 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 | `luke PUBLISH WEB` | ✅ | alias of browser BUILD + ship checklist |
 | Production stress app | ✅ | `frontend_stress.luke` (100) · `frontend_pressure.luke` (2500) |
 | Benchmarks / CI matrix | 🟡 | native `ms=` in stress; CI matrix next |
-| Live DevTools UI / time-travel | ⬜ | after Reactive DevTools APIs merge |
+| Live DevTools UI / time-travel | ✅ beachhead | client scrub (`live_graph_scrub.luke`); server-seq scrub still open |
 
 ---
 

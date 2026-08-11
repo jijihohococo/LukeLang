@@ -1,0 +1,35 @@
+// Multi-join IVM — WATCH a JOIN; triggers on both tables recompute the cache.
+// Build: luke BUILD examples/build/live_graph_join.luke -o build/live_graph_join
+
+IMPORT std/sqlite
+IMPORT std/argus
+
+SPEAK "join_ivm start"
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph_join.db"
+ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS profiles"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS users"
+ASK dbExec WITH db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)"
+ASK dbExec WITH db, "CREATE TABLE profiles(user_id INTEGER PRIMARY KEY, title TEXT)"
+ASK dbExec WITH db, "INSERT INTO users(id, name) VALUES(1, 'Ada')"
+ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(1, 'Engineer')"
+
+WATCH card FROM db AS "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.id = 1"
+
+MY NAME IS v0 AS TEXT SET TO card
+SPEAK "v0=" AND v0
+
+ASK dbExec WITH db, "UPDATE profiles SET title = 'Founder' WHERE user_id = 1"
+ASK dbExec WITH db, "UPDATE users SET name = 'Ada Lovelace' WHERE id = 1"
+
+// Refresh from maintained IVM cache (same path PUSH WATCH uses).
+REFRESH QUERY card
+MY NAME IS v1 AS TEXT SET TO card
+SPEAK "v1=" AND v1
+
+MAKE SURE v0 EQUALS "Ada · Engineer"
+MAKE SURE v1 EQUALS "Ada Lovelace · Founder"
+
+ASK dbClose WITH db
+SPEAK "join_ivm_ok=1"

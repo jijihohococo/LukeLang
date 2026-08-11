@@ -327,7 +327,8 @@ struct BC {
     std::string dbLocal;
     std::string sql;
     std::string readSql;   /* sql used to read the current cell value */
-    std::string baseTable; /* when set, WATCH … FROM db WHERE … can IVM-cache via triggers */
+    std::string baseTable; /* primary table for triggers */
+    std::string baseTable2; /* optional second table for JOIN IVM */
     std::string ivmTable;   /* maintained view table */
     std::string ivmValueSql; /* scalar SELECT that produces the maintained TEXT v */
     std::string eventLog;    /* append-only causal log for SSE resume / time-travel */
@@ -335,6 +336,7 @@ struct BC {
     std::string ivmColExpr;
     bool hasIvm = false;
     bool hasDiffTrig = false; /* NEW/OLD differential triggers (simple id= pred) */
+    bool hasJoin = false;
     size_t line = 0;
   };
   std::vector<RxQueryDef> rxQueryDefs;
@@ -2006,7 +2008,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     }
     bc.usesRx = true;
     o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(qname) << ", "
-      << cIdent(qd->dbLocal) << ", luke_text(\"" << esc(qd->sql) << "\"));\n";
+      << cIdent(qd->dbLocal) << ", luke_text(\"" << esc(qd->readSql.empty() ? qd->sql : qd->readSql)
+      << "\"));\n";
     return;
   }
   if (startsWithCI(text, "START TIMELINE ") || startsWithCI(text, "RUN TIMELINE ")) {
@@ -2754,35 +2757,63 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       }
       std::string sql;
       std::string baseTable;
+      std::string baseTable2;
       std::string wherePred; /* only set for IVM-capable shapes */
       std::string ivmColExpr = "name";
+      bool hasJoin = false;
       if (asPos != std::string::npos) {
         auto sqlRaw = trim(after.substr(asPos + 4));
         sql = unquoteText(sqlRaw);
         if (sql.empty()) sql = sqlRaw;
 
-        /* Attempt IVM extraction for simple shapes:
+        /* IVM extraction:
          *   SELECT <col> FROM <table> WHERE <pred>
-         * Triggers can only be attached to <table>, so we intentionally keep this narrow. */
+         *   SELECT <col> FROM <t1> [AS] <a> JOIN <t2> [AS] <b> ON … WHERE <pred>
+         */
         auto sU = toUpper(sql);
         size_t selPos = sU.find("SELECT ");
         size_t fromPos2 = sU.find(" FROM ");
         size_t wherePos2 = sU.find(" WHERE ");
+        size_t joinPos = sU.find(" JOIN ");
+        if (joinPos == std::string::npos) joinPos = sU.find(" INNER JOIN ");
         if (selPos != std::string::npos && fromPos2 != std::string::npos &&
             wherePos2 != std::string::npos && fromPos2 > selPos && wherePos2 > fromPos2) {
           auto selExpr = trim(sql.substr(selPos + 7, fromPos2 - (selPos + 7)));
-          auto tblExpr = trim(sql.substr(fromPos2 + 6, wherePos2 - (fromPos2 + 6)));
           auto predExpr = trim(sql.substr(wherePos2 + 7));
-          /* Strip trailing semicolon, if present. */
           if (!predExpr.empty() && predExpr.back() == ';') predExpr.pop_back();
 
-          /* Restrict to a single base table token so triggers are sane. */
-          bool baseOk = !tblExpr.empty() && tblExpr.find(' ') == std::string::npos &&
-                         tblExpr.find('\t') == std::string::npos && tblExpr.find('.') == std::string::npos;
-          if (baseOk) {
-            baseTable = tblExpr;
-            wherePred = predExpr;
-            ivmColExpr = selExpr;
+          if (joinPos != std::string::npos && joinPos > fromPos2 && joinPos < wherePos2) {
+            /* Two-table JOIN — attach recompute triggers on both base tables. */
+            auto fromClause = trim(sql.substr(fromPos2 + 6, joinPos - (fromPos2 + 6)));
+            size_t joinKwLen = (sU.compare(joinPos, 12, " INNER JOIN ") == 0) ? 12 : 6;
+            auto afterJoin = trim(sql.substr(joinPos + joinKwLen, wherePos2 - (joinPos + joinKwLen)));
+            /* First token of fromClause / afterJoin is the table name (ignore alias). */
+            auto firstTok = [](const std::string &s) {
+              size_t i = 0;
+              while (i < s.size() && !isspace((unsigned char)s[i])) ++i;
+              return trim(s.substr(0, i));
+            };
+            auto t1 = firstTok(fromClause);
+            auto t2 = firstTok(afterJoin);
+            /* Strip ON … from t2 if firstTok grabbed nothing useful — afterJoin is "profiles p ON …" */
+            if (!t1.empty() && !t2.empty() && t1.find('.') == std::string::npos &&
+                t2.find('.') == std::string::npos) {
+              baseTable = t1;
+              baseTable2 = t2;
+              wherePred = predExpr;
+              ivmColExpr = selExpr;
+              hasJoin = true;
+            }
+          } else {
+            auto tblExpr = trim(sql.substr(fromPos2 + 6, wherePos2 - (fromPos2 + 6)));
+            bool baseOk = !tblExpr.empty() && tblExpr.find(' ') == std::string::npos &&
+                           tblExpr.find('\t') == std::string::npos &&
+                           tblExpr.find('.') == std::string::npos;
+            if (baseOk) {
+              baseTable = tblExpr;
+              wherePred = predExpr;
+              ivmColExpr = selExpr;
+            }
           }
         }
       } else {
@@ -2826,12 +2857,19 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         ivmTable = "luke_ivm_" + sanitizeSqlIdent(key);
         eventLog = "luke_ivm_log_" + sanitizeSqlIdent(key);
         readSql = "SELECT v FROM " + ivmTable + " WHERE k = 1";
-        ivmValueSql = "SELECT group_concat(" + ivmColExpr + ", '\\n') FROM " + baseTable +
-                       " WHERE " + wherePred;
+        if (hasJoin) {
+          /* Keep the original JOIN SELECT as the maintained scalar. */
+          ivmValueSql = sql;
+        } else {
+          ivmValueSql = "SELECT group_concat(" + ivmColExpr + ", '\\n') FROM " + baseTable +
+                         " WHERE " + wherePred;
+        }
 
-        /* Prefer NEW/OLD differential triggers for simple `id = N` + single column. */
-        bool simpleCol = !ivmColExpr.empty() && ivmColExpr.find(' ') == std::string::npos &&
-                         ivmColExpr.find('(') == std::string::npos;
+        /* Prefer NEW/OLD differential triggers for simple single-table `id = N`. */
+        bool simpleCol = !hasJoin && !ivmColExpr.empty() &&
+                         ivmColExpr.find(' ') == std::string::npos &&
+                         ivmColExpr.find('(') == std::string::npos &&
+                         ivmColExpr.find('.') == std::string::npos;
         auto wU = toUpper(wherePred);
         bool idPred = wU.find("ID =") != std::string::npos || wU.find("ID=") != std::string::npos;
         bool hasDiff = simpleCol && idPred;
@@ -2842,6 +2880,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         qd.sql = sql;
         qd.readSql = readSql;
         qd.baseTable = baseTable;
+        qd.baseTable2 = baseTable2;
         qd.ivmTable = ivmTable;
         qd.ivmValueSql = ivmValueSql;
         qd.eventLog = eventLog;
@@ -2849,6 +2888,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         qd.ivmColExpr = ivmColExpr;
         qd.hasIvm = true;
         qd.hasDiffTrig = hasDiff;
+        qd.hasJoin = hasJoin;
         qd.line = line;
         bc.rxQueryDefs.push_back(qd);
 
@@ -2858,7 +2898,29 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
                                  "(seq INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT)";
         std::string initRow = "INSERT OR REPLACE INTO " + ivmTable +
                                "(k, v) VALUES(1, (" + ivmValueSql + "))";
-        std::string aiTrig, auTrig, adTrig;
+
+        auto emitRecomputeTrigs = [&](const std::string &table, const std::string &suffix) {
+          std::string ai = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_ai AFTER INSERT ON " + table + " BEGIN " +
+                           "INSERT OR REPLACE INTO " + ivmTable +
+                           "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          std::string au = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_au AFTER UPDATE ON " + table + " BEGIN " +
+                           "INSERT OR REPLACE INTO " + ivmTable +
+                           "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          std::string ad = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_ad AFTER DELETE ON " + table + " BEGIN " +
+                           "INSERT OR REPLACE INTO " + ivmTable +
+                           "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ai) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(au) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
+        };
+
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";
+        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
+
         if (hasDiff) {
           /* Rewrite bare `id` → NEW.id / OLD.id for trigger WHEN clauses. */
           auto rewriteId = [](const std::string &pred, const char *qual) {
@@ -2880,39 +2942,27 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           };
           std::string whenNew = rewriteId(wherePred, "NEW.");
           std::string whenOld = rewriteId(wherePred, "OLD.");
-          aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                   "_ai AFTER INSERT ON " + baseTable + " WHEN " + whenNew +
-                   " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, NEW." +
-                   ivmColExpr + "); END";
-          auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                   "_au AFTER UPDATE ON " + baseTable + " WHEN " + whenNew +
-                   " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, NEW." +
-                   ivmColExpr + "); END";
-          adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                   "_ad AFTER DELETE ON " + baseTable + " WHEN " + whenOld +
-                   " BEGIN INSERT OR REPLACE INTO " + ivmTable +
-                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          std::string aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                               "_ai AFTER INSERT ON " + baseTable + " WHEN " + whenNew +
+                               " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, NEW." +
+                               ivmColExpr + "); END";
+          std::string auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                               "_au AFTER UPDATE ON " + baseTable + " WHEN " + whenNew +
+                               " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, NEW." +
+                               ivmColExpr + "); END";
+          std::string adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
+                               "_ad AFTER DELETE ON " + baseTable + " WHEN " + whenOld +
+                               " BEGIN INSERT OR REPLACE INTO " + ivmTable +
+                               "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(aiTrig) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(auTrig) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(adTrig) << "\"));\n";
+        } else if (hasJoin) {
+          emitRecomputeTrigs(baseTable, "_t1");
+          emitRecomputeTrigs(baseTable2, "_t2");
         } else {
-          aiTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                   "_ai AFTER INSERT ON " + baseTable + " BEGIN " +
-                   "INSERT OR REPLACE INTO " + ivmTable +
-                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
-          auTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                   "_au AFTER UPDATE ON " + baseTable + " BEGIN " +
-                   "INSERT OR REPLACE INTO " + ivmTable +
-                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
-          adTrig = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
-                   "_ad AFTER DELETE ON " + baseTable + " BEGIN " +
-                   "INSERT OR REPLACE INTO " + ivmTable +
-                   "(k, v) VALUES(1, (" + ivmValueSql + ")); END";
+          emitRecomputeTrigs(baseTable, "");
         }
-
-        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
-        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";
-        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
-        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(aiTrig) << "\"));\n";
-        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(auTrig) << "\"));\n";
-        o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(adTrig) << "\"));\n";
       } else {
         BC::RxQueryDef qd;
         qd.name = key;

@@ -27,5 +27,5 @@ LINK TO "/user/7"
 
 SPEAK "routes_serve :8803"
 MY NAME IS server SET TO ASK httpListen WITH 8803
-SERVE ROUTES ON server WITH 4
+SERVE ROUTES ON server WITH 3
 SPEAK "routes_serve_done=1"

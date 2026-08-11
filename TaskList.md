@@ -99,4 +99,4 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## Active focus
 
-**Now:** Backend Framework — auth language properties (FLOW / LIMIT / REVEAL / rewind-audit) on the Live Graph; then richer 2FA/OAuth + IVM-linked scrub.
+**Now:** Backend Framework — routes/form/migrate beachheads shipped; deepen auth interop (textbook OAuth/TOTP wrappers only) + IVM-linked scrub.

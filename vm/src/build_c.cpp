@@ -2776,13 +2776,22 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
   if (startsWithCI(text, "SERVE ROUTES ")) {
     auto rest = trim(text.substr(13));
     auto U = toUpper(rest);
-    auto onPos = U.find(" ON ");
+    size_t onPos = std::string::npos;
     auto withPos = U.find(" WITH ");
-    if (onPos == std::string::npos || withPos == std::string::npos || withPos < onPos) {
+    if (startsWithCI(rest, "ON "))
+      onPos = 0;
+    else
+      onPos = U.find(" ON ");
+    if (onPos == std::string::npos || withPos == std::string::npos ||
+        (onPos != 0 && withPos < onPos)) {
       bc.fail(line, "SERVE ROUTES needs — SERVE ROUTES ON server WITH 8");
       return;
     }
-    auto serverName = stripThe(trim(rest.substr(onPos + 4, withPos - (onPos + 4))));
+    std::string serverName;
+    if (onPos == 0)
+      serverName = stripThe(trim(rest.substr(3, withPos - 3)));
+    else
+      serverName = stripThe(trim(rest.substr(onPos + 4, withPos - (onPos + 4))));
     auto workersE = bc.coerceTo(line, bc.expr(trim(rest.substr(withPos + 6)), line), Ty::num(),
                                 "SERVE ROUTES WITH");
     if (!bc.hasRoutesBlock || bc.routes.empty()) {

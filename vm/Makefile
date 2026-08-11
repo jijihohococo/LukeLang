@@ -388,11 +388,13 @@ test-build: build/luke
 	  stdbuf -oL -eL ./build/live_graph_server > /tmp/luke_lg_server.log 2>&1 & echo $$! > /tmp/luke_lg_server.pid; \
 	  sleep 0.25; \
 	  node ../scripts/luke_browser_loader.cjs build/live_graph_client.wasm --wait-ms 2800 > /tmp/luke_lg.txt 2>&1 & echo $$! > /tmp/luke_lg_client.pid; \
-	  sleep 1.00; \
+	  # Give the browser loader time to connect and receive the initial seed push.
+	  sleep 2.00; \
 	  ./build/live_graph_updater_rapid | tee /tmp/luke_lg_updater.txt | grep -q "updated=Ada3"; \
 	  wait $$(cat /tmp/luke_lg_client.pid); \
 	  grep -q "region=1" /tmp/luke_lg.txt; \
-	  grep -q "name=Ada3" /tmp/luke_lg.txt; \
+	  grep -q "user=Ada3" /tmp/luke_lg.txt; \
+	  grep -q "display=seed" /tmp/luke_lg.txt; \
 	  grep -q "\[subscribe_start\]" /tmp/luke_lg.txt; \
 	  # We may or may not capture the initial seed depending on connection timing, \
 	  # but we must observe the final Ada3 value and still repaint region-minimally. \

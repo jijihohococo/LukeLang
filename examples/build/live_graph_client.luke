@@ -18,8 +18,11 @@ html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Georgi
 """
 
 REMEMBER user AS ""
+REMEMBER display AS ""
+REMEMBER history AS LIST
 REMEMBER region_now AS 0
 REMEMBER events AS 0
+REMEMBER replayed AS NUMBER SET TO 0
 
 BEGIN COLUMN AT 40, 40 SIZE 720, 200 PAD 0 GAP 14
   SLOT TEXT "brand" SIZE AUTO, 48 SAY "LukeLang"
@@ -30,14 +33,31 @@ END COLUMN
 LAY OUT THE SCREEN
 PAINT THE SCREEN
 
-BIND "name" TO user
+BIND "name" TO display
 
 WATCH user FROM "http://127.0.0.1:8798/watch"
+
+WHEN REACTIVE user CHANGES DO
+  ADD user TO history
+  IF replayed EQUALS 0 DO
+    // Normal mode: keep display following the live user cell.
+    CHANGE display TO user
+    IF user EQUALS "Ada3" DO
+      // When Ada3 arrives, scrub backward to history[0] ("seed").
+      BEGIN REACTIVE BATCH
+        CHANGE replayed TO 1
+        CHANGE display TO ITEM 0 OF history
+      END REACTIVE BATCH
+      SPEAK "replay=rewind0"
+    END IF
+  END IF
+END WHEN REACTIVE
 
 WHEN WATCH user IS READY DO
   CHANGE region_now TO THE REGION PAINT COUNT
   CHANGE events TO events ADD 1
-  SPEAK "name=" AND user
+  SPEAK "user=" AND user
+  SPEAK "display=" AND display
   SPEAK "region=" AND region_now
   SPEAK "events=" AND events
   UPDATE "hint" WITH "live — region paints: " AND region_now

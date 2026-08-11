@@ -93,13 +93,14 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **Concurrency ceiling:** `httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS`, default 8) plus an **evented accept beachhead** (`O_NONBLOCK` listen + `poll(POLLIN)`). Request body read is still blocking on the accept path — full C10K I/O is still ahead. See [`BUILD_MODE.md`](./BUILD_MODE.md).
 - **Live Graph:** `PRAGMA data_version` gate + trigger IVM cache + **NEW/OLD differential triggers** for `id = N` watches + **multi-join recompute IVM** + **causal event log** with `Last-Event-ID` resume + **client scrub UI**. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
 - **LSP beachhead:** `luke LSP` — stdio JSON-RPC diagnostics via `analyzeLukeBuild`.
-- Next ceilings: full evented request I/O; true multi-join differential dataflow; server-seq DevTools scrub; Backend track expansion.
+- **Backend framework beachhead:** parameterized `dbExecBind` / `dbQueryBind`; `httpMatch` path params; `httpQueryMap` / `httpHeader` / `httpCookie` / `httpSetCookie`; opaque cookie session example. See [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) + [`TaskList.md`](../TaskList.md).
+- Next ceilings: full evented request I/O; true multi-join differential dataflow; server-seq DevTools scrub; Backend auth/middleware/declarative routes.
 
 ### Phase 3 — Expand from strength
 - Grow the **Live Graph** one tier at a time ([`LIVE_GRAPH.md`](./LIVE_GRAPH.md)): true IVM / differential dataflow next, then distributed time-travel / graph-parallelism as consequences — not separate products.
 - Resume reactive engine phases (roadmap in [`REACTIVE_ROADMAP.md`](./REACTIVE_ROADMAP.md)).
 - Formalize the **syntax stress-test** (#2): hand-write one genuinely complex screen; compare readability against JSX at that size.
-- Grow the frontend track ([`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)), then open the **Backend** track for full-stack reactivity.
+- Grow the frontend track ([`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)); deepen **Backend** ([`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md)) for full-stack reactivity.
 
 ---
 
@@ -109,7 +110,7 @@ These are **not cancelled** — they are sequenced after the beachhead is won, a
 
 | Track | When | Note |
 | --- | --- | --- |
-| **Backend** | After the frontend proof point | Unlocks full-stack reactivity — likely the true signature. |
+| **Backend** | Active beachhead | [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) — binds, match, session stub shipped; deepen next |
 | **Scripting** | After backend | Tooling DX, packages, automation. |
 | **Mobile** | Post-beachhead | Native shells / shared Luke UI. |
 | **Own-the-pixels renderer (canvas/WebGL)** | Post-beachhead | The Flutter-style dream. Only in *full* form — never the DOM-host midpoint. |

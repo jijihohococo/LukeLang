@@ -401,6 +401,26 @@ test-build: build/luke
 	@./build/json_integer | tee /tmp/luke_json_integer.txt | grep -q "json_integer_ok=1"
 	@grep -q "id=9007199254740993" /tmp/luke_json_integer.txt
 	@grep -q '9007199254740993' /tmp/luke_json_integer.txt
+	./build/luke BUILD ../examples/build/sql_bind.luke -o build/sql_bind
+	@./build/sql_bind | tee /tmp/luke_sql_bind.txt | grep -q "sql_bind_ok=1"
+	@grep -q "name2=Bobby'); DROP TABLE users;--" /tmp/luke_sql_bind.txt
+	@grep -q 'luke_db_exec_bind\|luke_db_query_bind_text' build/sql_bind.luke.c
+	./build/luke BUILD ../examples/build/backend_api.luke -o build/backend_api
+	@grep -q 'luke_http_match\|luke_http_query_map\|luke_http_set_cookie' build/backend_api.luke.c
+	@set -e; \
+	  fuser -k 8799/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_backend_api.db /tmp/luke_backend_api.db-wal /tmp/luke_backend_api.db-shm \
+	    /tmp/luke_be_api.pid /tmp/luke_be_api.log /tmp/luke_be_cookies.txt; \
+	  ./build/backend_api > /tmp/luke_be_api.log 2>&1 & echo $$! > /tmp/luke_be_api.pid; \
+	  sleep 0.35; \
+	  test "$$(curl -s -m 2 http://127.0.0.1:8799/ok)" = "ok"; \
+	  test "$$(curl -s -m 2 'http://127.0.0.1:8799/user/1?tag=hi%20there')" = "Ada|hi there"; \
+	  test "$$(curl -s -m 2 -c /tmp/luke_be_cookies.txt -H 'Content-Type: application/json' -d '{"user":"Ada"}' http://127.0.0.1:8799/login)" = "ok"; \
+	  test "$$(curl -s -m 2 -b /tmp/luke_be_cookies.txt http://127.0.0.1:8799/me)" = "me=1"; \
+	  wait $$(cat /tmp/luke_be_api.pid); \
+	  grep -q "backend_api_done=1" /tmp/luke_be_api.log; \
+	  grep -q "luke_sid" /tmp/luke_be_cookies.txt; \
+	  fuser -k 8799/tcp 2>/dev/null || true
 	./build/luke BUILD ../examples/build/syntax_stress.luke -target browser -o build/syntax_stress
 	@grep -q 'Luke Syntax Stress' build/syntax_stress.html
 	@node ../scripts/luke_browser_loader.cjs build/syntax_stress.wasm 2>&1 | tee /tmp/luke_syntax_stress.txt | grep -q "syntax_stress_ok=1"

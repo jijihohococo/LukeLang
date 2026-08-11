@@ -1,0 +1,41 @@
+// Parameterized SQL beachhead — dbExecBind / dbQueryBind reject injection via binds.
+// Build: luke BUILD examples/build/sql_bind.luke -o build/sql_bind
+
+IMPORT std/sqlite
+
+SPEAK "sql_bind start"
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_sql_bind.db"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS users"
+ASK dbExec WITH db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)"
+
+MY NAME IS seed AS LIST
+ADD "1" TO seed
+ADD "Ada" TO seed
+ASK dbExecBind WITH db, "INSERT INTO users(id, name) VALUES(?, ?)", seed
+
+// Classic injection payload — must NOT match as SQL, only as a literal name value.
+MY NAME IS evil AS LIST
+ADD "2" TO evil
+ADD "Bobby'); DROP TABLE users;--" TO evil
+ASK dbExecBind WITH db, "INSERT INTO users(id, name) VALUES(?, ?)", evil
+
+MY NAME IS q1 AS LIST
+ADD "1" TO q1
+MY NAME IS name1 SET TO ASK dbQueryBind WITH db, "SELECT name FROM users WHERE id = ?", q1
+SPEAK "name1=" AND name1
+
+MY NAME IS q2 AS LIST
+ADD "2" TO q2
+MY NAME IS name2 SET TO ASK dbQueryBind WITH db, "SELECT name FROM users WHERE id = ?", q2
+SPEAK "name2=" AND name2
+
+MY NAME IS count SET TO ASK dbQuery WITH db, "SELECT COUNT(*) FROM users"
+SPEAK "count=" AND count
+
+MAKE SURE name1 EQUALS "Ada"
+MAKE SURE name2 EQUALS "Bobby'); DROP TABLE users;--"
+MAKE SURE count EQUALS "2"
+
+ASK dbClose WITH db
+SPEAK "sql_bind_ok=1"

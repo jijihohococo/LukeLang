@@ -1,8 +1,9 @@
 # LukeLang Frontend Production Roadmap
 
 > **Wedge:** reactive full-stack web — see [`STRATEGY.md`](./STRATEGY.md) (the decision record this roadmap serves).  
-> **Current track:** Frontend (this document)  
-> **Next track:** Backend (unlocks full-stack reactivity — likely the true signature)  
+> **Current track:** Frontend (this document) + Backend beachhead opening  
+> **Next track:** Backend deepen ([`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md)) — unlocks full-stack reactivity  
+> **Master checklist:** [`TaskList.md`](../TaskList.md)  
 > **Parked:** Scripting → Mobile → Game, plus the own-the-pixels renderer (earned post-beachhead)
 
 Reactive change model: [`REACTIVE.md`](./REACTIVE.md)  
@@ -19,7 +20,7 @@ Ship path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)
 | Order | Track | Goal | Status |
 |------:|-------|------|--------|
 | 1 | **Frontend** *(now)* | Layout, widgets, a11y, publish, production proof | active |
-| 2 | Backend | HTTP/server, DB, auth, full-stack **reactive** apps | next |
+| 2 | Backend | HTTP/server, DB, auth, full-stack **reactive** apps | **active beachhead** — [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) |
 | 3 | Scripting | Tooling DX, packages, automation | parked |
 | 4 | Mobile | Native shells / shared Luke UI | parked |
 | 5 | Game | Entities, loops, rendering beyond DOM | parked |

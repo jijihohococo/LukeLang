@@ -51,3 +51,30 @@ END FUNCTION
 THIS IS FUNCTION httpLastEventId WITH req AS REQUEST GIVES BACK TEXT DO
   GIVE BACK __luke_http_last_event_id(req)
 END FUNCTION
+
+// Path match with :param captures into MAP. Returns YES on match.
+THIS IS FUNCTION httpMatch WITH path AS TEXT, pattern AS TEXT, params AS MAP GIVES BACK FLAG DO
+  GIVE BACK __luke_http_match(path, pattern, params)
+END FUNCTION
+
+THIS IS FUNCTION httpQueryMap WITH req AS REQUEST GIVES BACK MAP DO
+  GIVE BACK __luke_http_query_map(req)
+END FUNCTION
+
+THIS IS FUNCTION httpHeader WITH req AS REQUEST, name AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_http_header(req, name)
+END FUNCTION
+
+THIS IS FUNCTION httpCookie WITH req AS REQUEST, name AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_http_cookie(req, name)
+END FUNCTION
+
+// Queue a Set-Cookie header for the next httpReply on this request.
+THIS IS FUNCTION httpSetCookie WITH req AS REQUEST, name AS TEXT, value AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_set_cookie(req, name, value)
+END FUNCTION
+
+// JSON body — parses httpBody (empty / invalid → null-ish JSON tree).
+THIS IS FUNCTION httpJson WITH req AS REQUEST GIVES BACK JSON DO
+  GIVE BACK __luke_json_parse(__luke_http_body(req))
+END FUNCTION

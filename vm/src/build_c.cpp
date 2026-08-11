@@ -556,9 +556,19 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_body") return mapCall("luke_http_body", Ty::text(), false);
       if (callee == "__luke_http_last_event_id")
         return mapCall("luke_http_last_event_id", Ty::text(), false);
+      if (callee == "__luke_http_match") return mapCall("luke_http_match", Ty::flag(), true);
+      if (callee == "__luke_http_query_map")
+        return mapCall("luke_http_query_map", Ty::map(), true);
+      if (callee == "__luke_http_header") return mapCall("luke_http_header", Ty::text(), true);
+      if (callee == "__luke_http_cookie") return mapCall("luke_http_cookie", Ty::text(), true);
+      if (callee == "__luke_http_set_cookie")
+        return mapCall("luke_http_set_cookie", Ty::flag(), true);
       if (callee == "__luke_db_open") return mapCall("luke_db_open", Ty::ptr("__Db"), true);
       if (callee == "__luke_db_exec") return mapCall("luke_db_exec", Ty::flag(), false);
+      if (callee == "__luke_db_exec_bind") return mapCall("luke_db_exec_bind", Ty::flag(), false);
       if (callee == "__luke_db_query") return mapCall("luke_db_query_text", Ty::text(), true);
+      if (callee == "__luke_db_query_bind")
+        return mapCall("luke_db_query_bind_text", Ty::text(), true);
       if (callee == "__luke_db_close") return mapCall("luke_db_close", Ty::flag(), false);
       if (callee == "__luke_list_new") return mapCall("luke_list_new", Ty::list(), true);
       if (callee == "__luke_list_add") return mapCall("luke_list_add", Ty::vod(), true);

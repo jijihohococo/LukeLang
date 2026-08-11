@@ -30,8 +30,17 @@ typedef struct LukeHttpRequest {
   LukeText query;
   LukeText body;
   LukeText last_event_id; /* SSE Last-Event-ID header (may be empty) */
+  LukeText headers;       /* raw header block after request line */
+  LukeText set_cookie;    /* pending Set-Cookie value for reply */
   int client_fd;
 } LukeHttpRequest;
+
+static inline LukeText luke_http__dup(LukeArena *a, const char *s, size_t n) {
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  if (n) memcpy(p, s, n);
+  p[n] = '\0';
+  return luke_text_n(p, n);
+}
 
 #if defined(__wasi__)
 
@@ -163,13 +172,6 @@ static inline long luke_http__content_length(const char *hdrs, size_t hdr_len) {
   return -1;
 }
 
-static inline LukeText luke_http__dup(LukeArena *a, const char *s, size_t n) {
-  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
-  if (n) memcpy(p, s, n);
-  p[n] = '\0';
-  return luke_text_n(p, n);
-}
-
 static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s) {
   if (!s || s->fd < 0) return NULL;
 
@@ -250,9 +252,17 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
     body = luke_http__dup(a, buf + hdr_end, (size_t)need_body);
   }
 
-  /* Scan headers for Last-Event-ID (SSE resume). */
+  /* Scan headers for Last-Event-ID (SSE resume). Capture raw header block. */
   LukeText last_event_id = luke_text("");
+  LukeText headers = luke_text("");
   {
+    /* Skip request line; keep rest of header block (through final CRLF before body). */
+    size_t line_end = 0;
+    while (line_end < (size_t)hdr_end && buf[line_end] != '\n') ++line_end;
+    if (line_end < (size_t)hdr_end) ++line_end;
+    if ((size_t)hdr_end > line_end)
+      headers = luke_http__dup(a, buf + line_end, (size_t)hdr_end - line_end);
+
     size_t h = 0;
     while (h < (size_t)hdr_end) {
       size_t line0 = h;
@@ -292,6 +302,8 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
   req->query = query;
   req->body = body;
   req->last_event_id = last_event_id;
+  req->headers = headers;
+  req->set_cookie = luke_text("");
   req->client_fd = cfd;
   return req;
 }
@@ -328,15 +340,28 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
   }
   ctype[ct_n] = '\0';
 
-  char hdr[512];
-  int hlen = snprintf(hdr, sizeof(hdr),
-                      "HTTP/1.1 %d %s\r\n"
-                      "Content-Type: %s\r\n"
-                      "Content-Length: %zu\r\n"
-                      "Access-Control-Allow-Origin: *\r\n"
-                      "Connection: close\r\n"
-                      "\r\n",
-                      code, reason, ctype, body.len);
+  char hdr[768];
+  int hlen;
+  if (req->set_cookie.len > 0 && req->set_cookie.ptr) {
+    hlen = snprintf(hdr, sizeof(hdr),
+                    "HTTP/1.1 %d %s\r\n"
+                    "Content-Type: %s\r\n"
+                    "Content-Length: %zu\r\n"
+                    "Set-Cookie: %.*s\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Connection: close\r\n"
+                    "\r\n",
+                    code, reason, ctype, body.len, (int)req->set_cookie.len, req->set_cookie.ptr);
+  } else {
+    hlen = snprintf(hdr, sizeof(hdr),
+                    "HTTP/1.1 %d %s\r\n"
+                    "Content-Type: %s\r\n"
+                    "Content-Length: %zu\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Connection: close\r\n"
+                    "\r\n",
+                    code, reason, ctype, body.len);
+  }
   if (hlen < 0 || (size_t)hlen >= sizeof(hdr)) {
     close(req->client_fd);
     req->client_fd = -1;
@@ -661,6 +686,182 @@ static inline LukeText luke_http_body(LukeHttpRequest *req) {
 
 static inline LukeText luke_http_last_event_id(LukeHttpRequest *req) {
   return req ? req->last_event_id : luke_text("");
+}
+
+/* ---------- Request parsing / routing beachhead ---------- */
+
+static inline int luke_http__hex(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static inline LukeText luke_http__url_decode(LukeArena *a, const char *s, size_t n) {
+  char *out = (char *)luke_arena_alloc(a, n + 1, 1);
+  size_t o = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (s[i] == '+' ) {
+      out[o++] = ' ';
+    } else if (s[i] == '%' && i + 2 < n) {
+      int hi = luke_http__hex(s[i + 1]);
+      int lo = luke_http__hex(s[i + 2]);
+      if (hi >= 0 && lo >= 0) {
+        out[o++] = (char)((hi << 4) | lo);
+        i += 2;
+      } else {
+        out[o++] = s[i];
+      }
+    } else {
+      out[o++] = s[i];
+    }
+  }
+  out[o] = '\0';
+  return luke_text_n(out, o);
+}
+
+static inline LukeText luke_http__header_raw(LukeArena *a, LukeHttpRequest *req, LukeText name) {
+  if (!req || !name.len || !req->headers.ptr) return luke_text("");
+  const char *buf = req->headers.ptr;
+  size_t hdr_end = req->headers.len;
+  size_t h = 0;
+  while (h < hdr_end) {
+    size_t line0 = h;
+    while (h < hdr_end && buf[h] != '\n') ++h;
+    size_t line1 = h;
+    if (h < hdr_end) ++h;
+    size_t L = line1 > line0 && buf[line1 - 1] == '\r' ? line1 - 1 : line1;
+    if (L <= line0) continue;
+    if (L - line0 < name.len + 1) continue;
+    int match = 1;
+    for (size_t k = 0; k < name.len; ++k) {
+      char c = buf[line0 + k];
+      char e = name.ptr[k];
+      if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+      if (e >= 'A' && e <= 'Z') e = (char)(e - 'A' + 'a');
+      if (c != e) {
+        match = 0;
+        break;
+      }
+    }
+    if (!match) continue;
+    if (buf[line0 + name.len] != ':') continue;
+    size_t v0 = line0 + name.len + 1;
+    while (v0 < L && (buf[v0] == ' ' || buf[v0] == '\t')) ++v0;
+    return luke_http__dup(a, buf + v0, L - v0);
+  }
+  return luke_text("");
+}
+
+static inline LukeText luke_http_header(LukeArena *a, LukeHttpRequest *req, LukeText name) {
+  return luke_http__header_raw(a, req, name);
+}
+
+static inline LukeText luke_http_cookie(LukeArena *a, LukeHttpRequest *req, LukeText name) {
+  LukeText cookie = luke_http__header_raw(a, req, luke_text("cookie"));
+  if (!cookie.len || !name.len) return luke_text("");
+  size_t i = 0;
+  while (i < cookie.len) {
+    while (i < cookie.len && (cookie.ptr[i] == ' ' || cookie.ptr[i] == ';')) ++i;
+    size_t k0 = i;
+    while (i < cookie.len && cookie.ptr[i] != '=' && cookie.ptr[i] != ';') ++i;
+    size_t k1 = i;
+    while (k1 > k0 && cookie.ptr[k1 - 1] == ' ') --k1;
+    if (i < cookie.len && cookie.ptr[i] == '=') ++i;
+    size_t v0 = i;
+    while (i < cookie.len && cookie.ptr[i] != ';') ++i;
+    size_t v1 = i;
+    if (k1 - k0 == name.len && memcmp(cookie.ptr + k0, name.ptr, name.len) == 0)
+      return luke_http__dup(a, cookie.ptr + v0, v1 - v0);
+  }
+  return luke_text("");
+}
+
+static inline int luke_http_set_cookie(LukeArena *a, LukeHttpRequest *req, LukeText name,
+                                       LukeText value) {
+  if (!req || !a || !name.len) return 0;
+  /* name=value; Path=/; HttpOnly */
+  size_t n = name.len + 1 + value.len + 18;
+  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+  size_t o = 0;
+  memcpy(p + o, name.ptr, name.len);
+  o += name.len;
+  p[o++] = '=';
+  if (value.len && value.ptr) {
+    memcpy(p + o, value.ptr, value.len);
+    o += value.len;
+  }
+  memcpy(p + o, "; Path=/; HttpOnly", 18);
+  o += 18;
+  p[o] = '\0';
+  req->set_cookie = luke_text_n(p, o);
+  return 1;
+}
+
+static inline LukeMap *luke_http_query_map(LukeArena *a, LukeHttpRequest *req) {
+  LukeMap *m = luke_map_new(a);
+  if (!req || !req->query.len || !req->query.ptr) return m;
+  const char *q = req->query.ptr;
+  size_t n = req->query.len;
+  size_t i = 0;
+  while (i < n) {
+    size_t k0 = i;
+    while (i < n && q[i] != '=' && q[i] != '&') ++i;
+    size_t k1 = i;
+    size_t v0 = i, v1 = i;
+    if (i < n && q[i] == '=') {
+      ++i;
+      v0 = i;
+      while (i < n && q[i] != '&') ++i;
+      v1 = i;
+    }
+    if (i < n && q[i] == '&') ++i;
+    if (k1 > k0) {
+      LukeText key = luke_http__url_decode(a, q + k0, k1 - k0);
+      LukeText val = luke_http__url_decode(a, q + v0, v1 - v0);
+      luke_map_put(a, m, key, val);
+    }
+  }
+  return m;
+}
+
+/* Match path against pattern with :param segments. Fills out MAP; returns 1 on match. */
+static inline int luke_http_match(LukeArena *a, LukeText path, LukeText pattern, LukeMap *out) {
+  if (!a || !out) return 0;
+  /* Clear prior entries by replacing with empty map contents is caller's job —
+   * we only put captures; caller should use a fresh MAP. */
+  const char *p = path.ptr ? path.ptr : "";
+  const char *pat = pattern.ptr ? pattern.ptr : "";
+  size_t plen = path.len, patlen = pattern.len;
+  size_t i = 0, j = 0;
+  /* Allow optional leading slash normalization already present in both. */
+  while (i <= plen && j <= patlen) {
+    /* End of both → success */
+    if (i == plen && j == patlen) return 1;
+    /* Advance over '/' */
+    if (i < plen && p[i] == '/') ++i;
+    if (j < patlen && pat[j] == '/') ++j;
+    if (i == plen && j == patlen) return 1;
+    if (i == plen || j == patlen) return 0;
+
+    size_t ps = i;
+    while (i < plen && p[i] != '/') ++i;
+    size_t pe = i;
+    size_t qs = j;
+    while (j < patlen && pat[j] != '/') ++j;
+    size_t qe = j;
+
+    if (qe > qs && pat[qs] == ':') {
+      /* capture */
+      LukeText key = luke_http__dup(a, pat + qs + 1, qe - qs - 1);
+      LukeText val = luke_http__url_decode(a, p + ps, pe - ps);
+      luke_map_put(a, out, key, val);
+    } else {
+      if (pe - ps != qe - qs) return 0;
+      if (pe > ps && memcmp(p + ps, pat + qs, pe - ps) != 0) return 0;
+    }
+  }
+  return i == plen && j == patlen;
 }
 
 #ifdef __cplusplus

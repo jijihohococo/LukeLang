@@ -33,10 +33,25 @@ static inline int luke_db_exec(LukeDb *db, LukeText sql) {
   return 0;
 }
 
+static inline int luke_db_exec_bind(LukeDb *db, LukeText sql, LukeList *params) {
+  (void)db;
+  (void)sql;
+  (void)params;
+  return 0;
+}
+
 static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql) {
   (void)a;
   (void)db;
   (void)sql;
+  return luke_text("");
+}
+
+static inline LukeText luke_db_query_bind_text(LukeArena *a, LukeDb *db, LukeText sql, LukeList *params) {
+  (void)a;
+  (void)db;
+  (void)sql;
+  (void)params;
   return luke_text("");
 }
 
@@ -117,8 +132,44 @@ static inline int luke_db_exec(LukeDb *db, LukeText sql) {
   return rc == SQLITE_OK ? 1 : 0;
 }
 
-/* SELECT: concatenate first-column values separated by newlines. */
-static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql) {
+/* Bind LIST-of-TEXT params as SQLITE TEXT (?1 …). Returns 1 on success. */
+static inline int luke_db__bind_list(sqlite3_stmt *stmt, LukeList *params) {
+  if (!stmt) return 0;
+  int n = params ? (int)params->len : 0;
+  for (int i = 0; i < n; ++i) {
+    LukeText v = params->items[i];
+    if (sqlite3_bind_text(stmt, i + 1, v.ptr ? v.ptr : "", (int)v.len, SQLITE_TRANSIENT) !=
+        SQLITE_OK)
+      return 0;
+  }
+  return 1;
+}
+
+/* Parameterized exec — use for any SQL that includes user/app values. */
+static inline int luke_db_exec_bind(LukeDb *db, LukeText sql, LukeList *params) {
+  if (!db || !db->db) return 0;
+  char *q = (char *)malloc(sql.len + 1);
+  if (!q) return 0;
+  if (sql.len) memcpy(q, sql.ptr, sql.len);
+  q[sql.len] = '\0';
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(db->db, q, -1, &stmt, NULL) != SQLITE_OK) {
+    free(q);
+    return 0;
+  }
+  free(q);
+  if (!luke_db__bind_list(stmt, params)) {
+    sqlite3_finalize(stmt);
+    return 0;
+  }
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE || rc == SQLITE_ROW ? 1 : 0;
+}
+
+/* Parameterized SELECT — concatenate first-column values separated by newlines. */
+static inline LukeText luke_db_query_bind_text(LukeArena *a, LukeDb *db, LukeText sql,
+                                              LukeList *params) {
   if (!db || !db->db) return luke_text("");
   char *q = (char *)malloc(sql.len + 1);
   if (!q) return luke_text("");
@@ -131,6 +182,10 @@ static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql
     return luke_text("");
   }
   free(q);
+  if (!luke_db__bind_list(stmt, params)) {
+    sqlite3_finalize(stmt);
+    return luke_text("");
+  }
 
   size_t cap = 256, len = 0;
   char *buf = (char *)malloc(cap);
@@ -170,6 +225,11 @@ static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql
   out[len] = '\0';
   free(buf);
   return luke_text_n(out, len);
+}
+
+/* Unparameterized SELECT — prefer luke_db_query_bind_text for user values. */
+static inline LukeText luke_db_query_text(LukeArena *a, LukeDb *db, LukeText sql) {
+  return luke_db_query_bind_text(a, db, sql, NULL);
 }
 
 /* Cross-connection change detector — increments when any commit modifies the DB file. */

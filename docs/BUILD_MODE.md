@@ -55,8 +55,8 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 | `std/files` | `readFile`, `writeFile`, `fileExists` |
 | `std/json` | `jsonParse`, `jsonGet`, `jsonIndex`, `jsonLen`, `jsonHas`, `jsonAsText` / `Number` / `Flag`, `jsonStringify`, `jsonString` |
 | `std/http` | `httpGet` (native via curl; empty on WASI) |
-| `std/server` | `httpListen`, `httpAccept`, `httpReply`, `httpPath` / `Method` / `Query` / `Body` |
-| `std/sqlite` | `dbOpen`, `dbExec`, `dbQuery`, `dbClose` (auto `-lsqlite3`) |
+| `std/server` | `httpListen`, `httpAccept`, `httpReply`, `httpPath` / `Method` / `Query` / `Body`, `httpMatch`, `httpQueryMap`, `httpHeader` / `Cookie` / `SetCookie`, `httpJson`, SSE helpers |
+| `std/sqlite` | `dbOpen`, `dbExec`, `dbQuery`, **`dbExecBind` / `dbQueryBind`**, `dbClose` (auto `-lsqlite3`) |
 | `std/args` | `argCount`, `getArg` |
 | `std/env` | `getEnv`, `setEnv` |
 | `std/paths` | `cwd`, `pathJoin`, `pathBasename`, `pathDirname` |
@@ -174,8 +174,11 @@ Inference (v0):
 - Function args/arity and `GIVE BACK` types are checked
 - Optional: `THIS IS FUNCTION f … GIVES BACK TEXT DO`
 - Concurrent HTTP: `ASK httpServe WITH server, handler, maxConn` (bounded worker pool; links `-lpthread`)
+- Routing / request shape: `httpMatch`, `httpQueryMap`, `httpHeader` / `httpCookie` / `httpSetCookie`, `httpJson`
+- Parameterized SQL: `dbExecBind` / `dbQueryBind` (prefer over string-concat `dbExec` / `dbQuery`)
 - SSE: `httpSseOpen` / `httpSseData` / `httpSseId` / `httpSseComment`; `httpLastEventId` for resume
 - INTEGER rules: see [`INTEGER.md`](./INTEGER.md) — checked overflow, `DIVIDE`→`NUMBER`, widening vs truncating conversion
+- Backend track: [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) · master checklist [`TaskList.md`](../TaskList.md)
 
 ### Backend concurrency ceiling
 

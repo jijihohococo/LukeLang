@@ -73,6 +73,7 @@ Then `ASK httpClientIp WITH req` uses the first `X-Forwarded-For` hop
 | `LUKE_HTTP_KEEPALIVE_MAX` | 100 | Max requests per keep-alive connection |
 | `LUKE_TRUST_PROXY` | unset | `1` → honor `X-Forwarded-For` |
 | `LUKE_AUTH_SECURE` | unset | `1` → `Secure` cookies |
+| `LUKE_SSE_ORIGIN` | `*` | `Access-Control-Allow-Origin` for SSE (`PUSH WATCH`) |
 
 ## Graceful shutdown
 

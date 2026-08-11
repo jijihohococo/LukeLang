@@ -1,0 +1,20 @@
+# Replace your.domain with the real host. Luke speaks plain HTTP on :8800.
+your.domain {
+  encode gzip
+  handle /assets/* {
+    root * /workspace/examples/deploy/wall/dist
+    uri strip_prefix /assets
+    file_server
+  }
+  handle /watch {
+    reverse_proxy 127.0.0.1:8800
+  }
+  handle /health {
+    reverse_proxy 127.0.0.1:8800
+  }
+  handle {
+    root * /workspace/examples/deploy/wall/dist
+    try_files {path} /client.html
+    file_server
+  }
+}

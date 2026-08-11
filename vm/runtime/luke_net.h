@@ -614,12 +614,17 @@ static inline int luke_http_sse_open(LukeHttpRequest *req) {
   if (!req || req->client_fd < 0) return 0;
   req->streaming = 1;
   req->keep_alive = 0;
-  const char *hdr = "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/event-stream\r\n"
-                    "Cache-Control: no-cache\r\n"
-                    "Access-Control-Allow-Origin: *\r\n"
-                    "Connection: keep-alive\r\n"
-                    "\r\n";
+  const char *origin = getenv("LUKE_SSE_ORIGIN");
+  if (!origin || !origin[0]) origin = "*";
+  char hdr[512];
+  snprintf(hdr, sizeof(hdr),
+           "HTTP/1.1 200 OK\r\n"
+           "Content-Type: text/event-stream\r\n"
+           "Cache-Control: no-cache\r\n"
+           "Access-Control-Allow-Origin: %s\r\n"
+           "Connection: keep-alive\r\n"
+           "\r\n",
+           origin);
   if (!luke_http__send_all(req->client_fd, hdr, strlen(hdr))) {
     close(req->client_fd);
     req->client_fd = -1;

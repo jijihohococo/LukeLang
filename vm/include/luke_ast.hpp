@@ -1,12 +1,8 @@
 #pragma once
-/* Luke expression AST beachhead — tokenizer + nodes for shared IR.
+/* Luke expression AST — shared IR for codegen, LSP, and formatter.
  *
- * build_c.cpp still owns statement parsing (line-based). Expressions now
- * respect parentheses via stripOuterParens + findOutsideQuotes(depth).
- * This header is the stable shape LSP / formatter / reactive analysis will
- * eventually share — do not invent a second JS-side parser.
- *
- * Roadmap: Pratt/recursive-descent fills these nodes; codegen lowers Ast → C.
+ * Statements remain line-based in build_c.cpp until stmt AST lands.
+ * Expressions: tokenizeExpr → Pratt parseExprAst → lowerExprAst / compileExpr.
  */
 
 #include <string>

@@ -1,5 +1,6 @@
 #include "luke/build.hpp"
 #include "luke_ast.hpp"
+#include "luke_expr.hpp"
 
 #include <cctype>
 #include <cerrno>
@@ -701,6 +702,7 @@ struct BC {
 
   Expr primary(std::string e, size_t line);
   Expr expr(std::string e, size_t line);
+  Expr exprLegacy(std::string e, size_t line); /* THE_/ASK/IF path — no Pratt re-entry */
 };
 
 Expr BC::primary(std::string e, size_t line) {
@@ -988,6 +990,49 @@ Expr BC::primary(std::string e, size_t line) {
 }
 
 Expr BC::expr(std::string e, size_t line) {
+  e = stripOuterParens(trim(e));
+  if (e.empty()) return {"0", Ty::num()};
+
+  /* Production expr path: tokenize → Pratt AST → C (idents resolve via legacy). */
+  {
+    bool wasBad = bad;
+    std::string wasErr = err;
+    luke::ExprLower ctx;
+    ctx.fail = [&](size_t ln, const std::string &msg) { fail(ln, msg); };
+    ctx.resolve = [&](const std::string &atom, size_t ln) {
+      /* Probe resolve must not poison the compile — undo fail on unknown atoms. */
+      bool probeBad = bad;
+      std::string probeErr = err;
+      Expr p = exprLegacy(atom, ln);
+      if (bad && !probeBad) {
+        bad = probeBad;
+        err = probeErr;
+        return std::make_pair(std::string("0"), std::string("err"));
+      }
+      if (p.ty.k == K::Int) return std::make_pair(p.code, std::string("int"));
+      if (p.ty.k == K::Num) return std::make_pair(p.code, std::string("num"));
+      if (p.ty.k == K::Text) return std::make_pair(p.code, std::string("text"));
+      if (p.ty.k == K::Flag) return std::make_pair(p.code, std::string("flag"));
+      return std::make_pair(p.code, std::string("err"));
+    };
+    auto compiled = luke::compileExpr(e, line, ctx);
+    if (compiled.second == "legacy" || compiled.second == "err" || compiled.first.empty()) {
+      /* Restore pre-probe error state if Pratt only explored. */
+      if (!wasBad && bad && (compiled.second == "legacy" || compiled.second == "err")) {
+        bad = wasBad;
+        err = wasErr;
+      }
+    } else {
+      if (compiled.second == "int") return {compiled.first, Ty::integer()};
+      if (compiled.second == "text") return {compiled.first, Ty::text()};
+      if (compiled.second == "flag") return {compiled.first, Ty::flag()};
+      return {compiled.first, Ty::num()};
+    }
+  }
+  return exprLegacy(e, line);
+}
+
+Expr BC::exprLegacy(std::string e, size_t line) {
   e = stripOuterParens(trim(e));
   if (e.empty()) return {"0", Ty::num()};
 
@@ -3811,6 +3856,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       std::string wherePred; /* only set for IVM-capable shapes */
       std::string ivmColExpr = "name";
       bool hasJoin = false;
+      std::string joinA1, joinA2, joinOn; /* aliases + ON expr for differential JOIN */
       if (asPos != std::string::npos) {
         auto sqlRaw = trim(after.substr(asPos + 4));
         sql = unquoteText(sqlRaw);
@@ -3833,26 +3879,44 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           if (!predExpr.empty() && predExpr.back() == ';') predExpr.pop_back();
 
           if (joinPos != std::string::npos && joinPos > fromPos2 && joinPos < wherePos2) {
-            /* Two-table JOIN — attach recompute triggers on both base tables. */
+            /* Two-table equi-JOIN — prefer keyed differential; else recompute-both. */
             auto fromClause = trim(sql.substr(fromPos2 + 6, joinPos - (fromPos2 + 6)));
             size_t joinKwLen = (sU.compare(joinPos, 12, " INNER JOIN ") == 0) ? 12 : 6;
             auto afterJoin = trim(sql.substr(joinPos + joinKwLen, wherePos2 - (joinPos + joinKwLen)));
-            /* First token of fromClause / afterJoin is the table name (ignore alias). */
             auto firstTok = [](const std::string &s) {
               size_t i = 0;
               while (i < s.size() && !isspace((unsigned char)s[i])) ++i;
               return trim(s.substr(0, i));
             };
-            auto t1 = firstTok(fromClause);
-            auto t2 = firstTok(afterJoin);
-            /* Strip ON … from t2 if firstTok grabbed nothing useful — afterJoin is "profiles p ON …" */
-            if (!t1.empty() && !t2.empty() && t1.find('.') == std::string::npos &&
-                t2.find('.') == std::string::npos) {
+            auto parseTblAlias = [&](const std::string &clause, std::string &tbl,
+                                     std::string &alias) {
+              auto t = firstTok(clause);
+              if (t.empty() || t.find('.') != std::string::npos) return false;
+              tbl = t;
+              auto rest = trim(clause.substr(t.size()));
+              if (startsWithCI(rest, "AS ")) rest = trim(rest.substr(3));
+              alias = firstTok(rest);
+              if (alias.empty() || toUpper(alias) == "ON") alias = tbl;
+              return true;
+            };
+            std::string t1, a1, t2, a2;
+            size_t onPos = toUpper(afterJoin).find(" ON ");
+            std::string joinRight = afterJoin;
+            std::string onExpr;
+            if (onPos != std::string::npos) {
+              joinRight = trim(afterJoin.substr(0, onPos));
+              onExpr = trim(afterJoin.substr(onPos + 4));
+            }
+            if (parseTblAlias(fromClause, t1, a1) && parseTblAlias(joinRight, t2, a2) &&
+                !onExpr.empty()) {
               baseTable = t1;
               baseTable2 = t2;
               wherePred = predExpr;
               ivmColExpr = selExpr;
               hasJoin = true;
+              joinA1 = a1;
+              joinA2 = a2;
+              joinOn = onExpr;
             }
           } else {
             auto tblExpr = trim(sql.substr(fromPos2 + 6, wherePos2 - (fromPos2 + 6)));
@@ -3972,6 +4036,109 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         bool idPred = wU.find("ID =") != std::string::npos || wU.find("ID=") != std::string::npos;
         bool hasDiff = simpleCol && idPred;
 
+        /* Keyed equi-join differential: WHERE a.col = lit + ON a.x = b.y
+         * → WHEN-gated triggers that probe the partner row via NEW, not full recompute. */
+        bool hasJoinDiff = false;
+        std::string jCol1, jCol2; /* join columns on a1 / a2 */
+        std::string whereAlias, whereCol, whereLit;
+        std::string whenT1, whenT2, whenT1Old, whenT2Old;
+        std::string valSqlT1, valSqlT2;
+        if (hasJoin && !joinOn.empty() && !joinA1.empty() && !joinA2.empty()) {
+          auto splitEq = [](const std::string &s, std::string &L, std::string &R) {
+            size_t eq = s.find('=');
+            if (eq == std::string::npos) return false;
+            L = trim(s.substr(0, eq));
+            R = trim(s.substr(eq + 1));
+            return !L.empty() && !R.empty();
+          };
+          auto splitDot = [](const std::string &s, std::string &a, std::string &c) {
+            size_t d = s.find('.');
+            if (d == std::string::npos) return false;
+            a = trim(s.substr(0, d));
+            c = trim(s.substr(d + 1));
+            return !a.empty() && !c.empty();
+          };
+          std::string onL, onR, onLa, onLc, onRa, onRc;
+          if (splitEq(joinOn, onL, onR) && splitDot(onL, onLa, onLc) &&
+              splitDot(onR, onRa, onRc)) {
+            if (toUpper(onLa) == toUpper(joinA1) && toUpper(onRa) == toUpper(joinA2)) {
+              jCol1 = onLc;
+              jCol2 = onRc;
+            } else if (toUpper(onLa) == toUpper(joinA2) && toUpper(onRa) == toUpper(joinA1)) {
+              jCol1 = onRc;
+              jCol2 = onLc;
+            }
+          }
+          std::string wL, wR;
+          if (!jCol1.empty() && splitEq(wherePred, wL, wR)) {
+            std::string wa, wc;
+            if (splitDot(wL, wa, wc)) {
+              whereAlias = wa;
+              whereCol = wc;
+              whereLit = wR;
+            } else if (splitDot(wR, wa, wc)) {
+              whereAlias = wa;
+              whereCol = wc;
+              whereLit = wL;
+            }
+          }
+          auto rewriteAliasQual = [](const std::string &expr, const std::string &alias,
+                                     const std::string &qual) {
+            std::string out;
+            std::string aU = toUpper(alias);
+            for (size_t i = 0; i < expr.size();) {
+              bool atBound =
+                (i == 0 || (!isalnum((unsigned char)expr[i - 1]) && expr[i - 1] != '_'));
+            if (atBound && i + alias.size() < expr.size() && expr[i + alias.size()] == '.') {
+                bool match = true;
+                for (size_t k = 0; k < alias.size(); ++k) {
+                  if ((char)std::toupper((unsigned char)expr[i + k]) != aU[k]) {
+                    match = false;
+                    break;
+                  }
+                }
+                if (match) {
+                  out += qual;
+                  i += alias.size() + 1; /* skip alias. */
+                  continue;
+                }
+              }
+              out.push_back(expr[i]);
+              ++i;
+            }
+            return out;
+          };
+          if (!jCol1.empty() && !whereAlias.empty() && !whereLit.empty()) {
+            bool whereOn1 = toUpper(whereAlias) == toUpper(joinA1);
+            bool whereOn2 = toUpper(whereAlias) == toUpper(joinA2);
+            /* Filter must be on a join key so we can map WHEN to both sides. */
+            bool keyOk = (whereOn1 && toUpper(whereCol) == toUpper(jCol1)) ||
+                         (whereOn2 && toUpper(whereCol) == toUpper(jCol2));
+            if (keyOk) {
+              std::string lit = whereLit;
+              if (whereOn1) {
+                whenT1 = "NEW." + whereCol + " = " + lit;
+                whenT1Old = "OLD." + whereCol + " = " + lit;
+                whenT2 = "NEW." + jCol2 + " = " + lit;
+                whenT2Old = "OLD." + jCol2 + " = " + lit;
+              } else {
+                whenT2 = "NEW." + whereCol + " = " + lit;
+                whenT2Old = "OLD." + whereCol + " = " + lit;
+                whenT1 = "NEW." + jCol1 + " = " + lit;
+                whenT1Old = "OLD." + jCol1 + " = " + lit;
+              }
+              std::string selT1 = rewriteAliasQual(ivmColExpr, joinA1, "NEW.");
+              std::string selT2 = rewriteAliasQual(ivmColExpr, joinA2, "NEW.");
+              valSqlT1 = "SELECT " + selT1 + " FROM " + baseTable2 + " " + joinA2 + " WHERE " +
+                         joinA2 + "." + jCol2 + " = NEW." + jCol1;
+              valSqlT2 = "SELECT " + selT2 + " FROM " + baseTable + " " + joinA1 + " WHERE " +
+                         joinA1 + "." + jCol1 + " = NEW." + jCol2;
+              hasJoinDiff = true;
+              hasDiff = true; /* headline: true differential, not recompute-both */
+            }
+          }
+        }
+
         BC::RxQueryDef qd;
         qd.name = key;
         qd.dbLocal = dbName;
@@ -4015,11 +4182,34 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
         };
 
+        auto emitJoinDiffTrigs = [&](const std::string &table, const std::string &suffix,
+                                     const std::string &whenNew, const std::string &whenOld,
+                                     const std::string &valSql) {
+          std::string ai = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_ai AFTER INSERT ON " + table + " WHEN " + whenNew + " BEGIN " +
+                           "INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" + valSql +
+                           ")); END";
+          std::string au = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_au AFTER UPDATE ON " + table + " WHEN " + whenNew + " BEGIN " +
+                           "INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" + valSql +
+                           ")); END";
+          std::string ad = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_ad AFTER DELETE ON " + table + " WHEN " + whenOld + " BEGIN " +
+                           "INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" +
+                           ivmValueSql + ")); END";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ai) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(au) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
+        };
+
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
 
-        if (hasDiff) {
+        if (hasJoinDiff) {
+          emitJoinDiffTrigs(baseTable, "_jd_t1", whenT1, whenT1Old, valSqlT1);
+          emitJoinDiffTrigs(baseTable2, "_jd_t2", whenT2, whenT2Old, valSqlT2);
+        } else if (hasDiff) {
           /* Rewrite bare `id` → NEW.id / OLD.id for trigger WHEN clauses. */
           auto rewriteId = [](const std::string &pred, const char *qual) {
             std::string out;
@@ -4188,13 +4378,22 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       if (everyMs < 1) everyMs = 1;
     }
     bc.usesRx = true;
-    o << "  httpSseOpen(arena, " << cIdent(reqName) << ");\n";
+    o << "  if (httpSseOpen(arena, " << cIdent(reqName) << ")) {\n";
+    if (qd->scopedToUser) {
+      /* Fail closed: scoped watch streams require an authenticated request user. */
+      o << "    LukeText _luke_push_uid = luke_auth_current_user();\n";
+      o << "    if (!_luke_push_uid.len) _luke_push_uid = " << cIdent(reqName) << "->user_id;\n";
+      o << "    if (!_luke_push_uid.len) {\n";
+      o << "      /* unauthorized scoped PUSH — close without streaming */\n";
+      o << "    } else {\n";
+    }
     o << "  {\n";
     o << "    LukeText _luke_watch_last = luke_text(\"\");\n";
     o << "    double _luke_watch_beats = 0;\n";
     o << "    int64_t _luke_watch_ver = -1;\n";
     o << "    int64_t _luke_watch_queries = 0;\n";
     o << "    int64_t _luke_watch_seq = 0;\n";
+    o << "    int _luke_watch_alive = 1;\n";
     if (!qd->eventLog.empty()) {
       /* Distributed time-travel: resume from Last-Event-ID via causal event log. */
       o << "    {\n";
@@ -4227,16 +4426,20 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       o << "          _luke_watch_seq = _luke_s;\n";
       o << "          luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(cellName)
         << ", _luke_v);\n";
-      o << "          httpSseId(arena, " << cIdent(reqName)
-        << ", luke_integer_to_text(arena, _luke_s));\n";
-      o << "          httpSseData(arena, " << cIdent(reqName) << ", _luke_v);\n";
-      o << "          luke_speak_text(luke_text_concat(arena, luke_text(\"replay=\"), _luke_v));\n";
+      o << "          if (!httpSseId(arena, " << cIdent(reqName)
+        << ", luke_integer_to_text(arena, _luke_s)) ||\n";
+      o << "              !httpSseData(arena, " << cIdent(reqName) << ", _luke_v)) {\n";
+      o << "            _luke_watch_alive = 0;\n";
+      o << "          } else {\n";
+      o << "            luke_speak_text(luke_text_concat(arena, luke_text(\"replay=\"), _luke_v));\n";
+      o << "          }\n";
+      o << "          if (!_luke_watch_alive) break;\n";
       o << "        }\n";
       o << "        sqlite3_finalize(_luke_st);\n";
       o << "      }\n";
       o << "    }\n";
     }
-    o << "    while (_luke_watch_beats < " << beats << ") {\n";
+    o << "    while (_luke_watch_alive && _luke_watch_beats < " << beats << ") {\n";
     o << "      _luke_watch_beats = _luke_watch_beats + 1;\n";
     o << "      int64_t _luke_watch_nowv = luke_db_data_version(" << cIdent(qd->dbLocal) << ");\n";
     o << "      if (_luke_watch_nowv != _luke_watch_ver) {\n";
@@ -4269,20 +4472,31 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     } else {
       o << "          _luke_watch_seq = _luke_watch_seq + 1;\n";
     }
-    o << "          httpSseId(arena, " << cIdent(reqName)
-      << ", luke_integer_to_text(arena, _luke_watch_seq));\n";
-    o << "          httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now);\n";
+    o << "          if (!httpSseId(arena, " << cIdent(reqName)
+      << ", luke_integer_to_text(arena, _luke_watch_seq)) ||\n";
+    o << "              !httpSseData(arena, " << cIdent(reqName) << ", _luke_watch_now)) {\n";
+    o << "            _luke_watch_alive = 0;\n";
+    o << "            break;\n";
+    o << "          }\n";
     o << "          luke_speak_text(luke_text_concat(arena, luke_text(\"row=\"), _luke_watch_now));\n";
     o << "        }\n";
     o << "      }\n";
-    o << "      httpSseComment(arena, " << cIdent(reqName) << ", luke_text(\"cdc\"));\n";
+    o << "      if (!httpSseComment(arena, " << cIdent(reqName) << ", luke_text(\"cdc\"))) {\n";
+    o << "        _luke_watch_alive = 0;\n";
+    o << "        break;\n";
+    o << "      }\n";
     o << "      double _luke_watch_t0 = argus_now_ms();\n";
-    o << "      while ((argus_now_ms() - _luke_watch_t0) < " << everyMs << ") {\n";
+    o << "      while (_luke_watch_alive && (argus_now_ms() - _luke_watch_t0) < " << everyMs
+      << ") {\n";
     o << "      }\n";
     o << "    }\n";
     o << "    luke_speak_text(luke_text_concat(arena, luke_text(\"watch_queries=\"), "
       << "luke_integer_to_text(arena, _luke_watch_queries)));\n";
     o << "  }\n";
+    if (qd->scopedToUser) {
+      o << "    }\n"; /* end auth-ok branch */
+    }
+    o << "  }\n"; /* end httpSseOpen ok */
     o << "  httpClose(arena, " << cIdent(reqName) << ");\n";
     return;
   }

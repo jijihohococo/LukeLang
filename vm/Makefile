@@ -9,13 +9,14 @@ SRCS := \
 	src/bytecode.cpp \
 	src/vm.cpp \
 	src/compiler.cpp \
+	src/luke_expr.cpp \
 	src/build_c.cpp \
 	src/lsp.cpp \
 	src/main.cpp
 
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 
-.PHONY: all clean test test-play test-build pressure
+.PHONY: all clean test test-play test-build test-wall pressure
 
 all: build/luke
 
@@ -427,16 +428,27 @@ test-build: build/luke
 	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
 	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke
 	@grep -q 'poll(\|O_NONBLOCK' runtime/luke_net.h
+	@bash ../scripts/wall_smoke.sh
 	./build/luke BUILD ../examples/build/live_graph_join.luke -o build/live_graph_join
 	@./build/live_graph_join | tee /tmp/luke_live_graph_join.txt | grep -q "join_ivm_ok=1"
 	@grep -q "v0=Ada · Engineer" /tmp/luke_live_graph_join.txt
 	@grep -q "v1=Ada Lovelace · Founder" /tmp/luke_live_graph_join.txt
-	@grep -q 'luke_ivm_card_t1_\|luke_ivm_card_t2_' build/live_graph_join.luke.c
+	@grep -q 'luke_ivm_card_jd_t1_\|luke_ivm_card_jd_t2_' build/live_graph_join.luke.c
+	@grep -q 'WHEN NEW.id = 1\|WHEN NEW.user_id = 1' build/live_graph_join.luke.c
+	@grep -q "SELECT NEW.name\|NEW.title" build/live_graph_join.luke.c
+	@! grep -q 'luke_ivm_card_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join.luke.c
+	@grep -q '_luke_watch_alive\|httpSseOpen' build/live_graph_server.luke.c
+	@grep -q 'LUKE_SSE_ORIGIN\|Access-Control-Allow-Origin' runtime/luke_net.h
+	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt
+	@./build/expr_pratt | tee /tmp/luke_expr_pratt.txt | grep -q "expr_pratt_ok=1"
+	@grep -q 'luke_expr\|tokenizeExpr\|compileExpr' src/luke_expr.cpp
+	@./build/luke FMT ../examples/build/expr_pratt.luke 2>/tmp/luke_fmt.txt | head -1 >/dev/null || true
+	@./build/luke FMT -e "a ADD ( b SUBTRACT c )" | grep -q "ADD"
 	./build/luke BUILD ../examples/build/live_graph_scrub.luke -target browser -o build/live_graph_scrub
 	@grep -q '◀ Back\|Forward ▶\|Live' build/live_graph_scrub.html
 	@node ../scripts/luke_browser_loader.cjs build/live_graph_scrub.wasm 2>&1 | tee /tmp/luke_live_graph_scrub.txt | grep -q "scrub_ok=1"
 	@grep -q 'luke_rx_list_add\|luke_list_get' build/live_graph_scrub.luke.c
-	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"THIS IS NOT VALID LUKE\n"}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"publishDiagnostics" in out and b"Unsupported Build statement" in out and b"lukelang" in out'
+	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"MY NAME IS n AS NUMBER SET TO 1\nSPEAK n\n"}}}),req({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":0,"character":12}}}),req({"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":0}}}),req({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":6}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"hoverProvider\":true" in out and b"completionProvider" in out and b"definitionProvider\":true" in out and b"publishDiagnostics" in out and b"lukelang" in out'
 	./build/luke BUILD ../examples/build/json_integer.luke -o build/json_integer
 	@./build/json_integer | tee /tmp/luke_json_integer.txt | grep -q "json_integer_ok=1"
 	@grep -q "id=9007199254740993" /tmp/luke_json_integer.txt
@@ -650,6 +662,10 @@ assert ms < 5000.0, ms; print("frontend_pressure thresholds ok", ms)'
 	  fuser -k 8799/tcp 2>/dev/null || true
 	@echo "pressure suite passed"
 	@cat /tmp/luke_pressure_rx.txt /tmp/luke_pressure_fe.txt /tmp/luke_pressure_conc_out.txt
+
+# One deployed Live Graph proof (local smoke; TLS via Caddy in examples/deploy/wall)
+test-wall: build/luke
+	@bash ../scripts/wall_smoke.sh
 
 clean:
 	rm -rf build

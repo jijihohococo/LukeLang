@@ -302,6 +302,7 @@ struct BC {
     std::vector<std::string> collectFields;
     bool hasVerify = false;
     bool hasDone = false;
+    std::string verifyKind; /* CODE | TOTP | OAUTH | "" */
     std::string doneAction;
     size_t line = 0;
   };
@@ -316,6 +317,48 @@ struct BC {
     size_t line = 0;
   };
   std::map<std::string, LimitDef> limits;
+  /* Declarative ROUTES — broken/unauthorized/mistyped link = compile error. */
+  struct RouteDef {
+    std::string method;  /* GET | POST | PUT | DELETE */
+    std::string pattern; /* /user/:id */
+    std::string paramName;
+    std::string paramTy; /* INTEGER | TEXT | NUMBER */
+    bool requiresAuth = false;
+    bool touchesSecret = false;
+    size_t line = 0;
+  };
+  std::vector<RouteDef> routes;
+  bool hasRoutesBlock = false;
+  /* FORM name — one declaration for parse/validate beachhead. */
+  struct FormField {
+    std::string name;
+    std::string ty; /* TEXT | EMAIL | INTEGER | PASSWORD */
+    bool hasRange = false;
+    long minV = 0;
+    long maxV = 0;
+  };
+  struct FormDef {
+    std::string name;
+    std::vector<FormField> fields;
+    size_t line = 0;
+  };
+  std::map<std::string, FormDef> forms;
+  std::vector<std::string> formOrder;
+  /* SCHEMA table — schema-as-types beachhead. */
+  struct SchemaField {
+    std::string name;
+    std::string sqlTy; /* INTEGER | TEXT | REAL */
+  };
+  struct SchemaDef {
+    std::string name;
+    std::vector<SchemaField> fields;
+    size_t line = 0;
+  };
+  std::map<std::string, SchemaDef> schemas;
+  std::vector<std::string> schemaOrder;
+  /* Middleware capability order — AUTH before RATE LIMIT. */
+  std::vector<std::string> middlewareOrder;
+  bool hasMiddlewareOrder = false;
   std::map<std::string, Ty> rxCellTy;      /* name → NUMBER or TEXT */
   std::vector<std::string> rxCellOrder;
   struct RxDerivedDef {
@@ -661,6 +704,7 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_http_match") return mapCall("luke_http_match", Ty::flag(), true);
       if (callee == "__luke_http_query_map")
         return mapCall("luke_http_query_map", Ty::map(), true);
+      if (callee == "__luke_http_form_map") return mapCall("luke_http_form_map", Ty::map(), true);
       if (callee == "__luke_http_header") return mapCall("luke_http_header", Ty::text(), true);
       if (callee == "__luke_http_cookie") return mapCall("luke_http_cookie", Ty::text(), true);
       if (callee == "__luke_http_set_cookie")
@@ -2463,6 +2507,242 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  }\n";
     return;
   }
+  /* REQUIRE CSRF ON req WITH db — middleware you can't forget (beachhead). */
+  if (startsWithCI(text, "REQUIRE CSRF ")) {
+    auto rest = trim(text.substr(13));
+    stripDo(rest);
+    auto U = toUpper(rest);
+    size_t onPos = std::string::npos;
+    size_t withPos = U.find(" WITH ");
+    if (startsWithCI(rest, "ON "))
+      onPos = 0;
+    else
+      onPos = U.find(" ON ");
+    if (onPos == std::string::npos || withPos == std::string::npos || withPos < onPos) {
+      bc.fail(line, "REQUIRE CSRF needs — REQUIRE CSRF ON req WITH db");
+      return;
+    }
+    std::string reqName;
+    if (onPos == 0)
+      reqName = stripThe(trim(rest.substr(3, withPos - 3)));
+    else
+      reqName = stripThe(trim(rest.substr(onPos + 4, withPos - (onPos + 4))));
+    auto dbName = stripThe(trim(rest.substr(withPos + 6)));
+    if (!bc.locals.count(reqName) || bc.locals[reqName].k != K::Ptr ||
+        bc.locals[reqName].klass != "__HttpReq") {
+      bc.fail(line, "REQUIRE CSRF ON needs a REQUEST");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "REQUIRE CSRF WITH needs a DATABASE");
+      return;
+    }
+    o << "  if (!luke_auth_check_csrf(arena, " << cIdent(dbName) << ", " << cIdent(reqName)
+      << ")) {\n";
+    o << "    httpReply(arena, " << cIdent(reqName)
+      << ", 403, luke_text(\"text/plain\"), luke_text(\"csrf required\"));\n";
+    o << "    dbClose(arena, " << cIdent(dbName) << ");\n";
+    o << "    return 0;\n";
+    o << "  }\n";
+    return;
+  }
+  /* MIDDLEWARE ORDER AUTH THEN RATE LIMIT — capability order compile check. */
+  if (startsWithCI(text, "MIDDLEWARE ORDER ")) {
+    auto rest = trim(text.substr(17));
+    std::vector<std::string> caps;
+    std::string cur;
+    /* Normalize "RATE LIMIT" → "RATE_LIMIT" */
+    for (size_t i = 0; i < rest.size(); ++i) {
+      if (isspace((unsigned char)rest[i]) || rest[i] == ',') {
+        if (!cur.empty()) {
+          auto nu = toUpper(cur);
+          cur.clear();
+          if (nu == "THEN" || nu == "BEFORE" || nu == "AND") continue;
+          if (nu == "RATE" && i + 1 < rest.size()) {
+            /* peek LIMIT */
+            size_t j = i;
+            while (j < rest.size() && isspace((unsigned char)rest[j])) ++j;
+            if (j + 4 < rest.size() && toUpper(rest.substr(j, 5)) == "LIMIT") {
+              caps.push_back("RATE_LIMIT");
+              i = j + 4;
+              continue;
+            }
+          }
+          if (nu == "LIMIT" && !caps.empty() && caps.back() == "RATE") {
+            caps.back() = "RATE_LIMIT";
+            continue;
+          }
+          caps.push_back(nu);
+        }
+      } else {
+        cur.push_back(rest[i]);
+      }
+    }
+    if (!cur.empty()) {
+      auto nu = toUpper(cur);
+      if (nu == "LIMIT" && !caps.empty() && caps.back() == "RATE")
+        caps.back() = "RATE_LIMIT";
+      else if (nu != "THEN" && nu != "BEFORE" && nu != "AND")
+        caps.push_back(nu);
+    }
+    if (caps.size() < 2) {
+      bc.fail(line, "MIDDLEWARE ORDER needs at least two capabilities — "
+                    "MIDDLEWARE ORDER AUTH THEN RATE LIMIT");
+      return;
+    }
+    /* Reject RATE_LIMIT before AUTH */
+    int authPos = -1, ratePos = -1;
+    for (size_t i = 0; i < caps.size(); ++i) {
+      if (caps[i] == "AUTH" || caps[i] == "LOGIN" || caps[i] == "AUTHENTICATION")
+        authPos = (int)i;
+      if (caps[i] == "RATE_LIMIT" || caps[i] == "RATELIMIT") ratePos = (int)i;
+    }
+    if (authPos >= 0 && ratePos >= 0 && ratePos < authPos) {
+      bc.fail(line, "MIDDLEWARE ORDER — RATE LIMIT before AUTH is a compile error "
+                    "(auth must run first)");
+      return;
+    }
+    bc.middlewareOrder = caps;
+    bc.hasMiddlewareOrder = true;
+    o << "  /* middleware order:";
+    for (auto &c : caps) o << " " << c;
+    o << " */\n";
+    return;
+  }
+  /* LINK TO "/path" — compile-time route integrity (self-inflicted 404 = error). */
+  if (startsWithCI(text, "LINK TO ")) {
+    auto raw = trim(text.substr(8));
+    std::string path = unquoteText(raw);
+    if (path.empty()) path = raw;
+    if (!path.empty() && path.front() == '"' && path.back() == '"')
+      path = path.substr(1, path.size() - 2);
+    if (path.empty() || path[0] != '/') {
+      bc.fail(line, "LINK TO needs a path — LINK TO \"/user/1\"");
+      return;
+    }
+    if (!bc.hasRoutesBlock || bc.routes.empty()) {
+      bc.fail(line, "LINK TO requires a ROUTES table — declare ROUTES … END ROUTES first");
+      return;
+    }
+    auto pathSegs = [](const std::string &p) {
+      std::vector<std::string> s;
+      std::string cur;
+      for (char c : p) {
+        if (c == '/') {
+          if (!cur.empty()) {
+            s.push_back(cur);
+            cur.clear();
+          }
+        } else
+          cur.push_back(c);
+      }
+      if (!cur.empty()) s.push_back(cur);
+      return s;
+    };
+    auto want = pathSegs(path);
+    bool ok = false;
+    for (auto &r : bc.routes) {
+      auto pat = pathSegs(r.pattern);
+      if (pat.size() != want.size()) continue;
+      bool match = true;
+      for (size_t i = 0; i < pat.size(); ++i) {
+        if (!pat[i].empty() && pat[i][0] == ':') continue;
+        if (pat[i] != want[i]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        ok = true;
+        break;
+      }
+    }
+    if (!ok) {
+      bc.fail(line, "LINK TO \"" + path + "\" — no matching ROUTES entry (broken route = compile error)");
+      return;
+    }
+    o << "  /* link-ok " << esc(path) << " */\n";
+    return;
+  }
+  /* ENSURE SCHEMA name ON db — emit CREATE TABLE IF NOT EXISTS from SCHEMA block. */
+  if (startsWithCI(text, "ENSURE SCHEMA ")) {
+    auto rest = trim(text.substr(14));
+    auto U = toUpper(rest);
+    auto onPos = U.find(" ON ");
+    if (onPos == std::string::npos) {
+      bc.fail(line, "ENSURE SCHEMA needs — ENSURE SCHEMA notes ON db");
+      return;
+    }
+    auto sname = stripThe(trim(rest.substr(0, onPos)));
+    auto dbName = stripThe(trim(rest.substr(onPos + 4)));
+    if (!bc.schemas.count(sname)) {
+      bc.fail(line, "ENSURE SCHEMA '" + sname + "' — declare SCHEMA " + sname + " … END SCHEMA first");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "ENSURE SCHEMA ON needs a DATABASE");
+      return;
+    }
+    auto &sch = bc.schemas[sname];
+    std::ostringstream sql;
+    sql << "CREATE TABLE IF NOT EXISTS " << sname << "(";
+    for (size_t i = 0; i < sch.fields.size(); ++i) {
+      if (i) sql << ", ";
+      sql << sch.fields[i].name << " " << sch.fields[i].sqlTy;
+    }
+    sql << ")";
+    o << "  luke_db_exec(" << cIdent(dbName) << ", luke_text(\"" << esc(sql.str()) << "\"));\n";
+    return;
+  }
+  /* VALIDATE FORM name FROM map — typed validation beachhead (EMAIL / INTEGER range). */
+  if (startsWithCI(text, "VALIDATE FORM ")) {
+    auto rest = trim(text.substr(14));
+    auto U = toUpper(rest);
+    auto fromPos = U.find(" FROM ");
+    if (fromPos == std::string::npos) {
+      bc.fail(line, "VALIDATE FORM needs — VALIDATE FORM login FROM params");
+      return;
+    }
+    auto fname = stripThe(trim(rest.substr(0, fromPos)));
+    auto mapName = stripThe(trim(rest.substr(fromPos + 6)));
+    if (!bc.forms.count(fname)) {
+      bc.fail(line, "VALIDATE FORM '" + fname + "' — declare FORM " + fname + " … END FORM first");
+      return;
+    }
+    if (!bc.locals.count(mapName) || bc.locals[mapName].k != K::Map) {
+      bc.fail(line, "VALIDATE FORM FROM needs a MAP");
+      return;
+    }
+    auto &form = bc.forms[fname];
+    o << "  {\n";
+    o << "    int _luke_form_ok = 1;\n";
+    for (auto &f : form.fields) {
+      o << "    {\n";
+      o << "      LukeText _luke_fv = luke_map_get(" << cIdent(mapName) << ", luke_text(\""
+        << esc(f.name) << "\"));\n";
+      if (toUpper(f.ty) == "EMAIL") {
+        o << "      if (!_luke_fv.len || !memchr(_luke_fv.ptr, '@', _luke_fv.len)) _luke_form_ok = 0;\n";
+      } else if (toUpper(f.ty) == "INTEGER" && f.hasRange) {
+        o << "      {\n";
+        o << "        long _luke_iv = _luke_fv.len ? atol(_luke_fv.ptr) : 0;\n";
+        o << "        if (!_luke_fv.len || _luke_iv < " << f.minV << " || _luke_iv > " << f.maxV
+          << ") _luke_form_ok = 0;\n";
+        o << "      }\n";
+      } else if (toUpper(f.ty) == "PASSWORD") {
+        o << "      if (_luke_fv.len < 8) _luke_form_ok = 0;\n";
+      } else {
+        o << "      if (!_luke_fv.len) _luke_form_ok = 0;\n";
+      }
+      o << "    }\n";
+    }
+    o << "    if (!_luke_form_ok) luke_speak_text(luke_text(\"form_invalid=" << esc(fname)
+      << "\"));\n";
+    o << "    else luke_speak_text(luke_text(\"form_ok=" << esc(fname) << "\"));\n";
+    o << "  }\n";
+    return;
+  }
   /* REVOKE ACCESS — clear CURRENT USER + empty SECRET reactive cells (live revoke). */
   if (toUpper(text) == "REVOKE ACCESS") {
     o << "  luke_auth_revoke();\n";
@@ -3635,6 +3915,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       bc.fail(line, "PUSH WATCH '" + cellName + "' — WATCH it FROM a DATABASE first");
       return;
     }
+    if ((bc.rxSecretCells.count(cellName) || bc.rxSecretCells.count(stripThe(trim(rest.substr(0, onPos))))) &&
+        !qd->scopedToUser) {
+      bc.fail(line, "PUSH WATCH of SECRET '" + cellName +
+                        "' requires WATCH … FOR CURRENT USER — unauthorized stream = compile error");
+      return;
+    }
     if (!bc.locals.count(reqName) || bc.locals[reqName].k != K::Ptr ||
         bc.locals[reqName].klass != "__HttpReq") {
       bc.fail(line, "PUSH WATCH ON needs a REQUEST — MY NAME IS " + reqName + " AS REQUEST");
@@ -4396,7 +4682,7 @@ bool parse(BC &bc, const std::string &source) {
   std::istringstream in(src);
   std::string raw;
   size_t lineNo = 0;
-  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen, InFlow };
+  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen, InFlow, InRoutes, InForm, InSchema };
   Mode mode = Top;
   Fn curFn;
   BP curBp;
@@ -4404,6 +4690,8 @@ bool parse(BC &bc, const std::string &source) {
   BrowserWhen curWhen;
   BC::RxWhenDef curRxWhen;
   BC::FlowDef curFlow;
+  BC::FormDef curForm;
+  BC::SchemaDef curSchema;
   bool skipContract = false;
 
   while (std::getline(in, raw)) {
@@ -4548,6 +4836,45 @@ bool parse(BC &bc, const std::string &source) {
         mode = InFlow;
         continue;
       }
+      /* ROUTES DO … END ROUTES — declarative route table. */
+      if (toUpper(text) == "ROUTES" || startsWithCI(text, "ROUTES ")) {
+        stripDo(text);
+        bc.hasRoutesBlock = true;
+        mode = InRoutes;
+        continue;
+      }
+      /* FORM login DO … END FORM */
+      if (startsWithCI(text, "FORM ")) {
+        auto rest = trim(text.substr(5));
+        stripDo(rest);
+        if (!rest.empty() && rest.back() == ':') rest.pop_back();
+        rest = trim(rest);
+        if (rest.empty()) {
+          bc.fail(lineNo, "FORM needs a name — FORM login DO");
+          return false;
+        }
+        curForm = {};
+        curForm.name = stripThe(rest);
+        curForm.line = lineNo;
+        mode = InForm;
+        continue;
+      }
+      /* SCHEMA notes DO … END SCHEMA */
+      if (startsWithCI(text, "SCHEMA ")) {
+        auto rest = trim(text.substr(7));
+        stripDo(rest);
+        if (!rest.empty() && rest.back() == ':') rest.pop_back();
+        rest = trim(rest);
+        if (rest.empty()) {
+          bc.fail(lineNo, "SCHEMA needs a table name — SCHEMA notes DO");
+          return false;
+        }
+        curSchema = {};
+        curSchema.name = stripThe(rest);
+        curSchema.line = lineNo;
+        mode = InSchema;
+        continue;
+      }
       if (startsWithCI(text, "WHEN BACKGROUND REACTIVE ") ||
           startsWithCI(text, "WHEN REACTIVE WEAK ") ||
           startsWithCI(text, "WHEN WEAK REACTIVE ") ||
@@ -4682,6 +5009,188 @@ bool parse(BC &bc, const std::string &source) {
       continue;
     }
 
+    if (mode == InRoutes) {
+      if (toUpper(text) == "END ROUTES" || toUpper(text) == "ENDROUTES") {
+        for (auto &r : bc.routes) {
+          if (r.touchesSecret && !r.requiresAuth) {
+            bc.fail(r.line, "ROUTE " + r.method + " \"" + r.pattern +
+                                "\" touches SECRET without REQUIRES AUTH — compile error");
+            return false;
+          }
+        }
+        if (bc.routes.empty()) {
+          bc.fail(lineNo, "ROUTES table is empty — add GET/POST entries");
+          return false;
+        }
+        /* Reactive current_route cell beachhead */
+        bc.top.push_back({lineNo, "REMEMBER current_route AS TEXT SET TO \"/\""});
+        mode = Top;
+        continue;
+      }
+      auto Uline = toUpper(text);
+      (void)Uline;
+      std::string method;
+      std::string rest;
+      if (startsWithCI(text, "GET ")) {
+        method = "GET";
+        rest = trim(text.substr(4));
+      } else if (startsWithCI(text, "POST ")) {
+        method = "POST";
+        rest = trim(text.substr(5));
+      } else if (startsWithCI(text, "PUT ")) {
+        method = "PUT";
+        rest = trim(text.substr(4));
+      } else if (startsWithCI(text, "DELETE ")) {
+        method = "DELETE";
+        rest = trim(text.substr(7));
+      } else {
+        bc.fail(lineNo, "Inside ROUTES: GET/POST/PUT/DELETE \"/path\" [AS TYPE] [REQUIRES AUTH] "
+                        "[TOUCHES SECRET]");
+        return false;
+      }
+      std::string pattern;
+      if (!rest.empty() && rest[0] == '"') {
+        auto end = rest.find('"', 1);
+        if (end == std::string::npos) {
+          bc.fail(lineNo, "ROUTES path needs quotes — GET \"/user/:id\"");
+          return false;
+        }
+        pattern = rest.substr(1, end - 1);
+        rest = trim(rest.substr(end + 1));
+      } else {
+        auto sp = rest.find(' ');
+        pattern = sp == std::string::npos ? rest : trim(rest.substr(0, sp));
+        rest = sp == std::string::npos ? "" : trim(rest.substr(sp));
+      }
+      if (pattern.empty() || pattern[0] != '/') {
+        bc.fail(lineNo, "ROUTES path must start with / — GET \"/health\"");
+        return false;
+      }
+      BC::RouteDef rd;
+      rd.method = method;
+      rd.pattern = pattern;
+      rd.line = lineNo;
+      auto rU = toUpper(rest);
+      auto asPos = rU.find(" AS ");
+      if (asPos != std::string::npos) {
+        auto after = trim(rest.substr(asPos + 4));
+        auto aU = toUpper(after);
+        size_t tyEnd = 0;
+        while (tyEnd < aU.size() && (isalnum((unsigned char)aU[tyEnd]))) ++tyEnd;
+        rd.paramTy = trim(aU.substr(0, tyEnd));
+        rest = trim(after.substr(tyEnd));
+        rU = toUpper(rest);
+        auto colon = pattern.find(':');
+        if (colon != std::string::npos) {
+          size_t e = colon + 1;
+          while (e < pattern.size() && (isalnum((unsigned char)pattern[e]) || pattern[e] == '_'))
+            ++e;
+          rd.paramName = pattern.substr(colon + 1, e - (colon + 1));
+        }
+        if (rd.paramTy != "INTEGER" && rd.paramTy != "TEXT" && rd.paramTy != "NUMBER" &&
+            rd.paramTy != "FLAG") {
+          bc.fail(lineNo, "ROUTE param type must be INTEGER, TEXT, NUMBER, or FLAG — got " +
+                              rd.paramTy);
+          return false;
+        }
+      }
+      if (rU.find("REQUIRES AUTH") != std::string::npos ||
+          rU.find("REQUIRE AUTH") != std::string::npos)
+        rd.requiresAuth = true;
+      if (rU.find("TOUCHES SECRET") != std::string::npos)
+        rd.touchesSecret = true;
+      bc.routes.push_back(rd);
+      continue;
+    }
+
+    if (mode == InForm) {
+      if (toUpper(text) == "END FORM" || toUpper(text) == "ENDFORM") {
+        if (curForm.fields.empty()) {
+          bc.fail(curForm.line, "FORM '" + curForm.name + "' needs at least one HAS field");
+          return false;
+        }
+        bc.forms[curForm.name] = curForm;
+        bc.formOrder.push_back(curForm.name);
+        mode = Top;
+        continue;
+      }
+      if (startsWithCI(text, "HAS ")) {
+        auto rest = trim(text.substr(4));
+        auto U = toUpper(rest);
+        auto asPos = U.find(" AS ");
+        if (asPos == std::string::npos) {
+          bc.fail(lineNo, "FORM field needs — HAS email AS EMAIL");
+          return false;
+        }
+        BC::FormField ff;
+        ff.name = stripThe(trim(rest.substr(0, asPos)));
+        auto after = trim(rest.substr(asPos + 4));
+        auto aU = toUpper(after);
+        /* INTEGER 0..150 */
+        auto dots = aU.find("..");
+        if (startsWithCI(after, "INTEGER") && dots != std::string::npos) {
+          ff.ty = "INTEGER";
+          auto range = trim(after.substr(7));
+          auto d2 = range.find("..");
+          ff.minV = atol(trim(range.substr(0, d2)).c_str());
+          ff.maxV = atol(trim(range.substr(d2 + 2)).c_str());
+          ff.hasRange = true;
+        } else {
+          auto sp = aU.find(' ');
+          ff.ty = sp == std::string::npos ? aU : trim(aU.substr(0, sp));
+        }
+        if (ff.ty != "TEXT" && ff.ty != "EMAIL" && ff.ty != "INTEGER" && ff.ty != "PASSWORD" &&
+            ff.ty != "NUMBER" && ff.ty != "FLAG") {
+          bc.fail(lineNo, "FORM field type must be TEXT, EMAIL, INTEGER, PASSWORD — got " + ff.ty);
+          return false;
+        }
+        curForm.fields.push_back(ff);
+        continue;
+      }
+      bc.fail(lineNo, "Inside FORM: only HAS … / END FORM");
+      return false;
+    }
+
+    if (mode == InSchema) {
+      if (toUpper(text) == "END SCHEMA" || toUpper(text) == "ENDSCHEMA") {
+        if (curSchema.fields.empty()) {
+          bc.fail(curSchema.line, "SCHEMA '" + curSchema.name + "' needs at least one HAS field");
+          return false;
+        }
+        bc.schemas[curSchema.name] = curSchema;
+        bc.schemaOrder.push_back(curSchema.name);
+        mode = Top;
+        continue;
+      }
+      if (startsWithCI(text, "HAS ")) {
+        auto rest = trim(text.substr(4));
+        auto U = toUpper(rest);
+        auto asPos = U.find(" AS ");
+        if (asPos == std::string::npos) {
+          bc.fail(lineNo, "SCHEMA field needs — HAS body AS TEXT");
+          return false;
+        }
+        BC::SchemaField sf;
+        sf.name = stripThe(trim(rest.substr(0, asPos)));
+        auto ty = toUpper(trim(rest.substr(asPos + 4)));
+        if (ty == "INTEGER" || ty == "INT")
+          sf.sqlTy = "INTEGER";
+        else if (ty == "TEXT" || ty == "STRING")
+          sf.sqlTy = "TEXT";
+        else if (ty == "NUMBER" || ty == "REAL" || ty == "FLOAT")
+          sf.sqlTy = "REAL";
+        else {
+          bc.fail(lineNo, "SCHEMA type must be INTEGER, TEXT, or NUMBER — got " + ty +
+                              " (breaking/unknown schema type = compile error)");
+          return false;
+        }
+        curSchema.fields.push_back(sf);
+        continue;
+      }
+      bc.fail(lineNo, "Inside SCHEMA: only HAS … / END SCHEMA");
+      return false;
+    }
+
     if (mode == InFlow) {
       if (toUpper(text) == "END FLOW" || toUpper(text) == "ENDFLOW") {
         if (curFlow.hasDone && !curFlow.hasVerify) {
@@ -4690,7 +5199,15 @@ bool parse(BC &bc, const std::string &source) {
           return false;
         }
         if (!curFlow.hasDone) {
-          bc.fail(curFlow.line, "FLOW '" + curFlow.name + "' needs DONE → CREATE ACCOUNT (or DONE CREATE ACCOUNT)");
+          bc.fail(curFlow.line, "FLOW '" + curFlow.name +
+                                    "' needs DONE → CREATE ACCOUNT / RESET PASSWORD / …");
+          return false;
+        }
+        /* OAuth flows must VERIFY BY OAUTH (classic CSRF/state gaps → compile error beachhead). */
+        auto actU = toUpper(curFlow.doneAction);
+        if (actU.find("OAUTH") != std::string::npos && curFlow.verifyKind != "OAUTH") {
+          bc.fail(curFlow.line, "FLOW '" + curFlow.name +
+                                    "' OAuth DONE requires VERIFY … BY OAUTH — compile error");
           return false;
         }
         if (curFlow.steps.empty() || curFlow.steps[0] != "collect") {
@@ -4746,6 +5263,23 @@ bool parse(BC &bc, const std::string &source) {
         if (curFlow.hasDone) {
           bc.fail(lineNo, "FLOW VERIFY must come before DONE");
           return false;
+        }
+        auto vrest = trim(text.substr(7));
+        auto vU = toUpper(vrest);
+        auto byPos = vU.find(" BY ");
+        if (byPos != std::string::npos) {
+          auto kind = toUpper(trim(vrest.substr(byPos + 4)));
+          auto sp = kind.find(' ');
+          if (sp != std::string::npos) kind = trim(kind.substr(0, sp));
+          if (kind != "CODE" && kind != "TOTP" && kind != "OAUTH" && kind != "EMAIL") {
+            bc.fail(lineNo, "VERIFY BY needs CODE, TOTP, or OAUTH — got " + kind +
+                                " (unknown verify kind = compile error)");
+            return false;
+          }
+          if (kind == "EMAIL") kind = "CODE";
+          curFlow.verifyKind = kind;
+        } else {
+          curFlow.verifyKind = "CODE";
         }
         curFlow.hasVerify = true;
         if (curFlow.steps.empty() || curFlow.steps.back() != "verify")

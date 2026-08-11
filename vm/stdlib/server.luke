@@ -61,6 +61,11 @@ THIS IS FUNCTION httpQueryMap WITH req AS REQUEST GIVES BACK MAP DO
   GIVE BACK __luke_http_query_map(req)
 END FUNCTION
 
+// application/x-www-form-urlencoded body → MAP (compiler-synced FORM beachhead).
+THIS IS FUNCTION httpFormMap WITH req AS REQUEST GIVES BACK MAP DO
+  GIVE BACK __luke_http_form_map(req)
+END FUNCTION
+
 THIS IS FUNCTION httpHeader WITH req AS REQUEST, name AS TEXT GIVES BACK TEXT DO
   GIVE BACK __luke_http_header(req, name)
 END FUNCTION

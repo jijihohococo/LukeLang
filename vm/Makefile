@@ -470,6 +470,32 @@ test-build: build/luke
 	  fuser -k 8802/tcp 2>/dev/null || true
 	./build/luke BUILD ../examples/build/backend_api.luke -o build/backend_api
 	@grep -q 'luke_http_match\|luke_http_query_map\|luke_http_set_cookie' build/backend_api.luke.c
+	./build/luke BUILD ../examples/build/backend_lang_ok.luke -o build/backend_lang_ok
+	@./build/backend_lang_ok | tee /tmp/luke_backend_lang_ok.txt | grep -q "backend_lang_ok=1"
+	@grep -q 'form_ok=login' /tmp/luke_backend_lang_ok.txt
+	@grep -q 'CREATE TABLE IF NOT EXISTS notes' build/backend_lang_ok.luke.c
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/backend_routes_bad_link.luke -o build/backend_routes_bad_link > /tmp/luke_br_bad_link.txt 2>&1; then \
+	    echo "expected backend_routes_bad_link compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'broken route\|LINK TO\|compile error' /tmp/luke_br_bad_link.txt
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/backend_routes_bad_secret.luke -o build/backend_routes_bad_secret > /tmp/luke_br_bad_secret.txt 2>&1; then \
+	    echo "expected backend_routes_bad_secret compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'TOUCHES SECRET\|REQUIRES AUTH\|compile error' /tmp/luke_br_bad_secret.txt
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/backend_mw_bad_order.luke -o build/backend_mw_bad_order > /tmp/luke_mw_bad.txt 2>&1; then \
+	    echo "expected backend_mw_bad_order compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'RATE LIMIT before AUTH\|compile error' /tmp/luke_mw_bad.txt
+	./build/luke BUILD ../examples/build/backend_flow_oauth_ok.luke -o build/backend_flow_oauth_ok
+	@./build/backend_flow_oauth_ok | tee /tmp/luke_oauth_ok.txt | grep -q "backend_oauth_ok=1"
+	@set -e; \
+	  if ./build/luke BUILD ../examples/build/backend_flow_oauth_bad.luke -o build/backend_flow_oauth_bad > /tmp/luke_oauth_bad.txt 2>&1; then \
+	    echo "expected backend_flow_oauth_bad compile failure"; exit 1; \
+	  fi; \
+	  grep -q 'OAUTH\|VERIFY\|compile error' /tmp/luke_oauth_bad.txt
 	@set -e; \
 	  fuser -k 8799/tcp 2>/dev/null || true; \
 	  rm -f /tmp/luke_backend_api.db /tmp/luke_backend_api.db-wal /tmp/luke_backend_api.db-shm \

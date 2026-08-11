@@ -899,6 +899,34 @@ static inline LukeMap *luke_http_query_map(LukeArena *a, LukeHttpRequest *req) {
   return m;
 }
 
+/* application/x-www-form-urlencoded body → MAP (same decoder as query). */
+static inline LukeMap *luke_http_form_map(LukeArena *a, LukeHttpRequest *req) {
+  LukeMap *m = luke_map_new(a);
+  if (!req || !req->body.len || !req->body.ptr) return m;
+  const char *q = req->body.ptr;
+  size_t n = req->body.len;
+  size_t i = 0;
+  while (i < n) {
+    size_t k0 = i;
+    while (i < n && q[i] != '=' && q[i] != '&') ++i;
+    size_t k1 = i;
+    size_t v0 = i, v1 = i;
+    if (i < n && q[i] == '=') {
+      ++i;
+      v0 = i;
+      while (i < n && q[i] != '&') ++i;
+      v1 = i;
+    }
+    if (i < n && q[i] == '&') ++i;
+    if (k1 > k0) {
+      LukeText key = luke_http__url_decode(a, q + k0, k1 - k0);
+      LukeText val = luke_http__url_decode(a, q + v0, v1 - v0);
+      luke_map_put(a, m, key, val);
+    }
+  }
+  return m;
+}
+
 /* Match path against pattern with :param segments. Fills out MAP; returns 1 on match. */
 static inline int luke_http_match(LukeArena *a, LukeText path, LukeText pattern, LukeMap *out) {
   if (!a || !out) return 0;

@@ -10,12 +10,13 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Routing — route table, path params (`/user/:id`), method dispatch | 🟡 | `httpMatch` beachhead (this ship); declarative route table still open |
-| Request parsing — query map, JSON body→value, form, headers, cookies | 🟡 | query map + header/cookie + JSON-via-body (this ship); form still open |
-| Auth / session / login | 🟡 | Argon2id + session/CSRF + `CURRENT USER` / scoped `WATCH`; **SECRET** compile errors; **FLOW** (VERIFY before DONE); **LIMIT** + `login.remaining`; **REVEAL**; **WHO SAW SINCE** / **SCRUB TO access** |
+| Routing — route table, path params (`/user/:id`), method dispatch | 🟡 | `httpMatch` + declarative `ROUTES` / `LINK TO` compile integrity |
+| Request parsing — query map, JSON body→value, form, headers, cookies | 🟡 | query/header/cookie/JSON + `httpFormMap` / `FORM` validate |
+| Auth / session / login | 🟡 | Argon2id + session/CSRF + scoped `WATCH`; SECRET/FLOW/LIMIT/REVEAL; `REQUIRE CSRF` |
 | **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind` (this ship); prefer over raw SQL in app code |
 | `BACKEND_ROADMAP.md` track spine | ✅ | added (this ship) |
 | Auth-as-types (unauthorized = compile error) | 🟡 | `SECRET` + scoped path; `FLOW` totality; `REVEAL` declassify — see [`docs/AUTH.md`](./docs/AUTH.md) |
+| Declarative backend (routes/form/mw/schema) | 🟡 | `ROUTES`/`FORM`/`SCHEMA`/`MIDDLEWARE ORDER` spikes — see [`docs/BACKEND_ROADMAP.md`](./docs/BACKEND_ROADMAP.md) |
 
 ---
 

@@ -25,14 +25,14 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 | Query string → MAP | ✅ | `httpQueryMap` |
 | Headers / cookies | ✅ | `httpHeader` / `httpCookie` / `httpSetCookie` |
 | JSON body | 🟡 | `httpBody` + `jsonParse` (stdlib sugar later) |
-| Form body (`application/x-www-form-urlencoded`) | ⬜ | |
+| Form body (`application/x-www-form-urlencoded`) | 🟡 | `httpFormMap` + declarative `FORM` / `VALIDATE FORM` |
 | Auth / session / login | 🟡 | `std/auth` — Argon2id, sessions, CSRF, scoped `WATCH`, **SECRET**, **FLOW**, **LIMIT**/`remaining`, **REVEAL**, **WHO SAW SINCE**, **SCRUB TO access** |
-| Middleware / filters | ⬜ | |
-| Declarative route table syntax | ⬜ | |
-| SSE channel auth / backpressure | ⬜ | see Live Graph wire hardening |
-| Password reset / 2FA / OAuth | 🟡 | `FLOW` + `VERIFY` beachhead; real code/OAuth providers later |
+| Middleware / filters | 🟡 | `REQUIRE LOGIN` / `REQUIRE CSRF`; `MIDDLEWARE ORDER AUTH THEN RATE LIMIT` (order compile check) |
+| Declarative route table syntax | 🟡 | `ROUTES` / `LINK TO` integrity; typed params; `TOUCHES SECRET`⇒`REQUIRES AUTH` |
+| SSE channel auth / backpressure | 🟡 | `PUSH WATCH` of SECRET requires `FOR CURRENT USER`; scheduler lanes = backpressure story |
+| Password reset / 2FA / OAuth | 🟡 | `FLOW` + `VERIFY BY CODE\|TOTP\|OAUTH`; OAuth DONE requires `BY OAUTH` |
 | Declarative `LIMIT` + reactive remaining | 🟡 | `LIMIT login TO N PER …` + `login.remaining` + `REFRESH LIMIT` |
-| Migrations / schema helpers | ⬜ | |
+| Migrations / schema helpers | 🟡 | `SCHEMA` / `ENSURE SCHEMA` → `CREATE TABLE IF NOT EXISTS`; unknown types = compile error |
 
 ### Auth rules (non-negotiable)
 
@@ -41,8 +41,9 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 3. **Secure path together** — hash + timing-safe verify + session cookie (HttpOnly, SameSite=Lax; `LUKE_AUTH_SECURE=1` adds Secure) + CSRF. Not hash-only.
 4. **Live Graph + auth** — `WATCH … FOR CURRENT USER` binds `user_id = ?` per request (no shared IVM across tenants).
 5. **Auth-as-types** — `SECRET` on an unscoped path is a **compile error**; `FLOW` `DONE` without `VERIFY` is a **compile error**; declassify via **`REVEAL`**. See [`AUTH.md`](./AUTH.md).
+6. **Whole-stack compile gates (beachheads)** — broken `LINK TO`, SECRET route without auth, middleware order inversion, OAuth without `VERIFY BY OAUTH`, unknown SCHEMA types → **compile error**.
 
-Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok.luke`, `auth_flow_ok.luke`, `auth_lang_ok.luke` (+ negatives `auth_secret_bad_*.luke`, `auth_flow_bad.luke`).
+Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok.luke`, `auth_flow_ok.luke`, `auth_lang_ok.luke`, `backend_lang_ok.luke` (+ negatives `backend_routes_bad_*.luke`, `backend_mw_bad_order.luke`, `backend_flow_oauth_bad.luke`).
 
 ---
 

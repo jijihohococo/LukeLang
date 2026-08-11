@@ -374,7 +374,8 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/live_graph_updater_rapid.luke -o build/live_graph_updater_rapid
 	@grep -q 'luke_db_data_version' build/live_graph_server.luke.c
 	@grep -q 'luke_db_query_text\|httpSseData' build/live_graph_server.luke.c
-	@grep -q 'SELECT name FROM users WHERE id = 1' build/live_graph_server.luke.c
+	@grep -q 'luke_ivm_' build/live_graph_server.luke.c
+	@grep -q 'group_concat(name' build/live_graph_server.luke.c
 	@grep -qE 'WATCH user FROM db' ../examples/build/live_graph_server.luke
 	@grep -qE 'PUSH WATCH' ../examples/build/live_graph_server.luke
 	@! grep -qE 'dbQuery|httpSseData|httpSseOpen|REFRESH QUERY' ../examples/build/live_graph_server.luke

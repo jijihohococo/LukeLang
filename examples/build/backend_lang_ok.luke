@@ -39,6 +39,7 @@ PUT "email" TO "ada@example.com" IN params
 PUT "password" TO "correct horse" IN params
 PUT "age" TO "33" IN params
 VALIDATE FORM login FROM params
+SPEAK "form_cell_ok=" AND form_login_ok
 
 ASK dbClose WITH db
 SPEAK "backend_lang_ok=1"

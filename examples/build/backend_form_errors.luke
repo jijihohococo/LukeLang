@@ -1,0 +1,22 @@
+// FORM validation → reactive error cells (server errors flow to UI BIND).
+// Build: luke BUILD examples/build/backend_form_errors.luke -o build/backend_form_errors
+
+FORM login DO
+  HAS email AS EMAIL
+  HAS password AS PASSWORD
+END FORM
+
+MY NAME IS bad AS MAP
+PUT "email" TO "not-an-email" IN bad
+PUT "password" TO "short" IN bad
+VALIDATE FORM login FROM bad
+SPEAK "email_err=" AND form_login_email_error
+SPEAK "pass_err=" AND form_login_password_error
+SPEAK "ok_cell=" AND form_login_ok
+
+MY NAME IS good AS MAP
+PUT "email" TO "ada@example.com" IN good
+PUT "password" TO "correct horse" IN good
+VALIDATE FORM login FROM good
+SPEAK "ok_cell2=" AND form_login_ok
+SPEAK "form_errors_ok=1"

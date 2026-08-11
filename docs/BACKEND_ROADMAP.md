@@ -21,18 +21,18 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 |-----|--------|-----------|
 | Parameterized SQL (`?` binds) | ✅ | `dbExecBind` / `dbQueryBind` + `LIST` of TEXT |
 | Path params + match | ✅ | `httpMatch path, "/user/:id", params` |
-| Method-aware dispatch | 🟡 | `httpMethod` + `httpMatch` in handler (declarative table later) |
+| Method-aware dispatch | ✅ | `SERVE ROUTES ON server WITH n` codegen from `ROUTES` + `HANDLE` |
 | Query string → MAP | ✅ | `httpQueryMap` |
 | Headers / cookies | ✅ | `httpHeader` / `httpCookie` / `httpSetCookie` |
 | JSON body | 🟡 | `httpBody` + `jsonParse` (stdlib sugar later) |
-| Form body (`application/x-www-form-urlencoded`) | 🟡 | `httpFormMap` + declarative `FORM` / `VALIDATE FORM` |
+| Form body (`application/x-www-form-urlencoded`) | ✅ | `httpFormMap` + `FORM` / `VALIDATE FORM` → `form_*_error` / `form_*_ok` cells |
 | Auth / session / login | 🟡 | `std/auth` — Argon2id, sessions, CSRF, scoped `WATCH`, **SECRET**, **FLOW**, **LIMIT**/`remaining`, **REVEAL**, **WHO SAW SINCE**, **SCRUB TO access** |
 | Middleware / filters | 🟡 | `REQUIRE LOGIN` / `REQUIRE CSRF`; `MIDDLEWARE ORDER AUTH THEN RATE LIMIT` (order compile check) |
-| Declarative route table syntax | 🟡 | `ROUTES` / `LINK TO` integrity; typed params; `TOUCHES SECRET`⇒`REQUIRES AUTH` |
+| Declarative route table syntax | ✅ | `ROUTES` / `HANDLE` / `LINK TO` / `SERVE ROUTES` — broken link / missing HANDLE / SECRET without auth = compile error |
 | SSE channel auth / backpressure | 🟡 | `PUSH WATCH` of SECRET requires `FOR CURRENT USER`; scheduler lanes = backpressure story |
-| Password reset / 2FA / OAuth | 🟡 | `FLOW` + `VERIFY BY CODE\|TOTP\|OAUTH`; OAuth DONE requires `BY OAUTH` |
+| Password reset / 2FA / OAuth | 🟡 | `FLOW` + `VERIFY BY CODE\|TOTP\|OAUTH` wrapper only — **no invented providers** (interop/conformance) |
 | Declarative `LIMIT` + reactive remaining | 🟡 | `LIMIT login TO N PER …` + `login.remaining` + `REFRESH LIMIT` |
-| Migrations / schema helpers | 🟡 | `SCHEMA` / `ENSURE SCHEMA` → `CREATE TABLE IF NOT EXISTS`; unknown types = compile error |
+| Migrations / schema helpers | ✅ | `SCHEMA` / `ENSURE SCHEMA`; `MIGRATION` / `MIGRATE` / `REWIND` + `luke_schema_migrations` |
 
 ### Auth rules (non-negotiable)
 
@@ -43,7 +43,7 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 5. **Auth-as-types** — `SECRET` on an unscoped path is a **compile error**; `FLOW` `DONE` without `VERIFY` is a **compile error**; declassify via **`REVEAL`**. See [`AUTH.md`](./AUTH.md).
 6. **Whole-stack compile gates (beachheads)** — broken `LINK TO`, SECRET route without auth, middleware order inversion, OAuth without `VERIFY BY OAUTH`, unknown SCHEMA types → **compile error**.
 
-Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok.luke`, `auth_flow_ok.luke`, `auth_lang_ok.luke`, `backend_lang_ok.luke` (+ negatives `backend_routes_bad_*.luke`, `backend_mw_bad_order.luke`, `backend_flow_oauth_bad.luke`).
+Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok.luke`, `auth_flow_ok.luke`, `auth_lang_ok.luke`, `backend_lang_ok.luke`, `backend_routes_serve.luke`, `backend_form_errors.luke`, `backend_migrate_ok.luke` (+ negatives `backend_routes_bad_*.luke`, `backend_mw_bad_order.luke`, `backend_flow_oauth_bad.luke`).
 
 ---
 
@@ -52,46 +52,61 @@ Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok
 ```luke
 IMPORT std/server
 IMPORT std/sqlite
-IMPORT std/json
 
-THIS IS FUNCTION handle WITH req AS REQUEST DO
-  MY NAME IS method SET TO ASK httpMethod WITH req
+THIS IS FUNCTION health WITH req AS REQUEST DO
+  ASK httpReply WITH req, 200, "text/plain", "ok"
+END FUNCTION
+
+THIS IS FUNCTION show_user WITH req AS REQUEST DO
   MY NAME IS path SET TO ASK httpPath WITH req
   MY NAME IS params AS MAP
-
-  IF method EQUALS "GET" DO
-    IF ASK httpMatch WITH path, "/user/:id", params DO
-      MY NAME IS id SET TO GET "id" FROM params
-      MY NAME IS q SET TO ASK httpQueryMap WITH req
-      MY NAME IS binds AS LIST
-      ADD id TO binds
-      MY NAME IS name SET TO ASK dbQueryBind WITH db, "SELECT name FROM users WHERE id = ?", binds
-      ASK httpReply WITH req, 200, "text/plain", name
-    END IF
-  END IF
-
-  IF method EQUALS "POST" DO
-    IF ASK httpMatch WITH path, "/login", params DO
-      MY NAME IS body SET TO ASK httpJson WITH req
-      // … verify, then:
-      ASK httpSetCookie WITH req, "luke_sid", sid
-      ASK httpReply WITH req, 200, "text/plain", "ok"
-    END IF
-  END IF
+  ASK httpMatch WITH path, "/user/:id", params
+  MY NAME IS id SET TO GET "id" FROM params
+  ASK httpReply WITH req, 200, "text/plain", id
 END FUNCTION
+
+ROUTES DO
+  GET "/ok" HANDLE health
+  GET "/user/:id" AS INTEGER HANDLE show_user
+END ROUTES
+
+MY NAME IS server SET TO ASK httpListen WITH 8799
+SERVE ROUTES ON server WITH 8
 ```
 
-Examples: `examples/build/sql_bind.luke`, `examples/build/backend_api.luke`.
+Form validation feeds reactive cells (BIND in UI without a second declaration):
+
+```luke
+FORM login DO
+  HAS email AS EMAIL
+  HAS password AS PASSWORD
+END FORM
+VALIDATE FORM login FROM params
+# → form_login_email_error / form_login_ok cells
+```
+
+Migrations are versioned UP/DOWN SQL (rewind = apply DOWN):
+
+```luke
+MIGRATION app DO
+  VERSION 1 UP "CREATE TABLE items(id INTEGER PRIMARY KEY)" DOWN "DROP TABLE items"
+END MIGRATION
+MIGRATE app ON db TO 1
+REWIND app ON db TO 0
+```
+
+Examples: `examples/build/sql_bind.luke`, `examples/build/backend_api.luke`, `examples/build/backend_routes_serve.luke`.
 
 ---
 
 ## Sequencing
 
 1. **Secure data path** — parameterized binds (done); migrate demos off string-concat SQL.
-2. **Request shape** — match + query map + headers/cookies (done); form + richer JSON helpers next.
-3. **Session / auth** — opaque sid cookie + DB table (beachhead); password hashing / OAuth later.
-4. **Declarative routes** — `WHEN GET "/user/:id" DO` or route table IR (stops `IF` trees).
-5. **Hardening** — middleware, request limits, SSE auth, structured errors.
+2. **Request shape** — match + query map + headers/cookies + form cells (done); richer JSON helpers next.
+3. **Session / auth** — opaque sid cookie + DB table (beachhead); **do not invent** OAuth/TOTP providers — wrap textbook flows only.
+4. **Declarative routes** — `ROUTES` + `HANDLE` + `SERVE ROUTES` codegen (done); no clever auto-dispatch invention.
+5. **Schema migrate/rewind** — `MIGRATION` / `MIGRATE` / `REWIND` (done).
+6. **Hardening** — middleware depth, request limits, SSE auth, structured errors.
 
 ---
 
@@ -101,3 +116,4 @@ Examples: `examples/build/sql_bind.luke`, `examples/build/backend_api.luke`.
 - [`BUILD_MODE.md`](./BUILD_MODE.md) — `std/server` / `std/sqlite` inventory
 - [`STRATEGY.md`](./STRATEGY.md) — why Backend is the next track
 - [`TaskList.md`](../TaskList.md) — cross-track checklist
+- [`AUTH.md`](./AUTH.md) — auth-as-types / FLOW / SECRET

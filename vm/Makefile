@@ -473,7 +473,33 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/backend_lang_ok.luke -o build/backend_lang_ok
 	@./build/backend_lang_ok | tee /tmp/luke_backend_lang_ok.txt | grep -q "backend_lang_ok=1"
 	@grep -q 'form_ok=login' /tmp/luke_backend_lang_ok.txt
+	@grep -q 'form_cell_ok=1' /tmp/luke_backend_lang_ok.txt
 	@grep -q 'CREATE TABLE IF NOT EXISTS notes' build/backend_lang_ok.luke.c
+	./build/luke BUILD ../examples/build/backend_form_errors.luke -o build/backend_form_errors
+	@./build/backend_form_errors | tee /tmp/luke_form_errors.txt | grep -q "form_errors_ok=1"
+	@grep -q 'email_err=invalid_email' /tmp/luke_form_errors.txt
+	@grep -q 'pass_err=too_short' /tmp/luke_form_errors.txt
+	@grep -q 'ok_cell=0' /tmp/luke_form_errors.txt
+	@grep -q 'ok_cell2=1' /tmp/luke_form_errors.txt
+	./build/luke BUILD ../examples/build/backend_migrate_ok.luke -o build/backend_migrate_ok
+	@./build/backend_migrate_ok | tee /tmp/luke_migrate_ok.txt | grep -q "migrate_ok=1"
+	@grep -q 'migrated=2' /tmp/luke_migrate_ok.txt
+	@grep -q 'rewound=1' /tmp/luke_migrate_ok.txt
+	@grep -q 'version=2' /tmp/luke_migrate_ok.txt
+	@grep -q 'luke_db_migrate_ensure\|luke_db_migrate_set' build/backend_migrate_ok.luke.c
+	./build/luke BUILD ../examples/build/backend_routes_serve.luke -o build/backend_routes_serve
+	@grep -q 'luke_http_wrap___luke_routes\|__luke_routes' build/backend_routes_serve.luke.c
+	@set -e; \
+	  fuser -k 8803/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_routes_serve.pid /tmp/luke_routes_serve.log; \
+	  ./build/backend_routes_serve > /tmp/luke_routes_serve.log 2>&1 & echo $$! > /tmp/luke_routes_serve.pid; \
+	  sleep 0.35; \
+	  test "$$(curl -s -m 2 http://127.0.0.1:8803/ok)" = "ok"; \
+	  test "$$(curl -s -m 2 http://127.0.0.1:8803/user/42)" = "user=42"; \
+	  test "$$(curl -s -m 2 http://127.0.0.1:8803/missing)" = "not found"; \
+	  wait $$(cat /tmp/luke_routes_serve.pid); \
+	  grep -q "routes_serve_done=1" /tmp/luke_routes_serve.log; \
+	  fuser -k 8803/tcp 2>/dev/null || true
 	@set -e; \
 	  if ./build/luke BUILD ../examples/build/backend_routes_bad_link.luke -o build/backend_routes_bad_link > /tmp/luke_br_bad_link.txt 2>&1; then \
 	    echo "expected backend_routes_bad_link compile failure"; exit 1; \

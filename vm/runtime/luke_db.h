@@ -83,6 +83,22 @@ static inline int64_t luke_db_log_append(LukeDb *db, LukeText table, LukeText va
   return 0;
 }
 
+static inline int luke_db_migrate_ensure(LukeDb *db) {
+  (void)db;
+  return 0;
+}
+
+static inline int64_t luke_db_migrate_version(LukeDb *db) {
+  (void)db;
+  return 0;
+}
+
+static inline int luke_db_migrate_set(LukeDb *db, int64_t version) {
+  (void)db;
+  (void)version;
+  return 0;
+}
+
 static inline int luke_db_log_replay(LukeArena *a, LukeDb *db, LukeText table, int64_t after_seq,
                                      void (*fn)(void *, int64_t, LukeText), void *ctx) {
   (void)a;
@@ -317,6 +333,28 @@ static inline int luke_db_close(LukeDb *db) {
   sqlite3_close(db->db);
   db->db = NULL;
   return 1;
+}
+
+/* Conventional schema version table — single row id=1. */
+static inline int luke_db_migrate_ensure(LukeDb *db) {
+  return luke_db_exec(db, luke_text("CREATE TABLE IF NOT EXISTS luke_schema_migrations("
+                                    "id INTEGER PRIMARY KEY CHECK(id=1), "
+                                    "version INTEGER NOT NULL)"));
+}
+
+static inline int64_t luke_db_migrate_version(LukeDb *db) {
+  if (!db || !db->db) return 0;
+  return luke_db_query_i64(db, luke_text("SELECT version FROM luke_schema_migrations WHERE id=1"));
+}
+
+static inline int luke_db_migrate_set(LukeDb *db, int64_t version) {
+  if (!db || !db->db) return 0;
+  char sql[160];
+  snprintf(sql, sizeof(sql),
+           "INSERT INTO luke_schema_migrations(id, version) VALUES(1, %lld) "
+           "ON CONFLICT(id) DO UPDATE SET version=excluded.version",
+           (long long)version);
+  return luke_db_exec(db, luke_text(sql));
 }
 
 #endif /* !__wasi__ */

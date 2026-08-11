@@ -323,12 +323,28 @@ struct BC {
     std::string pattern; /* /user/:id */
     std::string paramName;
     std::string paramTy; /* INTEGER | TEXT | NUMBER */
+    std::string handler; /* HANDLE name — for SERVE ROUTES dispatch */
     bool requiresAuth = false;
     bool touchesSecret = false;
     size_t line = 0;
   };
   std::vector<RouteDef> routes;
   bool hasRoutesBlock = false;
+  bool serveRoutes = false; /* SERVE ROUTES ON … emits __luke_routes wrap */
+  /* Versioned schema migrations (conventional up/down; no invented crypto). */
+  struct MigrateStep {
+    int version = 0;
+    std::string upSql;
+    std::string downSql;
+    size_t line = 0;
+  };
+  struct MigrationDef {
+    std::string name;
+    std::vector<MigrateStep> steps;
+    size_t line = 0;
+  };
+  std::map<std::string, MigrationDef> migrations;
+  std::vector<std::string> migrationOrder;
   /* FORM name — one declaration for parse/validate beachhead. */
   struct FormField {
     std::string name;
@@ -2696,7 +2712,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  luke_db_exec(" << cIdent(dbName) << ", luke_text(\"" << esc(sql.str()) << "\"));\n";
     return;
   }
-  /* VALIDATE FORM name FROM map — typed validation beachhead (EMAIL / INTEGER range). */
+  /* VALIDATE FORM name FROM map — writes form_<name>_<field>_error + form_<name>_ok cells. */
   if (startsWithCI(text, "VALIDATE FORM ")) {
     auto rest = trim(text.substr(14));
     auto U = toUpper(rest);
@@ -2716,30 +2732,181 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
       return;
     }
     auto &form = bc.forms[fname];
+    std::string okCell = "form_" + fname + "_ok";
+    bc.usesRx = true;
     o << "  {\n";
     o << "    int _luke_form_ok = 1;\n";
+    o << "    if (_luke_rx) luke_rx_batch_begin(_luke_rx);\n";
     for (auto &f : form.fields) {
+      std::string errCell = "form_" + fname + "_" + f.name + "_error";
       o << "    {\n";
       o << "      LukeText _luke_fv = luke_map_get(" << cIdent(mapName) << ", luke_text(\""
         << esc(f.name) << "\"));\n";
+      o << "      LukeText _luke_ferr = luke_text(\"\");\n";
       if (toUpper(f.ty) == "EMAIL") {
-        o << "      if (!_luke_fv.len || !memchr(_luke_fv.ptr, '@', _luke_fv.len)) _luke_form_ok = 0;\n";
+        o << "      if (!_luke_fv.len) _luke_ferr = luke_text(\"required\");\n";
+        o << "      else if (!memchr(_luke_fv.ptr, '@', _luke_fv.len)) _luke_ferr = luke_text(\"invalid_email\");\n";
       } else if (toUpper(f.ty) == "INTEGER" && f.hasRange) {
         o << "      {\n";
         o << "        long _luke_iv = _luke_fv.len ? atol(_luke_fv.ptr) : 0;\n";
-        o << "        if (!_luke_fv.len || _luke_iv < " << f.minV << " || _luke_iv > " << f.maxV
-          << ") _luke_form_ok = 0;\n";
+        o << "        if (!_luke_fv.len) _luke_ferr = luke_text(\"required\");\n";
+        o << "        else if (_luke_iv < " << f.minV << " || _luke_iv > " << f.maxV
+          << ") _luke_ferr = luke_text(\"out_of_range\");\n";
         o << "      }\n";
       } else if (toUpper(f.ty) == "PASSWORD") {
-        o << "      if (_luke_fv.len < 8) _luke_form_ok = 0;\n";
+        o << "      if (_luke_fv.len < 8) _luke_ferr = luke_text(\"too_short\");\n";
       } else {
-        o << "      if (!_luke_fv.len) _luke_form_ok = 0;\n";
+        o << "      if (!_luke_fv.len) _luke_ferr = luke_text(\"required\");\n";
       }
+      o << "      if (_luke_ferr.len) _luke_form_ok = 0;\n";
+      o << "      if (_luke_rx) luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(errCell)
+        << ", _luke_ferr);\n";
       o << "    }\n";
     }
+    o << "    if (_luke_rx) luke_rx_write_text(_luke_rx, _luke_rx_id_" << cIdent(okCell)
+      << ", _luke_form_ok ? luke_text(\"1\") : luke_text(\"0\"));\n";
+    o << "    if (_luke_rx) luke_rx_batch_end(_luke_rx);\n";
     o << "    if (!_luke_form_ok) luke_speak_text(luke_text(\"form_invalid=" << esc(fname)
       << "\"));\n";
     o << "    else luke_speak_text(luke_text(\"form_ok=" << esc(fname) << "\"));\n";
+    o << "  }\n";
+    return;
+  }
+  /* SERVE ROUTES ON server WITH n — codegen dispatch from ROUTES table (no clever invention). */
+  if (startsWithCI(text, "SERVE ROUTES ")) {
+    auto rest = trim(text.substr(13));
+    auto U = toUpper(rest);
+    auto onPos = U.find(" ON ");
+    auto withPos = U.find(" WITH ");
+    if (onPos == std::string::npos || withPos == std::string::npos || withPos < onPos) {
+      bc.fail(line, "SERVE ROUTES needs — SERVE ROUTES ON server WITH 8");
+      return;
+    }
+    auto serverName = stripThe(trim(rest.substr(onPos + 4, withPos - (onPos + 4))));
+    auto workersE = bc.coerceTo(line, bc.expr(trim(rest.substr(withPos + 6)), line), Ty::num(),
+                                "SERVE ROUTES WITH");
+    if (!bc.hasRoutesBlock || bc.routes.empty()) {
+      bc.fail(line, "SERVE ROUTES needs ROUTES … END ROUTES first");
+      return;
+    }
+    if (!bc.locals.count(serverName) || bc.locals[serverName].k != K::Ptr ||
+        bc.locals[serverName].klass != "__HttpServer") {
+      bc.fail(line, "SERVE ROUTES ON needs an HTTP server — ASK httpListen first");
+      return;
+    }
+    for (auto &r : bc.routes) {
+      if (r.handler.empty()) {
+        bc.fail(r.line, "SERVE ROUTES needs HANDLE on every route — " + r.method + " \"" +
+                            r.pattern + "\" HANDLE name");
+        return;
+      }
+      if (!bc.fns.count(r.handler)) {
+        bc.fail(r.line, "ROUTE HANDLE '" + r.handler +
+                            "' — define THIS IS FUNCTION " + r.handler + " WITH req AS REQUEST");
+        return;
+      }
+      auto &hfn = bc.fns[r.handler];
+      if (hfn.params.size() != 1 || hfn.params[0].ty.k != K::Ptr ||
+          hfn.params[0].ty.klass != "__HttpReq") {
+        bc.fail(r.line, "ROUTE HANDLE '" + r.handler + "' must take one REQUEST argument");
+        return;
+      }
+    }
+    bc.serveRoutes = true;
+    bc.needsPthread = true;
+    o << "  luke_http_serve(" << cIdent(serverName) << ", luke_http_wrap___luke_routes, "
+      << workersE.code << ");\n";
+    return;
+  }
+  /* MIGRATE name ON db TO n — apply UP steps to target version. */
+  if (startsWithCI(text, "MIGRATE ")) {
+    auto rest = trim(text.substr(8));
+    auto U = toUpper(rest);
+    auto onPos = U.find(" ON ");
+    auto toPos = U.find(" TO ");
+    if (onPos == std::string::npos || toPos == std::string::npos || toPos < onPos) {
+      bc.fail(line, "MIGRATE needs — MIGRATE app ON db TO 2");
+      return;
+    }
+    auto mname = stripThe(trim(rest.substr(0, onPos)));
+    auto dbName = stripThe(trim(rest.substr(onPos + 4, toPos - (onPos + 4))));
+    auto verE = bc.coerceTo(line, bc.expr(trim(rest.substr(toPos + 4)), line), Ty::num(), "MIGRATE TO");
+    if (!bc.migrations.count(mname)) {
+      bc.fail(line, "MIGRATE '" + mname + "' — declare MIGRATION " + mname + " … END MIGRATION first");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "MIGRATE ON needs a DATABASE");
+      return;
+    }
+    auto &mig = bc.migrations[mname];
+    o << "  {\n";
+    o << "    luke_db_migrate_ensure(" << cIdent(dbName) << ");\n";
+    o << "    int64_t _luke_mig_cur = luke_db_migrate_version(" << cIdent(dbName) << ");\n";
+    o << "    int64_t _luke_mig_to = (int64_t)(" << verE.code << ");\n";
+    o << "    if (_luke_mig_to < _luke_mig_cur) {\n";
+    o << "      luke_speak_text(luke_text(\"migrate_use_rewind\"));\n";
+    o << "    } else {\n";
+    o << "      for (int64_t _luke_v = _luke_mig_cur + 1; _luke_v <= _luke_mig_to; ++_luke_v) {\n";
+    o << "        int _luke_did = 0;\n";
+    for (auto &st : mig.steps) {
+      o << "        if (_luke_v == " << st.version << "LL) {\n";
+      o << "          if (!luke_db_exec(" << cIdent(dbName) << ", luke_text(\"" << esc(st.upSql)
+        << "\"))) luke_speak_text(luke_text(\"migrate_up_fail=" << st.version << "\"));\n";
+      o << "          luke_db_migrate_set(" << cIdent(dbName) << ", " << st.version << "LL);\n";
+      o << "          _luke_did = 1;\n";
+      o << "        }\n";
+    }
+    o << "        if (!_luke_did) luke_speak_text(luke_text(\"migrate_missing_version\"));\n";
+    o << "      }\n";
+    o << "    }\n";
+    o << "  }\n";
+    return;
+  }
+  /* REWIND name ON db TO n — apply DOWN steps back to target version. */
+  if (startsWithCI(text, "REWIND ")) {
+    auto rest = trim(text.substr(7));
+    auto U = toUpper(rest);
+    auto onPos = U.find(" ON ");
+    auto toPos = U.find(" TO ");
+    if (onPos == std::string::npos || toPos == std::string::npos || toPos < onPos) {
+      bc.fail(line, "REWIND needs — REWIND app ON db TO 1");
+      return;
+    }
+    auto mname = stripThe(trim(rest.substr(0, onPos)));
+    auto dbName = stripThe(trim(rest.substr(onPos + 4, toPos - (onPos + 4))));
+    auto verE = bc.coerceTo(line, bc.expr(trim(rest.substr(toPos + 4)), line), Ty::num(), "REWIND TO");
+    if (!bc.migrations.count(mname)) {
+      bc.fail(line, "REWIND '" + mname + "' — declare MIGRATION " + mname + " … END MIGRATION first");
+      return;
+    }
+    if (!bc.locals.count(dbName) || bc.locals[dbName].k != K::Ptr ||
+        bc.locals[dbName].klass != "__Db") {
+      bc.fail(line, "REWIND ON needs a DATABASE");
+      return;
+    }
+    auto &mig = bc.migrations[mname];
+    o << "  {\n";
+    o << "    luke_db_migrate_ensure(" << cIdent(dbName) << ");\n";
+    o << "    int64_t _luke_mig_cur = luke_db_migrate_version(" << cIdent(dbName) << ");\n";
+    o << "    int64_t _luke_mig_to = (int64_t)(" << verE.code << ");\n";
+    o << "    if (_luke_mig_to > _luke_mig_cur) {\n";
+    o << "      luke_speak_text(luke_text(\"rewind_use_migrate\"));\n";
+    o << "    } else {\n";
+    o << "      for (int64_t _luke_v = _luke_mig_cur; _luke_v > _luke_mig_to; --_luke_v) {\n";
+    o << "        int _luke_did = 0;\n";
+    for (auto &st : mig.steps) {
+      o << "        if (_luke_v == " << st.version << "LL) {\n";
+      o << "          if (!luke_db_exec(" << cIdent(dbName) << ", luke_text(\"" << esc(st.downSql)
+        << "\"))) luke_speak_text(luke_text(\"migrate_down_fail=" << st.version << "\"));\n";
+      o << "          luke_db_migrate_set(" << cIdent(dbName) << ", " << (st.version - 1) << "LL);\n";
+      o << "          _luke_did = 1;\n";
+      o << "        }\n";
+    }
+    o << "        if (!_luke_did) luke_speak_text(luke_text(\"rewind_missing_version\"));\n";
+    o << "      }\n";
+    o << "    }\n";
     o << "  }\n";
     return;
   }
@@ -4682,7 +4849,8 @@ bool parse(BC &bc, const std::string &source) {
   std::istringstream in(src);
   std::string raw;
   size_t lineNo = 0;
-  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen, InFlow, InRoutes, InForm, InSchema };
+  enum Mode { Top, InFn, InBp, InMeth, InWhen, InRxWhen, InFlow, InRoutes, InForm, InSchema,
+               InMigration };
   Mode mode = Top;
   Fn curFn;
   BP curBp;
@@ -4692,6 +4860,7 @@ bool parse(BC &bc, const std::string &source) {
   BC::FlowDef curFlow;
   BC::FormDef curForm;
   BC::SchemaDef curSchema;
+  BC::MigrationDef curMigration;
   bool skipContract = false;
 
   while (std::getline(in, raw)) {
@@ -4875,6 +5044,22 @@ bool parse(BC &bc, const std::string &source) {
         mode = InSchema;
         continue;
       }
+      /* MIGRATION app DO … END MIGRATION — versioned UP/DOWN SQL. */
+      if (startsWithCI(text, "MIGRATION ")) {
+        auto rest = trim(text.substr(10));
+        stripDo(rest);
+        if (!rest.empty() && rest.back() == ':') rest.pop_back();
+        rest = trim(rest);
+        if (rest.empty()) {
+          bc.fail(lineNo, "MIGRATION needs a name — MIGRATION app DO");
+          return false;
+        }
+        curMigration = {};
+        curMigration.name = stripThe(rest);
+        curMigration.line = lineNo;
+        mode = InMigration;
+        continue;
+      }
       if (startsWithCI(text, "WHEN BACKGROUND REACTIVE ") ||
           startsWithCI(text, "WHEN REACTIVE WEAK ") ||
           startsWithCI(text, "WHEN WEAK REACTIVE ") ||
@@ -5044,8 +5229,8 @@ bool parse(BC &bc, const std::string &source) {
         method = "DELETE";
         rest = trim(text.substr(7));
       } else {
-        bc.fail(lineNo, "Inside ROUTES: GET/POST/PUT/DELETE \"/path\" [AS TYPE] [REQUIRES AUTH] "
-                        "[TOUCHES SECRET]");
+        bc.fail(lineNo, "Inside ROUTES: GET/POST/PUT/DELETE \"/path\" [AS TYPE] [HANDLE name] "
+                        "[REQUIRES AUTH] [TOUCHES SECRET]");
         return false;
       }
       std::string pattern;
@@ -5099,6 +5284,19 @@ bool parse(BC &bc, const std::string &source) {
         rd.requiresAuth = true;
       if (rU.find("TOUCHES SECRET") != std::string::npos)
         rd.touchesSecret = true;
+      /* HANDLE name — optional until SERVE ROUTES */
+      auto hU = toUpper(rest);
+      auto handPos = hU.find(" HANDLE ");
+      if (handPos == std::string::npos && startsWithCI(rest, "HANDLE ")) handPos = 0;
+      if (handPos != std::string::npos) {
+        auto hrest = handPos == 0 ? trim(rest.substr(7)) : trim(rest.substr(handPos + 8));
+        auto sp = hrest.find(' ');
+        rd.handler = sp == std::string::npos ? hrest : trim(hrest.substr(0, sp));
+        if (rd.handler.empty()) {
+          bc.fail(lineNo, "HANDLE needs a function name — GET \"/ok\" HANDLE health");
+          return false;
+        }
+      }
       bc.routes.push_back(rd);
       continue;
     }
@@ -5111,6 +5309,13 @@ bool parse(BC &bc, const std::string &source) {
         }
         bc.forms[curForm.name] = curForm;
         bc.formOrder.push_back(curForm.name);
+        /* Reactive error cells — server validation → UI BIND without extra invention. */
+        for (auto &f : curForm.fields) {
+          std::string errCell = "form_" + curForm.name + "_" + f.name + "_error";
+          bc.top.push_back({curForm.line, "REMEMBER " + errCell + " AS TEXT SET TO \"\""});
+        }
+        bc.top.push_back(
+            {curForm.line, "REMEMBER form_" + curForm.name + "_ok AS TEXT SET TO \"1\""});
         mode = Top;
         continue;
       }
@@ -5188,6 +5393,77 @@ bool parse(BC &bc, const std::string &source) {
         continue;
       }
       bc.fail(lineNo, "Inside SCHEMA: only HAS … / END SCHEMA");
+      return false;
+    }
+
+    if (mode == InMigration) {
+      if (toUpper(text) == "END MIGRATION" || toUpper(text) == "ENDMIGRATION") {
+        if (curMigration.steps.empty()) {
+          bc.fail(curMigration.line,
+                  "MIGRATION '" + curMigration.name + "' needs at least one VERSION … UP … DOWN");
+          return false;
+        }
+        if (bc.migrations.count(curMigration.name)) {
+          bc.fail(curMigration.line, "MIGRATION '" + curMigration.name + "' already declared");
+          return false;
+        }
+        bc.migrations[curMigration.name] = curMigration;
+        bc.migrationOrder.push_back(curMigration.name);
+        mode = Top;
+        continue;
+      }
+      if (startsWithCI(text, "VERSION ")) {
+        auto rest = trim(text.substr(8));
+        auto U = toUpper(rest);
+        int ver = 0;
+        size_t i = 0;
+        while (i < rest.size() && isdigit((unsigned char)rest[i])) {
+          ver = ver * 10 + (rest[i] - '0');
+          ++i;
+        }
+        if (ver <= 0) {
+          bc.fail(lineNo, "VERSION needs a positive integer — VERSION 1 UP \"…\" DOWN \"…\"");
+          return false;
+        }
+        rest = trim(rest.substr(i));
+        U = toUpper(rest);
+        auto upPos = U.find(" UP ");
+        auto downPos = U.find(" DOWN ");
+        if (upPos == std::string::npos || downPos == std::string::npos || downPos < upPos) {
+          bc.fail(lineNo, "VERSION needs — VERSION 1 UP \"CREATE…\" DOWN \"DROP…\"");
+          return false;
+        }
+        auto upRest = trim(rest.substr(upPos + 4, downPos - (upPos + 4)));
+        auto downRest = trim(rest.substr(downPos + 6));
+        auto takeQuoted = [&](const std::string &s, std::string &out) -> bool {
+          auto t = trim(s);
+          if (t.empty() || t[0] != '"') return false;
+          auto end = t.find('"', 1);
+          if (end == std::string::npos) return false;
+          out = t.substr(1, end - 1);
+          return true;
+        };
+        BC::MigrateStep st;
+        st.version = ver;
+        st.line = lineNo;
+        if (!takeQuoted(upRest, st.upSql) || !takeQuoted(downRest, st.downSql)) {
+          bc.fail(lineNo, "VERSION UP/DOWN SQL must be quoted strings");
+          return false;
+        }
+        if (st.upSql.empty() || st.downSql.empty()) {
+          bc.fail(lineNo, "VERSION UP and DOWN SQL cannot be empty");
+          return false;
+        }
+        for (auto &ex : curMigration.steps) {
+          if (ex.version == ver) {
+            bc.fail(lineNo, "MIGRATION duplicate VERSION " + std::to_string(ver));
+            return false;
+          }
+        }
+        curMigration.steps.push_back(st);
+        continue;
+      }
+      bc.fail(lineNo, "Inside MIGRATION: only VERSION n UP \"…\" DOWN \"…\" / END MIGRATION");
       return false;
     }
 
@@ -5508,10 +5784,15 @@ std::string emit(BC &bc) {
   o << "static int luke_text_eq(LukeText a, LukeText b) {\n";
   o << "  return a.len == b.len && (a.len == 0 || memcmp(a.ptr, b.ptr, a.len) == 0);\n}\n\n";
 
+  for (auto &tl : bc.top) {
+    if (startsWithCI(tl.second, "SERVE ROUTES ")) bc.serveRoutes = true;
+  }
   for (auto &h : bc.httpServeHandlers) {
     o << "static void luke_http_wrap_" << cIdent(h)
       << "(LukeArena *arena, LukeHttpRequest *req);\n";
   }
+  if (bc.serveRoutes)
+    o << "static void luke_http_wrap___luke_routes(LukeArena *arena, LukeHttpRequest *req);\n";
 
   for (auto &n : bc.bpOrder) o << "typedef struct " << cIdent(n) << " " << cIdent(n) << ";\n";
   o << "\n";
@@ -6018,6 +6299,62 @@ std::string emit(BC &bc) {
     o << "static void luke_http_wrap_" << cIdent(h)
       << "(LukeArena *arena, LukeHttpRequest *req) {\n";
     o << "  " << cIdent(h) << "(arena, req);\n";
+    o << "}\n\n";
+  }
+  if (bc.serveRoutes) {
+    o << "static void __luke_routes(LukeArena *arena, LukeHttpRequest *req) {\n";
+    o << "  LukeText _luke_method = luke_http_method(req);\n";
+    o << "  LukeText _luke_path = luke_http_path(req);\n";
+    o << "  LukeMap *_luke_params = luke_map_new(arena);\n";
+    o << "  int _luke_answered = 0;\n";
+    for (auto &r : bc.routes) {
+      o << "  if (!_luke_answered && luke_text_eq(_luke_method, luke_text(\"" << esc(r.method)
+        << "\")) && luke_http_match(arena, _luke_path, luke_text(\"" << esc(r.pattern)
+        << "\"), _luke_params)) {\n";
+      o << "    int _luke_bad = 0;\n";
+      if (!r.paramName.empty() && r.paramTy == "INTEGER") {
+        o << "    {\n";
+        o << "      LukeText _luke_pv = luke_map_get(_luke_params, luke_text(\"" << esc(r.paramName)
+          << "\"));\n";
+        o << "      int _luke_okp = _luke_pv.len > 0;\n";
+        o << "      for (size_t _i = 0; _luke_okp && _i < _luke_pv.len; ++_i) {\n";
+        o << "        char _c = _luke_pv.ptr[_i];\n";
+        o << "        if (_c < '0' || _c > '9') _luke_okp = 0;\n";
+        o << "      }\n";
+        o << "      if (!_luke_okp) {\n";
+        o << "        luke_http_reply(req, 400, luke_text(\"text/plain\"), luke_text(\"bad param\"));\n";
+        o << "        _luke_answered = 1;\n";
+        o << "        _luke_bad = 1;\n";
+        o << "      }\n";
+        o << "    }\n";
+      }
+      if (r.requiresAuth) {
+        o << "    if (!_luke_bad) {\n";
+        o << "      LukeText _luke_uid = luke_auth_current_user();\n";
+        o << "      if (!_luke_uid.len) {\n";
+        o << "        luke_http_reply(req, 401, luke_text(\"text/plain\"), luke_text(\"login required\"));\n";
+        o << "        _luke_answered = 1;\n";
+        o << "      } else {\n";
+        o << "        if (_luke_rx) luke_rx_write_text(_luke_rx, _luke_rx_id_current_route, luke_text(\""
+          << esc(r.pattern) << "\"));\n";
+        o << "        " << cIdent(r.handler) << "(arena, req);\n";
+        o << "        _luke_answered = 1;\n";
+        o << "      }\n";
+        o << "    }\n";
+      } else {
+        o << "    if (!_luke_bad) {\n";
+        o << "      if (_luke_rx) luke_rx_write_text(_luke_rx, _luke_rx_id_current_route, luke_text(\""
+          << esc(r.pattern) << "\"));\n";
+        o << "      " << cIdent(r.handler) << "(arena, req);\n";
+        o << "      _luke_answered = 1;\n";
+        o << "    }\n";
+      }
+      o << "  }\n";
+    }
+    o << "  if (!_luke_answered) luke_http_reply(req, 404, luke_text(\"text/plain\"), luke_text(\"not found\"));\n";
+    o << "}\n\n";
+    o << "static void luke_http_wrap___luke_routes(LukeArena *arena, LukeHttpRequest *req) {\n";
+    o << "  __luke_routes(arena, req);\n";
     o << "}\n\n";
   }
 

@@ -10,13 +10,14 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Routing — route table, path params (`/user/:id`), method dispatch | 🟡 | `httpMatch` + declarative `ROUTES` / `LINK TO` compile integrity |
-| Request parsing — query map, JSON body→value, form, headers, cookies | 🟡 | query/header/cookie/JSON + `httpFormMap` / `FORM` validate |
-| Auth / session / login | 🟡 | Argon2id + session/CSRF + scoped `WATCH`; SECRET/FLOW/LIMIT/REVEAL; `REQUIRE CSRF` |
+| Routing — route table, path params (`/user/:id`), method dispatch | ✅ | `ROUTES` + `HANDLE` + `SERVE ROUTES` codegen |
+| Request parsing — query map, JSON body→value, form, headers, cookies | ✅ | query/header/cookie/JSON + `FORM` → `form_*_error` cells |
+| Auth / session / login | 🟡 | Argon2id + session/CSRF + scoped `WATCH`; SECRET/FLOW/LIMIT/REVEAL — **no invented OAuth/TOTP** |
 | **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind` (this ship); prefer over raw SQL in app code |
 | `BACKEND_ROADMAP.md` track spine | ✅ | added (this ship) |
 | Auth-as-types (unauthorized = compile error) | 🟡 | `SECRET` + scoped path; `FLOW` totality; `REVEAL` declassify — see [`docs/AUTH.md`](./docs/AUTH.md) |
-| Declarative backend (routes/form/mw/schema) | 🟡 | `ROUTES`/`FORM`/`SCHEMA`/`MIDDLEWARE ORDER` spikes — see [`docs/BACKEND_ROADMAP.md`](./docs/BACKEND_ROADMAP.md) |
+| Migrations / schema helpers | ✅ | `SCHEMA`/`ENSURE SCHEMA`; `MIGRATION`/`MIGRATE`/`REWIND` |
+| Declarative backend (routes/form/mw/schema) | ✅ | executable routes + form cells + migrate/rewind — see [`docs/BACKEND_ROADMAP.md`](./docs/BACKEND_ROADMAP.md) |
 
 ---
 

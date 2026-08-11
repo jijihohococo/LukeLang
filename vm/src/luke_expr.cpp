@@ -342,6 +342,10 @@ std::pair<std::string, std::string> lowerExprAst(const Ast &ast, size_t line, co
       auto x = self(self, n.kids[0]);
       return {"(!(" + x.first + "))", "flag"};
     }
+    case AstKind::Empty:
+      return {std::string("0"), std::string("err")};
+    case AstKind::Call:
+      return {std::string("0"), std::string("legacy")};
     case AstKind::Binary: {
       if (n.kids.size() < 2) return {"0", "err"};
       auto L = self(self, n.kids[0]);

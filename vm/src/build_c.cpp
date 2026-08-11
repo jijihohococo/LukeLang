@@ -1,6 +1,7 @@
 #include "luke/build.hpp"
 #include "luke_ast.hpp"
 #include "luke_expr.hpp"
+#include "luke_parse.hpp"
 
 #include <cctype>
 #include <cerrno>
@@ -3491,9 +3492,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     o << "  {\n";
     return;
   }
-  if (startsWithCI(text, "OTHERWISE")) {
+  if (startsWithCI(text, "OTHERWISE") || toUpper(text) == "ELSE" || startsWithCI(text, "ELSE ")) {
     if (bc.attemptLabels.empty()) {
-      bc.fail(line, "OTHERWISE without matching ATTEMPT");
+      /* IF … OTHERWISE / ELSE — close then-branch, open else-branch. */
+      o << "  } else {\n";
       return;
     }
     if (bc.attemptHasOtherwise.back()) {
@@ -3503,6 +3505,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
     bc.attemptHasOtherwise.back() = true;
     auto rest = trim(text);
     if (startsWithCI(rest, "OTHERWISE")) rest = trim(rest.substr(9));
+    else if (startsWithCI(rest, "ELSE")) rest = trim(rest.substr(4));
     stripDo(rest);
     std::string bind = "problem";
     if (startsWithCI(rest, "WITH ")) {
@@ -6682,6 +6685,10 @@ static void fillIrSummary(BuildResult &r, BC &bc) {
   ir << "blueprints " << bc.bpOrder.size() << "\n";
   for (auto &n : bc.bpOrder) ir << "  bp " << n << "\n";
   ir << "toplevel " << bc.top.size() << "\n";
+  if (!r.astSummary.empty()) {
+    ir << "--- ast ---\n";
+    ir << r.astSummary;
+  }
   r.irSummary = ir.str();
 }
 
@@ -6910,7 +6917,18 @@ BuildResult compileLukeToC(const std::string &source, const BuildOptions &option
   BuildResult r;
   std::string expanded = expandImpl(source, options, r);
   if (!r.error.empty()) return r;
-  return compileExpanded(expanded, options, std::move(r));
+  /* Production pipeline: expanded source → Program AST → flatten → emit.
+   * Codegen still uses the BC lowering engine; the AST is the parse IR every
+   * build goes through (LSP/FMT/IR share the same nodes). */
+  Program prog = parseLuke(expanded);
+  r.astSummary = dumpProgram(prog);
+  std::string viaAst = flattenProgram(prog);
+  if (viaAst.empty() && !expanded.empty()) {
+    r.ok = false;
+    r.error = "Build error: AST flatten produced empty program";
+    return r;
+  }
+  return compileExpanded(viaAst.empty() ? expanded : viaAst, options, std::move(r));
 }
 
 std::string expandLukeImports(const std::string &source, const BuildOptions &options,
@@ -6980,12 +6998,9 @@ std::string softenBuildSurfaceForPlay(const std::string &expanded) {
 }
 
 BuildResult analyzeLukeBuild(const std::string &source, const BuildOptions &options) {
-  BuildResult r;
-  std::string expanded = expandImpl(source, options, r);
-  if (!r.error.empty()) return r;
-  auto full = compileExpanded(expanded, options, std::move(r));
-  full.cSource.clear();
-  return full;
+  BuildResult r = compileLukeToC(source, options);
+  r.cSource.clear();
+  return r;
 }
 
 }  // namespace luke

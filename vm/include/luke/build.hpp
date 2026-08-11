@@ -40,6 +40,7 @@ struct BuildResult {
   std::vector<std::string> foreignFns; // names of FOREIGN FUNCTION symbols
   std::string expandedSource;          // Build IR text after IMPORT expansion
   std::string irSummary;               // human/machine IR dump
+  std::string astSummary;              // Program AST dump (parseLuke)
   bool unsupportedForBuild = false;    // Play-only feature; SHOW may fall back to VM
 
   /* Browser page owned by Luke (content baked into HTML; boot is runtime). */

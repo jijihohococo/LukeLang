@@ -53,7 +53,7 @@ See [`docs/STRATEGY.md`](./docs/STRATEGY.md), [`docs/FRONTEND_ROADMAP.md`](./doc
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Replace line-based parser with real lexer/AST | 🟡 | expr Pratt (`luke_expr.cpp`) + `luke_ast.hpp`; stmts still line-based |
+| Replace line-based parser with real lexer/AST | ✅ | `parseLuke` Program/Stmt AST + Pratt exprs; BUILD/IR/FMT/LSP share IR — [`docs/AST.md`](./docs/AST.md) |
 | Error UX / stack traces at scale | ⬜ | |
 | `standard_library.md` drift (e.g. “File ops not yet implemented”) | ✅ | docs now match Build `std/files` |
 
@@ -79,9 +79,9 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 | Item | Status | Notes |
 |------|--------|-------|
-| LSP — completion / hover / go-to-def | 🟡 | diagnostics + hover + completion + definition on shared expr AST / symbol scan |
+| LSP — completion / hover / go-to-def | ✅ | diagnostics + hover + completion + definition on Program AST |
 | Debugger | ⬜ | |
-| Formatter | 🟡 | `luke FMT` / `FMT -e` via `formatExpr` |
+| Formatter | ✅ | `luke FMT` / `FMT -e` via `formatProgram` / `formatExpr` |
 | Real remote package registry (versions / signing) | 🟡 | local index + `sha256` verify on install; signing still open |
 | Third-party libs (auth, DB drivers, cloud SDKs) | ⬜ | ~1–2 packages |
 | lukelang.org / docs site | 🟡 | `site/index.html` stub |
@@ -101,4 +101,4 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## Active focus
 
-**Now:** Expression AST + keyed Live Graph differential + wall deploy + tooling on the AST. Mobile/game stay parked.
+**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md), [`docs/SCORECARD.md`](./docs/SCORECARD.md)). Live Graph + wall stay the product proof. Mobile/game stay parked.

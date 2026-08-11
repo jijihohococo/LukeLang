@@ -3,6 +3,7 @@
 #include "luke/heap.hpp"
 #include "luke/vm.hpp"
 #include "luke_expr.hpp"
+#include "luke_parse.hpp"
 
 #include <cctype>
 #include <cstdio>
@@ -621,21 +622,7 @@ int main(int argc, char **argv) {
       std::cerr << "Error: cannot read " << path << "\n";
       return 1;
     }
-    std::istringstream in(src);
-    std::string line;
-    while (std::getline(in, line)) {
-      auto U = upper(line);
-      auto trimLeft = [](std::string s) {
-        while (!s.empty() && isspace((unsigned char)s[0])) s.erase(s.begin());
-        return s;
-      };
-      if (U.rfind("SPEAK ", 0) == 0) {
-        auto rest = trimLeft(line.substr(6));
-        std::cout << "SPEAK " << luke::formatExpr(rest) << "\n";
-      } else {
-        std::cout << line << "\n";
-      }
-    }
+    std::cout << luke::formatLukeSource(src);
     return 0;
   }
 

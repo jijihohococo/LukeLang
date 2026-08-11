@@ -10,6 +10,7 @@ SRCS := \
 	src/vm.cpp \
 	src/compiler.cpp \
 	src/luke_expr.cpp \
+	src/luke_parse.cpp \
 	src/build_c.cpp \
 	src/lsp.cpp \
 	src/main.cpp
@@ -442,8 +443,15 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt
 	@./build/expr_pratt | tee /tmp/luke_expr_pratt.txt | grep -q "expr_pratt_ok=1"
 	@grep -q 'luke_expr\|tokenizeExpr\|compileExpr' src/luke_expr.cpp
-	@./build/luke FMT ../examples/build/expr_pratt.luke 2>/tmp/luke_fmt.txt | head -1 >/dev/null || true
+	@./build/luke IR ../examples/build/hello.luke 2>/dev/null | tee /tmp/luke_ast_ir.txt | grep -q "luke-ast-program"
+	@grep -q 'Speak expr=String' /tmp/luke_ast_ir.txt
+	@grep -q 'Let name=' /tmp/luke_ast_ir.txt
+	@./build/luke IR ../examples/build/functions.luke 2>/dev/null | tee /tmp/luke_ast_fn.txt | grep -q "Function name=add"
+	@grep -q 'parseLuke\|flattenProgram' src/luke_parse.cpp
+	@./build/luke FMT ../examples/build/expr_pratt.luke 2>/dev/null | grep -q "expr_pratt_ok"
 	@./build/luke FMT -e "a ADD ( b SUBTRACT c )" | grep -q "ADD"
+	./build/luke BUILD ../examples/build/ast_roundtrip.luke -o build/ast_roundtrip
+	@./build/ast_roundtrip | tee /tmp/luke_ast_rt.txt | grep -q "ast_roundtrip_ok=1"
 	./build/luke BUILD ../examples/build/live_graph_scrub.luke -target browser -o build/live_graph_scrub
 	@grep -q '◀ Back\|Forward ▶\|Live' build/live_graph_scrub.html
 	@node ../scripts/luke_browser_loader.cjs build/live_graph_scrub.wasm 2>&1 | tee /tmp/luke_live_graph_scrub.txt | grep -q "scrub_ok=1"

@@ -1,8 +1,10 @@
 #include "luke/build.hpp"
 #include "luke_expr.hpp"
+#include "luke_parse.hpp"
 
 #include <cctype>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -149,6 +151,31 @@ std::string toUpperCopy(std::string s) {
 
 std::vector<Symbol> scanSymbols(const std::string &source) {
   std::vector<Symbol> out;
+  /* Prefer Program AST (shared IR) for definitions. */
+  Program prog = parseLuke(source);
+  std::function<void(const Stmt &)> walk = [&](const Stmt &s) {
+    if ((s.kind == StmtKind::Let || s.kind == StmtKind::Remember ||
+         s.kind == StmtKind::Function || s.kind == StmtKind::WhenReactive ||
+         s.kind == StmtKind::Watch || s.kind == StmtKind::Blueprint) &&
+        !s.name.empty()) {
+      std::string kind = "variable";
+      if (s.kind == StmtKind::Function) kind = "function";
+      else if (s.kind == StmtKind::Remember || s.kind == StmtKind::WhenReactive ||
+               s.kind == StmtKind::Watch)
+        kind = "cell";
+      else if (s.kind == StmtKind::Blueprint) kind = "class";
+      int ch = 0;
+      auto U = toUpperCopy(s.text);
+      auto pos = s.text.find(s.name);
+      if (pos != std::string::npos) ch = (int)pos;
+      out.push_back({s.name, kind, s.line > 0 ? (int)s.line - 1 : 0, ch});
+    }
+    for (auto &c : s.body) walk(c);
+    for (auto &c : s.elseBody) walk(c);
+  };
+  for (auto &s : prog.stmts) walk(s);
+  if (!out.empty()) return out;
+
   auto lines = splitLines(source);
   for (size_t i = 0; i < lines.size(); ++i) {
     auto t = lines[i];

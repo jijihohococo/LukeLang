@@ -5427,13 +5427,22 @@ bool parse(BC &bc, const std::string &source) {
         }
         rest = trim(rest.substr(i));
         U = toUpper(rest);
-        auto upPos = U.find(" UP ");
-        auto downPos = U.find(" DOWN ");
-        if (upPos == std::string::npos || downPos == std::string::npos || downPos < upPos) {
+        size_t upPos = std::string::npos;
+        size_t downPos = U.find(" DOWN ");
+        if (startsWithCI(rest, "UP "))
+          upPos = 0;
+        else
+          upPos = U.find(" UP ");
+        if (upPos == std::string::npos || downPos == std::string::npos ||
+            (upPos != 0 && downPos < upPos)) {
           bc.fail(lineNo, "VERSION needs — VERSION 1 UP \"CREATE…\" DOWN \"DROP…\"");
           return false;
         }
-        auto upRest = trim(rest.substr(upPos + 4, downPos - (upPos + 4)));
+        std::string upRest;
+        if (upPos == 0)
+          upRest = trim(rest.substr(3, downPos - 3));
+        else
+          upRest = trim(rest.substr(upPos + 4, downPos - (upPos + 4)));
         auto downRest = trim(rest.substr(downPos + 6));
         auto takeQuoted = [&](const std::string &s, std::string &out) -> bool {
           auto t = trim(s);

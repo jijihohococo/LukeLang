@@ -22,11 +22,11 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 ---
 
-## 🟠 2. Live Graph — deepen (prototype)
+## 🟠 2. Live Graph — deepen
 
 | Item | Status | Notes |
 |------|--------|-------|
-| True multi-join differential dataflow | 🟡 | keyed equi-JOIN + `WHERE a.key = N` → `WHEN NEW` partner probe; non-key filter (`WHERE a.fc = LIT`) now gates the filtered table's triggers (no dead recompute on unrelated writes) — see `live_graph_join_filter`; partner table + 3-table chains still recompute |
+| True multi-join differential dataflow | ✅ | keyed 2-table + N-table equality-closure chains (`live_graph_join` / `join3`); non-key filter + partner `EXISTS` (`live_graph_join_filter`); bag aggregates (`live_graph_agg`) |
 | Server+client scrub by log seq | 🟡 | client buffer + scrub UI shipped; DevTools↔server log not fully wired |
 | Free multicore parallelism from the graph | ⬜ | listed only |
 | Wire hardening — backpressure, heartbeat/timeout, SSE channel auth | 🟡 | fail-closed SSE send; `LUKE_SSE_ORIGIN`; scoped PUSH requires user; `Last-Event-ID` resume |
@@ -101,4 +101,4 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## Active focus
 
-**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md), [`docs/SCORECARD.md`](./docs/SCORECARD.md)). Live Graph + wall stay the product proof. Mobile/game stay parked.
+**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md)). Execution is **A+** on the Live Graph differential ledger ([`docs/SCORECARD.md`](./docs/SCORECARD.md), [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md)). Wall stays the product proof. Mobile/game stay parked.

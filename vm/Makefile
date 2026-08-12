@@ -3,6 +3,14 @@ CC ?= cc
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic -Iinclude
 LDFLAGS ?=
 
+# Auto-generate header dependencies so a changed .hpp/.h rebuilds every object
+# that includes it. Without this, an incremental build after a header change
+# (e.g. a new field in a struct shared across translation units) reuses stale
+# objects compiled against the old layout — an ODR mismatch that silently
+# corrupts the heap. Kept out of CXXFLAGS so overriding CXXFLAGS never disables
+# dependency tracking.
+DEPFLAGS := -MMD -MP
+
 SRCS := \
 	src/value.cpp \
 	src/heap.cpp \
@@ -14,6 +22,7 @@ SRCS := \
 	src/main.cpp
 
 OBJS := $(SRCS:src/%.cpp=build/%.o)
+DEPS := $(OBJS:.o=.d)
 
 .PHONY: all clean test test-play test-build pressure
 
@@ -23,10 +32,12 @@ build/luke: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 build/%.o: src/%.cpp | build
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 build:
 	mkdir -p build
+
+-include $(DEPS)
 
 test: test-play test-build
 

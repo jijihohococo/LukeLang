@@ -449,6 +449,15 @@ test-build: build/luke
 	@grep -q 'WHEN NEW.id = 1\|WHEN NEW.user_id = 1' build/live_graph_join.luke.c
 	@grep -q "SELECT NEW.name\|NEW.title" build/live_graph_join.luke.c
 	@! grep -q 'luke_ivm_card_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join.luke.c
+	./build/luke BUILD ../examples/build/live_graph_join_filter.luke -o build/live_graph_join_filter
+	@./build/live_graph_join_filter | tee /tmp/luke_lgjf.txt | grep -q "join_filter_ok=1"
+	@grep -q "vUn=Ada · Engineer" /tmp/luke_lgjf.txt
+	@grep -q "v2=$$" /tmp/luke_lgjf.txt
+	@grep -q "v3=Ada · Founder" /tmp/luke_lgjf.txt
+	@# non-key filter: users triggers WHEN-gated on the filter column, not unconditional recompute
+	@grep -q "AFTER INSERT ON users WHEN NEW.status = 'active'" build/live_graph_join_filter.luke.c
+	@grep -q "AFTER UPDATE ON users WHEN NEW.status = 'active' OR OLD.status = 'active'" build/live_graph_join_filter.luke.c
+	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join_filter.luke.c
 	@grep -q '_luke_watch_alive\|httpSseOpen' build/live_graph_server.luke.c
 	@grep -q 'LUKE_SSE_ORIGIN\|Access-Control-Allow-Origin' runtime/luke_net.h
 	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt

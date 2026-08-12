@@ -26,7 +26,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 | Item | Status | Notes |
 |------|--------|-------|
-| True multi-join differential dataflow | 🟡 | keyed equi-JOIN + `WHERE a.key = N` → `WHEN NEW` partner probe; broader shapes still recompute |
+| True multi-join differential dataflow | 🟡 | keyed equi-JOIN + `WHERE a.key = N` → `WHEN NEW` partner probe; non-key filter (`WHERE a.fc = LIT`) now gates the filtered table's triggers (no dead recompute on unrelated writes) — see `live_graph_join_filter`; partner table + 3-table chains still recompute |
 | Server+client scrub by log seq | 🟡 | client buffer + scrub UI shipped; DevTools↔server log not fully wired |
 | Free multicore parallelism from the graph | ⬜ | listed only |
 | Wire hardening — backpressure, heartbeat/timeout, SSE channel auth | 🟡 | fail-closed SSE send; `LUKE_SSE_ORIGIN`; scoped PUSH requires user; `Last-Event-ID` resume |

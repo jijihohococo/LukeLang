@@ -4205,6 +4205,31 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
         };
 
+        /* Filter-gated recompute for the table the WHERE predicate constrains
+         * (`a.fc = LIT` where fc is NOT a join key). A row whose filter column is
+         * LIT in neither NEW nor OLD can never enter or leave the result, so its
+         * write is a guaranteed no-op — gating it away changes no result, only
+         * skips dead recomputes. The partner table (unconstrained by the filter)
+         * keeps unconditional recompute. Correct for insert/update/delete and the
+         * filter enter/exit transitions (OLD.fc = LIT catches a row leaving). */
+        auto emitFilteredRecomputeTrigs = [&](const std::string &table, const std::string &suffix,
+                                              const std::string &fcol, const std::string &flit) {
+          std::string body = "INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" +
+                             ivmValueSql + ")); END";
+          std::string ai = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_ai AFTER INSERT ON " + table + " WHEN NEW." + fcol + " = " + flit +
+                           " BEGIN " + body;
+          std::string au = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_au AFTER UPDATE ON " + table + " WHEN NEW." + fcol + " = " + flit +
+                           " OR OLD." + fcol + " = " + flit + " BEGIN " + body;
+          std::string ad = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
+                           "_ad AFTER DELETE ON " + table + " WHEN OLD." + fcol + " = " + flit +
+                           " BEGIN " + body;
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ai) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(au) << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
+        };
+
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
@@ -4249,8 +4274,23 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(auTrig) << "\"));\n";
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(adTrig) << "\"));\n";
         } else if (hasJoin) {
-          emitRecomputeTrigs(baseTable, "_t1");
-          emitRecomputeTrigs(baseTable2, "_t2");
+          /* Non-key filter (`WHERE a.fc = LIT`, fc not a join key): gate the
+           * filtered table's triggers so unrelated writes to it don't recompute.
+           * The partner table stays on full recompute (the filter can't bound it). */
+          bool filterOn1 = !whereCol.empty() && !whereLit.empty() &&
+                           toUpper(whereAlias) == toUpper(joinA1);
+          bool filterOn2 = !whereCol.empty() && !whereLit.empty() &&
+                           toUpper(whereAlias) == toUpper(joinA2);
+          if (filterOn1) {
+            emitFilteredRecomputeTrigs(baseTable, "_t1", whereCol, whereLit);
+            emitRecomputeTrigs(baseTable2, "_t2");
+          } else if (filterOn2) {
+            emitRecomputeTrigs(baseTable, "_t1");
+            emitFilteredRecomputeTrigs(baseTable2, "_t2", whereCol, whereLit);
+          } else {
+            emitRecomputeTrigs(baseTable, "_t1");
+            emitRecomputeTrigs(baseTable2, "_t2");
+          }
         } else {
           emitRecomputeTrigs(baseTable, "");
         }

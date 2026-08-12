@@ -503,6 +503,20 @@ test-build: build/luke
 	@grep -q 'parseLuke\|flattenProgram' src/luke_parse.cpp
 	@./build/luke FMT ../examples/build/expr_pratt.luke 2>/dev/null | grep -q "expr_pratt_ok"
 	@./build/luke FMT -e "a ADD ( b SUBTRACT c )" | grep -q "ADD"
+	@# FMT must be semantics-preserving: BUILD(FMT(x)) ≡ BUILD(x)
+	@./build/luke FMT ../examples/build/fmt_roundtrip.luke > build/fmt_roundtrip.luke
+	@grep -q 'ASK add WITH 2, 3' build/fmt_roundtrip.luke
+	@grep -q 'ASK mul WITH 4, 5' build/fmt_roundtrip.luke
+	@! grep -q 'ASK ADD WITH' build/fmt_roundtrip.luke
+	@! grep -q 'ASK MUL WITH' build/fmt_roundtrip.luke
+	@! grep -qE '[0-9] ,|[0-9],  ,' build/fmt_roundtrip.luke
+	./build/luke BUILD build/fmt_roundtrip.luke -o build/fmt_roundtrip
+	@./build/fmt_roundtrip | tee /tmp/luke_fmt_rt.txt | grep -q "fmt_roundtrip_ok=1"
+	@./build/luke FMT ../examples/build/functions.luke > build/fmt_functions.luke
+	./build/luke BUILD build/fmt_functions.luke -o build/fmt_functions
+	@./build/fmt_functions | tee /tmp/luke_fmt_fn.txt | grep -q "Build functions"
+	@grep -q 'ASK add WITH' build/fmt_functions.luke
+	@! grep -q 'ASK ADD WITH' build/fmt_functions.luke
 	./build/luke BUILD ../examples/build/ast_roundtrip.luke -o build/ast_roundtrip
 	@./build/ast_roundtrip | tee /tmp/luke_ast_rt.txt | grep -q "ast_roundtrip_ok=1"
 	./build/luke BUILD ../examples/build/live_graph_scrub.luke -target browser -o build/live_graph_scrub

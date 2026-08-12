@@ -444,12 +444,16 @@ std::string formatExpr(const std::string &src) {
   auto toks = tokenizeExpr(src);
   std::ostringstream o;
   bool first = true;
+  auto isComma = [](const Token &t) {
+    return t.kind == TokKind::Unknown && t.text == ",";
+  };
   for (auto &t : toks) {
     if (t.kind == TokKind::End) break;
-    if (!first && t.kind != TokKind::RParen) o << ' ';
-    if (t.kind == TokKind::LParen && !first) {
-      /* space before ( already added */
-    }
+    /* Spacing: no space before ), ,, or after (, , — and never rewrite casing.
+     * Operators keep the source spelling (add vs ADD); uppercasing broke
+     * user-defined names that share spellings with keywords (ASK add → ASK ADD). */
+    bool skipSpace = first || t.kind == TokKind::RParen || isComma(t);
+    if (!skipSpace) o << ' ';
     if (t.kind == TokKind::String) {
       o << '"';
       for (char c : t.text) {
@@ -461,16 +465,12 @@ std::string formatExpr(const std::string &src) {
         else o << c;
       }
       o << '"';
+    } else {
+      o << t.text; /* preserve original spelling for ops, idents, numbers, commas */
     }
-    else if (t.kind == TokKind::OpNot || t.kind == TokKind::OpAdd || t.kind == TokKind::OpSub ||
-             t.kind == TokKind::OpMul || t.kind == TokKind::OpDiv || t.kind == TokKind::OpAnd ||
-             t.kind == TokKind::OpEq || t.kind == TokKind::OpLt || t.kind == TokKind::OpGt ||
-             t.kind == TokKind::OpLe || t.kind == TokKind::OpGe)
-      o << toUpperCopy(t.text);
-    else
-      o << t.text;
     first = false;
     if (t.kind == TokKind::LParen) first = true; /* no space after ( */
+    /* After `,` keep first=false so the next token gets a single space: `2, 3`. */
   }
   return o.str();
 }

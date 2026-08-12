@@ -9,7 +9,7 @@
 | **Architecture** | **A** | `parseLuke` → `Program`/`Stmt`/`Ast` → `flattenProgram` → emit on every BUILD; Pratt exprs; IF/WHILE/FUNCTION/WHEN are nested Stmt nodes |
 | **Execution** | **A+** | Point + multi-row join IVM, inequality bag filters, N-table chains, wire fail-closed, C10K beachhead, wall smoke |
 | **Ambition** | **A+** | Vision held — reactive full-stack; mobile/game parked |
-| **Tooling** | **A** | `luke LSP` hover/completion/definition on Stmt AST; `luke FMT` / `FMT -e` via `formatProgram`/`formatExpr`; IR shows AST; Build C emits `#line` → `.luke` for gdb/lldb |
+| **Tooling** | **A** | LSP + FMT + `#line` source maps; `luke DEBUG` break/step (over/into/out) at `.luke` statements (gdb) |
 | **Adoption** | **A-** | Wall deploy proof + Caddy; `site/` stub; registry `sha256`; public DNS/traffic still to earn |
 
 ## What “Execution A+” required (and shipped)
@@ -23,7 +23,7 @@
 | Gap | Why it is not a vision change |
 | --- | --- |
 | Some surface still `StmtKind::Raw` (ROUTES/FLOW/…) | Specialize nodes without inventing a second IR |
-| Debugger | Tooling depth after LSP/FMT — `#line` source maps shipped; richer debugger UX still open |
+| Debugger | `#line` + `luke DEBUG` break/step shipped; DAP/IDE UX still open |
 | Live lukelang.org + signed registry keys | Adoption after the wall sentence |
 | LEFT JOIN / non-equi ON / expression-only SELECT lists | Broader SQL shapes outside the equi-JOIN + simple-column bag |
 

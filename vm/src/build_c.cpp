@@ -1670,6 +1670,21 @@ void emitLineDir(const std::string &file, size_t line, std::ostringstream &o) {
   o << "#line " << line << " \"" << escapeLukePath(f) << "\"\n";
 }
 
+/* After a Luke statement, drop sticky #line so inlined luke_rt.h helpers are not
+ * attributed to the .luke file (gdb step/next stay at statement granularity). */
+void emitLineReset(std::ostringstream &o) { o << "#line 1 \"luke-generated.c\"\n"; }
+
+struct LineScope {
+  std::ostringstream &o;
+  bool armed = true;
+  explicit LineScope(std::ostringstream &out) : o(out) {}
+  ~LineScope() {
+    if (armed) emitLineReset(o);
+  }
+  LineScope(const LineScope &) = delete;
+  LineScope &operator=(const LineScope &) = delete;
+};
+
 void pushTop(BC &bc, size_t line, const std::string &text) {
   bc.top.push_back({line, bc.curFile, text});
 }
@@ -1681,6 +1696,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
   if (srcFile.empty()) srcFile = bc.sourcePath;
   if (srcFile.empty()) srcFile = "luke";
   emitLineDir(srcFile, line, o);
+  LineScope lineScope(o);
   if (startsWithCI(text, "SPEAK ") || startsWithCI(text, "SAY ") || startsWithCI(text, "YELL ") ||
       startsWithCI(text, "SHOUT ")) {
     auto sp = text.find(' ');

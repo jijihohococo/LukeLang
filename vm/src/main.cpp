@@ -13,6 +13,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 namespace {
@@ -32,10 +33,16 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
       << "  " << argv0 << " LSP                        Stdio language server (diagnostics/hover/completion)\n"
       << "  " << argv0 << " FMT [-e expr|<file.luke>]  Format expression(s) via Pratt AST\n"
+      << "  " << argv0 << " DEBUG <file.luke> [opts]   Build -O0 -g and debug with gdb (.luke:line)\n"
       << "\n"
       << "Build options:\n"
       << "  -o <path>                       output binary / wasm / browser stem\n"
-      << "  -target native|wasm|browser     default native\n"
+      << "  -target native|wasm|browser|debug  default native (debug = -O0 -g)\n"
+      << "\n"
+      << "DEBUG options:\n"
+      << "  -o <path>                       debug binary path\n"
+      << "  --break <file.luke:line|line>   breakpoint (default: file:1)\n"
+      << "  --batch                         prove break + next/step/finish (CI)\n"
       << "\n"
       << "IMPORT: relative, std/<name>, luke/<package>\n"
       << "Stdlib: files json http server sqlite args env paths process js\n"
@@ -405,7 +412,10 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
     }
     cmd = "\"" + clang + "\" -O2 -o \"" + binary + "\" -I\"" + runtimeInclude + "\" \"" + cPath + "\"";
   } else {
-    cmd = "cc -O2 -g -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
+    /* Native: always -g for #line DWARF. DEBUG uses -O0 -fno-inline for statement step. */
+    const char *opt = (target == "debug") ? "-O0 -g -fno-inline" : "-O2 -g";
+    cmd = std::string("cc ") + opt + " -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary +
+          "\" \"" + cPath + "\"";
     for (auto &lib : built.linkLibs) {
       if (lib.find('/') != std::string::npos || lib.find('.') != std::string::npos)
         cmd += " \"" + lib + "\"";
@@ -434,10 +444,138 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
               << binary << ")\n";
   } else if (target == "wasm") {
     std::cerr << "Build ok → " << binary << " (wasm/wasi, no GC)\n";
+  } else if (target == "debug") {
+    std::cerr << "Build ok → " << binary << " (native debug -O0 -g, no GC)\n";
   } else {
     std::cerr << "Build ok → " << binary << " (native, no GC)\n";
   }
   return 0;
+}
+
+std::string findGdb() {
+  const char *candidates[] = {"/usr/bin/gdb", "/usr/local/bin/gdb", "gdb", nullptr};
+  for (int i = 0; candidates[i]; ++i) {
+    if (candidates[i][0] == '/') {
+      if (access(candidates[i], X_OK) == 0) return candidates[i];
+    } else {
+      std::string cmd = std::string("command -v ") + candidates[i] + " >/dev/null 2>&1";
+      if (std::system(cmd.c_str()) == 0) return candidates[i];
+    }
+  }
+  return {};
+}
+
+/* luke DEBUG — Build -O0 -g, then gdb with .luke breakpoints + statement step.
+ * Batch mode proves break / next (over) / step (into) / finish (out). */
+int runDebug(const std::string &path, const std::string &outBin, const std::string &breakSpec,
+             bool batch) {
+  if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
+    std::cerr << "Error: DEBUG needs a .luke file\n";
+    return 1;
+  }
+  std::string gdb = findGdb();
+  if (gdb.empty()) {
+    std::cerr << "Error: gdb not found — install gdb for luke DEBUG\n";
+    return 5;
+  }
+
+  std::string binary = outBin.empty() ? ("/tmp/luke_debug_" + basenameNoExt(path)) : outBin;
+  int brc = runBuild(path, binary, "debug");
+  if (brc != 0) return brc;
+
+  std::string bp = breakSpec;
+  if (bp.empty()) {
+    /* Default: first SPEAK / executable-looking line via IR is overkill — use line 10 for
+     * examples/build/functions.luke-style, else line 1 and let gdb adjust. */
+    bp = path + ":1";
+  } else if (bp.find(':') == std::string::npos) {
+    bp = path + ":" + bp;
+  }
+
+  if (!batch) {
+    std::ostringstream gdbCmd;
+    gdbCmd << gdb << " -q"
+           << " -ex 'set pagination off'"
+           << " -ex 'directory .' -ex 'directory " << dirnameOf(path) << "'"
+           << " -ex 'skip -gfi */luke_rt.h' -ex 'skip -gfi */luke_std.h'"
+           << " -ex 'skip -gfi */argus.h' -ex 'skip -gfi */hanka.h'"
+           << " -ex 'break " << bp << "'"
+           << " --args \"" << binary << "\"";
+    std::cerr << "DEBUG: " << gdbCmd.str() << "\n";
+    std::cerr << "  break at " << bp << " — next=over  step=into  finish=out\n";
+    return std::system(gdbCmd.str().c_str()) == 0 ? 0 : 3;
+  }
+
+  /* Batch probe: functions.luke-shaped programs — break, next×2, step into, finish. */
+  std::string logPath = binary + ".gdb.log";
+  std::string scriptPath = binary + ".gdb.cmd";
+  {
+    std::ofstream sc(scriptPath);
+    if (!sc) {
+      std::cerr << "Error: could not write " << scriptPath << "\n";
+      return 1;
+    }
+    sc << "set pagination off\n"
+       << "set confirm off\n"
+       << "directory .\n"
+       << "directory " << dirnameOf(path) << "\n"
+       << "skip -gfi */luke_rt.h\n"
+       << "skip -gfi */luke_std.h\n"
+       << "skip -gfi */argus.h\n"
+       << "skip -gfi */hanka.h\n"
+       << "break " << bp << "\n"
+       << "run\n"
+       << "printf \"LUKE_DBG_BREAK %s\\n\", \"hit\"\n"
+       << "info line\n"
+       << "next\n"
+       << "printf \"LUKE_DBG_NEXT1 %s\\n\", \"ok\"\n"
+       << "info line\n"
+       << "next\n"
+       << "printf \"LUKE_DBG_NEXT2 %s\\n\", \"ok\"\n"
+       << "info line\n"
+       << "step\n"
+       << "printf \"LUKE_DBG_STEP %s\\n\", \"ok\"\n"
+       << "info line\n"
+       << "bt 2\n"
+       << "finish\n"
+       << "printf \"LUKE_DBG_FINISH %s\\n\", \"ok\"\n"
+       << "info line\n"
+       << "continue\n"
+       << "quit\n";
+  }
+
+  std::string cmd = gdb + " -batch -x \"" + scriptPath + "\" \"" + binary + "\" >\"" + logPath +
+                    "\" 2>&1";
+  std::cerr << "DEBUG batch: " << cmd << "\n";
+  int rc = std::system(cmd.c_str());
+  (void)rc;
+
+  std::ifstream in(logPath);
+  std::ostringstream ss;
+  ss << in.rdbuf();
+  std::string log = ss.str();
+  std::cout << log;
+
+  auto has = [&](const char *s) { return log.find(s) != std::string::npos; };
+  bool ok = has("LUKE_DBG_BREAK hit") && has("LUKE_DBG_NEXT1 ok") && has("LUKE_DBG_NEXT2 ok") &&
+            has("LUKE_DBG_STEP ok") && has("LUKE_DBG_FINISH ok");
+  /* After step: must be inside a Luke FUNCTION (e.g. greet), not main. */
+  bool intoFn = false;
+  {
+    auto pos = log.find("LUKE_DBG_STEP ok");
+    if (pos != std::string::npos) {
+      auto slice = log.substr(pos, 500);
+      intoFn = slice.find("greet (") != std::string::npos ||
+               (slice.find(".luke:") != std::string::npos &&
+                slice.find("main (") == std::string::npos);
+    }
+  }
+  if (ok && intoFn) {
+    std::cout << "debug_break_step_ok=1\n";
+    return 0;
+  }
+  std::cerr << "DEBUG batch failed — see " << logPath << "\n";
+  return 3;
 }
 
 }  // namespace
@@ -488,8 +626,8 @@ int main(int argc, char **argv) {
       } else if (a == "-target" && i + 1 < argc) {
         target = argv[++i];
         for (char &c : target) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        if (target != "native" && target != "wasm" && target != "browser") {
-          std::cerr << "Error: -target must be native, wasm, or browser\n";
+        if (target != "native" && target != "wasm" && target != "browser" && target != "debug") {
+          std::cerr << "Error: -target must be native, wasm, browser, or debug\n";
           return 1;
         }
       } else {
@@ -595,6 +733,29 @@ int main(int argc, char **argv) {
   if (cmd == "LSP") {
     auto opt = makeBuildOptions(".", "native");
     return luke::runLspStdio(opt);
+  }
+
+  if (cmd == "DEBUG") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0]
+                << " DEBUG <file.luke> [-o bin] [--break file:line|line] [--batch]\n";
+      return 1;
+    }
+    std::string path = argv[2];
+    std::string out;
+    std::string brk;
+    bool batch = false;
+    for (int i = 3; i < argc; ++i) {
+      std::string a = argv[i];
+      if ((a == "-o" || a == "--output") && i + 1 < argc) out = argv[++i];
+      else if ((a == "--break" || a == "-b") && i + 1 < argc) brk = argv[++i];
+      else if (a == "--batch") batch = true;
+      else {
+        std::cerr << "Unknown DEBUG option: " << a << "\n";
+        return 1;
+      }
+    }
+    return runDebug(path, out, brk, batch);
   }
 
   if (cmd == "FMT" || cmd == "FORMAT") {

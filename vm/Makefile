@@ -26,7 +26,7 @@ SRCS := \
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip
+.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug
 
 all: build/luke
 
@@ -45,6 +45,9 @@ test: test-play test-build
 
 test-fmt-roundtrip: build/luke
 	bash ../scripts/fmt_roundtrip_all.sh
+
+test-debug: build/luke
+	bash ../scripts/debug_break_step.sh
 
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm
@@ -71,6 +74,8 @@ test-build: build/luke
 	./build/ex_counter
 	./build/luke BUILD ../examples/build/functions.luke -o build/ex_functions
 	./build/ex_functions
+	@# Debugger: breakpoints by .luke:line + step over/into/out (gdb)
+	@bash ../scripts/debug_break_step.sh | tee /tmp/luke_debug_break_step_make.txt | grep -q "debug_break_step_ok=1"
 	./build/luke BUILD ../examples/build/oop.luke -o build/ex_oop
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules

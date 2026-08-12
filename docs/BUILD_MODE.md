@@ -13,13 +13,19 @@ luke BUILD examples/build/hello.luke              # Build — native binary, no 
 luke BUILD examples/build/hello.luke -o hello
 luke BUILD examples/build/hello_wasm.luke -target wasm -o hello.wasm
 luke BUILD examples/build/hello_browser.luke -target browser -o hello_web
+luke BUILD examples/build/functions.luke -target debug -o fn  # -O0 -g for gdb
+luke DEBUG examples/build/functions.luke --break 10           # interactive gdb (.luke:line)
+luke DEBUG examples/build/functions.luke --break 10 --batch    # CI: break + next/step/finish
 luke LSP                                          # stdio JSON-RPC diagnostics beachhead
 # run wasm (WASI): node scripts/run_wasi.cjs hello.wasm
 # run browser wasm headless: node scripts/luke_browser_loader.cjs hello_web.wasm
 # or open hello_web.html in a browser
 ```
 
-Build emits C, then compiles with the system C compiler (`cc -O2`), or the WASI SDK when `-target wasm|browser`.
+Build emits C with `#line N "file.luke"` per statement, then compiles with the system C compiler
+(`cc -O2 -g` native, or `-O0 -g -fno-inline` for `-target debug` / `luke DEBUG`). WASI SDK for
+`-target wasm|browser`. Debugger skips `luke_rt.h` / stdlib headers so **next** = step over,
+**step** = step into Luke FUNCTION, **finish** = step out.
 Browser also writes `*.html` + `luke_browser_loader.js` (copied beside the wasm) for `<script>` tags.
 
 ## IMPORT + stdlib + packages

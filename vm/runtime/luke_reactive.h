@@ -69,6 +69,7 @@ typedef struct LukeRxNode {
   int version;
   uint32_t scope_id; /* owning scope frame (0 = global) */
   uint32_t boundary_scope_id; /* error boundary scope (0 = none) */
+  char name[48]; /* debugger / DAP label (empty if unnamed) */
   double num;
   int64_t i64; /* exact INTEGER cells (IDs / money cents / counters) */
   LukeText text;
@@ -1401,9 +1402,185 @@ static inline void luke_rx_dump_graph(LukeRxGraph *g) {
   for (LukeRxId id = 1; id < (LukeRxId)g->len; ++id) {
     LukeRxNode *n = luke_rx_node(g, id);
     if (!n) continue;
-    fprintf(stderr, "rx#%u kind=%d deps=%zu subs=%zu dirty=%d v=%.10g\n", (unsigned)id,
-            (int)n->kind, n->dep_len, n->sub_len, n->dirty, n->num);
+    fprintf(stderr, "rx#%u name=%s kind=%d deps=%zu subs=%zu dirty=%d v=%.10g\n", (unsigned)id,
+            n->name[0] ? n->name : "-", (int)n->kind, n->dep_len, n->sub_len, n->dirty, n->num);
   }
+}
+
+static inline void luke_rx_set_name(LukeRxGraph *g, LukeRxId id, const char *name) {
+  LukeRxNode *n = luke_rx_node_raw(g, id);
+  if (!n || !name) return;
+  size_t i = 0;
+  for (; i + 1 < sizeof(n->name) && name[i]; ++i) n->name[i] = name[i];
+  n->name[i] = 0;
+}
+
+static inline LukeRxId luke_rx_named(LukeRxGraph *g, LukeRxId id, const char *name) {
+  luke_rx_set_name(g, id, name);
+  return id;
+}
+
+static inline const char *luke_rx_name(LukeRxGraph *g, LukeRxId id) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n) return "";
+  return n->name[0] ? n->name : "";
+}
+
+static inline LukeRxId luke_rx_dep_at(LukeRxGraph *g, LukeRxId id, size_t i) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || i >= n->dep_len) return 0;
+  return n->deps[i];
+}
+
+static inline LukeRxId luke_rx_sub_at(LukeRxGraph *g, LukeRxId id, size_t i) {
+  LukeRxNode *n = luke_rx_node(g, id);
+  if (!n || i >= n->sub_len) return 0;
+  return n->subs[i];
+}
+
+static inline const char *luke_rx_kind_name(LukeRxKind k) {
+  switch (k) {
+    case LUKE_RX_CELL: return "cell";
+    case LUKE_RX_DERIVED: return "derived";
+    case LUKE_RX_EFFECT: return "effect";
+    case LUKE_RX_LIST: return "list";
+    case LUKE_RX_MAP: return "map";
+    default: return "node";
+  }
+}
+
+/* Stable buffer for gdb / DAP evaluate — not re-entrant. */
+static char luke_rx_inspect_buf[16384];
+
+static inline int luke_rx_inspect_put(char *buf, size_t buflen, size_t *o, const char *s) {
+  if (!s) return 0;
+  while (*s) {
+    if (*o + 1 >= buflen) return -1;
+    buf[(*o)++] = *s++;
+  }
+  return 0;
+}
+
+static inline int luke_rx_inspect_putch(char *buf, size_t buflen, size_t *o, char c) {
+  if (*o + 1 >= buflen) return -1;
+  buf[(*o)++] = c;
+  return 0;
+}
+
+static inline int luke_rx_inspect_put_esc(char *buf, size_t buflen, size_t *o, const char *s) {
+  if (!s) return 0;
+  for (; *s; ++s) {
+    if (*s == '"' || *s == '\\') {
+      if (luke_rx_inspect_putch(buf, buflen, o, '\\') || luke_rx_inspect_putch(buf, buflen, o, *s))
+        return -1;
+    } else if ((unsigned char)*s < 0x20) {
+      if (luke_rx_inspect_putch(buf, buflen, o, '?')) return -1;
+    } else if (luke_rx_inspect_putch(buf, buflen, o, *s))
+      return -1;
+  }
+  return 0;
+}
+
+static inline int luke_rx_inspect_put_u(char *buf, size_t buflen, size_t *o, unsigned v) {
+  char tmp[16];
+  int n = snprintf(tmp, sizeof(tmp), "%u", v);
+  if (n < 0) return -1;
+  return luke_rx_inspect_put(buf, buflen, o, tmp);
+}
+
+static inline int luke_rx_inspect_json(LukeRxGraph *g, char *buf, size_t buflen) {
+  size_t o = 0;
+  int first = 1;
+  if (!buf || buflen < 3) return -1;
+  if (luke_rx_inspect_put(buf, buflen, &o, "{\"cells\":[")) return -1;
+  if (g) {
+    LukeRxId id;
+    for (id = 1; id < (LukeRxId)g->len; ++id) {
+      LukeRxNode *n = luke_rx_node(g, id);
+      char vbuf[128];
+      size_t i;
+      if (!n) continue;
+      if (!first && luke_rx_inspect_putch(buf, buflen, &o, ',')) return -1;
+      first = 0;
+      if (luke_rx_inspect_put(buf, buflen, &o, "{\"id\":") ||
+          luke_rx_inspect_put_u(buf, buflen, &o, (unsigned)id) ||
+          luke_rx_inspect_put(buf, buflen, &o, ",\"name\":\""))
+        return -1;
+      if (luke_rx_inspect_put_esc(buf, buflen, &o, n->name[0] ? n->name : "")) return -1;
+      if (luke_rx_inspect_put(buf, buflen, &o, "\",\"kind\":\"") ||
+          luke_rx_inspect_put(buf, buflen, &o, luke_rx_kind_name(n->kind)) ||
+          luke_rx_inspect_put(buf, buflen, &o, "\",\"value\":\""))
+        return -1;
+      if (n->vkind == LUKE_RX_VAL_TEXT) {
+        size_t lim = n->text.len < 64 ? n->text.len : 64;
+        for (i = 0; i < lim; ++i) {
+          char c = n->text.ptr ? n->text.ptr[i] : 0;
+          if (c == '"' || c == '\\') {
+            if (luke_rx_inspect_putch(buf, buflen, &o, '\\') ||
+                luke_rx_inspect_putch(buf, buflen, &o, c))
+              return -1;
+          } else if ((unsigned char)c < 0x20) {
+            if (luke_rx_inspect_putch(buf, buflen, &o, '?')) return -1;
+          } else if (luke_rx_inspect_putch(buf, buflen, &o, c))
+            return -1;
+        }
+      } else if (n->vkind == LUKE_RX_VAL_INT) {
+        snprintf(vbuf, sizeof(vbuf), "%lld", (long long)n->i64);
+        if (luke_rx_inspect_put_esc(buf, buflen, &o, vbuf)) return -1;
+      } else if (n->vkind == LUKE_RX_VAL_LIST) {
+        snprintf(vbuf, sizeof(vbuf), "list(len=%g)", luke_list_len(n->list));
+        if (luke_rx_inspect_put_esc(buf, buflen, &o, vbuf)) return -1;
+      } else if (n->vkind == LUKE_RX_VAL_MAP) {
+        snprintf(vbuf, sizeof(vbuf), "map(len=%g)", luke_map_len(n->map));
+        if (luke_rx_inspect_put_esc(buf, buflen, &o, vbuf)) return -1;
+      } else {
+        snprintf(vbuf, sizeof(vbuf), "%.10g", n->num);
+        if (luke_rx_inspect_put_esc(buf, buflen, &o, vbuf)) return -1;
+      }
+      if (luke_rx_inspect_put(buf, buflen, &o, "\",\"deps\":[")) return -1;
+      for (i = 0; i < n->dep_len; ++i) {
+        LukeRxId d = n->deps[i];
+        LukeRxNode *dn = luke_rx_node(g, d);
+        if (i && luke_rx_inspect_putch(buf, buflen, &o, ',')) return -1;
+        if (luke_rx_inspect_put(buf, buflen, &o, "{\"id\":") ||
+            luke_rx_inspect_put_u(buf, buflen, &o, (unsigned)d) ||
+            luke_rx_inspect_put(buf, buflen, &o, ",\"name\":\""))
+          return -1;
+        if (luke_rx_inspect_put_esc(buf, buflen, &o, dn && dn->name[0] ? dn->name : "")) return -1;
+        if (luke_rx_inspect_put(buf, buflen, &o, "\"}")) return -1;
+      }
+      if (luke_rx_inspect_put(buf, buflen, &o, "],\"subs\":[")) return -1;
+      for (i = 0; i < n->sub_len; ++i) {
+        LukeRxId s = n->subs[i];
+        LukeRxNode *sn = luke_rx_node(g, s);
+        if (i && luke_rx_inspect_putch(buf, buflen, &o, ',')) return -1;
+        if (luke_rx_inspect_put(buf, buflen, &o, "{\"id\":") ||
+            luke_rx_inspect_put_u(buf, buflen, &o, (unsigned)s) ||
+            luke_rx_inspect_put(buf, buflen, &o, ",\"name\":\""))
+          return -1;
+        if (luke_rx_inspect_put_esc(buf, buflen, &o, sn && sn->name[0] ? sn->name : "")) return -1;
+        if (luke_rx_inspect_put(buf, buflen, &o, "\"}")) return -1;
+      }
+      if (luke_rx_inspect_put(buf, buflen, &o, "]}")) return -1;
+    }
+  }
+  if (luke_rx_inspect_put(buf, buflen, &o, "]}")) return -1;
+  buf[o] = 0;
+  return (int)o;
+}
+
+/* Out-of-line so gdb/DAP can resolve the symbol (static inline is often omitted). */
+__attribute__((used, noinline)) static const char *luke_rx_inspect_cstr(LukeRxGraph *g) {
+  if (luke_rx_inspect_json(g, luke_rx_inspect_buf, sizeof(luke_rx_inspect_buf)) < 0) {
+    luke_rx_inspect_buf[0] = '{';
+    luke_rx_inspect_buf[1] = '}';
+    luke_rx_inspect_buf[2] = 0;
+  }
+  return luke_rx_inspect_buf;
+}
+
+__attribute__((used, noinline)) static void luke_rx_inspect_print(LukeRxGraph *g) {
+  fprintf(stderr, "%s\n", luke_rx_inspect_cstr(g));
 }
 
 static inline int luke_rx_trace_why(LukeRxGraph *g, LukeRxId id) {

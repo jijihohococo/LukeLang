@@ -23,7 +23,7 @@
 | Gap | Why it is not a vision change |
 | --- | --- |
 | Some surface still `StmtKind::Raw` (ROUTES/FLOW/…) | Specialize nodes without inventing a second IR |
-| Debugger | `#line` + `luke DEBUG` break/step shipped; DAP/IDE UX still open |
+| Debugger | `#line` + `luke DEBUG` break/step/inspect + `luke DAP` beachhead; richer IDE UX still open |
 | Live lukelang.org + signed registry keys | Adoption after the wall sentence |
 | LEFT JOIN / non-equi ON / expression-only SELECT lists | Broader SQL shapes outside the equi-JOIN + simple-column bag |
 

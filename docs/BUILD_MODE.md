@@ -25,7 +25,9 @@ luke LSP                                          # stdio JSON-RPC diagnostics b
 Build emits C with `#line N "file.luke"` per statement, then compiles with the system C compiler
 (`cc -O2 -g` native, or `-O0 -g -fno-inline` for `-target debug` / `luke DEBUG`). WASI SDK for
 `-target wasm|browser`. Debugger skips `luke_rt.h` / stdlib headers so **next** = step over,
-**step** = step into Luke FUNCTION, **finish** = step out.
+**step** = step into Luke FUNCTION, **finish** = step out. `luke DEBUG --inspect` dumps reactive
+cell values and dependency edges (`luke_rx_inspect_cstr`). `luke DAP` is a stdio Debug Adapter
+Protocol server (gdb backend) for editors — Reactive scope shows named cells + deps.
 Browser also writes `*.html` + `luke_browser_loader.js` (copied beside the wasm) for `<script>` tags.
 
 ## IMPORT + stdlib + packages

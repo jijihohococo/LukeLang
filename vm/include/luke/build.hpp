@@ -66,4 +66,7 @@ BuildResult analyzeLukeBuild(const std::string &source, const BuildOptions &opti
 /* Minimal stdio JSON-RPC language server (diagnostics beachhead). */
 int runLspStdio(const BuildOptions &baseOpts = {});
 
+/* Debug Adapter Protocol over stdio (gdb backend; Reactive scope = cells + deps). */
+int runDapStdio(const BuildOptions &baseOpts = {});
+
 }  // namespace luke

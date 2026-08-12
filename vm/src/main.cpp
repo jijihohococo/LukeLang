@@ -32,6 +32,7 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " PUBLISH WEB <file.luke>    Build browser dist (html+wasm+fonts)\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
       << "  " << argv0 << " LSP                        Stdio language server (diagnostics/hover/completion)\n"
+      << "  " << argv0 << " DAP                        Stdio debug adapter (gdb; cells + deps)\n"
       << "  " << argv0 << " FMT [-e expr|<file.luke>]  Format expression(s) via Pratt AST\n"
       << "  " << argv0 << " DEBUG <file.luke> [opts]   Build -O0 -g and debug with gdb (.luke:line)\n"
       << "\n"
@@ -43,6 +44,7 @@ void printUsage(const char *argv0) {
       << "  -o <path>                       debug binary path\n"
       << "  --break <file.luke:line|line>   breakpoint (default: file:1)\n"
       << "  --batch                         prove break + next/step/finish (CI)\n"
+      << "  --inspect                       dump reactive cells + dependency edges at break\n"
       << "\n"
       << "IMPORT: relative, std/<name>, luke/<package>\n"
       << "Stdlib: files json http server sqlite args env paths process js\n"
@@ -466,9 +468,10 @@ std::string findGdb() {
 }
 
 /* luke DEBUG — Build -O0 -g, then gdb with .luke breakpoints + statement step.
- * Batch mode proves break / next (over) / step (into) / finish (out). */
+ * Batch mode proves break / next (over) / step (into) / finish (out).
+ * Inspect mode dumps luke_rx_inspect_cstr (cells + deps) at the breakpoint. */
 int runDebug(const std::string &path, const std::string &outBin, const std::string &breakSpec,
-             bool batch) {
+             bool batch, bool inspect) {
   if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
     std::cerr << "Error: DEBUG needs a .luke file\n";
     return 1;
@@ -485,14 +488,12 @@ int runDebug(const std::string &path, const std::string &outBin, const std::stri
 
   std::string bp = breakSpec;
   if (bp.empty()) {
-    /* Default: first SPEAK / executable-looking line via IR is overkill — use line 10 for
-     * examples/build/functions.luke-style, else line 1 and let gdb adjust. */
     bp = path + ":1";
   } else if (bp.find(':') == std::string::npos) {
     bp = path + ":" + bp;
   }
 
-  if (!batch) {
+  if (!batch && !inspect) {
     std::ostringstream gdbCmd;
     gdbCmd << gdb << " -q"
            << " -ex 'set pagination off'"
@@ -503,7 +504,77 @@ int runDebug(const std::string &path, const std::string &outBin, const std::stri
            << " --args \"" << binary << "\"";
     std::cerr << "DEBUG: " << gdbCmd.str() << "\n";
     std::cerr << "  break at " << bp << " — next=over  step=into  finish=out\n";
+    std::cerr << "  inspect: p luke_debug_rx_inspect()\n";
     return std::system(gdbCmd.str().c_str()) == 0 ? 0 : 3;
+  }
+
+  if (inspect) {
+    std::string logPath = binary + ".inspect.gdb.log";
+    std::string scriptPath = binary + ".inspect.gdb.cmd";
+    {
+      std::ofstream sc(scriptPath);
+      if (!sc) {
+        std::cerr << "Error: could not write " << scriptPath << "\n";
+        return 1;
+      }
+      sc << "set pagination off\n"
+         << "set confirm off\n"
+         << "directory .\n"
+         << "directory " << dirnameOf(path) << "\n"
+         << "skip -gfi */luke_rt.h\n"
+         << "skip -gfi */luke_std.h\n"
+         << "skip -gfi */argus.h\n"
+         << "skip -gfi */hanka.h\n"
+         << "break " << bp << "\n"
+         << "run\n"
+         /* Derived deps/values fill in on first read — step over the break line once. */
+         << "next\n"
+         << "printf \"LUKE_INSPECT %s\\n\", luke_debug_rx_inspect()\n"
+         << "continue\n"
+         << "quit\n";
+    }
+    std::string cmd = gdb + " -batch -x \"" + scriptPath + "\" \"" + binary + "\" >\"" + logPath +
+                      "\" 2>&1";
+    std::cerr << "DEBUG inspect: " << cmd << "\n";
+    int sysRc = std::system(cmd.c_str());
+    (void)sysRc;
+    std::ifstream in(logPath);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    std::string log = ss.str();
+    std::cout << log;
+    auto pos = log.find("LUKE_INSPECT {\"cells\":");
+    if (pos == std::string::npos) {
+      std::cerr << "DEBUG inspect failed — no cells JSON (see " << logPath << ")\n";
+      return 3;
+    }
+    auto jsonStart = log.find("{\"cells\":", pos);
+    auto jsonEnd = log.find('\n', jsonStart);
+    std::string json =
+        log.substr(jsonStart, jsonEnd == std::string::npos ? std::string::npos : jsonEnd - jsonStart);
+    bool hasPrice = json.find("\"name\":\"price\"") != std::string::npos;
+    bool hasQty = json.find("\"name\":\"quantity\"") != std::string::npos;
+    bool hasTotal = json.find("\"name\":\"total\",\"kind\":\"derived\"") != std::string::npos;
+    bool totalDeps = false;
+    {
+      auto tpos = json.find("\"name\":\"total\",\"kind\":\"derived\"");
+      if (tpos != std::string::npos) {
+        auto deps = json.find("\"deps\":[", tpos);
+        auto next = json.find("\"name\":\"", tpos + 20);
+        if (deps != std::string::npos && (next == std::string::npos || deps < next)) {
+          auto dend = json.find(']', deps);
+          auto slice = json.substr(deps, dend - deps);
+          totalDeps = slice.find("price") != std::string::npos &&
+                      slice.find("quantity") != std::string::npos;
+        }
+      }
+    }
+    if (hasPrice && hasQty && hasTotal && totalDeps) {
+      std::cout << "debug_inspect_ok=1\n";
+      return 0;
+    }
+    std::cerr << "DEBUG inspect failed — expected named cells price/quantity/total with deps\n";
+    return 3;
   }
 
   /* Batch probe: functions.luke-shaped programs — break, next×2, step into, finish. */
@@ -735,27 +806,34 @@ int main(int argc, char **argv) {
     return luke::runLspStdio(opt);
   }
 
+  if (cmd == "DAP") {
+    auto opt = makeBuildOptions(".", "native");
+    return luke::runDapStdio(opt);
+  }
+
   if (cmd == "DEBUG") {
     if (argc < 3) {
       std::cerr << "Usage: " << argv[0]
-                << " DEBUG <file.luke> [-o bin] [--break file:line|line] [--batch]\n";
+                << " DEBUG <file.luke> [-o bin] [--break file:line|line] [--batch] [--inspect]\n";
       return 1;
     }
     std::string path = argv[2];
     std::string out;
     std::string brk;
     bool batch = false;
+    bool inspect = false;
     for (int i = 3; i < argc; ++i) {
       std::string a = argv[i];
       if ((a == "-o" || a == "--output") && i + 1 < argc) out = argv[++i];
       else if ((a == "--break" || a == "-b") && i + 1 < argc) brk = argv[++i];
       else if (a == "--batch") batch = true;
+      else if (a == "--inspect") inspect = true;
       else {
         std::cerr << "Unknown DEBUG option: " << a << "\n";
         return 1;
       }
     }
-    return runDebug(path, out, brk, batch);
+    return runDebug(path, out, brk, batch, inspect);
   }
 
   if (cmd == "FMT" || cmd == "FORMAT") {

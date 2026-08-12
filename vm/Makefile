@@ -21,12 +21,13 @@ SRCS := \
 	src/luke_parse.cpp \
 	src/build_c.cpp \
 	src/lsp.cpp \
+	src/dap.cpp \
 	src/main.cpp
 
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug
+.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap
 
 all: build/luke
 
@@ -48,6 +49,12 @@ test-fmt-roundtrip: build/luke
 
 test-debug: build/luke
 	bash ../scripts/debug_break_step.sh
+
+test-inspect: build/luke
+	bash ../scripts/debug_inspect.sh
+
+test-dap: build/luke
+	bash ../scripts/dap_handshake.sh
 
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm
@@ -76,6 +83,10 @@ test-build: build/luke
 	./build/ex_functions
 	@# Debugger: breakpoints by .luke:line + step over/into/out (gdb)
 	@bash ../scripts/debug_break_step.sh | tee /tmp/luke_debug_break_step_make.txt | grep -q "debug_break_step_ok=1"
+	@# Debugger: inspect reactive cells + dependency edges
+	@bash ../scripts/debug_inspect.sh | tee /tmp/luke_debug_inspect_make.txt | grep -q "debug_inspect_ok=1"
+	@# Debugger: DAP stdio handshake (initialize → initialized)
+	@bash ../scripts/dap_handshake.sh | tee /tmp/luke_dap_handshake_make.txt | grep -q "dap_handshake_ok=1"
 	./build/luke BUILD ../examples/build/oop.luke -o build/ex_oop
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules

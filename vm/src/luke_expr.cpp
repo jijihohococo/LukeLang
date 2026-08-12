@@ -127,8 +127,12 @@ std::vector<Token> tokenizeExpr(const std::string &src) {
       std::string lit;
       while (i < n && src[i] != q) {
         if (src[i] == '\\' && i + 1 < n) {
-          lit.push_back(src[++i]);
+          char nch = src[++i];
           ++i;
+          if (nch == 'n') lit.push_back('\n');
+          else if (nch == 't') lit.push_back('\t');
+          else if (nch == 'r') lit.push_back('\r');
+          else lit.push_back(nch); /* \\ \" and unknown keep the escaped char */
           continue;
         }
         lit.push_back(src[i++]);
@@ -325,8 +329,12 @@ std::pair<std::string, std::string> lowerExprAst(const Ast &ast, size_t line, co
     case AstKind::String: {
       std::string esc;
       for (char c : n.text) {
-        if (c == '\\' || c == '"') esc.push_back('\\');
-        esc.push_back(c);
+        if (c == '\\') esc += "\\\\";
+        else if (c == '"') esc += "\\\"";
+        else if (c == '\n') esc += "\\n";
+        else if (c == '\t') esc += "\\t";
+        else if (c == '\r') esc += "\\r";
+        else esc.push_back(c);
       }
       return {"luke_text(\"" + esc + "\")", "text"};
     }
@@ -442,8 +450,18 @@ std::string formatExpr(const std::string &src) {
     if (t.kind == TokKind::LParen && !first) {
       /* space before ( already added */
     }
-    if (t.kind == TokKind::String)
-      o << '"' << t.text << '"';
+    if (t.kind == TokKind::String) {
+      o << '"';
+      for (char c : t.text) {
+        if (c == '\\') o << "\\\\";
+        else if (c == '"') o << "\\\"";
+        else if (c == '\n') o << "\\n";
+        else if (c == '\t') o << "\\t";
+        else if (c == '\r') o << "\\r";
+        else o << c;
+      }
+      o << '"';
+    }
     else if (t.kind == TokKind::OpNot || t.kind == TokKind::OpAdd || t.kind == TokKind::OpSub ||
              t.kind == TokKind::OpMul || t.kind == TokKind::OpDiv || t.kind == TokKind::OpAnd ||
              t.kind == TokKind::OpEq || t.kind == TokKind::OpLt || t.kind == TokKind::OpGt ||

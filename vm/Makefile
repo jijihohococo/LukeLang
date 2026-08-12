@@ -454,10 +454,24 @@ test-build: build/luke
 	@grep -q "vUn=Ada · Engineer" /tmp/luke_lgjf.txt
 	@grep -q "v2=$$" /tmp/luke_lgjf.txt
 	@grep -q "v3=Ada · Founder" /tmp/luke_lgjf.txt
-	@# non-key filter: users triggers WHEN-gated on the filter column, not unconditional recompute
+	@# non-key filter: users WHEN-gated; partner profiles use EXISTS key analysis
 	@grep -q "AFTER INSERT ON users WHEN NEW.status = 'active'" build/live_graph_join_filter.luke.c
 	@grep -q "AFTER UPDATE ON users WHEN NEW.status = 'active' OR OLD.status = 'active'" build/live_graph_join_filter.luke.c
+	@grep -q "EXISTS (SELECT 1 FROM users" build/live_graph_join_filter.luke.c
 	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join_filter.luke.c
+	@! grep -q '_t2_ai AFTER INSERT ON profiles BEGIN' build/live_graph_join_filter.luke.c
+	./build/luke BUILD ../examples/build/live_graph_join3.luke -o build/live_graph_join3
+	@./build/live_graph_join3 | tee /tmp/luke_join3.txt | grep -q "join3_ok=1"
+	@grep -q "vUn=Ada · Engineer · Admin" /tmp/luke_join3.txt
+	@grep -q "v1=Ada Lovelace · Founder · Owner" /tmp/luke_join3.txt
+	@grep -q 'luke_ivm_card_jd_t1_\|luke_ivm_card_jd_t2_\|luke_ivm_card_jd_t3_' build/live_graph_join3.luke.c
+	@grep -q 'WHEN NEW.id = 1\|WHEN NEW.user_id = 1' build/live_graph_join3.luke.c
+	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join3.luke.c
+	./build/luke BUILD ../examples/build/live_graph_agg.luke -o build/live_graph_agg
+	@./build/live_graph_agg | tee /tmp/luke_agg.txt | grep -q "agg_ok=1"
+	@grep -q "luke_ivm_bag_feed\|luke_ivm_bag_" build/live_graph_agg.luke.c
+	@grep -q "_bag_ai\|_bag_ad\|group_concat(v" build/live_graph_agg.luke.c
+	@! grep -q 'group_concat(body' build/live_graph_agg.luke.c
 	@grep -q '_luke_watch_alive\|httpSseOpen' build/live_graph_server.luke.c
 	@grep -q 'LUKE_SSE_ORIGIN\|Access-Control-Allow-Origin' runtime/luke_net.h
 	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt

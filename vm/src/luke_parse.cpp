@@ -572,6 +572,12 @@ void formatStmt(std::ostringstream &o, const Stmt &s, int indent) {
   case StmtKind::Remember:
     o << (s.flag ? "SECRET REMEMBER " : "REMEMBER ") << s.name;
     if (!s.typeName.empty()) o << " AS " << s.typeName;
+    if (s.expr.kind != AstKind::Empty) {
+      auto U = toUpperCopy(s.text);
+      auto st = U.find(" SET TO ");
+      if (st != std::string::npos)
+        o << " SET TO " << formatExpr(s.text.substr(st + 8));
+    }
     o << "\n";
     break;
   case StmtKind::Change: {
@@ -614,8 +620,25 @@ void formatStmt(std::ostringstream &o, const Stmt &s, int indent) {
     ind();
     o << "END FUNCTION\n";
     break;
+  case StmtKind::Blueprint:
+    /* Keep header text (BLUEPRINT … / CLASS …); emit nested body; close the block.
+     * Without this, formatStmt fell through to default and dropped the body — FMT(oop)
+     * lost every METHOD/WHEN BORN and no longer compiled. */
+    o << s.text << "\n";
+    for (auto &c : s.body) formatStmt(o, c, indent + 1);
+    ind();
+    o << "END CLASS\n";
+    break;
+  case StmtKind::When:
+    o << s.text << "\n";
+    for (auto &c : s.body) formatStmt(o, c, indent + 1);
+    ind();
+    o << "END WHEN\n";
+    break;
   case StmtKind::WhenReactive:
-    o << "WHEN REACTIVE " << s.name << " CHANGES DO\n";
+    /* Preserve BACKGROUND / WEAK / plain header from source text — reconstructing
+     * as plain WHEN REACTIVE dropped Phase-10 priority lanes. */
+    o << s.text << "\n";
     for (auto &c : s.body) formatStmt(o, c, indent + 1);
     ind();
     o << "END WHEN REACTIVE\n";

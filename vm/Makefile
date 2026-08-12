@@ -26,7 +26,7 @@ SRCS := \
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean test test-play test-build test-wall pressure
+.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip
 
 all: build/luke
 
@@ -42,6 +42,9 @@ build:
 -include $(DEPS)
 
 test: test-play test-build
+
+test-fmt-roundtrip: build/luke
+	bash ../scripts/fmt_roundtrip_all.sh
 
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm
@@ -517,6 +520,8 @@ test-build: build/luke
 	@./build/fmt_functions | tee /tmp/luke_fmt_fn.txt | grep -q "Build functions"
 	@grep -q 'ASK add WITH' build/fmt_functions.luke
 	@! grep -q 'ASK ADD WITH' build/fmt_functions.luke
+	@# Every examples/build/*.luke: FMT → BUILD → identical stdout (see scripts/fmt_roundtrip_all.sh)
+	@bash ../scripts/fmt_roundtrip_all.sh | tee /tmp/luke_fmt_roundtrip_all.txt | grep -q "fmt_roundtrip_ok=1"
 	./build/luke BUILD ../examples/build/ast_roundtrip.luke -o build/ast_roundtrip
 	@./build/ast_roundtrip | tee /tmp/luke_ast_rt.txt | grep -q "ast_roundtrip_ok=1"
 	./build/luke BUILD ../examples/build/live_graph_scrub.luke -target browser -o build/live_graph_scrub

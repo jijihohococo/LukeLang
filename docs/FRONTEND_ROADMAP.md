@@ -46,7 +46,7 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 | Widget: MODAL | ✅ | `SLOT MODAL` · focus trap on mount |
 | Rich form controls | ✅ | email/password + select + checkbox/radio |
 | a11y roles / labels | ✅ | `argus_a11y` defaults + aria-label |
-| a11y focus / live regions | ✅ | modal open/close trap · `SLOT … ANNOUNCE` · `TRAP FOCUS` / `ANNOUNCE` |
+| a11y focus / live regions | ✅ | `OPEN/CLOSE THE MODAL` · `SLOT … ANNOUNCE` · `TRAP FOCUS` / `ANNOUNCE` |
 | Tailwind class hatch | ✅ | `WEAR "…"` · `PUBLISH WEB --tailwind` |
 | Motion polish | ✅ | `SET THE OPACITY OF` · `FADE … OVER ms` (rAF + ease-out) |
 | `luke PUBLISH WEB` | ✅ | alias of browser BUILD + ship checklist |

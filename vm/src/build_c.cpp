@@ -315,8 +315,9 @@ struct BC {
   int arenaSeq = 0;
   int attemptSeq = 0;
   int whenSeq = 0;
+  bool needsViewportRelayout = false; /* STACK/WRAP BELOW → luke_viewport_relayout */
   std::vector<std::string> arenaMarks;
-  std::vector<std::string> hankaStack; /* "COLUMN" | "ROW" | "STACK" */
+  std::vector<std::string> hankaStack; /* "COLUMN" | "ROW" | "STACK" | "GRID" */
   std::vector<std::string> forEachVars;
   int forEachSeq = 0;
   std::vector<std::string> attemptLabels;
@@ -335,6 +336,7 @@ struct BC {
   bool hasPage = false;
   std::string pageTitle;
   std::string pageStyle;
+  std::string pageCssHref; /* optional <link> for PUBLISH --tailwind output */
   std::string pageBody;
   std::vector<BrowserFont> pageFonts;
   std::vector<BrowserWhen> pageWhens;
@@ -5190,11 +5192,16 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     return;
   }
   if (startsWithCI(text, "BEGIN COLUMN") || startsWithCI(text, "BEGIN ROW") ||
-      startsWithCI(text, "BEGIN STACK")) {
-    std::string axis =
-        startsWithCI(text, "BEGIN COLUMN") ? "COLUMN" : startsWithCI(text, "BEGIN ROW") ? "ROW" : "STACK";
-    /* "BEGIN COLUMN"=12, "BEGIN ROW"=9, "BEGIN STACK"=11 */
-    auto rest = trim(text.substr(axis == "COLUMN" ? 12 : axis == "ROW" ? 9 : 11));
+      startsWithCI(text, "BEGIN STACK") || startsWithCI(text, "BEGIN GRID")) {
+    std::string axis = startsWithCI(text, "BEGIN COLUMN") ? "COLUMN"
+                       : startsWithCI(text, "BEGIN ROW")    ? "ROW"
+                       : startsWithCI(text, "BEGIN STACK")  ? "STACK"
+                                                            : "GRID";
+    /* "BEGIN COLUMN"=12, "BEGIN ROW"=9, "BEGIN STACK"=11, "BEGIN GRID"=10 */
+    auto rest = trim(text.substr(axis == "COLUMN"   ? 12
+                                 : axis == "ROW"    ? 9
+                                 : axis == "STACK"  ? 11
+                                                    : 10));
     stripDo(rest);
     auto U = toUpper(rest);
     size_t atPos = std::string::npos;
@@ -5209,45 +5216,97 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     if (atPos == std::string::npos || sizePos == std::string::npos || atPos > sizePos) {
       bc.fail(line, "BEGIN " + axis +
                         " needs AT x, y SIZE w, h [PAD n] [GAP n] "
-                        "[ALIGN START|CENTER|END | ALIGN MAIN … CROSS … | ALIGN main, cross] [WRAP]");
+                        "[ALIGN START|CENTER|END | ALIGN MAIN … CROSS … | ALIGN main, cross] "
+                        "[WRAP] [STACK BELOW n] [WRAP BELOW n] [SCROLL] [COLUMNS n] [WEAR \"…\"]");
       return;
     }
     auto atPart = trim(rest.substr(atPos + atLen, sizePos - (atPos + atLen)));
     auto afterSize = trim(rest.substr(sizePos + 6));
-    auto padPos = findOutsideQuotes(afterSize, toUpper(afterSize), " PAD ");
-    auto gapPos = findOutsideQuotes(afterSize, toUpper(afterSize), " GAP ");
-    auto alignPos = findOutsideQuotes(afterSize, toUpper(afterSize), " ALIGN ");
-    auto wrapPos = findOutsideQuotes(afterSize, toUpper(afterSize), " WRAP");
+    auto asU = toUpper(afterSize);
+    auto padPos = findOutsideQuotes(afterSize, asU, " PAD ");
+    auto gapPos = findOutsideQuotes(afterSize, asU, " GAP ");
+    auto alignPos = findOutsideQuotes(afterSize, asU, " ALIGN ");
+    auto stackBelowPos = findOutsideQuotes(afterSize, asU, " STACK BELOW ");
+    auto wrapBelowPos = findOutsideQuotes(afterSize, asU, " WRAP BELOW ");
+    auto wrapPos = findOutsideQuotes(afterSize, asU, " WRAP");
+    auto scrollPos = findOutsideQuotes(afterSize, asU, " SCROLL");
+    size_t colsPos = findOutsideQuotes(afterSize, asU, " COLUMNS ");
+    size_t colsTokLen = 9; /* " COLUMNS " */
+    if (colsPos == std::string::npos) {
+      colsPos = findOutsideQuotes(afterSize, asU, " COLS ");
+      colsTokLen = 6; /* " COLS " */
+    }
+    auto wearPos = findOutsideQuotes(afterSize, asU, " WEAR ");
+    /* Bare WRAP must not steal the WRAP in WRAP BELOW */
+    bool bareWrap = wrapPos != std::string::npos &&
+                    !(wrapBelowPos != std::string::npos && wrapPos == wrapBelowPos);
     std::string sizePart = afterSize;
     std::string padRaw = "0";
     std::string gapRaw = "0";
+    std::string stackBelowRaw;
+    std::string wrapBelowRaw;
+    std::string colsRaw = "1";
+    std::string wearRaw;
     int alignVal = 0; /* start */
     int crossAlignVal = 0;
     int wrapVal = 0;
+    int scrollVal = 0;
     int hasCrossAlign = 0;
+    auto earlier = [](size_t cut, size_t pos) {
+      return pos != std::string::npos && pos < cut ? pos : cut;
+    };
     size_t cut = afterSize.size();
-    if (padPos != std::string::npos) cut = padPos;
-    if (gapPos != std::string::npos && gapPos < cut) cut = gapPos;
-    if (alignPos != std::string::npos && alignPos < cut) cut = alignPos;
-    if (wrapPos != std::string::npos && wrapPos < cut) cut = wrapPos;
+    cut = earlier(cut, padPos);
+    cut = earlier(cut, gapPos);
+    cut = earlier(cut, alignPos);
+    cut = earlier(cut, stackBelowPos);
+    cut = earlier(cut, wrapBelowPos);
+    if (bareWrap) cut = earlier(cut, wrapPos);
+    cut = earlier(cut, scrollPos);
+    cut = earlier(cut, colsPos);
+    cut = earlier(cut, wearPos);
     sizePart = trim(afterSize.substr(0, cut));
-    if (wrapPos != std::string::npos) {
-      /* WRAP is a flag token; allow trailing keywords after it */
-      wrapVal = 1;
-    }
+    if (bareWrap) wrapVal = 1;
+    if (scrollPos != std::string::npos) scrollVal = 1;
+    auto nextCutAfter = [&](size_t from) {
+      size_t end = afterSize.size();
+      auto consider = [&](size_t pos) {
+        if (pos != std::string::npos && pos > from && pos < end) end = pos;
+      };
+      consider(padPos);
+      consider(gapPos);
+      consider(alignPos);
+      consider(stackBelowPos);
+      consider(wrapBelowPos);
+      if (bareWrap) consider(wrapPos);
+      consider(scrollPos);
+      consider(colsPos);
+      consider(wearPos);
+      return end;
+    };
     if (padPos != std::string::npos) {
-      size_t padEnd = afterSize.size();
-      if (gapPos != std::string::npos && gapPos > padPos) padEnd = gapPos;
-      if (alignPos != std::string::npos && alignPos > padPos && alignPos < padEnd) padEnd = alignPos;
-      if (wrapPos != std::string::npos && wrapPos > padPos && wrapPos < padEnd) padEnd = wrapPos;
+      size_t padEnd = nextCutAfter(padPos);
       padRaw = trim(afterSize.substr(padPos + 5, padEnd - (padPos + 5)));
     }
     if (gapPos != std::string::npos) {
-      size_t gapEnd = afterSize.size();
-      if (padPos != std::string::npos && padPos > gapPos) gapEnd = padPos;
-      if (alignPos != std::string::npos && alignPos > gapPos && alignPos < gapEnd) gapEnd = alignPos;
-      if (wrapPos != std::string::npos && wrapPos > gapPos && wrapPos < gapEnd) gapEnd = wrapPos;
+      size_t gapEnd = nextCutAfter(gapPos);
       gapRaw = trim(afterSize.substr(gapPos + 5, gapEnd - (gapPos + 5)));
+    }
+    if (stackBelowPos != std::string::npos) {
+      size_t sbEnd = nextCutAfter(stackBelowPos);
+      stackBelowRaw = trim(afterSize.substr(stackBelowPos + 13, sbEnd - (stackBelowPos + 13)));
+    }
+    if (wrapBelowPos != std::string::npos) {
+      size_t wbEnd = nextCutAfter(wrapBelowPos);
+      wrapBelowRaw = trim(afterSize.substr(wrapBelowPos + 12, wbEnd - (wrapBelowPos + 12)));
+    }
+    if (colsPos != std::string::npos) {
+      size_t cEnd = nextCutAfter(colsPos);
+      colsRaw = trim(afterSize.substr(colsPos + colsTokLen, cEnd - (colsPos + colsTokLen)));
+    }
+    if (wearPos != std::string::npos) {
+      size_t wEnd = nextCutAfter(wearPos);
+      wearRaw = trim(afterSize.substr(wearPos + 6, wEnd - (wearPos + 6)));
     }
     auto parseAlignTok = [&](const std::string &tok, int *out) -> bool {
       auto t = toUpper(trim(tok));
@@ -5266,10 +5325,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
       return false;
     };
     if (alignPos != std::string::npos) {
-      size_t alignEnd = afterSize.size();
-      if (padPos != std::string::npos && padPos > alignPos) alignEnd = padPos;
-      if (gapPos != std::string::npos && gapPos > alignPos && gapPos < alignEnd) alignEnd = gapPos;
-      if (wrapPos != std::string::npos && wrapPos > alignPos && wrapPos < alignEnd) alignEnd = wrapPos;
+      size_t alignEnd = nextCutAfter(alignPos);
       auto alignRaw = trim(afterSize.substr(alignPos + 7, alignEnd - (alignPos + 7)));
       auto aU = toUpper(alignRaw);
       /* ALIGN MAIN CENTER CROSS START */
@@ -5322,23 +5378,47 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     bc.expectTy(line, h.ty, Ty::num(), "BEGIN SIZE h");
     bc.expectTy(line, pad.ty, Ty::num(), "BEGIN PAD");
     bc.expectTy(line, gap.ty, Ty::num(), "BEGIN GAP");
-    const char *fn = axis == "COLUMN"   ? "hanka_begin_column"
-                     : axis == "ROW"    ? "hanka_begin_row"
+    if (axis == "GRID") {
+      auto cols = bc.expr(colsRaw.empty() ? "1" : colsRaw, line);
+      bc.expectTy(line, cols.ty, Ty::num(), "BEGIN GRID COLUMNS");
+      o << "  hanka_begin_grid(arena, " << x.code << ", " << y.code << ", " << w.code << ", "
+        << h.code << ", " << pad.code << ", " << gap.code << ", " << cols.code << ");\n";
+    } else {
+      const char *fn = axis == "COLUMN" ? "hanka_begin_column"
+                       : axis == "ROW"  ? "hanka_begin_row"
                                         : "hanka_begin_stack";
-    o << "  " << fn << "(arena, " << x.code << ", " << y.code << ", " << w.code << ", " << h.code
-      << ", " << pad.code << ", " << gap.code << ");\n";
+      o << "  " << fn << "(arena, " << x.code << ", " << y.code << ", " << w.code << ", " << h.code
+        << ", " << pad.code << ", " << gap.code << ");\n";
+    }
     if (hasCrossAlign)
       o << "  hanka_set_align_axes(arena, " << alignVal << ", " << crossAlignVal << ");\n";
     else if (alignVal != 0)
       o << "  hanka_set_align(arena, " << alignVal << ");\n";
     if (wrapVal != 0) o << "  hanka_set_wrap(arena, 1);\n";
+    if (!stackBelowRaw.empty()) {
+      auto sb = bc.expr(stackBelowRaw, line);
+      bc.expectTy(line, sb.ty, Ty::num(), "STACK BELOW");
+      o << "  hanka_set_stack_below(arena, " << sb.code << ");\n";
+      bc.needsViewportRelayout = true;
+    }
+    if (!wrapBelowRaw.empty()) {
+      auto wb = bc.expr(wrapBelowRaw, line);
+      bc.expectTy(line, wb.ty, Ty::num(), "WRAP BELOW");
+      o << "  hanka_set_wrap_below(arena, " << wb.code << ");\n";
+      bc.needsViewportRelayout = true;
+    }
+    if (scrollVal != 0) o << "  hanka_set_scroll(arena, 1);\n";
+    if (!wearRaw.empty()) {
+      auto cls = bc.coerceText(bc.expr(wearRaw, line));
+      o << "  hanka_set_class(arena, " << cls.code << ");\n";
+    }
     bc.hankaStack.push_back(axis);
     return;
   }
   if (toUpper(text) == "END COLUMN" || toUpper(text) == "END ROW" || toUpper(text) == "END STACK" ||
-      toUpper(text) == "END HANKA") {
+      toUpper(text) == "END GRID" || toUpper(text) == "END HANKA") {
     if (bc.hankaStack.empty()) {
-      bc.fail(line, "END without matching BEGIN COLUMN|ROW|STACK");
+      bc.fail(line, "END without matching BEGIN COLUMN|ROW|STACK|GRID");
       return;
     }
     std::string want = bc.hankaStack.back();
@@ -5455,6 +5535,32 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     } else {
       sizePart = afterSize;
     }
+    int liveLevel = 0;
+    std::string wearRaw;
+    auto stripTrailMods = [&](std::string &t) {
+      for (;;) {
+        auto tU = toUpper(t);
+        size_t p;
+        if ((p = findOutsideQuotes(t, tU, " ANNOUNCE URGENT")) != std::string::npos) {
+          liveLevel = 2;
+          t = trim(t.substr(0, p) + " " + t.substr(p + 16));
+          continue;
+        }
+        if ((p = findOutsideQuotes(t, tU, " ANNOUNCE")) != std::string::npos) {
+          liveLevel = liveLevel ? liveLevel : 1;
+          t = trim(t.substr(0, p) + " " + t.substr(p + 9));
+          continue;
+        }
+        if ((p = findOutsideQuotes(t, tU, " WEAR ")) != std::string::npos) {
+          wearRaw = trim(t.substr(p + 6));
+          t = trim(t.substr(0, p));
+          continue;
+        }
+        break;
+      }
+    };
+    stripTrailMods(trail);
+    if (trail.empty()) stripTrailMods(sizePart);
     auto commaSz = findOutsideQuotes(sizePart, toUpper(sizePart), ",");
     if (commaSz == std::string::npos) {
       bc.fail(line, "SLOT SIZE needs w, h");
@@ -5531,6 +5637,12 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     } else {
       bc.fail(line, "SLOT needs TEXT, BUTTON, IMAGE, BOX, INPUT, SELECT, TABLE, or MODAL — got " +
                          kindRaw);
+      return;
+    }
+    if (liveLevel) o << "  hanka_leaf_set_live(arena, " << liveLevel << ");\n";
+    if (!wearRaw.empty()) {
+      auto classes = bc.coerceText(bc.expr(wearRaw, line));
+      o << "  hanka_leaf_set_class(arena, " << classes.code << ");\n";
     }
     return;
   }
@@ -6046,6 +6158,32 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN THE ROUTE IS needs a name — WHEN THE ROUTE IS \"home\" DO");
             return false;
           }
+        } else if (startsWithCI(rest, "THE VIEWPORT IS BELOW ") ||
+                   startsWithCI(rest, "THE WINDOW IS BELOW ")) {
+          auto raw = startsWithCI(rest, "THE VIEWPORT IS BELOW ") ? trim(rest.substr(22))
+                                                                  : trim(rest.substr(20));
+          auto ru = toUpper(raw);
+          if (ru.size() >= 5 && ru.compare(ru.size() - 5, 5, " WIDE") == 0)
+            raw = trim(raw.substr(0, raw.size() - 5));
+          if (raw.empty() || !isdigit((unsigned char)raw[0])) {
+            bc.fail(lineNo, "WHEN THE VIEWPORT IS BELOW needs a width number");
+            return false;
+          }
+          curWhen.event = "viewport";
+          curWhen.elementId = "below:" + raw;
+        } else if (startsWithCI(rest, "THE VIEWPORT IS ABOVE ") ||
+                   startsWithCI(rest, "THE WINDOW IS ABOVE ")) {
+          auto raw = startsWithCI(rest, "THE VIEWPORT IS ABOVE ") ? trim(rest.substr(22))
+                                                                  : trim(rest.substr(20));
+          auto ru = toUpper(raw);
+          if (ru.size() >= 5 && ru.compare(ru.size() - 5, 5, " WIDE") == 0)
+            raw = trim(raw.substr(0, raw.size() - 5));
+          if (raw.empty() || !isdigit((unsigned char)raw[0])) {
+            bc.fail(lineNo, "WHEN THE VIEWPORT IS ABOVE needs a width number");
+            return false;
+          }
+          curWhen.event = "viewport";
+          curWhen.elementId = "above:" + raw;
         } else if (startsWithCI(rest, "THE VIEWPORT IS AT LEAST ") ||
                    startsWithCI(rest, "THE WINDOW IS AT LEAST ")) {
           /* Declarative breakpoint: WHEN THE VIEWPORT IS AT LEAST 800 [WIDE] DO */
@@ -6145,7 +6283,7 @@ bool parse(BC &bc, const std::string &source) {
             curWhen.event = "submit";
           else {
             bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
-                            "THE VIEWPORT CHANGES / IS AT LEAST|UNDER|BETWEEN …, "
+                            "THE VIEWPORT CHANGES / IS BELOW|ABOVE|AT LEAST|UNDER|BETWEEN …, "
                             "TIMELINE … IS FINISHED, FETCH … IS READY, "
                             "SUBSCRIBE … IS READY, or WATCH … IS READY");
             return false;
@@ -6962,7 +7100,7 @@ std::string emit(BC &bc) {
   bc.hasCurRet = false;
   bc.curRet = Ty::vod();
 
-  if (bc.forBrowser || !bc.pageWhens.empty())
+  if (bc.forBrowser || !bc.pageWhens.empty() || bc.needsViewportRelayout)
     o << "static LukeArena *luke_page_arena = NULL;\n\n";
 
   /* Pre-declare reactive names so THE a IS b … can forward-reference. */
@@ -7318,6 +7456,16 @@ std::string emit(BC &bc) {
     }
   }
 
+  if (bc.needsViewportRelayout) {
+    if (bc.forBrowser) o << "__attribute__((export_name(\"luke_viewport_relayout\")))\n";
+    o << "void luke_viewport_relayout(void) {\n";
+    o << "  LukeArena *arena = luke_page_arena;\n";
+    o << "  if (!arena) return;\n";
+    o << "  hanka_layout(arena);\n";
+    o << "  argus_paint(arena);\n";
+    o << "}\n\n";
+  }
+
   for (auto &h : bc.httpServeHandlers) {
     o << "static void luke_http_wrap_" << cIdent(h)
       << "(LukeArena *arena, LukeHttpRequest *req) {\n";
@@ -7651,6 +7799,7 @@ static BuildResult compileExpanded(const std::string &expanded, const BuildOptio
   r.hasPage = bc.hasPage;
   r.pageTitle = bc.pageTitle;
   r.pageStyle = bc.pageStyle;
+  r.pageCssHref = bc.pageCssHref;
   r.pageBody = bc.pageBody;
   r.pageFonts = bc.pageFonts;
   r.pageWhens = bc.pageWhens;

@@ -1,0 +1,36 @@
+// Frontend done — STACK/WRAP BELOW, GRID, SCROLL, WEAR classes, ANNOUNCE, viewport BELOW/ABOVE
+// Build: luke BUILD examples/build/frontend_done.luke -o build/ex_frontend_done
+// Browser: luke PUBLISH WEB examples/build/frontend_done.luke -o build/frontend_done
+
+IMPORT std/hanka
+IMPORT std/argus
+
+BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640
+  SLOT BUTTON "a" SIZE 80, 40 SAY "A"
+  SLOT BUTTON "b" SIZE 80, 40 SAY "B" WEAR "px-5 rounded-xl bg-indigo-600 text-white"
+END ROW
+
+BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL
+  SLOT TEXT "g1" SIZE AUTO, 24 SAY "one"
+  SLOT TEXT "status" SIZE AUTO, 24 SAY "Ready" ANNOUNCE
+END GRID
+
+BEGIN COLUMN AT 0, 320 SIZE 280, 120 PAD 8 GAP 8 SCROLL
+  SLOT TEXT "s1" SIZE AUTO, 24 SAY "scroll line 1"
+  SLOT TEXT "s2" SIZE AUTO, 24 SAY "scroll line 2"
+  SLOT MODAL "dlg" SIZE 240, 64 SAY "Dialog"
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+WHEN THE VIEWPORT IS BELOW 640 DO
+  SPEAK "below=1"
+END WHEN
+
+WHEN THE VIEWPORT IS ABOVE 1000 DO
+  SPEAK "above=1"
+END WHEN
+
+SPEAK "ok=1"
+SPEAK "frontend_done=1"

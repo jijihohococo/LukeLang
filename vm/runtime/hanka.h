@@ -14,7 +14,8 @@ extern "C" {
 typedef enum HankaAxis {
   HANKA_COLUMN = 0,
   HANKA_ROW = 1,
-  HANKA_STACK = 2
+  HANKA_STACK = 2,
+  HANKA_GRID = 3 /* Path A opt-in CSS grid */
 } HankaAxis;
 
 typedef enum HankaAlign {
@@ -41,8 +42,10 @@ typedef struct HankaLeaf {
   double ox, oy;
   int has_offset;
   int input_type; /* 0 text, 1 password, 2 email, 3 checkbox, 4 radio */
+  int live;       /* 0 none, 1 polite, 2 assertive */
   LukeText text;
   LukeText src;
+  LukeText css_class; /* WEAR "…" class hatch */
 } HankaLeaf;
 
 typedef struct HankaBox HankaBox;
@@ -60,12 +63,17 @@ typedef struct HankaChild {
 
 struct HankaBox {
   HankaAxis axis;
-  char id[64]; /* Path A — stable flex container id (__hk_N) */
+  char id[64]; /* Path A — stable flex/grid container id (__hk_N) */
   double x, y, w, h;
   double pad, gap;
   int align;       /* main-axis: 0=start, 1=center, 2=end */
   int cross_align; /* cross-axis: 0=start, 1=center, 2=end (independent) */
   int wrap;        /* 1 = wrap main axis onto next cross line/column */
+  int stack_below; /* ROW→column when viewport width < px (0 = off) */
+  int wrap_below;  /* enable wrap when viewport width < px (0 = off) */
+  int scroll;      /* 1 = overflow:auto scroll container */
+  int grid_cols;   /* GRID: column count (repeat(N, 1fr)); 0 = not grid */
+  LukeText css_class; /* WEAR "…" on BEGIN */
   HankaChild *children;
   size_t len;
   size_t cap;
@@ -176,10 +184,69 @@ static inline int hanka_begin_stack(LukeArena *a, double x, double y, double w, 
   return 1;
 }
 
+static inline int hanka_begin_grid(LukeArena *a, double x, double y, double w, double h, double pad,
+                                   double gap, double cols) {
+  HankaBox *b = hanka_push_box(a, HANKA_GRID, x, y, w, h, pad, gap);
+  if (!b) return 0;
+  int c = (int)cols;
+  if (c < 1) c = 1;
+  b->grid_cols = c;
+  return 1;
+}
+
 static inline HankaBox *hanka_open(LukeArena *a) {
   HankaState *s = hanka_state(a);
   if (!s->depth) return NULL;
   return s->stack[s->depth - 1];
+}
+
+static inline int hanka_set_stack_below(LukeArena *a, double px) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  b->stack_below = px > 0 ? (int)px : 0;
+  return 1;
+}
+
+static inline int hanka_set_wrap_below(LukeArena *a, double px) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  b->wrap_below = px > 0 ? (int)px : 0;
+  return 1;
+}
+
+static inline int hanka_set_scroll(LukeArena *a, double on) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  b->scroll = on != 0.0 ? 1 : 0;
+  return 1;
+}
+
+static inline int hanka_set_class(LukeArena *a, LukeText classes) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  b->css_class = classes;
+  return 1;
+}
+
+static inline int hanka_leaf_set_live(LukeArena *a, double level) {
+  HankaBox *b = hanka_open(a);
+  if (!b || !b->len) return 0;
+  HankaChild *ch = &b->children[b->len - 1];
+  if (ch->kind != HANKA_CHILD_LEAF) return 0;
+  int v = (int)level;
+  if (v < 0) v = 0;
+  if (v > 2) v = 2;
+  ch->leaf.live = v;
+  return 1;
+}
+
+static inline int hanka_leaf_set_class(LukeArena *a, LukeText classes) {
+  HankaBox *b = hanka_open(a);
+  if (!b || !b->len) return 0;
+  HankaChild *ch = &b->children[b->len - 1];
+  if (ch->kind != HANKA_CHILD_LEAF) return 0;
+  ch->leaf.css_class = classes;
+  return 1;
 }
 
 static inline int hanka_set_align(LukeArena *a, double align) {
@@ -395,6 +462,14 @@ static inline int hanka_mark_region(LukeArena *a, LukeText leaf_id) {
   return 0;
 }
 
+static inline void hanka_apply_leaf_extras(LukeArena *a, const HankaLeaf *leaf) {
+  if (!leaf) return;
+  ArgusNode *n = argus_find(argus_tree(a), luke_text(leaf->id));
+  if (!n) return;
+  if (leaf->live) argus_set_live(n, leaf->live);
+  if (leaf->css_class.len) argus_set_class(n, leaf->css_class);
+}
+
 static inline void hanka_place_leaf(LukeArena *a, const HankaLeaf *leaf, double x, double y) {
   LukeText id = luke_text(leaf->id);
   double w = leaf->w;
@@ -415,6 +490,7 @@ static inline void hanka_place_leaf(LukeArena *a, const HankaLeaf *leaf, double 
     argus_place_modal(a, id, x, y, w, h, leaf->text);
   else
     argus_place_box(a, id, x, y, w, h);
+  hanka_apply_leaf_extras(a, leaf);
 }
 
 static inline void hanka_place_flow_leaf(LukeArena *a, const HankaLeaf *leaf, LukeText parent) {
@@ -437,6 +513,7 @@ static inline void hanka_place_flow_leaf(LukeArena *a, const HankaLeaf *leaf, Lu
     argus_place_flow_modal(a, id, parent, w, h, leaf->text);
   else
     argus_place_flow_box(a, id, parent, w, h);
+  hanka_apply_leaf_extras(a, leaf);
 }
 
 static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, double abs_y);
@@ -469,9 +546,45 @@ static inline void hanka_layout_flex_box(LukeArena *a, HankaBox *b, double abs_x
   int under_flex_parent = b->parent && b->parent->axis != HANKA_STACK;
   int absolute = !under_flex_parent;
   LukeText parent_id = under_flex_parent ? luke_text(b->parent->id) : luke_text("");
+  double vw = argus_viewport_width();
   int dir = b->axis == HANKA_ROW ? 2 : 1;
-  argus_place_flex(a, box_id, parent_id, absolute, absolute ? abs_x : 0.0, absolute ? abs_y : 0.0,
-                   b->w, b->h, dir, b->gap, b->pad, b->align, b->cross_align, b->wrap);
+  int wrap = b->wrap;
+  if (b->stack_below > 0 && vw < (double)b->stack_below) dir = 1; /* stack as column */
+  if (b->wrap_below > 0 && vw < (double)b->wrap_below) wrap = 1;
+  ArgusNode *n =
+      argus_place_flex(a, box_id, parent_id, absolute, absolute ? abs_x : 0.0, absolute ? abs_y : 0.0,
+                       b->w, b->h, dir, b->gap, b->pad, b->align, b->cross_align, wrap)
+          ? argus_find(argus_tree(a), box_id)
+          : NULL;
+  if (n) {
+    if (b->scroll) argus_set_scroll(n, 1);
+    if (b->css_class.len) argus_set_class(n, b->css_class);
+  }
+  for (size_t i = 0; i < b->len; ++i) {
+    HankaChild *ch = &b->children[i];
+    if (ch->kind == HANKA_CHILD_LEAF) {
+      hanka_place_flow_leaf(a, &ch->leaf, box_id);
+    } else if (ch->box) {
+      hanka_layout_box_at(a, ch->box, 0, 0);
+    }
+  }
+}
+
+/* Path A: GRID → CSS grid container (opt-in; never mandatory). */
+static inline void hanka_layout_grid_box(LukeArena *a, HankaBox *b, double abs_x, double abs_y) {
+  (void)abs_x;
+  (void)abs_y;
+  LukeText box_id = luke_text(b->id);
+  int under_flex_parent = b->parent && b->parent->axis != HANKA_STACK;
+  int absolute = !under_flex_parent;
+  LukeText parent_id = under_flex_parent ? luke_text(b->parent->id) : luke_text("");
+  int cols = b->grid_cols > 0 ? b->grid_cols : 1;
+  ArgusNode *n = argus_place_grid(a, box_id, parent_id, absolute, absolute ? abs_x : 0.0,
+                                  absolute ? abs_y : 0.0, b->w, b->h, cols, b->gap, b->pad);
+  if (n) {
+    if (b->scroll) argus_set_scroll(n, 1);
+    if (b->css_class.len) argus_set_class(n, b->css_class);
+  }
   for (size_t i = 0; i < b->len; ++i) {
     HankaChild *ch = &b->children[i];
     if (ch->kind == HANKA_CHILD_LEAF) {
@@ -485,6 +598,10 @@ static inline void hanka_layout_flex_box(LukeArena *a, HankaBox *b, double abs_x
 static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, double abs_y) {
   if (b->axis == HANKA_COLUMN || b->axis == HANKA_ROW) {
     hanka_layout_flex_box(a, b, abs_x, abs_y);
+    return;
+  }
+  if (b->axis == HANKA_GRID) {
+    hanka_layout_grid_box(a, b, abs_x, abs_y);
     return;
   }
 

@@ -96,6 +96,67 @@ function createLukeJs(getMemory, opts) {
     const mem = getMemory();
     return decoder.decode(new Uint8Array(mem.buffer, ptr, len));
   }
+  var FOCUSABLE =
+    'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])';
+  function closeModalById(id) {
+    if (typeof document === "undefined") {
+      console.log("[argus_modal_close]", id);
+      return;
+    }
+    var el = document.getElementById(id);
+    if (el && el.__lukeModalHandler) {
+      el.removeEventListener("keydown", el.__lukeModalHandler);
+      el.__lukeModalHandler = null;
+    }
+    if (!globalThis.__lukeModalStack) return;
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__lukeModalStack, id)) return;
+    var prev = globalThis.__lukeModalStack[id];
+    delete globalThis.__lukeModalStack[id];
+    if (prev && prev.focus) {
+      try {
+        prev.focus();
+      } catch (e) {}
+    }
+  }
+  function openModalById(id) {
+    if (typeof document === "undefined") {
+      console.log("[argus_modal_open]", id);
+      return;
+    }
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (!globalThis.__lukeModalStack) globalThis.__lukeModalStack = {};
+    globalThis.__lukeModalStack[id] = document.activeElement || null;
+    el.setAttribute("tabindex", "-1");
+    var focusable = el.querySelectorAll(FOCUSABLE);
+    var first = focusable.length ? focusable[0] : el;
+    try {
+      first.focus();
+    } catch (e0) {}
+    if (el.__lukeModalHandler) el.removeEventListener("keydown", el.__lukeModalHandler);
+    el.__lukeModalHandler = function (e) {
+      if (e.key === "Escape") {
+        closeModalById(id);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      var nodes = el.querySelectorAll(FOCUSABLE);
+      if (!nodes.length) {
+        e.preventDefault();
+        return;
+      }
+      var f = nodes[0];
+      var l = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === f) {
+        e.preventDefault();
+        l.focus();
+      } else if (!e.shiftKey && document.activeElement === l) {
+        e.preventDefault();
+        f.focus();
+      }
+    };
+    el.addEventListener("keydown", el.__lukeModalHandler);
+  }
   return {
     set_text: function (idPtr, idLen, textPtr, textLen) {
       const id = readText(idPtr, idLen);
@@ -573,6 +634,7 @@ function createLukeJs(getMemory, opts) {
         if (k === 7) {
           el.setAttribute("role", "dialog");
           el.setAttribute("aria-modal", "true");
+          el.setAttribute("tabindex", "-1");
           el.style.background = "rgba(16,24,32,0.96)";
           el.style.padding = "16px";
           el.style.zIndex = "1000";
@@ -731,9 +793,7 @@ function createLukeJs(getMemory, opts) {
       if (!el) return;
       if (!globalThis.__lukeFocusStack) globalThis.__lukeFocusStack = [];
       globalThis.__lukeFocusStack.push(document.activeElement || null);
-      var focusable = el.querySelectorAll(
-        'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])'
-      );
+      var focusable = el.querySelectorAll(FOCUSABLE);
       var first = focusable.length ? focusable[0] : el;
       if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
       try {
@@ -749,9 +809,7 @@ function createLukeJs(getMemory, opts) {
           return;
         }
         if (e.key !== "Tab") return;
-        var nodes = el.querySelectorAll(
-          'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])'
-        );
+        var nodes = el.querySelectorAll(FOCUSABLE);
         if (!nodes.length) {
           e.preventDefault();
           return;
@@ -805,6 +863,65 @@ function createLukeJs(getMemory, opts) {
       setTimeout(function () {
         live.textContent = text;
       }, 20);
+    },
+    argus_modal_open: function (idPtr, idLen) {
+      const id = readText(idPtr, idLen);
+      openModalById(id);
+    },
+    argus_modal_close: function (idPtr, idLen) {
+      const id = readText(idPtr, idLen);
+      closeModalById(id);
+    },
+    argus_live: function (idPtr, idLen, level) {
+      const id = readText(idPtr, idLen);
+      var lvl = level | 0;
+      if (typeof document === "undefined") {
+        console.log("[argus_live]", id, lvl);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (lvl === 2) el.setAttribute("aria-live", "assertive");
+      else if (lvl === 1) el.setAttribute("aria-live", "polite");
+      else return;
+      el.setAttribute("aria-atomic", "true");
+    },
+    argus_class: function (idPtr, idLen, clsPtr, clsLen) {
+      const id = readText(idPtr, idLen);
+      const classes = readText(clsPtr, clsLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_class]", id, classes);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.setAttribute("class", classes);
+    },
+    argus_scroll: function (idPtr, idLen, on) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_scroll]", id, on);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (on) el.style.overflow = "auto";
+    },
+    argus_grid: function (idPtr, idLen, cols, gap, pad) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_grid]", id, cols, gap, pad);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      var n = cols | 0;
+      if (n < 1) n = 1;
+      el.style.display = "grid";
+      el.style.gridTemplateColumns = "repeat(" + n + ", 1fr)";
+      el.style.gap = (gap || 0) + "px";
+      el.style.padding = (pad || 0) + "px";
+      el.style.boxSizing = "border-box";
     },
     argus_select: function (idPtr, idLen, optPtr, optLen) {
       const id = readText(idPtr, idLen);
@@ -861,6 +978,7 @@ function createLukeJs(getMemory, opts) {
       return ctx.measureText(text || "").width || 0;
     },
     viewport_width: function () {
+      if (typeof globalThis.__lukeViewportWidth === "number") return globalThis.__lukeViewportWidth;
       if (typeof window === "undefined") return 1280;
       return window.innerWidth || 1280;
     },
@@ -973,9 +1091,29 @@ function wireLukeWhens(instance, whens) {
     dispatch(jobId, "subscribe");
   }
   function dispatchViewport() {
+    if (typeof instance.exports.luke_viewport_relayout === "function") {
+      try {
+        instance.exports.luke_viewport_relayout();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    var width = 1280;
+    if (typeof globalThis.__lukeViewportWidth === "number") width = globalThis.__lukeViewportWidth;
+    else if (typeof window !== "undefined" && window.innerWidth) width = window.innerWidth;
     for (var i = 0; i < whens.length; i++) {
       var w = whens[i];
-      if ((w.event || "") === "viewport") runExport(w.export);
+      if ((w.event || "") !== "viewport") continue;
+      var id = w.id || "";
+      if (id.indexOf("below:") === 0) {
+        var belowN = parseFloat(id.slice("below:".length));
+        if (!isNaN(belowN) && width < belowN) runExport(w.export);
+      } else if (id.indexOf("above:") === 0) {
+        var aboveN = parseFloat(id.slice("above:".length));
+        if (!isNaN(aboveN) && width > aboveN) runExport(w.export);
+      } else if (!id) {
+        runExport(w.export);
+      }
     }
   }
   function parseBreakpointQuery(spec) {

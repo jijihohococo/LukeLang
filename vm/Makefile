@@ -193,6 +193,20 @@ test-build: build/luke
 	@grep -q 'min:480:max:799' build/frontend_wrap_forms.html
 	@grep -q 'viewport_height\|argus_fade\|now_ms' build/frontend_wrap_forms.html
 	@node ../scripts/luke_browser_loader.cjs build/frontend_wrap_forms.wasm 2>&1 | grep -q "argus_upsert\|ok=1\|wrap=1"
+	./build/luke BUILD ../examples/build/frontend_done.luke -o build/ex_frontend_done
+	./build/ex_frontend_done | grep -q "frontend_done=1"
+	@grep -q 'hanka_set_stack_below' build/ex_frontend_done.luke.c
+	@grep -q 'hanka_begin_grid' build/ex_frontend_done.luke.c
+	@grep -q 'hanka_set_scroll' build/ex_frontend_done.luke.c
+	@grep -q 'hanka_leaf_set_class\|hanka_leaf_set_live' build/ex_frontend_done.luke.c
+	./build/luke BUILD ../examples/build/frontend_done.luke -target browser -o build/frontend_done
+	@grep -q 'below:640' build/frontend_done.html
+	@grep -q 'above:1000' build/frontend_done.html
+	@grep -q 'luke_viewport_relayout\|argus_grid\|argus_class\|argus_modal_open\|argus_live\|argus_scroll' build/frontend_done.html
+	@node -e 'globalThis.__lukeViewportWidth=500;const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/frontend_done.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/frontend_done.wasm"),{whens}).then(()=>{if(globalThis.__lukeDispatchViewport)globalThis.__lukeDispatchViewport();return new Promise(r=>setTimeout(r,40));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_fe_done.txt | grep -q 'argus_grid\|argus_class\|below=1\|ok=1\|argus_flex'
+	@grep -qE '\[argus_grid\]|\[argus_class\]|\[argus_scroll\]|below=1' /tmp/luke_fe_done.txt
+	@node -e 'globalThis.__lukeViewportWidth=800;const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/frontend_done.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/frontend_done.wasm"),{whens}).then(()=>{if(globalThis.__lukeDispatchViewport)globalThis.__lukeDispatchViewport();return new Promise(r=>setTimeout(r,40));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_fe_done_wide.txt | grep -q 'argus_flex\|ok=1'
+	@grep -q '\[argus_flex\]' /tmp/luke_fe_done_wide.txt
 	./build/luke BUILD ../examples/build/frontend_stress.luke -o build/ex_frontend_stress
 	./build/ex_frontend_stress | grep -q "nodes=100"
 	./build/ex_frontend_stress | grep -q "ms="

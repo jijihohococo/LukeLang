@@ -1674,6 +1674,13 @@ void emitLineDir(const std::string &file, size_t line, std::ostringstream &o) {
  * attributed to the .luke file (gdb step/next stay at statement granularity). */
 void emitLineReset(std::ostringstream &o) { o << "#line 1 \"luke-generated.c\"\n"; }
 
+/* Wrap cell/derived/effect creation so debugger/DAP can name reactive nodes. */
+void emitRxNamedAssign(std::ostringstream &o, const std::string &idExpr,
+                       const std::string &createExpr, const std::string &displayName) {
+  o << "  " << idExpr << " = luke_rx_named(_luke_rx, " << createExpr << ", \"" << esc(displayName)
+    << "\");\n";
+}
+
 struct LineScope {
   std::ostringstream &o;
   bool armed = true;
@@ -1809,7 +1816,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
         qd.line = line;
         bc.rxQueryDefs.push_back(qd);
       }
-      o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(key),
+                        "luke_rx_cell_text(_luke_rx, luke_text(\"\"))", key);
       o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
         << cIdent(dbName) << ", " << sqlE.code << ");\n";
       return;
@@ -1847,7 +1855,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
       bc.rxCellTy[cellKey] = Ty::list();
       if (!bc.rxCells.count(cellKey)) bc.rxCellOrder.push_back(cellKey);
       bc.rxCells[cellKey] = true;
-      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_list(_luke_rx);\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(cellKey), "luke_rx_list(_luke_rx)", cellKey);
       return;
     }
     if (forced.k == K::Map) {
@@ -1856,7 +1864,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
       bc.rxCellTy[cellKey] = Ty::map();
       if (!bc.rxCells.count(cellKey)) bc.rxCellOrder.push_back(cellKey);
       bc.rxCells[cellKey] = true;
-      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_map(_luke_rx);\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(cellKey), "luke_rx_map(_luke_rx)", cellKey);
       return;
     }
     Expr e{"0.0", Ty::num()};
@@ -1883,13 +1891,14 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     bc.rxCells[cellKey] = true;
     if (isSecret) bc.rxSecretCells[cellKey] = true;
     if (e.ty.k == K::Text)
-      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell_text(_luke_rx, " << e.code
-        << ");\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(cellKey),
+                        "luke_rx_cell_text(_luke_rx, " + e.code + ")", cellKey);
     else if (e.ty.k == K::Int)
-      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell_int(_luke_rx, " << e.code
-        << ");\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(cellKey),
+                        "luke_rx_cell_int(_luke_rx, " + e.code + ")", cellKey);
     else
-      o << "  _luke_rx_id_" << cIdent(cellKey) << " = luke_rx_cell(_luke_rx, " << e.code << ");\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(cellKey),
+                        "luke_rx_cell(_luke_rx, " + e.code + ")", cellKey);
     return;
   }
   if (startsWithCI(text, "CHANGE ")) {
@@ -2056,14 +2065,19 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
       return;
     }
     bc.usesRx = true;
+    std::string whenName = "when_" + std::to_string(seq);
     if (wd->weak)
-      o << "  _luke_rx_id_when_" << seq << " = luke_rx_effect_weak(_luke_rx, _luke_rx_when_" << seq
-        << ", NULL, "
-        << (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") << ");\n";
+      emitRxNamedAssign(
+          o, "_luke_rx_id_when_" + std::to_string(seq),
+          std::string("luke_rx_effect_weak(_luke_rx, _luke_rx_when_") + std::to_string(seq) +
+              ", NULL, " + (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") + ")",
+          whenName);
     else
-      o << "  _luke_rx_id_when_" << seq << " = luke_rx_effect_prio(_luke_rx, _luke_rx_when_" << seq
-        << ", NULL, "
-        << (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") << ");\n";
+      emitRxNamedAssign(
+          o, "_luke_rx_id_when_" + std::to_string(seq),
+          std::string("luke_rx_effect_prio(_luke_rx, _luke_rx_when_") + std::to_string(seq) +
+              ", NULL, " + (wd->background ? "LUKE_RX_PRIO_BACKGROUND" : "LUKE_RX_PRIO_UI") + ")",
+          whenName);
     return;
   }
   /* BIND BACKGROUND "tag" TO expr — low-priority reactive effect (Scheduler 2.0). */
@@ -2084,8 +2098,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     bc.usesRx = true;
     int seq = ++bc.rxBindSeq;
     bc.rxBindDefs.push_back({idE.code, exprRaw, line, seq});
-    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect_prio(_luke_rx, _luke_rx_bind_" << seq
-      << ", NULL, LUKE_RX_PRIO_BACKGROUND);\n";
+    emitRxNamedAssign(o, "_luke_rx_id_bind_" + std::to_string(seq),
+                      std::string("luke_rx_effect_prio(_luke_rx, _luke_rx_bind_") +
+                          std::to_string(seq) + ", NULL, LUKE_RX_PRIO_BACKGROUND)",
+                      "bind_bg_" + std::to_string(seq));
     o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
@@ -2108,8 +2124,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     bc.usesRxUi = true;
     int seq = ++bc.rxBindSeq;
     bc.rxOpacityBindDefs.push_back({idE.code, exprRaw, line, seq});
-    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect(_luke_rx, _luke_rx_bind_opacity_" << seq
-      << ", NULL);\n";
+    emitRxNamedAssign(o, "_luke_rx_id_bind_" + std::to_string(seq),
+                      std::string("luke_rx_effect(_luke_rx, _luke_rx_bind_opacity_") +
+                          std::to_string(seq) + ", NULL)",
+                      "bind_opacity_" + std::to_string(seq));
     o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
@@ -2135,8 +2153,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     bc.usesRxUi = true;
     int seq = ++bc.rxBindSeq;
     bc.rxListBindDefs.push_back({listName, prefixRaw, line, seq});
-    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect(_luke_rx, _luke_rx_bind_list_" << seq
-      << ", NULL);\n";
+    emitRxNamedAssign(o, "_luke_rx_id_bind_" + std::to_string(seq),
+                      std::string("luke_rx_effect(_luke_rx, _luke_rx_bind_list_") +
+                          std::to_string(seq) + ", NULL)",
+                      "bind_list_" + listName);
     o << "  luke_rx_flush(_luke_rx);\n";
     return;
   }
@@ -2167,8 +2187,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     (void)argusId;
     bc.rxBindDefs.push_back({idE.code, exprRaw, line, seq});
-    o << "  _luke_rx_id_bind_" << seq << " = luke_rx_effect(_luke_rx, _luke_rx_bind_" << seq
-      << ", NULL);\n";
+    emitRxNamedAssign(o, "_luke_rx_id_bind_" + std::to_string(seq),
+                      std::string("luke_rx_effect(_luke_rx, _luke_rx_bind_") + std::to_string(seq) +
+                          ", NULL)",
+                      "bind_" + std::to_string(seq));
     o << "  luke_rx_flush(_luke_rx);\n";
     /* Auth audit: mark that CURRENT USER saw each SECRET cell in this bind. */
     for (auto &n : bc.secretTouchNames(exprRaw)) {
@@ -2464,8 +2486,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
             found = 1;
           }
         if (!found) bc.rxDerivedDefs.push_back({dkey, exprRaw, line});
-        o << "  _luke_rx_id_" << cIdent(dkey) << " = luke_rx_derived(_luke_rx, _luke_rx_fn_"
-          << cIdent(dkey) << ", NULL);\n";
+        emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(dkey),
+                          "luke_rx_derived(_luke_rx, _luke_rx_fn_" + cIdent(dkey) + ", NULL)",
+                          dkey);
         return;
       }
     }
@@ -3138,8 +3161,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     char buf[32];
     snprintf(buf, sizeof(buf), "%d", maxN);
     o << "  luke_auth_configure_limit(" << maxN << ", " << windowSecs << ");\n";
-    o << "  _luke_rx_id_" << cIdent(remCell) << " = luke_rx_cell_text(_luke_rx, luke_text(\""
-      << buf << "\"));\n";
+    emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(remCell),
+                      std::string("luke_rx_cell_text(_luke_rx, luke_text(\"") + buf + "\"))",
+                      remCell);
     return;
   }
   /* REFRESH LIMIT login WITH db, email — push remaining into login.remaining cell. */
@@ -3308,11 +3332,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     o << "    LukeText _luke_uid = luke_auth_current_user();\n";
     o << "    if (!_luke_uid.len) {\n";
     o << "      luke_speak_text(luke_text(\"REVEAL denied — CURRENT USER required\"));\n";
-    o << "      _luke_rx_id_" << cIdent(destKey) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+    emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(destKey),
+                      "luke_rx_cell_text(_luke_rx, luke_text(\"\"))", destKey);
     o << "    } else {\n";
     o << "      LukeText _luke_rev = luke_auth_reveal_last(arena, luke_rx_read_text(_luke_rx, _luke_rx_id_"
       << cIdent(srcKey) << "), " << n << ");\n";
-    o << "      _luke_rx_id_" << cIdent(destKey) << " = luke_rx_cell_text(_luke_rx, _luke_rev);\n";
+    emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(destKey),
+                      "luke_rx_cell_text(_luke_rx, _luke_rev)", destKey);
     o << "      luke_auth_mark_reveal(arena, luke_text(\"" << esc(srcKey) << "\"), luke_text(\""
       << esc(destKey) << "\"));\n";
     o << "    }\n";
@@ -4099,7 +4125,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
         /* Auth-as-types: FOR CURRENT USER unlocks SECRET binds for this cell. */
         bc.rxScopedSecretOk[key] = true;
         bc.rxScopedSecretOk[cellName] = true;
-        o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+        emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(key),
+                          "luke_rx_cell_text(_luke_rx, luke_text(\"\"))", key);
         o << "  {\n";
         o << "    LukeText _luke_uid = luke_auth_current_user();\n";
         o << "    if (_luke_uid.len) {\n";
@@ -4842,7 +4869,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
       bc.rxCellTy[key] = Ty::text();
       if (!bc.rxCells.count(key)) bc.rxCellOrder.push_back(key);
       bc.rxCells[key] = true;
-      o << "  _luke_rx_id_" << cIdent(key) << " = luke_rx_cell_text(_luke_rx, luke_text(\"\"));\n";
+      emitRxNamedAssign(o, "_luke_rx_id_" + cIdent(key),
+                        "luke_rx_cell_text(_luke_rx, luke_text(\"\"))", key);
       o << "  luke_rx_query_refresh(_luke_rx, _luke_rx_id_" << cIdent(key) << ", "
         << cIdent(dbName) << ", luke_text(\"" << esc(readSql) << "\"));\n";
       return;
@@ -6933,6 +6961,10 @@ std::string emit(BC &bc) {
     for (auto &w : bc.rxWhenDefs)
       o << "static LukeRxId _luke_rx_id_when_" << w.seq << ";\n";
     if (bc.usesTimeline || bc.forBrowser) o << "static LukeText _luke_active_timeline_id;\n";
+    /* Global symbol for gdb / luke DEBUG --inspect / DAP Reactive scope. */
+    o << "__attribute__((used,noinline)) const char *luke_debug_rx_inspect(void) {\n";
+    o << "  return luke_rx_inspect_cstr(_luke_rx);\n";
+    o << "}\n";
     o << "\n";
     for (auto &kv : bc.rxCells) {
       auto dot = kv.first.find('.');

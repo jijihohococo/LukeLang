@@ -19,7 +19,7 @@ Ship path: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)
 
 | Order | Track | Goal | Status |
 |------:|-------|------|--------|
-| 1 | **Frontend** *(now)* | Layout, widgets, a11y, publish, production proof | active |
+| 1 | **Frontend** *(now)* | Layout, widgets, a11y, publish, production proof | **done** |
 | 2 | Backend | HTTP/server, DB, auth, full-stack **reactive** apps | **active beachhead** — [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) |
 | 3 | Scripting | Tooling DX, packages, automation | parked |
 | 4 | Mobile | Native shells / shared Luke UI | parked |
@@ -38,13 +38,16 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 | Layout ALIGN START/CENTER/END | ✅ | `BEGIN ROW … ALIGN CENTER` |
 | Per-axis ALIGN (main + cross) | ✅ | `ALIGN MAIN CENTER CROSS START` · `ALIGN CENTER, START` |
 | Text measure / SIZE AUTO | ✅ | `SIZE AUTO,h` · `THE TEXT WIDTH OF` |
-| Breakpoints / viewport | ✅ | `THE VIEWPORT WIDTH/HEIGHT` · `WRAP` · `WHEN THE VIEWPORT CHANGES` · declarative `AT LEAST`/`UNDER`/`BETWEEN` |
+| Scroll container | ✅ | `BEGIN … SCROLL` |
+| GRID opt-in | ✅ | `BEGIN GRID … COLUMNS n` (never mandatory) |
+| Breakpoints / viewport | ✅ | `STACK BELOW` / `WRAP BELOW` · `WHEN … BELOW/ABOVE` · matchMedia `AT LEAST/UNDER/BETWEEN` · resize `CHANGES` |
 | Widget: SELECT/dropdown | ✅ | `SLOT SELECT` · options `a\|b\|c` |
 | Widget: TABLE | ✅ | `SLOT TABLE` · cells `h\|h;r\|r` |
-| Widget: MODAL | ✅ | `SLOT MODAL` · `role=dialog` + focus trap on paint |
+| Widget: MODAL | ✅ | `SLOT MODAL` · focus trap on mount |
 | Rich form controls | ✅ | email/password + select + checkbox/radio |
 | a11y roles / labels | ✅ | `argus_a11y` defaults + aria-label |
-| a11y focus / live regions | ✅ | `TRAP FOCUS IN` · `RESTORE FOCUS` · `ANNOUNCE` (aria-live) |
+| a11y focus / live regions | ✅ | modal open/close trap · `SLOT … ANNOUNCE` · `TRAP FOCUS` / `ANNOUNCE` |
+| Tailwind class hatch | ✅ | `WEAR "…"` · `PUBLISH WEB --tailwind` |
 | Motion polish | ✅ | `SET THE OPACITY OF` · `FADE … OVER ms` (rAF + ease-out) |
 | `luke PUBLISH WEB` | ✅ | alias of browser BUILD + ship checklist |
 | Production stress app | ✅ | `frontend_stress.luke` (100) · `frontend_pressure.luke` (2500) |
@@ -56,42 +59,39 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 ## Surface cheat sheet
 
 ```luke
-BEGIN ROW AT 0, 0 SIZE 220, 120 PAD 4 GAP 8 WRAP
-  SLOT BUTTON "a" SIZE 90, 36 SAY "One"
-  SLOT BUTTON "b" SIZE 90, 36 SAY "Two"
-  SLOT BUTTON "c" SIZE 90, 36 SAY "Three"
+BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640
+  SLOT BUTTON "buy" SIZE AUTO, 40 SAY "Buy" WEAR "px-5 rounded-xl bg-indigo-600 text-white"
 END ROW
 
-SLOT INPUT AS CHECKBOX "agree" SIZE 24, 24 SAY "I agree"
-SLOT INPUT AS RADIO "plan" SIZE 24, 24 SAY "Pro"
+BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL
+  SLOT TEXT "status" SIZE AUTO, 24 SAY "Ready" ANNOUNCE
+END GRID
 
-SET THE OPACITY OF "a" TO 0
-FADE "a" FROM 0 TO 1 OVER 300
-
-WHEN THE VIEWPORT CHANGES DO
-  SPEAK THE VIEWPORT WIDTH
+WHEN THE VIEWPORT IS BELOW 640 DO
+  SPEAK "narrow"
 END WHEN
 
 WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO
   SPEAK "desktop"
 END WHEN
 
-SPEAK THE VIEWPORT HEIGHT
-SPEAK THE CLOCK
-
-luke PUBLISH WEB app.luke -o dist/app
+luke PUBLISH WEB app.luke -o dist/app --tailwind input.css
 ```
+
+**Coexistence:** Hanka owns *layout* (inline flex/grid/size). Tailwind `WEAR` owns *skin*
+(color, type, border, shadow). Tailwind layout utilities (`flex`, `w-*`) lose to inline styles on purpose.
 
 ---
 
-## Definition of done (Frontend track)
+## Definition of done (Frontend track) — **met**
 
-1. ALIGN + AUTO measure used in real demos  
-2. Core widgets (modal/select/table) paint in browser  
-3. a11y roles on interactive nodes  
-4. `PUBLISH WEB` ships static dist  
-5. One signature stress app + published benchmark baseline  
-6. Docs list Frontend → Backend → Scripting → Mobile → Game order
+1. Per-axis align ✅  
+2. Scroll ✅  
+3. Grid opt-in ✅  
+4. Declarative breakpoints ✅  
+5. a11y focus-trap + live regions ✅  
+6. TaskList/roadmap drift fixed ✅  
+7. Tailwind class hatch ✅  
 
 ---
 

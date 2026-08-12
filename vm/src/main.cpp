@@ -30,6 +30,7 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " PKG publish <name>          Publish luke_modules/<name> to registry\n"
       << "  " << argv0 << " PKG lock                   Write luke.lock from luke_modules/\n"
       << "  " << argv0 << " PUBLISH WEB <file.luke>    Build browser dist (html+wasm+fonts)\n"
+      << "      [--tailwind input.css]      optional Tailwind JIT over .luke WEAR classes\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
       << "  " << argv0 << " LSP                        Stdio language server (hover/outline/FMT/…)\n"
       << "  " << argv0 << " DAP                        Stdio debug adapter (gdb; cells + deps)\n"
@@ -217,6 +218,10 @@ std::string makeBrowserHtml(const std::string &wasmFile, const luke::BuildResult
     o << "  <link rel=\"stylesheet\" href=\"" << escapeHtml(f.hrefOrPath)
       << "\" data-luke=\"bring-font\" />\n";
   }
+  if (!page.pageCssHref.empty()) {
+    o << "  <link rel=\"stylesheet\" href=\"" << escapeHtml(page.pageCssHref)
+      << "\" data-luke=\"tailwind\" />\n";
+  }
   o << "  <style>\n";
   for (auto &f : page.pageFonts) {
     if (!f.local) continue;
@@ -364,7 +369,8 @@ int emitBrowserGlue(const std::string &stem, const std::string &wasmBasename,
   return 0;
 }
 
-int runBuild(const std::string &path, const std::string &outBin, const std::string &target) {
+int runBuild(const std::string &path, const std::string &outBin, const std::string &target,
+             const std::string &tailwindInput = "") {
   std::string source = readFile(path);
   if (source.empty() && !std::ifstream(path)) {
     std::cerr << "Error: could not open " << path << "\n";
@@ -438,6 +444,21 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
     if (stem.size() >= 5 && stem.substr(stem.size() - 5) == ".wasm")
       stem = stem.substr(0, stem.size() - 5);
     std::string wasmBase = basenameNoExt(binary) + ".wasm";
+    if (!tailwindInput.empty()) {
+      std::string cssOut = stem + ".css";
+      std::string cssName = basenameNoExt(stem) + ".css";
+      /* JIT scans .luke WEAR "…" string literals; no hard Tailwind dependency. */
+      std::string tw =
+          "npx --yes tailwindcss -i \"" + tailwindInput + "\" --content \"" + path + "\" -o \"" +
+          cssOut + "\" 2>/tmp/luke_tailwind.err";
+      if (runSystem(tw, "tailwindcss") == 0) {
+        built.pageCssHref = cssName;
+        std::cerr << "  tailwind → " << cssOut << "\n";
+      } else {
+        std::cerr << "warning: Tailwind unavailable — skipping (see /tmp/luke_tailwind.err); "
+                     "use WEAR STYLE for a prebuilt CSS blob\n";
+      }
+    }
     // If binary is path/foo.wasm, html sits next to it as path/foo.html
     int g = emitBrowserGlue(stem, wasmBase, built, path);
     if (g != 0) return g;
@@ -715,19 +736,23 @@ int main(int argc, char **argv) {
 
   if (cmd == "PUBLISH") {
     if (argc < 3 || upper(argv[2]) != "WEB") {
-      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dist/app]\n";
+      std::cerr << "Usage: " << argv[0]
+                << " PUBLISH WEB <file.luke> [-o dist/app] [--tailwind input.css]\n";
       std::cerr << "  (For packages: luke PKG publish <name>)\n";
       return 1;
     }
     if (argc < 4) {
-      std::cerr << "Usage: " << argv[0] << " PUBLISH WEB <file.luke> [-o dist/app]\n";
+      std::cerr << "Usage: " << argv[0]
+                << " PUBLISH WEB <file.luke> [-o dist/app] [--tailwind input.css]\n";
       return 1;
     }
     std::string path = argv[3];
     std::string out = "dist/app";
+    std::string tailwindInput;
     for (int i = 4; i < argc; ++i) {
       std::string a = argv[i];
       if (a == "-o" && i + 1 < argc) out = argv[++i];
+      else if (a == "--tailwind" && i + 1 < argc) tailwindInput = argv[++i];
       else {
         std::cerr << "Unknown PUBLISH WEB option: " << a << "\n";
         return 1;
@@ -742,11 +767,12 @@ int main(int argc, char **argv) {
       if (runSystem("mkdir -p \"" + out.substr(0, slash) + "\"", "mkdir PUBLISH WEB out dir") != 0)
         return 1;
     }
-    int rc = runBuild(path, out, "browser");
+    int rc = runBuild(path, out, "browser", tailwindInput);
     if (rc != 0) return rc;
     std::cerr << "PUBLISH WEB ok — ship:\n";
     std::cerr << "  " << out << ".html\n";
     std::cerr << "  " << out << ".wasm\n";
+    if (!tailwindInput.empty()) std::cerr << "  " << out << ".css (if Tailwind ran)\n";
     return 0;
   }
 

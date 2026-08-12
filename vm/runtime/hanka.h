@@ -194,6 +194,12 @@ static inline int hanka_begin_grid(LukeArena *a, double x, double y, double w, d
   return 1;
 }
 
+static inline HankaBox *hanka_open(LukeArena *a) {
+  HankaState *s = hanka_state(a);
+  if (!s->depth) return NULL;
+  return s->stack[s->depth - 1];
+}
+
 static inline int hanka_set_stack_below(LukeArena *a, double px) {
   HankaBox *b = hanka_open(a);
   if (!b) return 0;
@@ -241,12 +247,6 @@ static inline int hanka_leaf_set_class(LukeArena *a, LukeText classes) {
   if (ch->kind != HANKA_CHILD_LEAF) return 0;
   ch->leaf.css_class = classes;
   return 1;
-}
-
-static inline HankaBox *hanka_open(LukeArena *a) {
-  HankaState *s = hanka_state(a);
-  if (!s->depth) return NULL;
-  return s->stack[s->depth - 1];
 }
 
 static inline int hanka_set_align(LukeArena *a, double align) {

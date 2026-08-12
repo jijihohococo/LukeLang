@@ -40,10 +40,12 @@ See [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md).
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Full Hanka→CSS rewrite (default/complete) | ⬜ | flex emit proved; not default/complete |
-| a11y — focus-trap / live regions | ✅ | `TRAP FOCUS` / `RESTORE FOCUS` / `ANNOUNCE`; modal traps on paint |
+| Full Hanka→CSS (flex default; STACK/PLACE absolute; **GRID** opt-in) | ✅ | ROW/COLUMN → flex; `BEGIN GRID … COLUMNS n`; STACK/PLACE absolute |
 | Per-axis align | ✅ | `ALIGN MAIN … CROSS …` · `ALIGN main, cross` |
-| Real responsive breakpoints | ✅ | `WHEN THE VIEWPORT IS AT LEAST|UNDER|BETWEEN …` → matchMedia |
+| Scroll container | ✅ | `BEGIN … SCROLL` → `overflow:auto` |
+| a11y — focus-trap / live regions | ✅ | modal `argus_modal_open/close`; `SLOT … ANNOUNCE` / `ANNOUNCE URGENT`; `TRAP FOCUS` / `ANNOUNCE` statements |
+| Real responsive breakpoints | ✅ | `STACK BELOW` / `WRAP BELOW`; `WHEN … BELOW/ABOVE`; matchMedia `AT LEAST/UNDER/BETWEEN` |
+| Tailwind interop (class hatch) | ✅ | `WEAR "classes"` on SLOT/BEGIN; `PUBLISH WEB --tailwind input.css` |
 
 See [`docs/STRATEGY.md`](./docs/STRATEGY.md), [`docs/FRONTEND_ROADMAP.md`](./docs/FRONTEND_ROADMAP.md).
 
@@ -114,4 +116,4 @@ Do not un-park to chase a Tooling A+ checklist.
 
 ## Active focus
 
-**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md)). Execution is **A+** on the Live Graph differential ledger ([`docs/SCORECARD.md`](./docs/SCORECARD.md), [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md)). Wall stays the product proof. Mobile/game stay parked. **Distribution** (registry, signing, packages, editor clients, docs site) stays parked — do not dilute Ambition by un-parking it for a tooling checklist.
+**Frontend track is done** ([`docs/FRONTEND_ROADMAP.md`](./docs/FRONTEND_ROADMAP.md)). **Now:** deepen Backend / Live Graph beachhead ([`docs/BACKEND_ROADMAP.md`](./docs/BACKEND_ROADMAP.md), [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md)). Wall stays the product proof. Mobile/game stay parked. **Distribution** stays parked — do not dilute Ambition by un-parking it for a tooling checklist.

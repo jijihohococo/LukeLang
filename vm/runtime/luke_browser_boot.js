@@ -107,6 +107,10 @@ function createLukeJs(getMemory, opts) {
       el.removeEventListener("keydown", el.__lukeModalHandler);
       el.__lukeModalHandler = null;
     }
+    if (el) {
+      el.style.display = "none";
+      el.setAttribute("aria-hidden", "true");
+    }
     if (!globalThis.__lukeModalStack) return;
     if (!Object.prototype.hasOwnProperty.call(globalThis.__lukeModalStack, id)) return;
     var prev = globalThis.__lukeModalStack[id];
@@ -124,8 +128,11 @@ function createLukeJs(getMemory, opts) {
     }
     var el = document.getElementById(id);
     if (!el) return;
+    el.style.display = "";
+    el.removeAttribute("aria-hidden");
     if (!globalThis.__lukeModalStack) globalThis.__lukeModalStack = {};
-    globalThis.__lukeModalStack[id] = document.activeElement || null;
+    if (!Object.prototype.hasOwnProperty.call(globalThis.__lukeModalStack, id))
+      globalThis.__lukeModalStack[id] = document.activeElement || null;
     el.setAttribute("tabindex", "-1");
     var focusable = el.querySelectorAll(FOCUSABLE);
     var first = focusable.length ? focusable[0] : el;
@@ -634,6 +641,8 @@ function createLukeJs(getMemory, opts) {
           el.setAttribute("role", "dialog");
           el.setAttribute("aria-modal", "true");
           el.setAttribute("tabindex", "-1");
+          el.setAttribute("aria-hidden", "true");
+          el.style.display = "none"; /* closed until OPEN THE MODAL */
           el.style.background = "rgba(16,24,32,0.96)";
           el.style.padding = "16px";
           el.style.zIndex = "1000";

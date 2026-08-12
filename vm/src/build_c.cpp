@@ -5187,7 +5187,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
   /* Hanka — layout boxes → Argus frames */
   if (toUpper(text) == "LAY OUT THE SCREEN" || toUpper(text) == "LAYOUT THE SCREEN" ||
       toUpper(text) == "LAY OUT" || toUpper(text) == "LAYOUT") {
-    if (bc.usesRxUi) o << "  hanka_set_keep_roots(arena, 1);\n";
+    if (bc.usesRxUi || bc.needsViewportRelayout) o << "  hanka_set_keep_roots(arena, 1);\n";
     o << "  hanka_layout(arena);\n";
     return;
   }
@@ -5740,6 +5740,27 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     auto rest = trim(text.substr(9));
     auto msg = bc.coerceText(bc.expr(rest, line));
     o << "  argus_js_announce(" << msg.code << ");\n";
+    return;
+  }
+  /* Modal show/hide — trap on OPEN, not on mount */
+  if (startsWithCI(text, "OPEN THE MODAL ") || startsWithCI(text, "SHOW THE MODAL ") ||
+      startsWithCI(text, "OPEN MODAL ") || startsWithCI(text, "SHOW MODAL ")) {
+    auto rest = startsWithCI(text, "OPEN THE MODAL ")   ? trim(text.substr(15))
+                : startsWithCI(text, "SHOW THE MODAL ") ? trim(text.substr(15))
+                : startsWithCI(text, "OPEN MODAL ")     ? trim(text.substr(11))
+                                                        : trim(text.substr(11));
+    auto idE = bc.coerceText(bc.expr(rest, line));
+    o << "  argus_open_modal(arena, " << idE.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "CLOSE THE MODAL ") || startsWithCI(text, "HIDE THE MODAL ") ||
+      startsWithCI(text, "CLOSE MODAL ") || startsWithCI(text, "HIDE MODAL ")) {
+    auto rest = startsWithCI(text, "CLOSE THE MODAL ")  ? trim(text.substr(16))
+                : startsWithCI(text, "HIDE THE MODAL ") ? trim(text.substr(15))
+                : startsWithCI(text, "CLOSE MODAL ")    ? trim(text.substr(12))
+                                                        : trim(text.substr(11));
+    auto idE = bc.coerceText(bc.expr(rest, line));
+    o << "  argus_close_modal(arena, " << idE.code << ");\n";
     return;
   }
   if (startsWithCI(text, "PLACE ")) {
@@ -7461,6 +7482,7 @@ std::string emit(BC &bc) {
     o << "void luke_viewport_relayout(void) {\n";
     o << "  LukeArena *arena = luke_page_arena;\n";
     o << "  if (!arena) return;\n";
+    o << "  hanka_set_keep_roots(arena, 1);\n";
     o << "  hanka_layout(arena);\n";
     o << "  argus_paint(arena);\n";
     o << "}\n\n";

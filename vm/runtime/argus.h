@@ -577,7 +577,6 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
   ArgusTree *t = argus_tree(a);
   ArgusNode *n = argus_find(t, id);
   if (!n || (!n->dirty && n->mounted)) return 0;
-  int was_mounted = n->mounted;
   argus_js_upsert(id, (double)n->kind);
   if (n->parent_id.len) argus_js_parent(id, n->parent_id);
   if (n->css_class.len) argus_js_class(id, n->css_class);
@@ -594,8 +593,7 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
   LukeText role = n->role.len ? n->role : argus_default_role(n);
   if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
   if (n->live) argus_js_live(id, (double)n->live);
-  /* Modal dialogs: focus trap on first mount. */
-  if (n->kind == ARGUS_MODAL && !was_mounted) argus_js_modal_open(id);
+  /* Modals mount closed — OPEN THE MODAL traps focus; paint must not. */
   if (n->kind == ARGUS_IMAGE)
     argus_js_image(id, n->src);
   else if (n->kind == ARGUS_INPUT)
@@ -840,6 +838,25 @@ static inline int argus_place_modal(LukeArena *a, LukeText id, double x, double 
   argus_set_frame(n, x, y, w, h);
   argus_set_text(n, text);
   argus_set_a11y(n, luke_text("dialog"), text);
+  return 1;
+}
+
+/* Show modal + trap focus. Pair with CLOSE / HIDE THE MODAL. */
+static inline int argus_open_modal(LukeArena *a, LukeText id) {
+  ArgusNode *n = argus_find(argus_tree(a), id);
+  if (!n || n->kind != ARGUS_MODAL) {
+    /* Still try JS — element may exist from paint. */
+    argus_js_modal_open(id);
+    return 0;
+  }
+  n->dirty = 1;
+  argus_js_modal_open(id);
+  return 1;
+}
+
+static inline int argus_close_modal(LukeArena *a, LukeText id) {
+  (void)a;
+  argus_js_modal_close(id);
   return 1;
 }
 

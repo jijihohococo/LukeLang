@@ -196,17 +196,20 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/frontend_done.luke -o build/ex_frontend_done
 	./build/ex_frontend_done | grep -q "frontend_done=1"
 	@grep -q 'hanka_set_stack_below' build/ex_frontend_done.luke.c
+	@grep -q 'hanka_set_keep_roots' build/ex_frontend_done.luke.c
 	@grep -q 'hanka_begin_grid' build/ex_frontend_done.luke.c
 	@grep -q 'hanka_set_scroll' build/ex_frontend_done.luke.c
 	@grep -q 'hanka_leaf_set_class\|hanka_leaf_set_live' build/ex_frontend_done.luke.c
+	@grep -q 'argus_open_modal' build/ex_frontend_done.luke.c
 	./build/luke BUILD ../examples/build/frontend_done.luke -target browser -o build/frontend_done
 	@grep -q 'below:640' build/frontend_done.html
 	@grep -q 'above:1000' build/frontend_done.html
 	@grep -q 'luke_viewport_relayout\|argus_grid\|argus_class\|argus_modal_open\|argus_live\|argus_scroll' build/frontend_done.html
-	@node -e 'globalThis.__lukeViewportWidth=500;const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/frontend_done.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/frontend_done.wasm"),{whens}).then(()=>{if(globalThis.__lukeDispatchViewport)globalThis.__lukeDispatchViewport();return new Promise(r=>setTimeout(r,40));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_fe_done.txt | grep -q 'argus_grid\|argus_class\|below=1\|ok=1\|argus_flex'
-	@grep -qE '\[argus_grid\]|\[argus_class\]|\[argus_scroll\]|below=1' /tmp/luke_fe_done.txt
-	@node -e 'globalThis.__lukeViewportWidth=800;const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/frontend_done.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();runLukeWasm(fs.readFileSync("build/frontend_done.wasm"),{whens}).then(()=>{if(globalThis.__lukeDispatchViewport)globalThis.__lukeDispatchViewport();return new Promise(r=>setTimeout(r,40));}).then(()=>process.exit(0));' 2>&1 | tee /tmp/luke_fe_done_wide.txt | grep -q 'argus_flex\|ok=1'
-	@grep -q '\[argus_flex\]' /tmp/luke_fe_done_wide.txt
+	@grep -q 'hanka_set_keep_roots' build/frontend_done.luke.c
+	@# STACK BELOW must reflow on resize (keep_roots); modal must NOT open on mount
+	@node -e 'globalThis.__lukeViewportWidth=800;const {runLukeWasm}=require("../scripts/luke_browser_loader.cjs");const fs=require("fs");const html=fs.readFileSync("build/frontend_done.html","utf8");const m=html.match(/var LUKE_WHENS = (\[[\s\S]*?\]);/);const whens=Function("return ("+m[1]+");")();const logs=[];const orig=console.log;console.log=function(){logs.push(Array.prototype.join.call(arguments," "));return orig.apply(console,arguments);};runLukeWasm(fs.readFileSync("build/frontend_done.wasm"),{whens}).then(()=>{const flex=()=>logs.filter(l=>l.indexOf("[argus_flex] __hk_0")===0);if(!flex().some(l=>/\s2\s/.test(l)))throw new Error("expected row at 800: "+flex().join("|"));if(logs.some(l=>l.indexOf("[argus_modal_open]")>=0))throw new Error("modal opened on mount");globalThis.__lukeViewportWidth=500;if(globalThis.__lukeDispatchViewport)globalThis.__lukeDispatchViewport();return new Promise(r=>setTimeout(r,80));}).then(()=>{const flex=()=>logs.filter(l=>l.indexOf("[argus_flex] __hk_0")===0);if(!flex().some(l=>/\s1\s/.test(l)))throw new Error("expected column after resize to 500: "+flex().join("|"));console.log=orig;console.log("reflow_ok");process.exit(0);}).catch(e=>{console.log=orig;console.error(e);process.exit(1);});' 2>&1 | tee /tmp/luke_fe_reflow.txt | grep -q reflow_ok
+	@node ../scripts/luke_browser_loader.cjs build/frontend_done.wasm --dispatch cta:click 2>&1 | tee /tmp/luke_fe_modal.txt | grep -q '\[argus_modal_open\]'
+	@! grep -q '\[argus_modal_open\]' /tmp/luke_fe_reflow.txt
 	./build/luke BUILD ../examples/build/frontend_stress.luke -o build/ex_frontend_stress
 	./build/ex_frontend_stress | grep -q "nodes=100"
 	./build/ex_frontend_stress | grep -q "ms="

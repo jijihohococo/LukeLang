@@ -43,7 +43,7 @@ See [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md).
 | Full Hanka→CSS (flex default; STACK/PLACE absolute; **GRID** opt-in) | ✅ | ROW/COLUMN → flex; `BEGIN GRID … COLUMNS n`; STACK/PLACE absolute |
 | Per-axis align | ✅ | `ALIGN MAIN … CROSS …` · `ALIGN main, cross` |
 | Scroll container | ✅ | `BEGIN … SCROLL` → `overflow:auto` |
-| a11y — focus-trap / live regions | ✅ | modal `argus_modal_open/close`; `SLOT … ANNOUNCE` / `ANNOUNCE URGENT`; `TRAP FOCUS` / `ANNOUNCE` statements |
+| a11y — focus-trap / live regions | ✅ | modal via `OPEN/CLOSE THE MODAL`; `SLOT … ANNOUNCE`; `TRAP FOCUS` |
 | Real responsive breakpoints | ✅ | `STACK BELOW` / `WRAP BELOW`; `WHEN … BELOW/ABOVE`; matchMedia `AT LEAST/UNDER/BETWEEN` |
 | Tailwind interop (class hatch) | ✅ | `WEAR "classes"` on SLOT/BEGIN; `PUBLISH WEB --tailwind input.css` |
 

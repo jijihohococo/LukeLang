@@ -10,6 +10,57 @@
 
 namespace luke {
 
+/* Source-map markers in expanded / flattened Luke: // @luke-file "path" N
+ * N is the 1-based line number the next source line should report. */
+inline std::string escapeLukePath(const std::string &p) {
+  std::string o;
+  o.reserve(p.size());
+  for (char c : p) {
+    if (c == '\\' || c == '"') o.push_back('\\');
+    o.push_back(c);
+  }
+  return o;
+}
+
+inline bool parseLukeFileMarker(const std::string &trimmed, std::string *pathOut,
+                                size_t *lineOut) {
+  static const char kPref[] = "// @luke-file ";
+  constexpr size_t kLen = sizeof(kPref) - 1;
+  if (trimmed.size() < kLen + 4) return false;
+  for (size_t i = 0; i < kLen; ++i)
+    if (trimmed[i] != kPref[i]) return false;
+  size_t i = kLen;
+  if (trimmed[i] != '"') return false;
+  ++i;
+  std::string path;
+  while (i < trimmed.size() && trimmed[i] != '"') {
+    if (trimmed[i] == '\\' && i + 1 < trimmed.size()) {
+      path.push_back(trimmed[i + 1]);
+      i += 2;
+      continue;
+    }
+    path.push_back(trimmed[i++]);
+  }
+  if (i >= trimmed.size() || trimmed[i] != '"') return false;
+  ++i;
+  while (i < trimmed.size() && (trimmed[i] == ' ' || trimmed[i] == '\t')) ++i;
+  if (i >= trimmed.size() || trimmed[i] < '0' || trimmed[i] > '9') return false;
+  size_t n = 0;
+  while (i < trimmed.size() && trimmed[i] >= '0' && trimmed[i] <= '9') {
+    n = n * 10 + (size_t)(trimmed[i] - '0');
+    ++i;
+  }
+  if (n == 0) return false;
+  if (pathOut) *pathOut = std::move(path);
+  if (lineOut) *lineOut = n;
+  return true;
+}
+
+inline std::string makeLukeFileMarker(const std::string &path, size_t line) {
+  return std::string("// @luke-file \"") + escapeLukePath(path) + "\" " +
+         std::to_string(line);
+}
+
 enum class TokKind {
   End,
   Ident,
@@ -106,6 +157,7 @@ struct Stmt {
   std::vector<Ast> args;  /* function params as Ident ASTs, etc. */
   size_t line = 0;
   size_t endLine = 0;
+  std::string file; /* originating .luke path (IMPORT-aware source maps) */
 };
 
 struct Program {

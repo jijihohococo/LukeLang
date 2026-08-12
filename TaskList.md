@@ -80,7 +80,7 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 | Item | Status | Notes |
 |------|--------|-------|
 | LSP — completion / hover / go-to-def | ✅ | diagnostics + hover + completion + definition on Program AST |
-| Debugger | ⬜ | |
+| Debugger | 🟡 | `#line N "file.luke"` in emitted `.luke.c` (IMPORT-aware) + native `-g`; gdb/lldb map to `.luke` |
 | Formatter | 🟡 | `luke FMT` round-trip CI (`scripts/fmt_roundtrip_all.sh`): every `examples/build/*.luke` FMT→BUILD→identical stdout |
 | Real remote package registry (versions / signing) | 🟡 | local index + `sha256` verify on install; signing still open |
 | Third-party libs (auth, DB drivers, cloud SDKs) | ⬜ | ~1–2 packages |

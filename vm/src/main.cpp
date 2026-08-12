@@ -279,7 +279,7 @@ int runViaBuildTemp(const std::string &path) {
     return 1;
   }
   std::string runtimeInclude = findRuntimeInclude();
-  std::string cmd = "cc -O2 -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binPath + "\" \"" +
+  std::string cmd = "cc -O2 -g -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binPath + "\" \"" +
                     cPath + "\"";
   for (auto &lib : built.linkLibs) {
     if (!lib.empty() && lib[0] == '/')
@@ -405,7 +405,7 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
     }
     cmd = "\"" + clang + "\" -O2 -o \"" + binary + "\" -I\"" + runtimeInclude + "\" \"" + cPath + "\"";
   } else {
-    cmd = "cc -O2 -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
+    cmd = "cc -O2 -g -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary + "\" \"" + cPath + "\"";
     for (auto &lib : built.linkLibs) {
       if (lib.find('/') != std::string::npos || lib.find('.') != std::string::npos)
         cmd += " \"" + lib + "\"";

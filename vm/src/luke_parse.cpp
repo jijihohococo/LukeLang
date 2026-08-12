@@ -41,7 +41,31 @@ void stripDo(std::string &s) {
 struct Line {
   std::string text;
   size_t lineNo = 1;
+  std::string file;
 };
+
+/* Apply // @luke-file "path" N markers so lineNo/file match the originating .luke. */
+void applySourceMarkers(std::vector<Line> &lines) {
+  std::string file;
+  size_t nextLine = 0;
+  bool active = false;
+  for (auto &L : lines) {
+    std::string path;
+    size_t start = 0;
+    if (parseLukeFileMarker(trimCopy(L.text), &path, &start)) {
+      file = std::move(path);
+      nextLine = start;
+      active = true;
+      L.file = file;
+      L.lineNo = 0;
+      continue;
+    }
+    if (active) {
+      L.lineNo = nextLine++;
+      L.file = file;
+    }
+  }
+}
 
 /* Split source into logical lines; keep """ … """ on one logical unit via raw lines
  * but WEAR STYLE multiline is handled by consuming subsequent lines in parse. */
@@ -68,7 +92,7 @@ std::vector<Line> splitLogicalLines(const std::string &source) {
       continue;
     }
     if (c == '\n' && !inTriple) {
-      out.push_back({cur, startLine});
+      out.push_back({cur, startLine, {}});
       cur.clear();
       ++lineNo;
       startLine = lineNo;
@@ -81,7 +105,7 @@ std::vector<Line> splitLogicalLines(const std::string &source) {
     }
     if (c != '\r') cur.push_back(c);
   }
-  out.push_back({cur, startLine});
+  out.push_back({cur, startLine, {}});
   return out;
 }
 
@@ -157,6 +181,7 @@ struct Parser {
     auto raw = lines[i].text;
     auto t = trimCopy(raw);
     s.line = lines[i].lineNo;
+    s.file = lines[i].file;
     s.text = t;
     if (t.empty() || startsCI(t, "//")) {
       s.kind = StmtKind::Empty;
@@ -534,7 +559,9 @@ void dumpStmt(std::ostringstream &o, const Stmt &s, int indent) {
   if (!s.name.empty()) o << " name=" << s.name;
   if (!s.typeName.empty()) o << " ty=" << s.typeName;
   if (s.expr.kind != AstKind::Empty) o << " expr=" << astKindName(s.expr.kind);
-  o << " line=" << s.line << "\n";
+  o << " line=" << s.line;
+  if (!s.file.empty()) o << " file=" << s.file;
+  o << "\n";
   for (auto &c : s.body) dumpStmt(o, c, indent + 1);
   if (!s.elseBody.empty()) {
     for (int i = 0; i < indent; ++i) o << "  ";
@@ -715,6 +742,7 @@ Program parseLuke(const std::string &source) {
   Program prog;
   Parser p;
   p.lines = splitLogicalLines(source);
+  applySourceMarkers(p.lines);
   p.prog = &prog;
   while (!p.done()) {
     auto t = p.peekTrimmed();
@@ -735,50 +763,71 @@ std::string formatProgram(const Program &p) {
 
 namespace {
 
+void emitFlattenLoc(std::ostringstream &o, const Stmt &s, size_t line) {
+  if (line == 0) return;
+  const std::string &file = s.file.empty() ? "luke" : s.file;
+  o << makeLukeFileMarker(file, line) << "\n";
+}
+
 void flattenStmt(std::ostringstream &o, const Stmt &s) {
   if (s.kind == StmtKind::Empty) return;
   switch (s.kind) {
   case StmtKind::If: {
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     for (auto &c : s.body) flattenStmt(o, c);
     if (!s.elseBody.empty()) {
+      size_t elseLine = s.elseBody[0].line > 0 ? s.elseBody[0].line - 1 : s.line;
+      emitFlattenLoc(o, s, elseLine ? elseLine : s.line);
       o << "OTHERWISE\n";
       for (auto &c : s.elseBody) flattenStmt(o, c);
     }
+    emitFlattenLoc(o, s, s.endLine ? s.endLine : s.line);
     o << "END IF\n";
     break;
   }
   case StmtKind::While: {
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     for (auto &c : s.body) flattenStmt(o, c);
+    emitFlattenLoc(o, s, s.endLine ? s.endLine : s.line);
     o << "END WHILE\n";
     break;
   }
   case StmtKind::Function: {
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     for (auto &c : s.body) flattenStmt(o, c);
+    emitFlattenLoc(o, s, s.endLine ? s.endLine : s.line);
     o << "END FUNCTION\n";
     break;
   }
   case StmtKind::Blueprint: {
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     for (auto &c : s.body) flattenStmt(o, c);
+    emitFlattenLoc(o, s, s.endLine ? s.endLine : s.line);
     o << "END BLUEPRINT\n";
     break;
   }
   case StmtKind::WhenReactive: {
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     for (auto &c : s.body) flattenStmt(o, c);
+    emitFlattenLoc(o, s, s.endLine ? s.endLine : s.line);
     o << "END WHEN REACTIVE\n";
     break;
   }
   case StmtKind::When: {
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     for (auto &c : s.body) flattenStmt(o, c);
+    emitFlattenLoc(o, s, s.endLine ? s.endLine : s.line);
     o << "END WHEN\n";
     break;
   }
   case StmtKind::WearStyle: {
+    emitFlattenLoc(o, s, s.line);
     if (!s.aux.empty() && s.text.find("\"\"\"") != std::string::npos &&
         s.text.find("\"\"\"", s.text.find("\"\"\"") + 3) == std::string::npos) {
       o << "WEAR STYLE \"\"\"" << s.aux << "\"\"\"\n";
@@ -788,6 +837,7 @@ void flattenStmt(std::ostringstream &o, const Stmt &s) {
     break;
   }
   default:
+    emitFlattenLoc(o, s, s.line);
     o << s.text << "\n";
     break;
   }

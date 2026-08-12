@@ -29,6 +29,7 @@ struct BrowserWhen {
   std::string event;      // click | change | submit | route
   std::vector<std::string> body;
   std::vector<size_t> lines;
+  std::vector<std::string> files; /* parallel to lines — source map paths */
 };
 
 struct BuildResult {

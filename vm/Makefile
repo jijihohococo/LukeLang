@@ -62,6 +62,11 @@ test-play: build/luke
 test-build: build/luke
 	./build/luke BUILD ../examples/build/hello.luke -o build/ex_hello
 	./build/ex_hello
+	@# Source maps: #line N "file.luke" per statement (gdb/lldb → .luke)
+	@grep -qE '#line 3 ".*hello\.luke"' build/ex_hello.luke.c
+	@grep -qE '#line 11 ".*hello\.luke"' build/ex_hello.luke.c
+	@test $$(grep -c '^#line ' build/ex_hello.luke.c) -ge 7
+	@readelf --debug-dump=line build/ex_hello 2>/dev/null | grep -q 'hello\.luke'
 	./build/luke BUILD ../examples/build/counter.luke -o build/ex_counter
 	./build/ex_counter
 	./build/luke BUILD ../examples/build/functions.luke -o build/ex_functions
@@ -70,6 +75,9 @@ test-build: build/luke
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules
 	./build/ex_modules
+	@grep -qE '#line 5 ".*modules\.luke"' build/ex_modules.luke.c
+	@grep -qE '#line .* ".*critter\.luke"' build/ex_modules.luke.c
+	@grep -qE '#line .* ".*files\.luke"' build/ex_modules.luke.c
 	./build/luke BUILD ../examples/build/packages.luke -o build/ex_packages
 	./build/ex_packages
 	./build/luke BUILD ../examples/build/tooling.luke -o build/ex_tooling

@@ -275,6 +275,7 @@ struct Method {
   std::vector<Param> params;
   std::vector<std::string> body;
   std::vector<size_t> lines;
+  std::vector<std::string> files;
   bool ctor = false;
 };
 struct BP {
@@ -290,6 +291,7 @@ struct Fn {
   bool foreign = false;
   std::vector<std::string> body;
   std::vector<size_t> lines;
+  std::vector<std::string> files;
 };
 
 struct Expr {
@@ -297,11 +299,19 @@ struct Expr {
   Ty ty;
 };
 
+struct TopStmt {
+  size_t line = 0;
+  std::string file;
+  std::string text;
+};
+
 struct BC {
   std::string err;
   bool bad = false;
   bool unsupportedHint = false;
   bool forBrowser = false;
+  std::string sourcePath;
+  std::string curFile;
   int arenaSeq = 0;
   int attemptSeq = 0;
   int whenSeq = 0;
@@ -315,7 +325,7 @@ struct BC {
   std::vector<std::string> bpOrder;
   std::map<std::string, Fn> fns;
   std::vector<std::string> fnOrder;
-  std::vector<std::pair<size_t, std::string>> top;
+  std::vector<TopStmt> top;
   std::map<std::string, Ty> locals;
   std::string curClass;
   Ty curRet = Ty::vod();
@@ -483,6 +493,7 @@ struct BC {
     std::string cellName;
     std::vector<std::string> body;
     std::vector<size_t> lines;
+    std::vector<std::string> files;
     size_t line = 0;
     int seq = 0;
     bool background = false;
@@ -1653,7 +1664,23 @@ void speak(const Expr &e, std::ostringstream &o) {
   else o << "  luke_speak_text(luke_text(\"<obj>\"));\n";
 }
 
-void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
+void emitLineDir(const std::string &file, size_t line, std::ostringstream &o) {
+  if (line == 0) return;
+  std::string f = file.empty() ? "luke" : file;
+  o << "#line " << line << " \"" << escapeLukePath(f) << "\"\n";
+}
+
+void pushTop(BC &bc, size_t line, const std::string &text) {
+  bc.top.push_back({line, bc.curFile, text});
+}
+
+void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
+          const std::string &file = {}) {
+  std::string srcFile = file;
+  if (srcFile.empty()) srcFile = bc.curFile;
+  if (srcFile.empty()) srcFile = bc.sourcePath;
+  if (srcFile.empty()) srcFile = "luke";
+  emitLineDir(srcFile, line, o);
   if (startsWithCI(text, "SPEAK ") || startsWithCI(text, "SAY ") || startsWithCI(text, "YELL ") ||
       startsWithCI(text, "SHOUT ")) {
     auto sp = text.find(' ');
@@ -5670,6 +5697,15 @@ bool parse(BC &bc, const std::string &source) {
   while (std::getline(in, raw)) {
     ++lineNo;
     auto text = trim(raw);
+    {
+      std::string markerPath;
+      size_t markerLine = 0;
+      if (parseLukeFileMarker(text, &markerPath, &markerLine)) {
+        bc.curFile = std::move(markerPath);
+        lineNo = markerLine - 1; /* next getline ++lineNo → markerLine */
+        continue;
+      }
+    }
     if (text.empty() || startsWithCI(text, "//")) continue;
     if (startsWithCI(text, "LET'S START") || startsWithCI(text, "LETS START") ||
         startsWithCI(text, "GET OUTTA HERE"))
@@ -5969,7 +6005,7 @@ bool parse(BC &bc, const std::string &source) {
         mode = InWhen;
         continue;
       }
-      bc.top.push_back({lineNo, text});
+      pushTop(bc, lineNo, text);
       continue;
     }
 
@@ -5977,12 +6013,13 @@ bool parse(BC &bc, const std::string &source) {
       if (toUpper(text) == "END WHEN REACTIVE" || toUpper(text) == "ENDWHEN REACTIVE") {
         curRxWhen.seq = ++bc.rxWhenSeq;
         bc.rxWhenDefs.push_back(curRxWhen);
-        bc.top.push_back({lineNo, "REACTIVE WATCH REGISTER " + std::to_string(curRxWhen.seq)});
+        pushTop(bc, lineNo, "REACTIVE WATCH REGISTER " + std::to_string(curRxWhen.seq));
         mode = Top;
         continue;
       }
       curRxWhen.body.push_back(text);
       curRxWhen.lines.push_back(lineNo);
+      curRxWhen.files.push_back(bc.curFile);
       continue;
     }
 
@@ -5995,6 +6032,7 @@ bool parse(BC &bc, const std::string &source) {
       }
       curWhen.body.push_back(text);
       curWhen.lines.push_back(lineNo);
+      curWhen.files.push_back(bc.curFile);
       continue;
     }
 
@@ -6012,7 +6050,7 @@ bool parse(BC &bc, const std::string &source) {
           return false;
         }
         /* Reactive current_route cell beachhead */
-        bc.top.push_back({lineNo, "REMEMBER current_route AS TEXT SET TO \"/\""});
+        pushTop(bc, lineNo, "REMEMBER current_route AS TEXT SET TO \"/\"");
         mode = Top;
         continue;
       }
@@ -6116,10 +6154,9 @@ bool parse(BC &bc, const std::string &source) {
         /* Reactive error cells — server validation → UI BIND without extra invention. */
         for (auto &f : curForm.fields) {
           std::string errCell = "form_" + curForm.name + "_" + f.name + "_error";
-          bc.top.push_back({curForm.line, "REMEMBER " + errCell + " AS TEXT SET TO \"\""});
+          pushTop(bc, curForm.line, "REMEMBER " + errCell + " AS TEXT SET TO \"\"");
         }
-        bc.top.push_back(
-            {curForm.line, "REMEMBER form_" + curForm.name + "_ok AS TEXT SET TO \"1\""});
+        pushTop(bc, curForm.line, "REMEMBER form_" + curForm.name + "_ok AS TEXT SET TO \"1\"");
         mode = Top;
         continue;
       }
@@ -6307,14 +6344,14 @@ bool parse(BC &bc, const std::string &source) {
         bc.flowOrder.push_back(curFlow.name);
         /* Materialize reactive cells for the flow (resumable Live Graph beachhead). */
         std::string stepCell = curFlow.name + "_step";
-        bc.top.push_back({curFlow.line, "REMEMBER " + stepCell + " AS TEXT SET TO \"collect\""});
+        pushTop(bc, curFlow.line, "REMEMBER " + stepCell + " AS TEXT SET TO \"collect\"");
         for (auto &f : curFlow.collectFields) {
           auto Uf = toUpper(f);
           std::string cell = curFlow.name + "_" + f;
           if (Uf == "PASSWORD" || Uf == "PASS")
-            bc.top.push_back({curFlow.line, "SECRET REMEMBER " + cell + " AS TEXT"});
+            pushTop(bc, curFlow.line, "SECRET REMEMBER " + cell + " AS TEXT");
           else
-            bc.top.push_back({curFlow.line, "REMEMBER " + cell + " AS TEXT"});
+            pushTop(bc, curFlow.line, "REMEMBER " + cell + " AS TEXT");
         }
         mode = Top;
         continue;
@@ -6411,6 +6448,7 @@ bool parse(BC &bc, const std::string &source) {
       }
       curFn.body.push_back(text);
       curFn.lines.push_back(lineNo);
+      curFn.files.push_back(bc.curFile);
       continue;
     }
 
@@ -6516,6 +6554,7 @@ bool parse(BC &bc, const std::string &source) {
       }
       curM.body.push_back(text);
       curM.lines.push_back(lineNo);
+      curM.files.push_back(bc.curFile);
       continue;
     }
   }
@@ -6598,7 +6637,7 @@ std::string emit(BC &bc) {
   o << "  return a.len == b.len && (a.len == 0 || memcmp(a.ptr, b.ptr, a.len) == 0);\n}\n\n";
 
   for (auto &tl : bc.top) {
-    if (startsWithCI(tl.second, "SERVE ROUTES ")) bc.serveRoutes = true;
+    if (startsWithCI(tl.text, "SERVE ROUTES ")) bc.serveRoutes = true;
   }
   for (auto &h : bc.httpServeHandlers) {
     o << "static void luke_http_wrap_" << cIdent(h)
@@ -6671,7 +6710,10 @@ std::string emit(BC &bc) {
     bc.hasCurRet = true;
     for (auto &p : fn.params) bc.locals[p.name] = p.ty;
     std::ostringstream body;
-    for (size_t i = 0; i < fn.body.size(); ++i) stmt(bc, fn.body[i], fn.lines[i], body);
+    for (size_t i = 0; i < fn.body.size(); ++i) {
+      std::string f = i < fn.files.size() ? fn.files[i] : bc.sourcePath;
+      stmt(bc, fn.body[i], fn.lines[i], body, f);
+    }
     if (bc.bad) return {};
     o << "static " << cTy(fn.ret) << " " << cIdent(n) << "(LukeArena *arena";
     for (auto &p : fn.params) o << ", " << cTy(p.ty) << " " << cIdent(p.name);
@@ -6697,7 +6739,10 @@ std::string emit(BC &bc) {
       bc.locals["SELF"] = Ty::ptr(n);
       for (auto &p : m.params) bc.locals[p.name] = p.ty;
       std::ostringstream body;
-      for (size_t i = 0; i < m.body.size(); ++i) stmt(bc, m.body[i], m.lines[i], body);
+      for (size_t i = 0; i < m.body.size(); ++i) {
+        std::string f = i < m.files.size() ? m.files[i] : bc.sourcePath;
+        stmt(bc, m.body[i], m.lines[i], body, f);
+      }
       if (bc.bad) return {};
       o << "static void " << cIdent(n) << "_" << cIdent(m.name) << "(LukeArena *arena, "
         << cIdent(n) << " *self";
@@ -6745,8 +6790,11 @@ std::string emit(BC &bc) {
       bc.locals["SELF"] = Ty::ptr(n);  // still child pointer; field names match
       bc.curClass = n;                 // allow child private? use owner for private checks in ctor of parent fields
       if (ctorOwner != n) bc.curClass = ctorOwner;
-      for (size_t i = 0; i < inheritedCtor->body.size(); ++i)
-        stmt(bc, inheritedCtor->body[i], inheritedCtor->lines[i], o);
+      for (size_t i = 0; i < inheritedCtor->body.size(); ++i) {
+        std::string f =
+            i < inheritedCtor->files.size() ? inheritedCtor->files[i] : bc.sourcePath;
+        stmt(bc, inheritedCtor->body[i], inheritedCtor->lines[i], o, f);
+      }
       bc.curClass = saved;
       if (bc.bad) return {};
     }
@@ -6763,7 +6811,7 @@ std::string emit(BC &bc) {
 
   /* Pre-declare reactive names so THE a IS b … can forward-reference. */
   for (auto &tl : bc.top) {
-    const std::string &text = tl.second;
+    const std::string &text = tl.text;
     if (startsWithCI(text, "REMEMBER ")) {
       auto rest = trim(text.substr(9));
       auto U = toUpper(rest);
@@ -6813,7 +6861,7 @@ std::string emit(BC &bc) {
   }
   std::ostringstream mainBody;
   for (auto &tl : bc.top) {
-    stmt(bc, tl.second, tl.first, mainBody);
+    stmt(bc, tl.text, tl.line, mainBody, tl.file);
     if (bc.bad) return {};
   }
   if (!bc.arenaMarks.empty()) {
@@ -6839,7 +6887,7 @@ std::string emit(BC &bc) {
   }
 
   for (auto &tl : bc.top) {
-    if (startsWithCI(tl.second, "START TIMELINE ") || startsWithCI(tl.second, "RUN TIMELINE "))
+    if (startsWithCI(tl.text, "START TIMELINE ") || startsWithCI(tl.text, "RUN TIMELINE "))
       bc.usesTimeline = true;
   }
   for (auto &w : bc.pageWhens) {
@@ -6914,7 +6962,8 @@ std::string emit(BC &bc) {
       }
       std::ostringstream wb;
       for (size_t i = 0; i < w.body.size(); ++i) {
-        stmt(bc, w.body[i], w.lines[i], wb);
+        std::string f = i < w.files.size() ? w.files[i] : bc.sourcePath;
+        stmt(bc, w.body[i], w.lines[i], wb, f);
         if (bc.bad) return {};
       }
       o << wb.str();
@@ -6977,7 +7026,8 @@ std::string emit(BC &bc) {
       }
       std::ostringstream wb;
       for (size_t i = 0; i < w.body.size(); ++i) {
-        stmt(bc, w.body[i], w.lines[i], wb);
+        std::string f = i < w.files.size() ? w.files[i] : bc.sourcePath;
+        stmt(bc, w.body[i], w.lines[i], wb, f);
         if (bc.bad) return {};
       }
       if (!bc.hankaStack.empty()) {
@@ -7304,12 +7354,15 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
   };
 
   std::set<std::string> seen;
-  std::function<std::string(const std::string &, const std::string &)> expand;
-  expand = [&](const std::string &src, const std::string &baseDir) -> std::string {
+  std::function<std::string(const std::string &, const std::string &, const std::string &)> expand;
+  expand = [&](const std::string &src, const std::string &baseDir,
+               const std::string &filePath) -> std::string {
     std::istringstream in(src);
     std::ostringstream out;
     std::string line;
+    size_t localLine = 0;
     while (std::getline(in, line)) {
+      ++localLine;
       auto t = trim(line);
       if (startsWithCI(t, "IMPORT ")) {
         auto spec = trim(t.substr(7));
@@ -7383,9 +7436,9 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
           return {};
         }
         r.importedFiles.push_back(path);
-        out << "// begin IMPORT " << path << "\n";
-        out << expand(body, dirname(path));
-        out << "// end IMPORT " << path << "\n";
+        out << makeLukeFileMarker(path, 1) << "\n";
+        out << expand(body, dirname(path), path);
+        out << makeLukeFileMarker(filePath, localLine + 1) << "\n";
         continue;
       }
       out << line << "\n";
@@ -7395,7 +7448,8 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
 
   std::string base = options.sourcePath.empty() ? "." : dirname(options.sourcePath);
   addRoot(base + "/luke_modules");
-  return expand(source, base);
+  std::string mainPath = options.sourcePath.empty() ? "luke" : options.sourcePath;
+  return makeLukeFileMarker(mainPath, 1) + "\n" + expand(source, base, mainPath);
 }
 
 static BuildResult compileExpanded(const std::string &expanded, const BuildOptions &options,
@@ -7404,6 +7458,8 @@ static BuildResult compileExpanded(const std::string &expanded, const BuildOptio
   r.expandedSource = expanded;
   BC bc;
   bc.forBrowser = options.forBrowser;
+  bc.sourcePath = options.sourcePath.empty() ? "luke" : options.sourcePath;
+  bc.curFile = bc.sourcePath;
   if (!parse(bc, expanded)) {
     r.ok = false;
     r.error = bc.err.empty() ? "Build parse failed" : bc.err;

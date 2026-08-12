@@ -79,7 +79,7 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 | Item | Status | Notes |
 |------|--------|-------|
-| LSP — completion / hover / go-to-def | ✅ | diagnostics + hover + completion + definition on Program AST |
+| LSP — completion / hover / go-to-def | ✅ | rich hover (types/signatures/docs); documentSymbol/refs/rename/signatureHelp/formatting/semanticTokens/codeAction; context-aware completion; didChange re-diagnose CI |
 | Debugger | 🟡 | `#line` + `luke DEBUG` break/step/inspect (cells + deps); `luke DAP` stdio adapter (gdb backend) |
 | Formatter | 🟡 | `luke FMT` round-trip CI (`scripts/fmt_roundtrip_all.sh`): every `examples/build/*.luke` FMT→BUILD→identical stdout |
 | Real remote package registry (versions / signing) | 🟡 | local index + `sha256` verify on install; signing still open |

@@ -9,7 +9,7 @@
 | **Architecture** | **A** | `parseLuke` → `Program`/`Stmt`/`Ast` → `flattenProgram` → emit on every BUILD; Pratt exprs; IF/WHILE/FUNCTION/WHEN are nested Stmt nodes |
 | **Execution** | **A+** | Point + multi-row join IVM, inequality bag filters, N-table chains, wire fail-closed, C10K beachhead, wall smoke |
 | **Ambition** | **A+** | Vision held — reactive full-stack; mobile/game parked |
-| **Tooling** | **A** | LSP + FMT + `#line` source maps; `luke DEBUG` break/step (over/into/out) at `.luke` statements (gdb) |
+| **Tooling** | **A** | LSP (hover types/signatures + outline/refs/rename/signatureHelp/FMT/semantic tokens/code actions) + FMT + `#line` maps; `luke DEBUG`/`DAP` |
 | **Adoption** | **A-** | Wall deploy proof + Caddy; `site/` stub; registry `sha256`; public DNS/traffic still to earn |
 
 ## What “Execution A+” required (and shipped)

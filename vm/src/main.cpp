@@ -31,7 +31,7 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " PKG lock                   Write luke.lock from luke_modules/\n"
       << "  " << argv0 << " PUBLISH WEB <file.luke>    Build browser dist (html+wasm+fonts)\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
-      << "  " << argv0 << " LSP                        Stdio language server (diagnostics/hover/completion)\n"
+      << "  " << argv0 << " LSP                        Stdio language server (hover/outline/FMT/…)\n"
       << "  " << argv0 << " DAP                        Stdio debug adapter (gdb; cells + deps)\n"
       << "  " << argv0 << " FMT [-e expr|<file.luke>]  Format expression(s) via Pratt AST\n"
       << "  " << argv0 << " DEBUG <file.luke> [opts]   Build -O0 -g and debug with gdb (.luke:line)\n"

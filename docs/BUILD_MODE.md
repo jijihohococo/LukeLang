@@ -16,7 +16,7 @@ luke BUILD examples/build/hello_browser.luke -target browser -o hello_web
 luke BUILD examples/build/functions.luke -target debug -o fn  # -O0 -g for gdb
 luke DEBUG examples/build/functions.luke --break 10           # interactive gdb (.luke:line)
 luke DEBUG examples/build/functions.luke --break 10 --batch    # CI: break + next/step/finish
-luke LSP                                          # stdio JSON-RPC diagnostics beachhead
+luke LSP                                          # stdio LSP: hover/outline/FMT/refs/rename/…
 # run wasm (WASI): node scripts/run_wasi.cjs hello.wasm
 # run browser wasm headless: node scripts/luke_browser_loader.cjs hello_web.wasm
 # or open hello_web.html in a browser

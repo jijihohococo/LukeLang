@@ -27,7 +27,7 @@ SRCS := \
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap
+.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap test-lsp
 
 all: build/luke
 
@@ -55,6 +55,9 @@ test-inspect: build/luke
 
 test-dap: build/luke
 	bash ../scripts/dap_handshake.sh
+
+test-lsp: build/luke
+	bash ../scripts/lsp_providers.sh
 
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm
@@ -87,6 +90,8 @@ test-build: build/luke
 	@bash ../scripts/debug_inspect.sh | tee /tmp/luke_debug_inspect_make.txt | grep -q "debug_inspect_ok=1"
 	@# Debugger: DAP stdio handshake (initialize → initialized)
 	@bash ../scripts/dap_handshake.sh | tee /tmp/luke_dap_handshake_make.txt | grep -q "dap_handshake_ok=1"
+	@# LSP: hover types/signatures + providers + context completion + didChange
+	@bash ../scripts/lsp_providers.sh | tee /tmp/luke_lsp_providers_make.txt | grep -q "lsp_providers_ok=1"
 	./build/luke BUILD ../examples/build/oop.luke -o build/ex_oop
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules
@@ -552,7 +557,8 @@ test-build: build/luke
 	@grep -q '◀ Back\|Forward ▶\|Live' build/live_graph_scrub.html
 	@node ../scripts/luke_browser_loader.cjs build/live_graph_scrub.wasm 2>&1 | tee /tmp/luke_live_graph_scrub.txt | grep -q "scrub_ok=1"
 	@grep -q 'luke_rx_list_add\|luke_list_get' build/live_graph_scrub.luke.c
-	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"MY NAME IS n AS NUMBER SET TO 1\nSPEAK n\n"}}}),req({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":0,"character":12}}}),req({"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":0}}}),req({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":6}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"hoverProvider\":true" in out and b"completionProvider" in out and b"definitionProvider\":true" in out and b"publishDiagnostics" in out and b"lukelang" in out'
+	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"MY NAME IS n AS NUMBER SET TO 1\nSPEAK n\n"}}}),req({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":0,"character":12}}}),req({"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":0}}}),req({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":6}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"hoverProvider\":true" in out and b"completionProvider" in out and b"definitionProvider\":true" in out and b"documentSymbolProvider\":true" in out and b"documentFormattingProvider\":true" in out and b"publishDiagnostics" in out and b"lukelang" in out'
+	@bash ../scripts/lsp_providers.sh | tee /tmp/luke_lsp_providers_build.txt | grep -q "lsp_providers_ok=1"
 	./build/luke BUILD ../examples/build/json_integer.luke -o build/json_integer
 	@./build/json_integer | tee /tmp/luke_json_integer.txt | grep -q "json_integer_ok=1"
 	@grep -q "id=9007199254740993" /tmp/luke_json_integer.txt

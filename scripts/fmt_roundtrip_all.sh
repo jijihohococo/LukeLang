@@ -75,6 +75,18 @@ normalize_out() {
     "$1"
 }
 
+# Stateful examples (auth_scoped, live_graph_*, …) open fixed /tmp/*.db paths.
+# Wipe them before each run so baseline vs FMT'd stdout does not depend on
+# prior test ordering or a dirty /tmp from an earlier invocation.
+reset_example_dbs() {
+  local src="$1"
+  local p
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    rm -f "$p" "${p}-wal" "${p}-shm" "${p}-journal"
+  done < <(grep -oE '"/tmp/[^"]+\.db"' "$src" 2>/dev/null | tr -d '"' | sort -u || true)
+}
+
 fmt_count=0
 build_count=0
 run_count=0
@@ -160,8 +172,10 @@ for f in "$WORK/orig"/*.luke; do
   fi
 
   set +e
+  reset_example_dbs "$orig"
   timeout "$RUN_TIMEOUT" "$obin" >"$WORK/ro_$base.txt" 2>"$WORK/roe_$base.txt"
   oc=$?
+  reset_example_dbs "$orig"
   timeout "$RUN_TIMEOUT" "$fbin" >"$WORK/rf_$base.txt" 2>"$WORK/rfe_$base.txt"
   fc=$?
   set -e

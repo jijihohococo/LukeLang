@@ -23,7 +23,7 @@ nodes in the Program — there is no parallel line-only IR for tooling.
 | Tool | Use of AST |
 | --- | --- |
 | `luke IR` | dumps `luke-ast-program` + stmt kinds |
-| `luke FMT` / `FMT -e` | `formatProgram` / `formatExpr` |
+| `luke FMT` / `FMT -e` | `formatProgram` / `formatExpr` — preserves identifier casing; `BUILD(FMT(x))≡BUILD(x)` for expression/function surfaces |
 | `luke LSP` | symbols from Stmt walk; hover/completion/definition |
 
 ## Evidence

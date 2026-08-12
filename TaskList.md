@@ -81,7 +81,7 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 |------|--------|-------|
 | LSP — completion / hover / go-to-def | ✅ | diagnostics + hover + completion + definition on Program AST |
 | Debugger | ⬜ | |
-| Formatter | ✅ | `luke FMT` / `FMT -e` via `formatProgram` / `formatExpr` |
+| Formatter | 🟡 | `luke FMT` / `FMT -e`; round-trip-safe for exprs/idents (`BUILD(FMT(x))≡BUILD(x)` for functions) — nested BLUEPRINT flatten still open |
 | Real remote package registry (versions / signing) | 🟡 | local index + `sha256` verify on install; signing still open |
 | Third-party libs (auth, DB drivers, cloud SDKs) | ⬜ | ~1–2 packages |
 | lukelang.org / docs site | 🟡 | `site/index.html` stub |

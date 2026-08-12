@@ -468,15 +468,15 @@ test-build: build/luke
 	@# non-key filter join: multi-row join bag (not scalar recompute / EXISTS theater)
 	@grep -q "luke_ivm_jbag_card\|luke_ivm_jbag_" build/live_graph_join_filter.luke.c
 	@grep -q "_jb_t1_\|_jb_t2_" build/live_graph_join_filter.luke.c
-	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join_filter.luke.c
-	@! grep -q '_t2_ai AFTER INSERT ON profiles BEGIN' build/live_graph_join_filter.luke.c
+	@# Forbid plain recompute triggers (card_t1_ai) — jbag uses card_jb_t1_ai
+	@! grep -qE 'luke_ivm_card_t[12]_a[iud] AFTER INSERT ON (users|profiles) BEGIN' build/live_graph_join_filter.luke.c
 	./build/luke BUILD ../examples/build/live_graph_join_multi.luke -o build/live_graph_join_multi
 	@./build/live_graph_join_multi | tee /tmp/luke_join_multi.txt | grep -q "join_multi_ok=1"
 	@grep -q "v0=Ada · Engineer" /tmp/luke_join_multi.txt
 	@grep -q "v3=Ada · Founder" /tmp/luke_join_multi.txt
 	@grep -q "luke_ivm_jbag_card\|luke_ivm_jbag_" build/live_graph_join_multi.luke.c
 	@grep -q "group_concat(v, char(10))" build/live_graph_join_multi.luke.c
-	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join_multi.luke.c
+	@! grep -qE 'luke_ivm_card_t[12]_a[iud] AFTER INSERT ON (users|profiles) BEGIN' build/live_graph_join_multi.luke.c
 	./build/luke BUILD ../examples/build/live_graph_join3.luke -o build/live_graph_join3
 	@./build/live_graph_join3 | tee /tmp/luke_join3.txt | grep -q "join3_ok=1"
 	@grep -q "vUn=Ada · Engineer · Admin" /tmp/luke_join3.txt

@@ -1,0 +1,38 @@
+// Regression: a WATCH filter containing a FUNCTION call (substr(...)) must not
+// be qualified as a column (NEW.substr → invalid → trigger never fires → stale
+// cell). And a SUBQUERY filter must fall back to recompute, not a per-row bag.
+// Both must match a fresh recompute after inserts/updates/deletes.
+// Build: luke BUILD examples/build/live_graph_agg_fn.luke -o build/lgaf
+
+IMPORT std/sqlite
+
+SPEAK "agg_fn start"
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph_agg_fn.db"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS people"
+ASK dbExec WITH db, "CREATE TABLE people(id INTEGER PRIMARY KEY, name TEXT)"
+ASK dbExec WITH db, "INSERT INTO people(id, name) VALUES(1, 'Ada')"
+
+WATCH anames FROM db AS "SELECT name FROM people WHERE substr(name, 1, 1) = 'A'"
+
+MY NAME IS v0 AS TEXT SET TO anames
+SPEAK "v0=" AND v0
+MAKE SURE v0 EQUALS "Ada"
+
+// Ada deleted; Bob (no match) + Al (match) inserted. Writes must land; cell tracks.
+ASK dbExec WITH db, "INSERT INTO people(id, name) VALUES(2, 'Bob')"
+ASK dbExec WITH db, "INSERT INTO people(id, name) VALUES(3, 'Al')"
+ASK dbExec WITH db, "DELETE FROM people WHERE id = 1"
+
+MY NAME IS cnt AS TEXT SET TO ASK dbQuery WITH db, "SELECT count(*) FROM people"
+SPEAK "rowcount=" AND cnt
+MAKE SURE cnt EQUALS "2"
+
+REFRESH QUERY anames
+MY NAME IS m AS TEXT SET TO anames
+MY NAME IS truth AS TEXT SET TO ASK dbQuery WITH db, "SELECT group_concat(name, char(10)) FROM (SELECT name FROM people WHERE substr(name, 1, 1) = 'A' ORDER BY rowid)"
+SPEAK "maintained=[" AND m AND "] truth=[" AND truth AND "]"
+MAKE SURE m EQUALS truth
+
+ASK dbClose WITH db
+SPEAK "agg_fn_ok=1"

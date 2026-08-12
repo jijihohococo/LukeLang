@@ -26,7 +26,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 | Item | Status | Notes |
 |------|--------|-------|
-| True multi-join differential dataflow | ✅ | point keyed 2-table + N-table chains; **multi-row join bags** (`live_graph_join_multi` / `join_filter`); bag aggregates for equality **and** inequality/LIKE (`live_graph_agg`, `live_graph_agg_range`) — no ungated recompute fallback for those shapes |
+| True multi-join differential dataflow | ✅ | point keyed 2-table + N-table chains; **multi-row join bags** (`live_graph_join_multi` / `join_filter`); bag aggregates for equality, inequality/LIKE/IN, and **function predicates** (`live_graph_agg`, `agg_range`, `agg_fn`); subquery filters fall back to correct recompute |
 | Server+client scrub by log seq | 🟡 | client buffer + scrub UI shipped; DevTools↔server log not fully wired |
 | Free multicore parallelism from the graph | ⬜ | listed only |
 | Wire hardening — backpressure, heartbeat/timeout, SSE channel auth | 🟡 | fail-closed SSE send; `LUKE_SSE_ORIGIN`; scoped PUSH requires user; `Last-Event-ID` resume |

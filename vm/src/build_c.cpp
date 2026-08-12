@@ -4455,6 +4455,17 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
                 out += tok; /* alias.col — do not qualify the alias */
                 continue;
               }
+              /* Function call (identifier immediately followed by '(') is not a
+               * column — qualifying it (NEW.substr(...)) yields invalid SQL whose
+               * trigger silently never fires, leaving the cell stale. Leave it. */
+              {
+                size_t j = i;
+                while (j < pred.size() && std::isspace((unsigned char)pred[j])) ++j;
+                if (j < pred.size() && pred[j] == '(') {
+                  out += tok;
+                  continue;
+                }
+              }
               std::string tu = toUpper(tok);
               bool kw = false;
               for (int ki = 0; kws[ki]; ++ki)
@@ -4474,8 +4485,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
         };
 
         /* Single-table bag: any filter whose columns can be NEW./OLD.-qualified.
-         * (Previously only `col = lit` — inequalities fell back to full recompute.) */
-        bool bagAgg = !hasJoin && simpleCol && !hasDiff && !ivmColExpr.empty() && !wherePred.empty();
+         * (Previously only `col = lit` — inequalities fell back to full recompute.)
+         * A subquery predicate (`… IN (SELECT …)`, correlated EXISTS) references
+         * other rows, so a per-row NEW./OLD. rewrite is unsound — those fall back
+         * to the correct full-recompute path instead of a silently-wrong bag. */
+        bool predHasSubquery = toUpper(wherePred).find("SELECT") != std::string::npos;
+        bool bagAgg = !hasJoin && simpleCol && !hasDiff && !ivmColExpr.empty() &&
+                      !wherePred.empty() && !predHasSubquery;
 
         /* Multi-row equi-JOIN bag: non-point joins maintain group_concat of join
          * rows keyed by participating rowids — not a scalar subquery / full recompute. */

@@ -485,6 +485,12 @@ test-build: build/luke
 	@grep -q 'luke_ivm_bag_adults' build/live_graph_agg_range.luke.c
 	@grep -q 'WHEN NEW.age > 30' build/live_graph_agg_range.luke.c
 	@! grep -q '_ai AFTER INSERT ON people BEGIN' build/live_graph_agg_range.luke.c
+	./build/luke BUILD ../examples/build/live_graph_agg_fn.luke -o build/live_graph_agg_fn
+	@./build/live_graph_agg_fn | tee /tmp/luke_agg_fn.txt | grep -q "agg_fn_ok=1"
+	@grep -qF "maintained=[Al] truth=[Al]" /tmp/luke_agg_fn.txt
+	@# function call in a filter must stay unqualified (substr, never NEW.substr)
+	@grep -q 'WHEN substr(NEW.name' build/live_graph_agg_fn.luke.c
+	@! grep -q 'NEW.substr' build/live_graph_agg_fn.luke.c
 	@grep -q '_luke_watch_alive\|httpSseOpen' build/live_graph_server.luke.c
 	@grep -q 'LUKE_SSE_ORIGIN\|Access-Control-Allow-Origin' runtime/luke_net.h
 	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt

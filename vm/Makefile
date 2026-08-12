@@ -163,16 +163,22 @@ test-build: build/luke
 	@grep -q 'hanka_begin_row' build/web_app.luke.c
 	./build/luke BUILD ../examples/build/hanka_align.luke -o build/ex_hanka_align
 	./build/ex_hanka_align | grep -q "align=1"
+	./build/ex_hanka_align | grep -q "axes=1"
 	./build/ex_hanka_align | grep -q "measure="
 	@grep -q 'hanka_set_align' build/ex_hanka_align.luke.c
+	@grep -q 'hanka_set_align_axes' build/ex_hanka_align.luke.c
 	./build/luke BUILD ../examples/build/frontend_widgets.luke -o build/ex_frontend_widgets
 	./build/ex_frontend_widgets | grep -q "ok=1"
+	./build/ex_frontend_widgets | grep -q "a11y=1"
 	./build/ex_frontend_widgets | grep -q "vw="
 	@grep -qE 'hanka_slot_select|hanka_slot_table|hanka_slot_modal' build/ex_frontend_widgets.luke.c
+	@grep -q 'hanka_set_align_axes' build/ex_frontend_widgets.luke.c
+	@grep -q 'argus_js_announce\|argus_js_focus_trap\|argus_js_focus_restore' build/ex_frontend_widgets.luke.c
 	./build/luke PUBLISH WEB ../examples/build/frontend_widgets.luke -o build/frontend_widgets_pub
 	@test -f build/frontend_widgets_pub.html
 	@test -f build/frontend_widgets_pub.wasm
 	@grep -q 'argus_a11y\|measure_text\|argus_select' build/frontend_widgets_pub.html
+	@grep -q 'argus_focus_trap\|argus_announce' build/frontend_widgets_pub.html
 	./build/luke BUILD ../examples/build/frontend_wrap_forms.luke -o build/ex_frontend_wrap_forms
 	./build/ex_frontend_wrap_forms | grep -q "wrap=1"
 	./build/ex_frontend_wrap_forms | grep -q "vh="
@@ -181,6 +187,10 @@ test-build: build/luke
 	@grep -q 'argus_fade_to' build/ex_frontend_wrap_forms.luke.c
 	./build/luke BUILD ../examples/build/frontend_wrap_forms.luke -target browser -o build/frontend_wrap_forms
 	@grep -q 'event:"viewport"' build/frontend_wrap_forms.html
+	@grep -q 'event:"breakpoint"' build/frontend_wrap_forms.html
+	@grep -q 'min:800' build/frontend_wrap_forms.html
+	@grep -q 'max:480' build/frontend_wrap_forms.html
+	@grep -q 'min:480:max:799' build/frontend_wrap_forms.html
 	@grep -q 'viewport_height\|argus_fade\|now_ms' build/frontend_wrap_forms.html
 	@node ../scripts/luke_browser_loader.cjs build/frontend_wrap_forms.wasm 2>&1 | grep -q "argus_upsert\|ok=1\|wrap=1"
 	./build/luke BUILD ../examples/build/frontend_stress.luke -o build/ex_frontend_stress

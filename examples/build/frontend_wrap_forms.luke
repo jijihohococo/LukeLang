@@ -1,4 +1,4 @@
-// WRAP + checkbox/radio + viewport + motion beachhead
+// WRAP + checkbox/radio + viewport + breakpoints + motion beachhead
 // Build: luke BUILD examples/build/frontend_wrap_forms.luke -o build/ex_frontend_wrap_forms
 
 IMPORT std/hanka
@@ -28,6 +28,18 @@ FADE "b1" FROM 0.25 TO 1 OVER 48
 
 WHEN THE VIEWPORT CHANGES DO
   SPEAK "resized=" AND THE VIEWPORT WIDTH
+END WHEN
+
+WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO
+  SPEAK "bp_wide=1"
+END WHEN
+
+WHEN THE VIEWPORT IS UNDER 480 DO
+  SPEAK "bp_narrow=1"
+END WHEN
+
+WHEN THE VIEWPORT IS BETWEEN 480 AND 799 WIDE DO
+  SPEAK "bp_mid=1"
 END WHEN
 
 SPEAK "wrap=1"

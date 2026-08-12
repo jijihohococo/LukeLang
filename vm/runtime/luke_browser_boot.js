@@ -611,25 +611,27 @@ function createLukeJs(getMemory, opts) {
       if (!parent) return;
       if (el.parentNode !== parent) parent.appendChild(el);
     },
-    argus_flex: function (idPtr, idLen, dir, gap, pad, align, wrap) {
+    argus_flex: function (idPtr, idLen, dir, gap, pad, align, cross, wrap) {
       const id = readText(idPtr, idLen);
       if (typeof document === "undefined") {
-        console.log("[argus_flex]", id, dir, gap, pad, align, wrap);
+        console.log("[argus_flex]", id, dir, gap, pad, align, cross, wrap);
         return;
       }
       var el = document.getElementById(id);
       if (!el) return;
       var axis = dir | 0;
       var alignV = align | 0;
-      var justify =
-        alignV === 1 ? "center" : alignV === 2 ? "flex-end" : "flex-start";
+      var crossV = cross | 0;
+      var toCss = function (v) {
+        return v === 1 ? "center" : v === 2 ? "flex-end" : "flex-start";
+      };
       el.style.display = "flex";
       el.style.flexDirection = axis === 2 ? "row" : "column";
       el.style.flexWrap = wrap ? "wrap" : "nowrap";
       el.style.gap = (gap || 0) + "px";
       el.style.padding = (pad || 0) + "px";
-      el.style.justifyContent = justify;
-      el.style.alignItems = justify;
+      el.style.justifyContent = toCss(alignV);
+      el.style.alignItems = toCss(crossV);
       el.style.boxSizing = "border-box";
     },
     argus_flow_frame: function (idPtr, idLen, w, h, opacity, grow) {
@@ -713,7 +715,95 @@ function createLukeJs(getMemory, opts) {
       if (!el) return;
       if (role) el.setAttribute("role", role);
       if (label) el.setAttribute("aria-label", label);
-      if (role === "dialog") el.setAttribute("aria-modal", "true");
+      if (role === "dialog") {
+        el.setAttribute("aria-modal", "true");
+        if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+      }
+    },
+    argus_focus_trap: function (idPtr, idLen) {
+      const id = readText(idPtr, idLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_focus_trap]", id);
+        return;
+      }
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (!globalThis.__lukeFocusStack) globalThis.__lukeFocusStack = [];
+      globalThis.__lukeFocusStack.push(document.activeElement || null);
+      var focusable = el.querySelectorAll(
+        'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])'
+      );
+      var first = focusable.length ? focusable[0] : el;
+      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+      try {
+        first.focus();
+      } catch (e) {}
+      if (el.__lukeTrapHandler) el.removeEventListener("keydown", el.__lukeTrapHandler);
+      el.__lukeTrapHandler = function (e) {
+        if (e.key === "Escape") {
+          if (globalThis.__lukeFocusStack && globalThis.__lukeFocusStack.length) {
+            var prev = globalThis.__lukeFocusStack.pop();
+            if (prev && prev.focus) try { prev.focus(); } catch (err) {}
+          }
+          return;
+        }
+        if (e.key !== "Tab") return;
+        var nodes = el.querySelectorAll(
+          'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])'
+        );
+        if (!nodes.length) {
+          e.preventDefault();
+          return;
+        }
+        var f = nodes[0];
+        var l = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === f) {
+          e.preventDefault();
+          l.focus();
+        } else if (!e.shiftKey && document.activeElement === l) {
+          e.preventDefault();
+          f.focus();
+        }
+      };
+      el.addEventListener("keydown", el.__lukeTrapHandler);
+    },
+    argus_focus_restore: function () {
+      if (typeof document === "undefined") {
+        console.log("[argus_focus_restore]");
+        return;
+      }
+      if (!globalThis.__lukeFocusStack || !globalThis.__lukeFocusStack.length) return;
+      var prev = globalThis.__lukeFocusStack.pop();
+      if (prev && prev.focus) {
+        try {
+          prev.focus();
+        } catch (e) {}
+      }
+    },
+    argus_announce: function (textPtr, textLen) {
+      const text = readText(textPtr, textLen);
+      if (typeof document === "undefined") {
+        console.log("[argus_announce]", text);
+        return;
+      }
+      var live = document.getElementById("__luke_live");
+      if (!live) {
+        live = document.createElement("div");
+        live.id = "__luke_live";
+        live.setAttribute("role", "status");
+        live.setAttribute("aria-live", "polite");
+        live.setAttribute("aria-atomic", "true");
+        live.style.position = "absolute";
+        live.style.width = "1px";
+        live.style.height = "1px";
+        live.style.overflow = "hidden";
+        live.style.clip = "rect(0 0 0 0)";
+        document.body.appendChild(live);
+      }
+      live.textContent = "";
+      setTimeout(function () {
+        live.textContent = text;
+      }, 20);
     },
     argus_select: function (idPtr, idLen, optPtr, optLen) {
       const id = readText(idPtr, idLen);
@@ -887,10 +977,50 @@ function wireLukeWhens(instance, whens) {
       if ((w.event || "") === "viewport") runExport(w.export);
     }
   }
+  function parseBreakpointQuery(spec) {
+    /* id encodes min:N, max:N, or min:A:max:B */
+    var min = null;
+    var max = null;
+    if (!spec) return null;
+    var parts = String(spec).split(":");
+    for (var i = 0; i + 1 < parts.length; i += 2) {
+      if (parts[i] === "min") min = parseFloat(parts[i + 1]);
+      if (parts[i] === "max") max = parseFloat(parts[i + 1]);
+    }
+    var q = [];
+    if (min != null && !isNaN(min)) q.push("(min-width: " + min + "px)");
+    if (max != null && !isNaN(max)) q.push("(max-width: " + max + "px)");
+    return q.length ? q.join(" and ") : null;
+  }
+  function dispatchBreakpoint(spec) {
+    for (var i = 0; i < whens.length; i++) {
+      var w = whens[i];
+      if ((w.event || "") === "breakpoint" && (w.id || "") === spec) runExport(w.export);
+    }
+  }
+  function wireBreakpoints() {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    for (var i = 0; i < whens.length; i++) {
+      var w = whens[i];
+      if ((w.event || "") !== "breakpoint") continue;
+      var mq = parseBreakpointQuery(w.id || "");
+      if (!mq) continue;
+      (function (spec, query) {
+        var mql = window.matchMedia(query);
+        var fire = function () {
+          if (mql.matches) dispatchBreakpoint(spec);
+        };
+        if (mql.addEventListener) mql.addEventListener("change", fire);
+        else if (mql.addListener) mql.addListener(fire);
+        fire();
+      })(w.id || "", mq);
+    }
+  }
   globalThis.__lukeDispatchRoute = dispatchRoute;
   globalThis.__lukeDispatchFetch = dispatchFetch;
   globalThis.__lukeDispatchSubscribe = dispatchSubscribe;
   globalThis.__lukeDispatchViewport = dispatchViewport;
+  globalThis.__lukeDispatchBreakpoint = dispatchBreakpoint;
   globalThis.__lukeDispatch = dispatch;
 
   if (typeof document === "undefined") {
@@ -928,6 +1058,7 @@ function wireLukeWhens(instance, whens) {
       resizeTimer = setTimeout(dispatchViewport, 80);
     });
   }
+  wireBreakpoints();
   dispatchRoute();
 }
 

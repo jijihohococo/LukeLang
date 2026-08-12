@@ -17,7 +17,7 @@ Hanka / PLACE  →  Argus tree  →  paint  →  lukejs embedder  →  DOM
 ## a11y
 
 - Default roles + `aria-label`
-- `SLOT MODAL` → `argus_modal_open` on first mount (Tab trap, Escape restore); `CLEAR` → `argus_modal_close`
+- Modal show/hide — trap on `OPEN THE MODAL`, not on mount (`CLOSE`/`HIDE` restore)  
 - `TRAP FOCUS IN` / `RESTORE FOCUS` / `ANNOUNCE` statements
 - `SLOT TEXT … ANNOUNCE` / `ANNOUNCE URGENT` → `aria-live` polite/assertive (text updates announce automatically)
 

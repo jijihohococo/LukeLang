@@ -4420,65 +4420,72 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
         };
 
-        /* Filter-gated recompute for the table the WHERE predicate constrains
-         * (`a.fc = LIT` where fc is NOT a join key). A row whose filter column is
-         * LIT in neither NEW nor OLD can never enter or leave the result, so its
-         * write is a guaranteed no-op — gating it away changes no result, only
-         * skips dead recomputes. The partner table (unconstrained by the filter)
-         * keeps unconditional recompute. Correct for insert/update/delete and the
-         * filter enter/exit transitions (OLD.fc = LIT catches a row leaving). */
-        auto emitFilteredRecomputeTrigs = [&](const std::string &table, const std::string &suffix,
-                                              const std::string &fcol, const std::string &flit) {
-          std::string body = "INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" +
-                             ivmValueSql + ")); END";
-          std::string ai = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
-                           "_ai AFTER INSERT ON " + table + " WHEN NEW." + fcol + " = " + flit +
-                           " BEGIN " + body;
-          std::string au = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
-                           "_au AFTER UPDATE ON " + table + " WHEN NEW." + fcol + " = " + flit +
-                           " OR OLD." + fcol + " = " + flit + " BEGIN " + body;
-          std::string ad = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
-                           "_ad AFTER DELETE ON " + table + " WHEN OLD." + fcol + " = " + flit +
-                           " BEGIN " + body;
-          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ai) << "\"));\n";
-          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(au) << "\"));\n";
-          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
+        /* Qualify every bare column identifier with NEW./OLD. for trigger WHEN/bodies.
+         * Handles equality, inequality, LIKE, BETWEEN, AND/OR, etc. Leaves alias.col,
+         * SQL keywords, and string/numeric literals untouched. */
+        auto qualifyBarePred = [](const std::string &pred, const char *qual) {
+          static const char *kws[] = {"AND",   "OR",     "NOT",    "LIKE",  "BETWEEN", "IN",
+                                      "IS",    "NULL",   "TRUE",   "FALSE", "GLOB",    "MATCH",
+                                      "REGEXP","ESCAPE", "CASE",   "WHEN",  "THEN",    "ELSE",
+                                      "END",   "COLLATE","ASC",    "DESC",  "IFNULL",  "COALESCE",
+                                      "CAST",  "AS",     "NULL",   nullptr};
+          std::string out;
+          for (size_t i = 0; i < pred.size();) {
+            unsigned char c = (unsigned char)pred[i];
+            if (c == '\'' || c == '"') {
+              char q = pred[i++];
+              out.push_back(q);
+              while (i < pred.size()) {
+                out.push_back(pred[i]);
+                if (pred[i] == q) {
+                  ++i;
+                  break;
+                }
+                ++i;
+              }
+              continue;
+            }
+            if (std::isalpha(c) || c == '_') {
+              size_t s = i;
+              while (i < pred.size() &&
+                     (std::isalnum((unsigned char)pred[i]) || pred[i] == '_'))
+                ++i;
+              std::string tok = pred.substr(s, i - s);
+              if (i < pred.size() && pred[i] == '.') {
+                out += tok; /* alias.col — do not qualify the alias */
+                continue;
+              }
+              std::string tu = toUpper(tok);
+              bool kw = false;
+              for (int ki = 0; kws[ki]; ++ki)
+                if (tu == kws[ki]) {
+                  kw = true;
+                  break;
+                }
+              if (kw)
+                out += tok;
+              else
+                out += std::string(qual) + tok;
+              continue;
+            }
+            out.push_back(pred[i++]);
+          }
+          return out;
         };
 
-        /* Bag aggregate maintenance rewrites the filter into trigger WHEN/body as
-         * NEW./OLD.<col>. That is only sound for a bare `col = literal` predicate.
-         * Inequalities, LIKE/BETWEEN/IN, compound AND/OR, or a non-literal RHS
-         * would leave an unqualified column in the trigger body (`… WHERE age > 30`
-         * with no FROM) — invalid SQL that rolls back every base-table write. Such
-         * shapes fall back to the ungated recompute path (correct, valid SQL). */
-        auto predQualifiable = [&](const std::string &pred) {
-          std::string U = toUpper(pred);
-          if (U.find(" AND ") != std::string::npos || U.find(" OR ") != std::string::npos ||
-              U.find(" LIKE ") != std::string::npos || U.find(" BETWEEN ") != std::string::npos ||
-              U.find(" IN ") != std::string::npos || pred.find('(') != std::string::npos ||
-              pred.find('<') != std::string::npos || pred.find('>') != std::string::npos ||
-              pred.find('!') != std::string::npos)
-            return false;
-          size_t eq = pred.find('=');
-          if (eq == std::string::npos || pred.find('=', eq + 1) != std::string::npos) return false;
-          std::string L = trim(pred.substr(0, eq));
-          std::string R = trim(pred.substr(eq + 1));
-          if (L.empty() || R.empty() || L.find('.') != std::string::npos) return false;
-          if (!(std::isalpha((unsigned char)L[0]) || L[0] == '_')) return false;
-          for (char c : L)
-            if (!isalnum((unsigned char)c) && c != '_') return false;
-          if (R[0] == '\'' || R[0] == '"') return true; /* quoted literal */
-          for (char c : R)
-            if (!isdigit((unsigned char)c) && c != '.' && c != '-' && c != '+') return false;
-          return true; /* numeric literal */
-        };
-        bool bagAgg = !hasJoin && simpleCol && !hasDiff && !ivmColExpr.empty() &&
-                      predQualifiable(wherePred);
+        /* Single-table bag: any filter whose columns can be NEW./OLD.-qualified.
+         * (Previously only `col = lit` — inequalities fell back to full recompute.) */
+        bool bagAgg = !hasJoin && simpleCol && !hasDiff && !ivmColExpr.empty() && !wherePred.empty();
+
+        /* Multi-row equi-JOIN bag: non-point joins maintain group_concat of join
+         * rows keyed by participating rowids — not a scalar subquery / full recompute. */
+        bool joinBag = hasJoin && !hasJoinDiff && !hasJoinChainDiff && joinHops.size() >= 2 &&
+                       !ivmColExpr.empty();
 
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";
-        /* Bag IVM seeds via luke_ivm_bag_* then publishes — skip base group_concat init. */
-        if (!bagAgg) {
+        /* Bag / join-bag seed+publish own the initial IVM row. */
+        if (!bagAgg && !joinBag) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(initRow) << "\"));\n";
         }
 
@@ -4524,91 +4531,193 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(aiTrig) << "\"));\n";
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(auTrig) << "\"));\n";
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(adTrig) << "\"));\n";
-        } else if (hasJoin) {
-          /* Non-key filter (`WHERE a.fc = LIT`, fc not a join key):
-           *  - filtered table: WHEN-gated on fc (enter/leave)
-           *  - partner table: EXISTS-probe by join key into the filtered table
-           *    (runtime key analysis) — unrelated partner writes are no-ops. */
-          bool filterOn1 = !whereCol.empty() && !whereLit.empty() && !jCol1.empty() &&
-                           toUpper(whereAlias) == toUpper(joinA1);
-          bool filterOn2 = !whereCol.empty() && !whereLit.empty() && !jCol1.empty() &&
-                           toUpper(whereAlias) == toUpper(joinA2);
-
-          auto emitPartnerExistsDiff = [&](const std::string &partnerTable,
-                                           const std::string &suffix,
-                                           const std::string &partnerJCol,
-                                           const std::string &filteredTable,
-                                           const std::string &filteredAlias,
-                                           const std::string &filteredJCol,
-                                           const std::string &fcol, const std::string &flit,
-                                           const std::string &partnerAlias) {
-            auto rewriteAliasQual = [](const std::string &expr, const std::string &alias,
-                                       const std::string &qual) {
-              std::string out;
-              std::string aU = toUpper(alias);
-              for (size_t i = 0; i < expr.size();) {
-                bool atBound =
-                    (i == 0 || (!isalnum((unsigned char)expr[i - 1]) && expr[i - 1] != '_'));
-                if (atBound && i + alias.size() < expr.size() && expr[i + alias.size()] == '.') {
-                  bool match = true;
-                  for (size_t k = 0; k < alias.size(); ++k) {
-                    if ((char)std::toupper((unsigned char)expr[i + k]) != aU[k]) {
-                      match = false;
-                      break;
-                    }
-                  }
-                  if (match) {
-                    out += qual;
-                    i += alias.size() + 1;
-                    continue;
+        } else if (hasJoin && joinBag) {
+          /* Multi-row equi-JOIN bag: each result row keyed by hop rowids.
+           * A write on hop hi deletes that hop's bag rows and re-inserts only
+           * the join slice pinned to NEW — never a full-table recompute. */
+          auto rewriteAliasQual = [](const std::string &expr, const std::string &alias,
+                                     const std::string &qual) {
+            std::string out;
+            std::string aU = toUpper(alias);
+            for (size_t i = 0; i < expr.size();) {
+              bool atBound =
+                  (i == 0 || (!isalnum((unsigned char)expr[i - 1]) && expr[i - 1] != '_'));
+              if (atBound && i + alias.size() < expr.size() && expr[i + alias.size()] == '.') {
+                bool match = true;
+                for (size_t k = 0; k < alias.size(); ++k) {
+                  if ((char)std::toupper((unsigned char)expr[i + k]) != aU[k]) {
+                    match = false;
+                    break;
                   }
                 }
-                out.push_back(expr[i]);
-                ++i;
+                if (match) {
+                  out += qual;
+                  i += alias.size() + 1;
+                  continue;
+                }
               }
-              return out;
-            };
-            std::string existsNew = "EXISTS (SELECT 1 FROM " + filteredTable + " " + filteredAlias +
-                                    " WHERE " + filteredAlias + "." + filteredJCol + " = NEW." +
-                                    partnerJCol + " AND " + filteredAlias + "." + fcol + " = " +
-                                    flit + ")";
-            std::string existsOld = "EXISTS (SELECT 1 FROM " + filteredTable + " " + filteredAlias +
-                                    " WHERE " + filteredAlias + "." + filteredJCol + " = OLD." +
-                                    partnerJCol + " AND " + filteredAlias + "." + fcol + " = " +
-                                    flit + ")";
-            std::string selP = rewriteAliasQual(ivmColExpr, partnerAlias, "NEW.");
-            std::string valSql = "SELECT " + selP + " FROM " + filteredTable + " " + filteredAlias +
-                                 " WHERE " + filteredAlias + "." + filteredJCol + " = NEW." +
-                                 partnerJCol + " AND " + filteredAlias + "." + fcol + " = " + flit;
+              out.push_back(expr[i]);
+              ++i;
+            }
+            return out;
+          };
+          auto sameA = [](const std::string &a, const std::string &b) {
+            return toUpper(a) == toUpper(b);
+          };
+          std::string jbag = "luke_ivm_jbag_" + sanitizeSqlIdent(key);
+          std::string colDefs = "k TEXT PRIMARY KEY, v TEXT";
+          for (size_t hi = 0; hi < joinHops.size(); ++hi)
+            colDefs += ", r" + std::to_string(hi) + " INTEGER NOT NULL";
+          std::string createJbag =
+              "CREATE TABLE IF NOT EXISTS " + jbag + "(" + colDefs + ")";
+          std::string clearJbag = "DELETE FROM " + jbag;
+          /* Seed: full join once at watch create. */
+          std::string keyExpr = "printf('";
+          std::string keyArgs;
+          for (size_t hi = 0; hi < joinHops.size(); ++hi) {
+            if (hi) keyExpr += ",";
+            keyExpr += "%d";
+            keyArgs += ", " + joinHops[hi].alias + ".rowid";
+          }
+          keyExpr += "'" + keyArgs + ")";
+          std::string fromJoin = joinHops[0].table + " " + joinHops[0].alias;
+          for (size_t hi = 1; hi < joinHops.size(); ++hi) {
+            auto &h = joinHops[hi];
+            fromJoin += " JOIN " + h.table + " " + h.alias + " ON " + h.onLeftAlias + "." +
+                        h.onLeftCol + " = " + h.onRightAlias + "." + h.onRightCol;
+          }
+          std::string ridCols, ridSels;
+          for (size_t hi = 0; hi < joinHops.size(); ++hi) {
+            if (hi) {
+              ridCols += ", ";
+              ridSels += ", ";
+            }
+            ridCols += "r" + std::to_string(hi);
+            ridSels += joinHops[hi].alias + ".rowid";
+          }
+          std::string seedJbag = "INSERT INTO " + jbag + "(k, v, " + ridCols + ") SELECT " +
+                                 keyExpr + ", (" + ivmColExpr + "), " + ridSels + " FROM " +
+                                 fromJoin + " WHERE " + wherePred;
+          std::string publish = "INSERT OR REPLACE INTO " + ivmTable +
+                                "(k, v) VALUES(1, (SELECT group_concat(v, char(10)) FROM "
+                                "(SELECT v FROM " +
+                                jbag + " ORDER BY " + ridCols + ")))";
+
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createJbag)
+            << "\"));\n";
+          for (size_t hi = 0; hi < joinHops.size(); ++hi) {
+            std::string idx = "CREATE INDEX IF NOT EXISTS " + jbag + "_i" + std::to_string(hi) +
+                              " ON " + jbag + "(r" + std::to_string(hi) + ")";
+            o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(idx) << "\"));\n";
+          }
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(clearJbag)
+            << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(seedJbag)
+            << "\"));\n";
+          o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(publish)
+            << "\"));\n";
+
+          for (size_t hi = 0; hi < joinHops.size(); ++hi) {
+            auto &h = joinHops[hi];
+            std::string suffix = "_jb_t" + std::to_string(hi + 1);
+            std::string rcol = "r" + std::to_string(hi);
+            /* FROM remaining hops + ON, with firing alias rewritten to NEW. */
+            std::ostringstream fr;
+            bool started = false;
+            for (size_t oi = 0; oi < joinHops.size(); ++oi) {
+              if ((size_t)oi == hi) continue;
+              if (!started) {
+                fr << joinHops[oi].table << " " << joinHops[oi].alias;
+                started = true;
+              } else {
+                auto &oh = joinHops[oi];
+                std::string lref = sameA(oh.onLeftAlias, h.alias)
+                                      ? ("NEW." + oh.onLeftCol)
+                                      : (oh.onLeftAlias + "." + oh.onLeftCol);
+                std::string rref = sameA(oh.onRightAlias, h.alias)
+                                      ? ("NEW." + oh.onRightCol)
+                                      : (oh.onRightAlias + "." + oh.onRightCol);
+                fr << " JOIN " << oh.table << " " << oh.alias << " ON " << lref << " = " << rref;
+              }
+            }
+            /* Pin every ON edge that touches the firing hop. */
+            std::string pinSql;
+            for (size_t oi = 1; oi < joinHops.size(); ++oi) {
+              auto &oh = joinHops[oi];
+              std::string pin;
+              if (sameA(oh.onLeftAlias, h.alias))
+                pin = oh.onRightAlias + "." + oh.onRightCol + " = NEW." + oh.onLeftCol;
+              else if (sameA(oh.onRightAlias, h.alias))
+                pin = oh.onLeftAlias + "." + oh.onLeftCol + " = NEW." + oh.onRightCol;
+              if (pin.empty()) continue;
+              if (!pinSql.empty()) pinSql += " AND ";
+              pinSql += pin;
+            }
+            std::string whereNew = rewriteAliasQual(wherePred, h.alias, "NEW.");
+            std::string whereIns = whereNew;
+            if (!pinSql.empty()) {
+              if (!whereIns.empty()) whereIns = pinSql + " AND (" + whereIns + ")";
+              else whereIns = pinSql;
+            }
+            std::string sel = rewriteAliasQual(ivmColExpr, h.alias, "NEW.");
+            /* Key / rid list with NEW.rowid in the firing slot. */
+            std::string keyIns = "printf('";
+            std::string keyInsArgs;
+            std::string ridIns;
+            for (size_t oi = 0; oi < joinHops.size(); ++oi) {
+              if (oi) {
+                keyIns += ",";
+                keyInsArgs += ", ";
+                ridIns += ", ";
+              }
+              keyIns += "%d";
+              if (oi == hi) {
+                keyInsArgs += "NEW.rowid";
+                ridIns += "NEW.rowid";
+              } else {
+                keyInsArgs += joinHops[oi].alias + ".rowid";
+                ridIns += joinHops[oi].alias + ".rowid";
+              }
+            }
+            keyIns += "', " + keyInsArgs + ")";
+            std::string fromIns = fr.str();
+            std::string insertSel = "INSERT INTO " + jbag + "(k, v, " + ridCols + ") SELECT " +
+                                    keyIns + ", (" + sel + "), " + ridIns;
+            if (!fromIns.empty()) insertSel += " FROM " + fromIns;
+            if (!whereIns.empty()) insertSel += " WHERE " + whereIns;
+
+            /* When only the firing table exists in a 1-hop degenerate — not possible
+             * for joinHops.size()>=2. If fromIns is empty (firing is sole hop),
+             * INSERT…SELECT without FROM still works for NEW-only projection. */
+            if (fromIns.empty()) {
+              insertSel = "INSERT INTO " + jbag + "(k, v, " + ridCols + ") SELECT " + keyIns +
+                          ", (" + sel + "), " + ridIns;
+              if (!whereNew.empty()) insertSel += " WHERE " + whereNew;
+            }
+
+            std::string delOld =
+                "DELETE FROM " + jbag + " WHERE " + rcol + " = OLD.rowid";
+            std::string delNew =
+                "DELETE FROM " + jbag + " WHERE " + rcol + " = NEW.rowid";
+
             std::string ai = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
-                             "_ai AFTER INSERT ON " + partnerTable + " WHEN " + existsNew +
-                             " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" +
-                             valSql + ")); END";
+                             "_ai AFTER INSERT ON " + h.table + " BEGIN " + delNew + "; " +
+                             insertSel + "; " + publish + "; END";
             std::string au = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
-                             "_au AFTER UPDATE ON " + partnerTable + " WHEN " + existsNew +
-                             " OR " + existsOld + " BEGIN INSERT OR REPLACE INTO " + ivmTable +
-                             "(k, v) VALUES(1, (" + valSql + ")); END";
+                             "_au AFTER UPDATE ON " + h.table + " BEGIN " + delOld + "; " +
+                             delNew + "; " + insertSel + "; " + publish + "; END";
             std::string ad = "CREATE TRIGGER IF NOT EXISTS " + ivmTable + suffix +
-                             "_ad AFTER DELETE ON " + partnerTable + " WHEN " + existsOld +
-                             " BEGIN INSERT OR REPLACE INTO " + ivmTable + "(k, v) VALUES(1, (" +
-                             ivmValueSql + ")); END";
+                             "_ad AFTER DELETE ON " + h.table + " BEGIN " + delOld + "; " +
+                             publish + "; END";
             o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ai) << "\"));\n";
             o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(au) << "\"));\n";
             o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
-          };
-
-          if (filterOn1) {
-            emitFilteredRecomputeTrigs(baseTable, "_t1", whereCol, whereLit);
-            emitPartnerExistsDiff(baseTable2, "_t2", jCol2, baseTable, joinA1, jCol1, whereCol,
-                                  whereLit, joinA2);
-          } else if (filterOn2) {
-            emitPartnerExistsDiff(baseTable, "_t1", jCol1, baseTable2, joinA2, jCol2, whereCol,
-                                  whereLit, joinA1);
-            emitFilteredRecomputeTrigs(baseTable2, "_t2", whereCol, whereLit);
-          } else {
-            emitRecomputeTrigs(baseTable, "_t1");
-            emitRecomputeTrigs(baseTable2, "_t2");
           }
+        } else if (hasJoin) {
+          /* Unreachable when joinBag covers all non-point equi-joins; keep
+             recompute as last-resort safety if joinBag was declined. */
+          emitRecomputeTrigs(baseTable, "_t1");
+          if (!baseTable2.empty()) emitRecomputeTrigs(baseTable2, "_t2");
         } else {
           /* Single-table: bag-maintained group_concat for multi-row / non-id filters.
            * Simple id=N is handled above (hasDiff). Expression columns still recompute. */
@@ -4627,29 +4736,8 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
                                   "(k, v) VALUES(1, (SELECT group_concat(v, char(10)) FROM "
                                   "(SELECT v FROM " +
                                   bagTable + " ORDER BY rid)))";
-            auto rewritePred = [](const std::string &pred, const char *qual) {
-              /* Qualify bare identifiers that look like column refs before '=' / ops.
-               * Conservative: rewrite `id` style tokens already handled; here rewrite
-               * every bare word that is followed by comparison — use NEW./OLD. prefix
-               * by replacing leading column in simple `col = lit` / `col=lit`. */
-              std::string out = pred;
-              /* Prefer: if pred is `col = lit` or `col=lit`, rewrite col. */
-              size_t eq = out.find('=');
-              if (eq != std::string::npos) {
-                auto L = trim(out.substr(0, eq));
-                auto R = trim(out.substr(eq + 1));
-                if (L.find('.') == std::string::npos && !L.empty() &&
-                    (std::isalpha((unsigned char)L[0]) || L[0] == '_')) {
-                  bool ident = true;
-                  for (char c : L)
-                    if (!isalnum((unsigned char)c) && c != '_') ident = false;
-                  if (ident) return std::string(qual) + L + " = " + R;
-                }
-              }
-              return pred;
-            };
-            std::string whenNew = rewritePred(wherePred, "NEW.");
-            std::string whenOld = rewritePred(wherePred, "OLD.");
+            std::string whenNew = qualifyBarePred(wherePred, "NEW.");
+            std::string whenOld = qualifyBarePred(wherePred, "OLD.");
             std::string ai = "CREATE TRIGGER IF NOT EXISTS " + ivmTable +
                              "_bag_ai AFTER INSERT ON " + baseTable + " WHEN " + whenNew +
                              " BEGIN INSERT OR REPLACE INTO " + bagTable +

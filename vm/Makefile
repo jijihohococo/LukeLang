@@ -454,12 +454,18 @@ test-build: build/luke
 	@grep -q "vUn=Ada · Engineer" /tmp/luke_lgjf.txt
 	@grep -q "v2=$$" /tmp/luke_lgjf.txt
 	@grep -q "v3=Ada · Founder" /tmp/luke_lgjf.txt
-	@# non-key filter: users WHEN-gated; partner profiles use EXISTS key analysis
-	@grep -q "AFTER INSERT ON users WHEN NEW.status = 'active'" build/live_graph_join_filter.luke.c
-	@grep -q "AFTER UPDATE ON users WHEN NEW.status = 'active' OR OLD.status = 'active'" build/live_graph_join_filter.luke.c
-	@grep -q "EXISTS (SELECT 1 FROM users" build/live_graph_join_filter.luke.c
+	@# non-key filter join: multi-row join bag (not scalar recompute / EXISTS theater)
+	@grep -q "luke_ivm_jbag_card\|luke_ivm_jbag_" build/live_graph_join_filter.luke.c
+	@grep -q "_jb_t1_\|_jb_t2_" build/live_graph_join_filter.luke.c
 	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join_filter.luke.c
 	@! grep -q '_t2_ai AFTER INSERT ON profiles BEGIN' build/live_graph_join_filter.luke.c
+	./build/luke BUILD ../examples/build/live_graph_join_multi.luke -o build/live_graph_join_multi
+	@./build/live_graph_join_multi | tee /tmp/luke_join_multi.txt | grep -q "join_multi_ok=1"
+	@grep -q "v0=Ada · Engineer" /tmp/luke_join_multi.txt
+	@grep -q "v3=Ada · Founder" /tmp/luke_join_multi.txt
+	@grep -q "luke_ivm_jbag_card\|luke_ivm_jbag_" build/live_graph_join_multi.luke.c
+	@grep -q "group_concat(v, char(10))" build/live_graph_join_multi.luke.c
+	@! grep -q '_t1_ai AFTER INSERT ON users BEGIN' build/live_graph_join_multi.luke.c
 	./build/luke BUILD ../examples/build/live_graph_join3.luke -o build/live_graph_join3
 	@./build/live_graph_join3 | tee /tmp/luke_join3.txt | grep -q "join3_ok=1"
 	@grep -q "vUn=Ada · Engineer · Admin" /tmp/luke_join3.txt
@@ -475,9 +481,10 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/live_graph_agg_range.luke -o build/live_graph_agg_range
 	@./build/live_graph_agg_range | tee /tmp/luke_agg_range.txt | grep -q "agg_range_ok=1"
 	@grep -q "rowcount=2" /tmp/luke_agg_range.txt
-	@# non-qualifiable filter (age > 30) must NOT take the bag path (unqualified col in trigger body breaks writes)
-	@! grep -q 'luke_ivm_bag_adults' build/live_graph_agg_range.luke.c
-	@grep -q '_ai AFTER INSERT ON people BEGIN' build/live_graph_agg_range.luke.c
+	@# inequality filter takes the bag path with NEW.age qualification (not ungated recompute)
+	@grep -q 'luke_ivm_bag_adults' build/live_graph_agg_range.luke.c
+	@grep -q 'WHEN NEW.age > 30' build/live_graph_agg_range.luke.c
+	@! grep -q '_ai AFTER INSERT ON people BEGIN' build/live_graph_agg_range.luke.c
 	@grep -q '_luke_watch_alive\|httpSseOpen' build/live_graph_server.luke.c
 	@grep -q 'LUKE_SSE_ORIGIN\|Access-Control-Allow-Origin' runtime/luke_net.h
 	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt

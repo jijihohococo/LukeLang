@@ -1,7 +1,7 @@
-// Regression: a WATCH with a NON-qualifiable filter (inequality `age > 30`) must
-// not break writes to the base table. Such shapes fall back to ungated recompute
-// (valid SQL) instead of the bag path, whose NEW./OLD. rewrite only fits `col = lit`.
-// The maintained cell must equal a fresh recompute after inserts/updates/deletes.
+// Differential bag for non-equality filters (`age > 30`).
+// NEW./OLD. qualification makes the bag path sound for inequalities — writes
+// must land, and the maintained cell tracks a fresh recompute without ever
+// falling back to ungated full-table recompute triggers.
 // Build: luke BUILD examples/build/live_graph_agg_range.luke -o build/lgar
 
 IMPORT std/sqlite
@@ -20,12 +20,11 @@ MY NAME IS v0 AS TEXT SET TO adults
 SPEAK "v0=" AND v0
 MAKE SURE v0 EQUALS "Ada"
 
-// These writes must all take effect (the earlier bug rolled them back).
+// These writes must all take effect.
 ASK dbExec WITH db, "INSERT INTO people(id, name, age) VALUES(3, 'Cy', 55)"
 ASK dbExec WITH db, "UPDATE people SET age = 35 WHERE id = 2"
 ASK dbExec WITH db, "DELETE FROM people WHERE id = 1"
 
-// Independent proof the writes landed: row count reflects the delete + insert.
 MY NAME IS cnt AS TEXT SET TO ASK dbQuery WITH db, "SELECT count(*) FROM people"
 SPEAK "rowcount=" AND cnt
 MAKE SURE cnt EQUALS "2"

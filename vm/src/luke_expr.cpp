@@ -447,12 +447,16 @@ std::string formatExpr(const std::string &src) {
   auto isComma = [](const Token &t) {
     return t.kind == TokKind::Unknown && t.text == ",";
   };
+  auto isDot = [](const Token &t) {
+    return t.kind == TokKind::Unknown && t.text == ".";
+  };
   for (auto &t : toks) {
     if (t.kind == TokKind::End) break;
-    /* Spacing: no space before ), ,, or after (, , — and never rewrite casing.
+    /* Spacing: no space before ), ,, . — and never rewrite casing.
      * Operators keep the source spelling (add vs ADD); uppercasing broke
-     * user-defined names that share spellings with keywords (ASK add → ASK ADD). */
-    bool skipSpace = first || t.kind == TokKind::RParen || isComma(t);
+     * user-defined names that share spellings with keywords (ASK add → ASK ADD).
+     * Dots stay tight (SELF.name), not SELF . name. */
+    bool skipSpace = first || t.kind == TokKind::RParen || isComma(t) || isDot(t);
     if (!skipSpace) o << ' ';
     if (t.kind == TokKind::String) {
       o << '"';
@@ -469,7 +473,7 @@ std::string formatExpr(const std::string &src) {
       o << t.text; /* preserve original spelling for ops, idents, numbers, commas */
     }
     first = false;
-    if (t.kind == TokKind::LParen) first = true; /* no space after ( */
+    if (t.kind == TokKind::LParen || isDot(t)) first = true; /* no space after ( or . */
     /* After `,` keep first=false so the next token gets a single space: `2, 3`. */
   }
   return o.str();

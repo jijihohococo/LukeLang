@@ -24,7 +24,7 @@ nodes in the Program — there is no parallel line-only IR for tooling.
 | --- | --- |
 | `luke IR` | dumps `luke-ast-program` + stmt kinds |
 | `luke FMT` / `FMT -e` | `formatProgram` / `formatExpr` — preserves casing; CI proves `BUILD(FMT(x))≡BUILD(x)` for every `examples/build` file (`scripts/fmt_roundtrip_all.sh`) |
-| `luke LSP` | symbols from Stmt walk; hover/completion/definition |
+| `luke LSP` | symbols from Stmt walk; rich hover; outline/refs/rename/signatureHelp/FMT/semantic tokens/code actions; context completion; didChange re-diagnose |
 
 ## Evidence
 

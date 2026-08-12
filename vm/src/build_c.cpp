@@ -4445,7 +4445,35 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o) {
           o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(ad) << "\"));\n";
         };
 
-        bool bagAgg = !hasJoin && simpleCol && !hasDiff && !ivmColExpr.empty();
+        /* Bag aggregate maintenance rewrites the filter into trigger WHEN/body as
+         * NEW./OLD.<col>. That is only sound for a bare `col = literal` predicate.
+         * Inequalities, LIKE/BETWEEN/IN, compound AND/OR, or a non-literal RHS
+         * would leave an unqualified column in the trigger body (`… WHERE age > 30`
+         * with no FROM) — invalid SQL that rolls back every base-table write. Such
+         * shapes fall back to the ungated recompute path (correct, valid SQL). */
+        auto predQualifiable = [&](const std::string &pred) {
+          std::string U = toUpper(pred);
+          if (U.find(" AND ") != std::string::npos || U.find(" OR ") != std::string::npos ||
+              U.find(" LIKE ") != std::string::npos || U.find(" BETWEEN ") != std::string::npos ||
+              U.find(" IN ") != std::string::npos || pred.find('(') != std::string::npos ||
+              pred.find('<') != std::string::npos || pred.find('>') != std::string::npos ||
+              pred.find('!') != std::string::npos)
+            return false;
+          size_t eq = pred.find('=');
+          if (eq == std::string::npos || pred.find('=', eq + 1) != std::string::npos) return false;
+          std::string L = trim(pred.substr(0, eq));
+          std::string R = trim(pred.substr(eq + 1));
+          if (L.empty() || R.empty() || L.find('.') != std::string::npos) return false;
+          if (!(std::isalpha((unsigned char)L[0]) || L[0] == '_')) return false;
+          for (char c : L)
+            if (!isalnum((unsigned char)c) && c != '_') return false;
+          if (R[0] == '\'' || R[0] == '"') return true; /* quoted literal */
+          for (char c : R)
+            if (!isdigit((unsigned char)c) && c != '.' && c != '-' && c != '+') return false;
+          return true; /* numeric literal */
+        };
+        bool bagAgg = !hasJoin && simpleCol && !hasDiff && !ivmColExpr.empty() &&
+                      predQualifiable(wherePred);
 
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createTbl) << "\"));\n";
         o << "  dbExec(arena, " << cIdent(dbName) << ", luke_text(\"" << esc(createLog) << "\"));\n";

@@ -26,7 +26,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 | Item | Status | Notes |
 |------|--------|-------|
-| True multi-join differential dataflow | ✅ | keyed 2-table + N-table equality-closure chains (`live_graph_join` / `join3`); non-key filter + partner `EXISTS` (`live_graph_join_filter`); bag aggregates (`live_graph_agg`) |
+| True multi-join differential dataflow | ✅ | keyed 2-table + N-table equality-closure chains (`live_graph_join` / `join3`); non-key filter + partner `EXISTS` (`live_graph_join_filter`); `col = lit` bag aggregates (`live_graph_agg`). Non-qualifiable filters (inequality / LIKE / compound) safely fall back to ungated recompute — never break base writes (`live_graph_agg_range`) |
 | Server+client scrub by log seq | 🟡 | client buffer + scrub UI shipped; DevTools↔server log not fully wired |
 | Free multicore parallelism from the graph | ⬜ | listed only |
 | Wire hardening — backpressure, heartbeat/timeout, SSE channel auth | 🟡 | fail-closed SSE send; `LUKE_SSE_ORIGIN`; scoped PUSH requires user; `Last-Event-ID` resume |

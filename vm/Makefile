@@ -472,6 +472,12 @@ test-build: build/luke
 	@grep -q "luke_ivm_bag_feed\|luke_ivm_bag_" build/live_graph_agg.luke.c
 	@grep -q "_bag_ai\|_bag_ad\|group_concat(v" build/live_graph_agg.luke.c
 	@! grep -q 'group_concat(body' build/live_graph_agg.luke.c
+	./build/luke BUILD ../examples/build/live_graph_agg_range.luke -o build/live_graph_agg_range
+	@./build/live_graph_agg_range | tee /tmp/luke_agg_range.txt | grep -q "agg_range_ok=1"
+	@grep -q "rowcount=2" /tmp/luke_agg_range.txt
+	@# non-qualifiable filter (age > 30) must NOT take the bag path (unqualified col in trigger body breaks writes)
+	@! grep -q 'luke_ivm_bag_adults' build/live_graph_agg_range.luke.c
+	@grep -q '_ai AFTER INSERT ON people BEGIN' build/live_graph_agg_range.luke.c
 	@grep -q '_luke_watch_alive\|httpSseOpen' build/live_graph_server.luke.c
 	@grep -q 'LUKE_SSE_ORIGIN\|Access-Control-Allow-Origin' runtime/luke_net.h
 	./build/luke BUILD ../examples/build/expr_pratt.luke -o build/expr_pratt

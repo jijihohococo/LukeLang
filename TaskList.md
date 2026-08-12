@@ -77,14 +77,14 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## ⚪ 6. Tooling & ecosystem (adoption blockers)
 
+Core editor protocol surface is in place (LSP + DAP + FMT + `#line` maps). **Distribution**
+work (registry, signing, packages, VS Code client, docs site) is **parked** — see §7.
+
 | Item | Status | Notes |
 |------|--------|-------|
 | LSP — completion / hover / go-to-def | ✅ | rich hover (types/signatures/docs); documentSymbol/refs/rename/signatureHelp/formatting/semanticTokens/codeAction; context-aware completion; didChange re-diagnose CI |
 | Debugger | 🟡 | `#line` + `luke DEBUG` break/step/inspect (cells + deps); `luke DAP` stdio adapter (gdb backend) |
 | Formatter | 🟡 | `luke FMT` round-trip CI (`scripts/fmt_roundtrip_all.sh`): every `examples/build/*.luke` FMT→BUILD→identical stdout |
-| Real remote package registry (versions / signing) | 🟡 | local index + `sha256` verify on install; signing still open |
-| Third-party libs (auth, DB drivers, cloud SDKs) | ⬜ | ~1–2 packages |
-| lukelang.org / docs site | 🟡 | `site/index.html` stub |
 
 ---
 
@@ -97,8 +97,21 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 | Game | ⚫ | post-beachhead |
 | Own-the-pixels renderer (canvas/WebGL) | ⚫ | full form only — never DOM-host midpoint |
 
+### Distribution (parked — not on the active tooling path)
+
+Parked until the wall / Live Graph product sentence is the focus of adoption energy.
+Do not un-park to chase a Tooling A+ checklist.
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 12 | Package signing | ⚫ | Registry has `sha256` verify on install; **signed publish + verify** still open — park for distribution |
+| 13 | Real remote registry | ⚫ | Today: local `luke_modules` index. Hosted, versioned registry + **semver resolution** — park for distribution |
+| 14 | Third-party libraries | ⚫ | ~1–2 toy packages. Real libs (HTTP client, DB driver wrapper, …) — park for ecosystem / distribution |
+| 15 | Editor extensions | ⚫ | VS Code (or JetBrains) client: LSP + DAP + syntax highlighting. Protocol servers exist; **no published client** — park for distribution |
+| 16 | lukelang.org / docs site | ⚫ | `site/index.html` stub only. Real docs site — park for distribution |
+
 ---
 
 ## Active focus
 
-**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md)). Execution is **A+** on the Live Graph differential ledger ([`docs/SCORECARD.md`](./docs/SCORECARD.md), [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md)). Wall stays the product proof. Mobile/game stay parked.
+**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md)). Execution is **A+** on the Live Graph differential ledger ([`docs/SCORECARD.md`](./docs/SCORECARD.md), [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md)). Wall stays the product proof. Mobile/game stay parked. **Distribution** (registry, signing, packages, editor clients, docs site) stays parked — do not dilute Ambition by un-parking it for a tooling checklist.

@@ -23,8 +23,8 @@
 | Gap | Why it is not a vision change |
 | --- | --- |
 | Some surface still `StmtKind::Raw` (ROUTES/FLOW/…) | Specialize nodes without inventing a second IR |
-| Debugger | `#line` + `luke DEBUG` break/step/inspect + `luke DAP` beachhead; richer IDE UX still open |
-| Live lukelang.org + signed registry keys | Adoption after the wall sentence |
+| Debugger IDE polish | Protocol beachhead shipped; richer UX is editor-client work (parked with distribution) |
+| Distribution (signing, remote registry, libs, VS Code ext, docs site) | Parked — see TaskList §7; Adoption after the wall sentence |
 | LEFT JOIN / non-equi ON / expression-only SELECT lists | Broader SQL shapes outside the equi-JOIN + simple-column bag |
 
-**Do not dilute:** un-parking mobile/game to chase a checklist is how Ambition drops.
+**Do not dilute:** un-parking mobile/game **or** distribution (12–16) to chase a checklist is how Ambition drops.

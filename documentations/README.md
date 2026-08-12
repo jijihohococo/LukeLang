@@ -12,6 +12,9 @@ Project documentation hub. Canonical long-form docs live under [`../docs/`](../d
 | [04 Auth: Secure by Compiler](./papers/04-auth.md) | SECRET / FLOW / LIMIT / REVEAL |
 | [05 Request Pipeline / Middleware](./papers/05-middleware.md) | ROUTES, capabilities, FORM/SCHEMA compile gates |
 | [06 OAuth & Auth Flows](./papers/06-oauth.md) | VERIFY BY OAUTH / FLOW state machines |
+| [07 Execution](./papers/07-execution.md) | Build pipeline (native/WASM/browser), arena, differential ledger |
+| [08 Architecture](./papers/08-architecture.md) | Shared program tree; row → pixel layering |
+| [09 Core Engines](./papers/09-core-engines.md) | Arena/text/index/cell/trigger substrate; engine composition |
 
 Index: [`papers/README.md`](./papers/README.md).
 

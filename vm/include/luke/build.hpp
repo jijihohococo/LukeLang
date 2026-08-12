@@ -48,6 +48,7 @@ struct BuildResult {
   bool hasPage = false;
   std::string pageTitle;
   std::string pageStyle;
+  std::string pageCssHref; /* optional <link> for PUBLISH --tailwind output */
   std::string pageBody; // FILL "root" markup
   std::vector<BrowserFont> pageFonts;
   std::vector<BrowserWhen> pageWhens;

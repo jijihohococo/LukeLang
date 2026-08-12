@@ -49,6 +49,10 @@ typedef struct ArgusNode {
   int flex_cross; /* cross-axis 0 start, 1 center, 2 end */
   int flex_wrap;
   int flex_grow; /* Path A: 1 = flex-grow fill (AUTO width/height on flow) */
+  int scroll;    /* 1 = overflow:auto */
+  int grid_cols; /* >0 → CSS grid with N columns (flex_dir unused) */
+  int live;      /* 0 none, 1 polite, 2 assertive */
+  LukeText css_class; /* WEAR class hatch */
   int dirty;
   int mounted;
 } ArgusNode;
@@ -137,6 +141,24 @@ argus_js_focus_restore_raw(void);
 __attribute__((import_module("lukejs"), import_name("argus_announce"))) void
 argus_js_announce_raw(const char *text, size_t text_len);
 
+__attribute__((import_module("lukejs"), import_name("argus_modal_open"))) void
+argus_js_modal_open_raw(const char *id, size_t id_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_modal_close"))) void
+argus_js_modal_close_raw(const char *id, size_t id_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_live"))) void
+argus_js_live_raw(const char *id, size_t id_len, double level);
+
+__attribute__((import_module("lukejs"), import_name("argus_class"))) void
+argus_js_class_raw(const char *id, size_t id_len, const char *cls, size_t cls_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_scroll"))) void
+argus_js_scroll_raw(const char *id, size_t id_len, double on);
+
+__attribute__((import_module("lukejs"), import_name("argus_grid"))) void
+argus_js_grid_raw(const char *id, size_t id_len, double cols, double gap, double pad);
+
 static inline void argus_js_upsert(LukeText id, double kind) {
   argus_js_upsert_raw(id.ptr, id.len, kind);
 }
@@ -159,6 +181,20 @@ static inline void argus_js_focus_trap(LukeText id) { argus_js_focus_trap_raw(id
 static inline void argus_js_focus_restore(void) { argus_js_focus_restore_raw(); }
 static inline void argus_js_announce(LukeText text) {
   argus_js_announce_raw(text.ptr, text.len);
+}
+static inline void argus_js_modal_open(LukeText id) { argus_js_modal_open_raw(id.ptr, id.len); }
+static inline void argus_js_modal_close(LukeText id) { argus_js_modal_close_raw(id.ptr, id.len); }
+static inline void argus_js_live(LukeText id, double level) {
+  argus_js_live_raw(id.ptr, id.len, level);
+}
+static inline void argus_js_class(LukeText id, LukeText cls) {
+  argus_js_class_raw(id.ptr, id.len, cls.ptr, cls.len);
+}
+static inline void argus_js_scroll(LukeText id, double on) {
+  argus_js_scroll_raw(id.ptr, id.len, on);
+}
+static inline void argus_js_grid(LukeText id, double cols, double gap, double pad) {
+  argus_js_grid_raw(id.ptr, id.len, cols, gap, pad);
 }
 static inline void argus_js_text(LukeText id, LukeText text) {
   argus_js_text_raw(id.ptr, id.len, text.ptr, text.len);
@@ -227,6 +263,26 @@ static inline void argus_js_flow_frame(LukeText id, double w, double h, double o
 static inline void argus_js_focus_trap(LukeText id) { (void)id; }
 static inline void argus_js_focus_restore(void) {}
 static inline void argus_js_announce(LukeText text) { (void)text; }
+static inline void argus_js_modal_open(LukeText id) { (void)id; }
+static inline void argus_js_modal_close(LukeText id) { (void)id; }
+static inline void argus_js_live(LukeText id, double level) {
+  (void)id;
+  (void)level;
+}
+static inline void argus_js_class(LukeText id, LukeText cls) {
+  (void)id;
+  (void)cls;
+}
+static inline void argus_js_scroll(LukeText id, double on) {
+  (void)id;
+  (void)on;
+}
+static inline void argus_js_grid(LukeText id, double cols, double gap, double pad) {
+  (void)id;
+  (void)cols;
+  (void)gap;
+  (void)pad;
+}
 static inline void argus_js_text(LukeText id, LukeText text) {
   (void)id;
   (void)text;
@@ -444,6 +500,35 @@ static inline void argus_set_a11y(ArgusNode *n, LukeText role, LukeText label) {
   n->dirty = 1;
 }
 
+static inline void argus_set_live(ArgusNode *n, int level) {
+  if (!n) return;
+  if (level < 0) level = 0;
+  if (level > 2) level = 2;
+  n->live = level;
+  n->dirty = 1;
+}
+
+static inline void argus_set_class(ArgusNode *n, LukeText classes) {
+  if (!n) return;
+  n->css_class = classes;
+  n->dirty = 1;
+}
+
+static inline void argus_set_scroll(ArgusNode *n, int on) {
+  if (!n) return;
+  n->scroll = on ? 1 : 0;
+  n->dirty = 1;
+}
+
+static inline void argus_set_grid(ArgusNode *n, int cols, double gap, double pad) {
+  if (!n) return;
+  n->grid_cols = cols > 0 ? cols : 1;
+  n->flex_dir = 0;
+  n->flex_gap = gap;
+  n->flex_pad = pad;
+  n->dirty = 1;
+}
+
 static inline void argus_set_parent(ArgusNode *n, LukeText parent) {
   if (!n) return;
   argus_release_id(&n->parent_id);
@@ -492,19 +577,25 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
   ArgusTree *t = argus_tree(a);
   ArgusNode *n = argus_find(t, id);
   if (!n || (!n->dirty && n->mounted)) return 0;
+  int was_mounted = n->mounted;
   argus_js_upsert(id, (double)n->kind);
   if (n->parent_id.len) argus_js_parent(id, n->parent_id);
-  if (n->flex_dir)
+  if (n->css_class.len) argus_js_class(id, n->css_class);
+  if (n->grid_cols > 0)
+    argus_js_grid(id, (double)n->grid_cols, n->flex_gap, n->flex_pad);
+  else if (n->flex_dir)
     argus_js_flex(id, (double)n->flex_dir, n->flex_gap, n->flex_pad, (double)n->flex_align,
                   (double)n->flex_cross, (double)n->flex_wrap);
+  if (n->scroll) argus_js_scroll(id, 1.0);
   if (n->flow)
     argus_js_flow_frame(id, n->w, n->h, n->opacity, (double)n->flex_grow);
   else
     argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
   LukeText role = n->role.len ? n->role : argus_default_role(n);
   if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
-  /* Modal dialogs trap keyboard focus on paint (beachhead). */
-  if (n->kind == ARGUS_MODAL) argus_js_focus_trap(id);
+  if (n->live) argus_js_live(id, (double)n->live);
+  /* Modal dialogs: focus trap on first mount. */
+  if (n->kind == ARGUS_MODAL && !was_mounted) argus_js_modal_open(id);
   if (n->kind == ARGUS_IMAGE)
     argus_js_image(id, n->src);
   else if (n->kind == ARGUS_INPUT)
@@ -535,6 +626,8 @@ static inline int argus_paint(LukeArena *a) {
 static inline void argus_clear(LukeArena *a) {
   ArgusTree *t = argus_tree(a);
   for (size_t i = 0; i < t->len; ++i) {
+    if (t->nodes[i].kind == ARGUS_MODAL && t->nodes[i].mounted)
+      argus_js_modal_close(t->nodes[i].id);
     argus_release_id(&t->nodes[i].id);
     argus_release_id(&t->nodes[i].parent_id);
   }
@@ -595,6 +688,27 @@ static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, i
   }
   argus_set_flex(n, dir, gap, pad, align, cross, wrap);
   return 1;
+}
+
+/* Path A — CSS grid container (cols ≥ 1). */
+static inline ArgusNode *argus_place_grid(LukeArena *a, LukeText id, LukeText parent, int absolute,
+                                          double x, double y, double w, double h, int cols,
+                                          double gap, double pad) {
+  ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
+  if (absolute) {
+    argus_set_frame(n, x, y, w < 0 ? 0 : w, h < 0 ? 0 : h);
+    argus_set_flow(n, 0);
+    argus_set_parent(n, luke_text_n("", 0));
+    n->flex_grow = 0;
+  } else {
+    int grow = (w < 0 || h < 0) ? 1 : 0;
+    argus_set_frame(n, 0, 0, w < 0 ? 0 : w, h < 0 ? 0 : h);
+    argus_set_flow(n, 1);
+    argus_set_parent(n, parent);
+    n->flex_grow = grow;
+  }
+  argus_set_grid(n, cols, gap, pad);
+  return n;
 }
 
 static inline int argus_place_flow_text(LukeArena *a, LukeText id, LukeText parent, double w,

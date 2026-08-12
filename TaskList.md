@@ -26,10 +26,11 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 
 | Item | Status | Notes |
 |------|--------|-------|
-| True multi-join differential dataflow | ⬜ | today: recompute-on-both-tables |
+| True multi-join differential dataflow | 🟡 | keyed equi-JOIN + `WHERE a.key = N` → `WHEN NEW` partner probe; broader shapes still recompute |
 | Server+client scrub by log seq | 🟡 | client buffer + scrub UI shipped; DevTools↔server log not fully wired |
 | Free multicore parallelism from the graph | ⬜ | listed only |
-| Wire hardening — backpressure, heartbeat/timeout, SSE channel auth | 🟡 | `Last-Event-ID` resume shipped |
+| Wire hardening — backpressure, heartbeat/timeout, SSE channel auth | 🟡 | fail-closed SSE send; `LUKE_SSE_ORIGIN`; scoped PUSH requires user; `Last-Event-ID` resume |
+| One deployed Luke app (wall sentence) | 🟡 | `examples/deploy/wall` + `scripts/wall_smoke.sh` + Caddyfile |
 
 See [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md).
 
@@ -52,7 +53,7 @@ See [`docs/STRATEGY.md`](./docs/STRATEGY.md), [`docs/FRONTEND_ROADMAP.md`](./doc
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Replace line-based parser with real lexer/AST | 🟡 | expr parens + outside-paren op scan; `luke_ast.hpp` IR beachhead — stmts still line-based |
+| Replace line-based parser with real lexer/AST | ✅ | `parseLuke` Program/Stmt AST + Pratt exprs; BUILD/IR/FMT/LSP share IR — [`docs/AST.md`](./docs/AST.md) |
 | Error UX / stack traces at scale | ⬜ | |
 | `standard_library.md` drift (e.g. “File ops not yet implemented”) | ✅ | docs now match Build `std/files` |
 
@@ -78,12 +79,12 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 | Item | Status | Notes |
 |------|--------|-------|
-| LSP — completion / hover / go-to-def | 🟡 | `luke LSP` diagnostics beachhead only |
+| LSP — completion / hover / go-to-def | ✅ | diagnostics + hover + completion + definition on Program AST |
 | Debugger | ⬜ | |
-| Formatter | ⬜ | |
-| Real remote package registry (versions / signing) | ⬜ | local `luke_modules` only |
+| Formatter | ✅ | `luke FMT` / `FMT -e` via `formatProgram` / `formatExpr` |
+| Real remote package registry (versions / signing) | 🟡 | local index + `sha256` verify on install; signing still open |
 | Third-party libs (auth, DB drivers, cloud SDKs) | ⬜ | ~1–2 packages |
-| lukelang.org / docs site | ⬜ | confirm / ship |
+| lukelang.org / docs site | 🟡 | `site/index.html` stub |
 
 ---
 
@@ -100,4 +101,4 @@ See [`docs/REACTIVE_ROADMAP.md`](./docs/REACTIVE_ROADMAP.md), [`docs/REACTIVE_SP
 
 ## Active focus
 
-**Now:** Language fundamentals — expression AST/parens beachhead; then true Live Graph differential (vision claim); one deployed app; tooling rides the AST. Do not dilute with mobile/game/registry-first.
+**Now:** Program AST is the compile front-end ([`docs/AST.md`](./docs/AST.md), [`docs/SCORECARD.md`](./docs/SCORECARD.md)). Live Graph + wall stay the product proof. Mobile/game stay parked.

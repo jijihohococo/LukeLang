@@ -2,6 +2,8 @@
 #include "luke/compiler.hpp"
 #include "luke/heap.hpp"
 #include "luke/vm.hpp"
+#include "luke_expr.hpp"
+#include "luke_parse.hpp"
 
 #include <cctype>
 #include <cstdio>
@@ -28,7 +30,8 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " PKG lock                   Write luke.lock from luke_modules/\n"
       << "  " << argv0 << " PUBLISH WEB <file.luke>    Build browser dist (html+wasm+fonts)\n"
       << "  " << argv0 << " IR <file.luke>              Dump Build IR summary\n"
-      << "  " << argv0 << " LSP                        Stdio language server (diagnostics)\n"
+      << "  " << argv0 << " LSP                        Stdio language server (diagnostics/hover/completion)\n"
+      << "  " << argv0 << " FMT [-e expr|<file.luke>]  Format expression(s) via Pratt AST\n"
       << "\n"
       << "Build options:\n"
       << "  -o <path>                       output binary / wasm / browser stem\n"
@@ -594,6 +597,35 @@ int main(int argc, char **argv) {
     return luke::runLspStdio(opt);
   }
 
+  if (cmd == "FMT" || cmd == "FORMAT") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0] << " FMT -e <expr> | FMT <file.luke>\n";
+      return 1;
+    }
+    std::string a1 = argv[2];
+    if (a1 == "-e" || a1 == "--expr") {
+      if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " FMT -e <expr>\n";
+        return 1;
+      }
+      std::string expr;
+      for (int i = 3; i < argc; ++i) {
+        if (i > 3) expr.push_back(' ');
+        expr += argv[i];
+      }
+      std::cout << luke::formatExpr(expr) << "\n";
+      return 0;
+    }
+    std::string path = a1;
+    std::string src = readFile(path);
+    if (src.empty() && !std::ifstream(path)) {
+      std::cerr << "Error: cannot read " << path << "\n";
+      return 1;
+    }
+    std::cout << luke::formatLukeSource(src);
+    return 0;
+  }
+
   if (cmd == "PKG" || cmd == "PACKAGE") {
     if (argc < 3) {
       std::cerr << "Usage: " << argv[0] << " PKG init|install <name>\n";
@@ -683,6 +715,8 @@ int main(int argc, char **argv) {
       };
       std::string path = extract("path");
       std::string url = extract("url");
+      std::string wantSha = extract("sha256");
+      std::string version = extract("version");
       std::string root = "luke_modules";
       if (std::ifstream("../luke_modules") || std::ifstream("../registry/index.json"))
         root = "../luke_modules";
@@ -713,6 +747,34 @@ int main(int argc, char **argv) {
       } else {
         std::cerr << "Error: registry entry needs path or url\n";
         return 1;
+      }
+      if (!wantSha.empty()) {
+        /* Integrity: sha256 of luke.pkg + main.luke concatenated via sha256sum. */
+        std::string check =
+            "cd \"" + dest +
+            "\" && cat luke.pkg main.luke 2>/dev/null | sha256sum | awk '{print $1}'";
+        FILE *fp = popen(check.c_str(), "r");
+        if (!fp) {
+          std::cerr << "Error: cannot verify sha256 for " << name << "\n";
+          return 1;
+        }
+        char buf[128] = {0};
+        if (!fgets(buf, sizeof(buf), fp)) {
+          pclose(fp);
+          std::cerr << "Error: empty sha256 for " << name << "\n";
+          return 1;
+        }
+        pclose(fp);
+        std::string got = buf;
+        while (!got.empty() && (got.back() == '\n' || got.back() == '\r' || got.back() == ' '))
+          got.pop_back();
+        if (got != wantSha) {
+          std::cerr << "Error: sha256 mismatch for luke/" << name << "\n"
+                    << "  want " << wantSha << "\n"
+                    << "  got  " << got << "\n";
+          return 1;
+        }
+        std::cerr << "PKG sha256 ok (" << (version.empty() ? "?" : version) << ")\n";
       }
       std::cerr << "Installed luke/" << name << " → " << dest << "\n";
       std::cerr << "  IMPORT luke/" << name << "\n";
@@ -768,21 +830,39 @@ int main(int argc, char **argv) {
       }
       std::string index = readFile(indexPath);
       std::string relPath = "registry/packages/" + name;
+      std::string shaCmd =
+          "cd \"" + dest +
+          "\" && cat luke.pkg main.luke 2>/dev/null | sha256sum | awk '{print $1}'";
+      std::string sha256;
+      {
+        FILE *fp = popen(shaCmd.c_str(), "r");
+        if (fp) {
+          char buf[128] = {0};
+          if (fgets(buf, sizeof(buf), fp)) sha256 = buf;
+          pclose(fp);
+          while (!sha256.empty() &&
+                 (sha256.back() == '\n' || sha256.back() == '\r' || sha256.back() == ' '))
+            sha256.pop_back();
+        }
+      }
       auto packages = index.find("\"packages\"");
       if (packages == std::string::npos) {
         std::cerr << "Error: registry index missing packages object\n";
         return 1;
       }
       auto brace = index.find('{', packages);
+      std::string entryBody = "{\n      \"version\": \"" + version +
+                              "\",\n      \"description\": \"Published luke/" + name +
+                              "\",\n      \"path\": \"" + relPath + "\"";
+      if (!sha256.empty())
+        entryBody += ",\n      \"sha256\": \"" + sha256 + "\"";
+      entryBody += "\n    }";
       auto existing = index.find("\"" + name + "\"");
       if (existing != std::string::npos && existing > brace) {
         auto eb = index.find('{', existing);
         auto ee = index.find('}', eb);
         if (eb != std::string::npos && ee != std::string::npos) {
-          index.replace(eb, ee - eb + 1,
-                        "{\n      \"version\": \"" + version +
-                            "\",\n      \"description\": \"Published luke/" + name +
-                            "\",\n      \"path\": \"" + relPath + "\"\n    }");
+          index.replace(eb, ee - eb + 1, entryBody);
         }
       } else {
         size_t i = brace + 1;
@@ -810,9 +890,7 @@ int main(int argc, char **argv) {
             break;
           }
         }
-        std::string entry = "    \"" + name + "\": {\n      \"version\": \"" + version +
-                            "\",\n      \"description\": \"Published luke/" + name +
-                            "\",\n      \"path\": \"" + relPath + "\"\n    }";
+        std::string entry = "    \"" + name + "\": " + entryBody;
         std::string insert = empty ? ("\n" + entry + "\n  ") : (",\n" + entry + "\n  ");
         index.insert(packagesEnd, insert);
       }
@@ -821,6 +899,7 @@ int main(int argc, char **argv) {
         return 1;
       }
       std::cerr << "Published luke/" << name << " @" << version << " → " << dest << "\n";
+      if (!sha256.empty()) std::cerr << "  sha256: " << sha256 << "\n";
       std::cerr << "  registry: " << indexPath << "\n";
       return 0;
     }

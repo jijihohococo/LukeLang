@@ -120,7 +120,9 @@ External “A+ language” checklists are useful **evidence bars**. They do **no
 | Doc↔test honesty CI | **No** | Keeps claims credible |
 | Un-parking mobile / game | **Would dilute** | Stay parked |
 
-**Order that serves the wall sentence:** (1) expression AST / paren ceiling, (2) true differential Live Graph, (3) one deployed app, (4) tooling that reads the AST, (5) registry/site. Ambition stays on reactive full-stack — not a general-purpose scoreboard chase.
+**Order that serves the wall sentence:** (1) ~~expression AST / paren ceiling~~ → **Program AST** ([`AST.md`](./AST.md)), (2) true differential Live Graph, (3) one deployed app, (4) tooling on the AST, (5) registry/site. Ambition stays on reactive full-stack — not a general-purpose scoreboard chase.
+
+Grades: [`SCORECARD.md`](./SCORECARD.md).
 
 ---
 

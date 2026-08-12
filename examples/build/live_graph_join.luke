@@ -1,4 +1,5 @@
-// Multi-join IVM — WATCH a JOIN; triggers on both tables recompute the cache.
+// Multi-join differential IVM — keyed equi-JOIN with WHERE u.id = N.
+// Triggers use WHEN NEW.* and probe the partner row (not recompute-on-any-write).
 // Build: luke BUILD examples/build/live_graph_join.luke -o build/live_graph_join
 
 IMPORT std/sqlite

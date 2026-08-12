@@ -45,7 +45,8 @@ typedef struct ArgusNode {
   int flex_dir;  /* 0 none, 1 column, 2 row */
   double flex_gap;
   double flex_pad;
-  int flex_align; /* 0 start, 1 center, 2 end */
+  int flex_align; /* main-axis 0 start, 1 center, 2 end */
+  int flex_cross; /* cross-axis 0 start, 1 center, 2 end */
   int flex_wrap;
   int flex_grow; /* Path A: 1 = flex-grow fill (AUTO width/height on flow) */
   int dirty;
@@ -121,11 +122,20 @@ argus_js_parent_raw(const char *id, size_t id_len, const char *parent, size_t pa
 
 __attribute__((import_module("lukejs"), import_name("argus_flex"))) void
 argus_js_flex_raw(const char *id, size_t id_len, double dir, double gap, double pad, double align,
-                  double wrap);
+                  double cross, double wrap);
 
 __attribute__((import_module("lukejs"), import_name("argus_flow_frame"))) void
 argus_js_flow_frame_raw(const char *id, size_t id_len, double w, double h, double opacity,
                         double grow);
+
+__attribute__((import_module("lukejs"), import_name("argus_focus_trap"))) void
+argus_js_focus_trap_raw(const char *id, size_t id_len);
+
+__attribute__((import_module("lukejs"), import_name("argus_focus_restore"))) void
+argus_js_focus_restore_raw(void);
+
+__attribute__((import_module("lukejs"), import_name("argus_announce"))) void
+argus_js_announce_raw(const char *text, size_t text_len);
 
 static inline void argus_js_upsert(LukeText id, double kind) {
   argus_js_upsert_raw(id.ptr, id.len, kind);
@@ -138,12 +148,17 @@ static inline void argus_js_parent(LukeText id, LukeText parent) {
   argus_js_parent_raw(id.ptr, id.len, parent.ptr, parent.len);
 }
 static inline void argus_js_flex(LukeText id, double dir, double gap, double pad, double align,
-                                 double wrap) {
-  argus_js_flex_raw(id.ptr, id.len, dir, gap, pad, align, wrap);
+                                 double cross, double wrap) {
+  argus_js_flex_raw(id.ptr, id.len, dir, gap, pad, align, cross, wrap);
 }
 static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity,
                                        double grow) {
   argus_js_flow_frame_raw(id.ptr, id.len, w, h, opacity, grow);
+}
+static inline void argus_js_focus_trap(LukeText id) { argus_js_focus_trap_raw(id.ptr, id.len); }
+static inline void argus_js_focus_restore(void) { argus_js_focus_restore_raw(); }
+static inline void argus_js_announce(LukeText text) {
+  argus_js_announce_raw(text.ptr, text.len);
 }
 static inline void argus_js_text(LukeText id, LukeText text) {
   argus_js_text_raw(id.ptr, id.len, text.ptr, text.len);
@@ -192,12 +207,13 @@ static inline void argus_js_parent(LukeText id, LukeText parent) {
   (void)parent;
 }
 static inline void argus_js_flex(LukeText id, double dir, double gap, double pad, double align,
-                                 double wrap) {
+                                 double cross, double wrap) {
   (void)id;
   (void)dir;
   (void)gap;
   (void)pad;
   (void)align;
+  (void)cross;
   (void)wrap;
 }
 static inline void argus_js_flow_frame(LukeText id, double w, double h, double opacity,
@@ -208,6 +224,9 @@ static inline void argus_js_flow_frame(LukeText id, double w, double h, double o
   (void)opacity;
   (void)grow;
 }
+static inline void argus_js_focus_trap(LukeText id) { (void)id; }
+static inline void argus_js_focus_restore(void) {}
+static inline void argus_js_announce(LukeText text) { (void)text; }
 static inline void argus_js_text(LukeText id, LukeText text) {
   (void)id;
   (void)text;
@@ -442,12 +461,13 @@ static inline void argus_set_flow(ArgusNode *n, int flow) {
 }
 
 static inline void argus_set_flex(ArgusNode *n, int dir, double gap, double pad, int align,
-                                  int wrap) {
+                                  int cross, int wrap) {
   if (!n) return;
   n->flex_dir = dir;
   n->flex_gap = gap;
   n->flex_pad = pad;
   n->flex_align = align;
+  n->flex_cross = cross;
   n->flex_wrap = wrap ? 1 : 0;
   n->dirty = 1;
 }
@@ -476,13 +496,15 @@ static inline int argus_paint_one(LukeArena *a, LukeText id) {
   if (n->parent_id.len) argus_js_parent(id, n->parent_id);
   if (n->flex_dir)
     argus_js_flex(id, (double)n->flex_dir, n->flex_gap, n->flex_pad, (double)n->flex_align,
-                  (double)n->flex_wrap);
+                  (double)n->flex_cross, (double)n->flex_wrap);
   if (n->flow)
     argus_js_flow_frame(id, n->w, n->h, n->opacity, (double)n->flex_grow);
   else
     argus_js_frame(id, n->x, n->y, n->w, n->h, n->opacity);
   LukeText role = n->role.len ? n->role : argus_default_role(n);
   if (role.len || n->aria_label.len) argus_js_a11y(id, role, n->aria_label);
+  /* Modal dialogs trap keyboard focus on paint (beachhead). */
+  if (n->kind == ARGUS_MODAL) argus_js_focus_trap(id);
   if (n->kind == ARGUS_IMAGE)
     argus_js_image(id, n->src);
   else if (n->kind == ARGUS_INPUT)
@@ -557,7 +579,7 @@ static inline int argus_place_box(LukeArena *a, LukeText id, double x, double y,
 /* Path A — flex container (dir: 1=column, 2=row). absolute=1 → positioned frame; else flow child. */
 static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, int absolute,
                                    double x, double y, double w, double h, int dir, double gap,
-                                   double pad, int align, int wrap) {
+                                   double pad, int align, int cross, int wrap) {
   ArgusNode *n = argus_upsert(a, id, ARGUS_BOX);
   if (absolute) {
     argus_set_frame(n, x, y, w < 0 ? 0 : w, h < 0 ? 0 : h);
@@ -571,7 +593,7 @@ static inline int argus_place_flex(LukeArena *a, LukeText id, LukeText parent, i
     argus_set_parent(n, parent);
     n->flex_grow = grow;
   }
-  argus_set_flex(n, dir, gap, pad, align, wrap);
+  argus_set_flex(n, dir, gap, pad, align, cross, wrap);
   return 1;
 }
 

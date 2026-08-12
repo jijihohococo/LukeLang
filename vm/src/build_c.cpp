@@ -5207,7 +5207,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     auto sizePos = findOutsideQuotes(rest, U, " SIZE ");
     if (atPos == std::string::npos || sizePos == std::string::npos || atPos > sizePos) {
-      bc.fail(line, "BEGIN " + axis + " needs AT x, y SIZE w, h [PAD n] [GAP n] [ALIGN START|CENTER|END] [WRAP]");
+      bc.fail(line, "BEGIN " + axis +
+                        " needs AT x, y SIZE w, h [PAD n] [GAP n] "
+                        "[ALIGN START|CENTER|END | ALIGN MAIN … CROSS … | ALIGN main, cross] [WRAP]");
       return;
     }
     auto atPart = trim(rest.substr(atPos + atLen, sizePos - (atPos + atLen)));
@@ -5220,7 +5222,9 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     std::string padRaw = "0";
     std::string gapRaw = "0";
     int alignVal = 0; /* start */
+    int crossAlignVal = 0;
     int wrapVal = 0;
+    int hasCrossAlign = 0;
     size_t cut = afterSize.size();
     if (padPos != std::string::npos) cut = padPos;
     if (gapPos != std::string::npos && gapPos < cut) cut = gapPos;
@@ -5245,19 +5249,56 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
       if (wrapPos != std::string::npos && wrapPos > gapPos && wrapPos < gapEnd) gapEnd = wrapPos;
       gapRaw = trim(afterSize.substr(gapPos + 5, gapEnd - (gapPos + 5)));
     }
+    auto parseAlignTok = [&](const std::string &tok, int *out) -> bool {
+      auto t = toUpper(trim(tok));
+      if (t == "CENTER" || t == "MIDDLE") {
+        *out = 1;
+        return true;
+      }
+      if (t == "END" || t == "RIGHT" || t == "BOTTOM") {
+        *out = 2;
+        return true;
+      }
+      if (t == "START" || t == "LEFT" || t == "TOP" || t.empty()) {
+        *out = 0;
+        return true;
+      }
+      return false;
+    };
     if (alignPos != std::string::npos) {
       size_t alignEnd = afterSize.size();
       if (padPos != std::string::npos && padPos > alignPos) alignEnd = padPos;
       if (gapPos != std::string::npos && gapPos > alignPos && gapPos < alignEnd) alignEnd = gapPos;
       if (wrapPos != std::string::npos && wrapPos > alignPos && wrapPos < alignEnd) alignEnd = wrapPos;
-      auto alignTok = toUpper(trim(afterSize.substr(alignPos + 7, alignEnd - (alignPos + 7))));
-      if (alignTok == "CENTER" || alignTok == "MIDDLE") alignVal = 1;
-      else if (alignTok == "END" || alignTok == "RIGHT" || alignTok == "BOTTOM") alignVal = 2;
-      else if (alignTok == "START" || alignTok == "LEFT" || alignTok == "TOP" || alignTok.empty())
-        alignVal = 0;
-      else {
-        bc.fail(line, "ALIGN needs START, CENTER, or END — got " + alignTok);
-        return;
+      auto alignRaw = trim(afterSize.substr(alignPos + 7, alignEnd - (alignPos + 7)));
+      auto aU = toUpper(alignRaw);
+      /* ALIGN MAIN CENTER CROSS START */
+      auto mainPos = aU.find("MAIN ");
+      auto crossPos = aU.find(" CROSS ");
+      if (mainPos == 0 && crossPos != std::string::npos) {
+        auto mainTok = trim(alignRaw.substr(5, crossPos - 5));
+        auto crossTok = trim(alignRaw.substr(crossPos + 7));
+        if (!parseAlignTok(mainTok, &alignVal) || !parseAlignTok(crossTok, &crossAlignVal)) {
+          bc.fail(line, "ALIGN MAIN/CROSS needs START, CENTER, or END");
+          return;
+        }
+        hasCrossAlign = 1;
+      } else {
+        auto comma = findOutsideQuotes(alignRaw, aU, ",");
+        if (comma != std::string::npos) {
+          /* ALIGN CENTER, START — main, cross */
+          if (!parseAlignTok(alignRaw.substr(0, comma), &alignVal) ||
+              !parseAlignTok(alignRaw.substr(comma + 1), &crossAlignVal)) {
+            bc.fail(line, "ALIGN main, cross needs START, CENTER, or END");
+            return;
+          }
+          hasCrossAlign = 1;
+        } else if (!parseAlignTok(alignRaw, &alignVal)) {
+          bc.fail(line, "ALIGN needs START, CENTER, or END — got " + alignRaw);
+          return;
+        } else {
+          crossAlignVal = alignVal;
+        }
       }
     }
     auto commaAt = findOutsideQuotes(atPart, toUpper(atPart), ",");
@@ -5286,7 +5327,10 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
                                         : "hanka_begin_stack";
     o << "  " << fn << "(arena, " << x.code << ", " << y.code << ", " << w.code << ", " << h.code
       << ", " << pad.code << ", " << gap.code << ");\n";
-    if (alignVal != 0) o << "  hanka_set_align(arena, " << alignVal << ");\n";
+    if (hasCrossAlign)
+      o << "  hanka_set_align_axes(arena, " << alignVal << ", " << crossAlignVal << ");\n";
+    else if (alignVal != 0)
+      o << "  hanka_set_align(arena, " << alignVal << ");\n";
     if (wrapVal != 0) o << "  hanka_set_wrap(arena, 1);\n";
     bc.hankaStack.push_back(axis);
     return;
@@ -5567,6 +5611,23 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     o << "  argus_fade_to(arena, " << idE.code << ", " << fromE.code << ", " << toE.code << ", "
       << msE.code << ");\n";
+    return;
+  }
+  /* a11y — focus trap / restore / live-region announce */
+  if (startsWithCI(text, "TRAP FOCUS IN ") || startsWithCI(text, "TRAP FOCUS ON ")) {
+    auto rest = startsWithCI(text, "TRAP FOCUS IN ") ? trim(text.substr(14)) : trim(text.substr(14));
+    auto idE = bc.coerceText(bc.expr(rest, line));
+    o << "  argus_js_focus_trap(" << idE.code << ");\n";
+    return;
+  }
+  if (toUpper(text) == "RESTORE FOCUS" || toUpper(text) == "RELEASE FOCUS") {
+    o << "  argus_js_focus_restore();\n";
+    return;
+  }
+  if (startsWithCI(text, "ANNOUNCE ")) {
+    auto rest = trim(text.substr(9));
+    auto msg = bc.coerceText(bc.expr(rest, line));
+    o << "  argus_js_announce(" << msg.code << ");\n";
     return;
   }
   if (startsWithCI(text, "PLACE ")) {
@@ -5985,6 +6046,56 @@ bool parse(BC &bc, const std::string &source) {
             bc.fail(lineNo, "WHEN THE ROUTE IS needs a name — WHEN THE ROUTE IS \"home\" DO");
             return false;
           }
+        } else if (startsWithCI(rest, "THE VIEWPORT IS AT LEAST ") ||
+                   startsWithCI(rest, "THE WINDOW IS AT LEAST ")) {
+          /* Declarative breakpoint: WHEN THE VIEWPORT IS AT LEAST 800 [WIDE] DO */
+          auto raw = startsWithCI(rest, "THE VIEWPORT IS AT LEAST ")
+                         ? trim(rest.substr(25))
+                         : trim(rest.substr(23));
+          auto ru = toUpper(raw);
+          if (ru.size() >= 5 && ru.compare(ru.size() - 5, 5, " WIDE") == 0)
+            raw = trim(raw.substr(0, raw.size() - 5));
+          if (raw.empty() || !isdigit((unsigned char)raw[0])) {
+            bc.fail(lineNo, "WHEN THE VIEWPORT IS AT LEAST needs a width number");
+            return false;
+          }
+          curWhen.event = "breakpoint";
+          curWhen.elementId = "min:" + raw;
+        } else if (startsWithCI(rest, "THE VIEWPORT IS UNDER ") ||
+                   startsWithCI(rest, "THE WINDOW IS UNDER ")) {
+          auto raw = startsWithCI(rest, "THE VIEWPORT IS UNDER ") ? trim(rest.substr(22))
+                                                                : trim(rest.substr(20));
+          auto ru = toUpper(raw);
+          if (ru.size() >= 5 && ru.compare(ru.size() - 5, 5, " WIDE") == 0)
+            raw = trim(raw.substr(0, raw.size() - 5));
+          if (raw.empty() || !isdigit((unsigned char)raw[0])) {
+            bc.fail(lineNo, "WHEN THE VIEWPORT IS UNDER needs a width number");
+            return false;
+          }
+          curWhen.event = "breakpoint";
+          curWhen.elementId = "max:" + raw;
+        } else if (startsWithCI(rest, "THE VIEWPORT IS BETWEEN ") ||
+                   startsWithCI(rest, "THE WINDOW IS BETWEEN ")) {
+          auto raw = startsWithCI(rest, "THE VIEWPORT IS BETWEEN ") ? trim(rest.substr(24))
+                                                                  : trim(rest.substr(22));
+          auto ru = toUpper(raw);
+          auto andPos = ru.find(" AND ");
+          if (andPos == std::string::npos) {
+            bc.fail(lineNo, "WHEN THE VIEWPORT IS BETWEEN needs: BETWEEN lo AND hi [WIDE]");
+            return false;
+          }
+          auto lo = trim(raw.substr(0, andPos));
+          auto hi = trim(raw.substr(andPos + 5));
+          auto hu = toUpper(hi);
+          if (hu.size() >= 5 && hu.compare(hu.size() - 5, 5, " WIDE") == 0)
+            hi = trim(hi.substr(0, hi.size() - 5));
+          if (lo.empty() || hi.empty() || !isdigit((unsigned char)lo[0]) ||
+              !isdigit((unsigned char)hi[0])) {
+            bc.fail(lineNo, "WHEN THE VIEWPORT IS BETWEEN needs numeric lo AND hi");
+            return false;
+          }
+          curWhen.event = "breakpoint";
+          curWhen.elementId = "min:" + lo + ":max:" + hi;
         } else if (startsWithCI(rest, "THE VIEWPORT CHANGES") ||
                    startsWithCI(rest, "THE WINDOW CHANGES") ||
                    toUpper(rest) == "THE VIEWPORT CHANGES" ||
@@ -6034,7 +6145,8 @@ bool parse(BC &bc, const std::string &source) {
             curWhen.event = "submit";
           else {
             bc.fail(lineNo, "WHEN needs IS CLICKED|CHANGED|SUBMITTED, THE ROUTE IS, "
-                            "THE VIEWPORT CHANGES, TIMELINE … IS FINISHED, FETCH … IS READY, "
+                            "THE VIEWPORT CHANGES / IS AT LEAST|UNDER|BETWEEN …, "
+                            "TIMELINE … IS FINISHED, FETCH … IS READY, "
                             "SUBSCRIBE … IS READY, or WATCH … IS READY");
             return false;
           }

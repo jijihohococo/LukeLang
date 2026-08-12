@@ -1,4 +1,4 @@
-// Layout ALIGN conformance (native)
+// Layout ALIGN conformance (native) — single-token + per-axis
 // Build: luke BUILD examples/build/hanka_align.luke -o build/ex_hanka_align
 
 IMPORT std/hanka
@@ -14,7 +14,13 @@ BEGIN COLUMN AT 0, 100 SIZE 200, 200 PAD 0 GAP 8 ALIGN END
   SLOT TEXT "t2" SIZE 80, 24 SAY "two"
 END COLUMN
 
+BEGIN ROW AT 0, 320 SIZE 400, 80 PAD 0 GAP 10 ALIGN MAIN CENTER CROSS START
+  SLOT BUTTON "c" SIZE 40, 40 SAY "C"
+  SLOT BUTTON "d" SIZE 40, 40 SAY "D"
+END ROW
+
 LAY OUT THE SCREEN
 PAINT THE SCREEN
 SPEAK "align=1"
+SPEAK "axes=1"
 SPEAK "measure=" AND THE TEXT WIDTH OF "abcd"

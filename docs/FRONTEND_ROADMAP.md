@@ -36,13 +36,15 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 | Gap | Status | Beachhead |
 |-----|--------|-----------|
 | Layout ALIGN START/CENTER/END | ✅ | `BEGIN ROW … ALIGN CENTER` |
+| Per-axis ALIGN (main + cross) | ✅ | `ALIGN MAIN CENTER CROSS START` · `ALIGN CENTER, START` |
 | Text measure / SIZE AUTO | ✅ | `SIZE AUTO,h` · `THE TEXT WIDTH OF` |
-| Breakpoints / viewport | ✅ | `THE VIEWPORT WIDTH/HEIGHT` · `WRAP` · `WHEN THE VIEWPORT CHANGES` |
+| Breakpoints / viewport | ✅ | `THE VIEWPORT WIDTH/HEIGHT` · `WRAP` · `WHEN THE VIEWPORT CHANGES` · declarative `AT LEAST`/`UNDER`/`BETWEEN` |
 | Widget: SELECT/dropdown | ✅ | `SLOT SELECT` · options `a\|b\|c` |
 | Widget: TABLE | ✅ | `SLOT TABLE` · cells `h\|h;r\|r` |
-| Widget: MODAL | ✅ | `SLOT MODAL` · `role=dialog` |
+| Widget: MODAL | ✅ | `SLOT MODAL` · `role=dialog` + focus trap on paint |
 | Rich form controls | ✅ | email/password + select + checkbox/radio |
 | a11y roles / labels | ✅ | `argus_a11y` defaults + aria-label |
+| a11y focus / live regions | ✅ | `TRAP FOCUS IN` · `RESTORE FOCUS` · `ANNOUNCE` (aria-live) |
 | Motion polish | ✅ | `SET THE OPACITY OF` · `FADE … OVER ms` (rAF + ease-out) |
 | `luke PUBLISH WEB` | ✅ | alias of browser BUILD + ship checklist |
 | Production stress app | ✅ | `frontend_stress.luke` (100) · `frontend_pressure.luke` (2500) |
@@ -68,6 +70,10 @@ FADE "a" FROM 0 TO 1 OVER 300
 
 WHEN THE VIEWPORT CHANGES DO
   SPEAK THE VIEWPORT WIDTH
+END WHEN
+
+WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO
+  SPEAK "desktop"
 END WHEN
 
 SPEAK THE VIEWPORT HEIGHT

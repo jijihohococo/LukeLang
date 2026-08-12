@@ -1,6 +1,6 @@
 # Argus — LukeLang Rendering Engine
 
-> **Status:** v0.3 — widgets + a11y + motion beachhead  
+> **Status:** v0.4 — widgets + a11y focus/live + motion beachhead  
 > **Name:** Argus  
 > **Backend:** DOM presentment (not Skia)  
 > **Layout:** [`Hanka`](./HANKA.md) owns frames; `PLACE` still accepts explicit frames  
@@ -31,7 +31,7 @@ Hanka / PLACE  →  Argus tree  →  paint  →  thin JS embedder  →  DOM
 | `INPUT` | text / email / password / checkbox / radio | `input` |
 | `SELECT` | dropdown | `select` (options `a\|b\|c`) |
 | `TABLE` | simple table | `table` (cells `h\|h;r\|r`) |
-| `MODAL` | dialog surface | `div role=dialog` |
+| `MODAL` | dialog surface | `div role=dialog` + focus trap |
 
 Each node: `id`, frame `(x,y,w,h)`, `opacity`, optional `text` / `src`, a11y role/label, dirty flags.
 
@@ -45,6 +45,10 @@ PLACE "dlg" AS MODAL AT 200, 200 SIZE 320, 96 SAY "Saved"
 SLOT INPUT AS CHECKBOX "agree" SIZE 24, 24 SAY "I agree"
 PAINT THE SCREEN
 
+TRAP FOCUS IN "dlg"
+ANNOUNCE "Saved"
+RESTORE FOCUS
+
 SET THE OPACITY OF "cta" TO 0
 FADE "cta" FROM 0 TO 1 OVER 300
 
@@ -52,24 +56,40 @@ SPEAK THE TEXT WIDTH OF "Hello"
 SPEAK THE VIEWPORT WIDTH
 SPEAK THE VIEWPORT HEIGHT
 SPEAK THE CLOCK
+
+WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO
+  SPEAK "wide"
+END WHEN
 ```
 
 ## Runtime files
 
-- `vm/runtime/argus.h` — scene tree + paint + fade  
-- `lukejs` embedder: upsert/frame/text/image/input/a11y/select/table/measure_text/viewport_*/now_ms/argus_fade  
+- `vm/runtime/argus.h` — scene tree + paint + fade + focus/announce imports  
+- `lukejs` embedder: upsert/frame/text/image/input/a11y/select/table/measure_text/viewport_*/now_ms/argus_fade/focus_trap/announce  
 - Demo: `argus_demo.luke`, `frontend_widgets.luke`, `frontend_wrap_forms.luke`
 
 ## a11y (beachhead)
 
 Paint applies default roles (`button`, `textbox`, `checkbox`, `radio`, `img`, `listbox`, `table`, `dialog`)  
-plus `aria-label` from placeholder/text when present.  
-Full focus-trap / live regions still open.
+plus `aria-label` from placeholder/text when present.
+
+- `TRAP FOCUS IN|ON "id"` — Tab cycle + Escape restore (`argus_focus_trap`)  
+- `RESTORE FOCUS` / `RELEASE FOCUS` — pop previous active element  
+- `ANNOUNCE "…"` — polite `aria-live` region (`__luke_live`)  
+- `SLOT MODAL` paints with `role=dialog` and traps focus automatically
 
 ## Motion (beachhead)
 
 - `SET THE OPACITY OF "id" TO n` — immediate  
 - `FADE "id" [FROM a] TO b [OVER ms]` — ease-out cubic (browser rAF; native stepped)
+
+## Breakpoints (beachhead)
+
+Declarative matchMedia handlers (separate from resize `WHEN THE VIEWPORT CHANGES`):
+
+- `WHEN THE VIEWPORT IS AT LEAST N [WIDE] DO` → `min:N`
+- `WHEN THE VIEWPORT IS UNDER N DO` → `max:N`
+- `WHEN THE VIEWPORT IS BETWEEN lo AND hi [WIDE] DO` → `min:lo:max:hi`
 
 ## Non-goals
 
@@ -82,5 +102,6 @@ Full focus-trap / live regions still open.
 A browser demo paints via `PLACE` / Hanka + `PAINT THE SCREEN` without `FILL "root" WITH """…html…"""`.
 
 - Layout: [`HANKA.md`](./HANKA.md)  
+- Frontend: [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md)  
 - Production: [`PRODUCTION_WEB.md`](./PRODUCTION_WEB.md)  
 - Change model: [`REACTIVE.md`](./REACTIVE.md) (Argus consumes paint invalidation)

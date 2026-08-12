@@ -63,8 +63,9 @@ struct HankaBox {
   char id[64]; /* Path A — stable flex container id (__hk_N) */
   double x, y, w, h;
   double pad, gap;
-  int align; /* 0=start, 1=center, 2=end */
-  int wrap;  /* 1 = wrap main axis onto next cross line/column */
+  int align;       /* main-axis: 0=start, 1=center, 2=end */
+  int cross_align; /* cross-axis: 0=start, 1=center, 2=end (independent) */
+  int wrap;        /* 1 = wrap main axis onto next cross line/column */
   HankaChild *children;
   size_t len;
   size_t cap;
@@ -188,6 +189,31 @@ static inline int hanka_set_align(LukeArena *a, double align) {
   if (v < 0) v = 0;
   if (v > 2) v = 2;
   b->align = v;
+  b->cross_align = v; /* single-token ALIGN sets both axes */
+  return 1;
+}
+
+static inline int hanka_set_cross_align(LukeArena *a, double align) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  int v = (int)align;
+  if (v < 0) v = 0;
+  if (v > 2) v = 2;
+  b->cross_align = v;
+  return 1;
+}
+
+static inline int hanka_set_align_axes(LukeArena *a, double main_align, double cross_align) {
+  HankaBox *b = hanka_open(a);
+  if (!b) return 0;
+  int m = (int)main_align;
+  int c = (int)cross_align;
+  if (m < 0) m = 0;
+  if (m > 2) m = 2;
+  if (c < 0) c = 0;
+  if (c > 2) c = 2;
+  b->align = m;
+  b->cross_align = c;
   return 1;
 }
 
@@ -445,7 +471,7 @@ static inline void hanka_layout_flex_box(LukeArena *a, HankaBox *b, double abs_x
   LukeText parent_id = under_flex_parent ? luke_text(b->parent->id) : luke_text("");
   int dir = b->axis == HANKA_ROW ? 2 : 1;
   argus_place_flex(a, box_id, parent_id, absolute, absolute ? abs_x : 0.0, absolute ? abs_y : 0.0,
-                   b->w, b->h, dir, b->gap, b->pad, b->align, b->wrap);
+                   b->w, b->h, dir, b->gap, b->pad, b->align, b->cross_align, b->wrap);
   for (size_t i = 0; i < b->len; ++i) {
     HankaChild *ch = &b->children[i];
     if (ch->kind == HANKA_CHILD_LEAF) {
@@ -537,7 +563,7 @@ static inline void hanka_layout_box_at(LukeArena *a, HankaBox *b, double abs_x, 
     HankaChild *ch = &b->children[i];
     double cross = hanka_child_cross(ch, row);
     double cross_free = (row ? inner_h : inner_w) - cross;
-    double cross_off = hanka_align_offset(b->align, cross_free);
+    double cross_off = hanka_align_offset(b->cross_align, cross_free);
     if (ch->kind == HANKA_CHILD_LEAF) {
       HankaLeaf *leaf = &ch->leaf;
       double lx = row ? cx : (cx + cross_off);

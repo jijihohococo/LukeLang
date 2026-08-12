@@ -41,9 +41,9 @@ See [`docs/LIVE_GRAPH.md`](./docs/LIVE_GRAPH.md).
 | Item | Status | Notes |
 |------|--------|-------|
 | Full Hanka→CSS rewrite (default/complete) | ⬜ | flex emit proved; not default/complete |
-| a11y — focus-trap / live regions | ⬜ | see ARGUS |
-| Per-axis align | ⬜ | |
-| Real responsive breakpoints | ⬜ | viewport helpers exist; richer breakpoints open |
+| a11y — focus-trap / live regions | ✅ | `TRAP FOCUS` / `RESTORE FOCUS` / `ANNOUNCE`; modal traps on paint |
+| Per-axis align | ✅ | `ALIGN MAIN … CROSS …` · `ALIGN main, cross` |
+| Real responsive breakpoints | ✅ | `WHEN THE VIEWPORT IS AT LEAST|UNDER|BETWEEN …` → matchMedia |
 
 See [`docs/STRATEGY.md`](./docs/STRATEGY.md), [`docs/FRONTEND_ROADMAP.md`](./docs/FRONTEND_ROADMAP.md).
 

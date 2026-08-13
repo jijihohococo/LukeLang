@@ -64,7 +64,7 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 | `std/json` | `jsonParse`, `jsonGet`, `jsonIndex`, `jsonLen`, `jsonHas`, `jsonAsText` / `Number` / `Flag`, `jsonStringify`, `jsonString` |
 | `std/http` | `httpGet` (native via curl; empty on WASI) |
 | `std/server` | `httpListen`, `httpAccept`, `httpReply`, `httpPath` / `Method` / `Query` / `Body`, `httpMatch`, `httpQueryMap`, `httpHeader` / `Cookie` / `SetCookie`, `httpJson`, SSE helpers |
-| `std/sqlite` | `dbOpen`, `dbExec`, `dbQuery`, **`dbExecBind` / `dbQueryBind`**, `dbClose` (auto `-lsqlite3`) |
+| `std/sqlite` | `dbOpen`/`dbClose` **thread-local pool**, stmt cache, WAL; `dbExecBind` / `dbQueryBind`; auto `-lsqlite3` |
 | `std/auth` | `authInit`, `authCreateAccount`, `authLogin` / `Logout`, `authRequire`, `authCsrf` / `authCheckCsrf` (links `-lsodium`; set `LUKE_AUTH_SECURE=1` behind HTTPS) |
 | `std/args` | `argCount`, `getArg` |
 | `std/env` | `getEnv`, `setEnv` |

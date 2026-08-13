@@ -498,6 +498,20 @@ test-build: build/luke
 	  wait $$(cat /tmp/luke_event_idle.pid); \
 	  grep -q "event_idle_done=1" /tmp/luke_event_idle.log; \
 	  fuser -k 8806/tcp 2>/dev/null || true
+	./build/luke BUILD ../examples/build/http_db_bench.luke -o build/http_db_bench
+	@grep -q 'luke_db__stmt_acquire\|luke_db__tls\|SQLITE_OPEN_NOMUTEX\|journal_mode=WAL' runtime/luke_db.h
+	@set -e; \
+	  fuser -k 8810/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_http_db_bench.db /tmp/luke_http_db_bench.db-wal /tmp/luke_http_db_bench.db-shm \
+	    /tmp/luke_db_bench.pid /tmp/luke_db_bench.log /tmp/luke_db_bench_out.txt; \
+	  ./build/http_db_bench > /tmp/luke_db_bench.log 2>&1 & echo $$! > /tmp/luke_db_bench.pid; \
+	  sleep 0.4; \
+	  python3 ../scripts/luke_db_bench_probe.py; \
+	  grep -q db_bench_ok /tmp/luke_db_bench_out.txt; \
+	  kill -TERM $$(cat /tmp/luke_db_bench.pid); \
+	  wait $$(cat /tmp/luke_db_bench.pid); \
+	  grep -q "http_db_bench_done=1" /tmp/luke_db_bench.log; \
+	  fuser -k 8810/tcp 2>/dev/null || true
 	./build/luke BUILD ../examples/build/live_graph_server.luke -o build/live_graph_server
 	./build/luke BUILD ../examples/build/live_graph_client.luke -target browser -o build/live_graph_client
 	./build/luke BUILD ../examples/build/live_graph_updater.luke -o build/live_graph_updater

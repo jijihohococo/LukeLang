@@ -19,7 +19,7 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 
 | Gap | Status | Beachhead |
 |-----|--------|-----------|
-| Parameterized SQL (`?` binds) | ✅ | `dbExecBind` / `dbQueryBind` + `LIST` of TEXT |
+| Parameterized SQL (`?` binds) | ✅ | `dbExecBind` / `dbQueryBind` + `LIST` of TEXT; TLS conn pool + stmt cache + WAL |
 | Path params + match | ✅ | `httpMatch path, "/user/:id", params` |
 | Method-aware dispatch | ✅ | `SERVE ROUTES ON server WITH n` codegen from `ROUTES` + `HANDLE` |
 | Query string → MAP | ✅ | `httpQueryMap` |

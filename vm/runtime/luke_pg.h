@@ -821,7 +821,9 @@ static inline void *luke_pg__io_thread(void *arg) {
         if (idx < (unsigned)sh->nslots) luke_pg__on_readable(sh, &sh->slots[idx]);
       }
     }
-    if (woke || n == 0) luke_pg__dispatch(sh);
+    /* Always dispatch: completions free slots; aborted waiters may be requeued. */
+    (void)woke;
+    luke_pg__dispatch(sh);
     for (int i = 0; i < sh->nslots; ++i) {
       if (!sh->slots[i].conn && !sh->stop) {
         if (luke_pg__reconnect_slot(sh, &sh->slots[i])) {

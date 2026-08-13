@@ -25,9 +25,33 @@ PROBE = ROOT / "scripts" / "luke_pg_bench_probe.py"
 LOG = Path("/tmp/luke_pg_slipstream_cmp.log")
 
 
+def _kill_port(port: int) -> None:
+    try:
+        subprocess.run(
+            ["fuser", "-k", f"{port}/tcp"],
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        pass
+    try:
+        out = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
+    except Exception:
+        return
+    needle = f":{port}"
+    for line in out.splitlines():
+        if needle not in line or "pid=" not in line:
+            continue
+        for part in line.replace(",", " ").split():
+            if part.startswith("pid="):
+                try:
+                    os.kill(int(part.split("=", 1)[1]), signal.SIGTERM)
+                except Exception:
+                    pass
+
+
 def run_once(label: str, env: dict, conc: int) -> float | None:
-    for port_kill in ("8811",):
-        subprocess.run(["fuser", "-k", f"{port_kill}/tcp"], capture_output=True)
+    _kill_port(8811)
     time.sleep(0.2)
     logf = open(LOG, "w")
     proc = subprocess.Popen(
@@ -62,7 +86,7 @@ def run_once(label: str, env: dict, conc: int) -> float | None:
         except Exception:
             proc.kill()
         logf.close()
-        subprocess.run(["fuser", "-k", "8811/tcp"], capture_output=True)
+        _kill_port(8811)
 
 
 def netem(delay_ms: int | None, clear: bool = False) -> None:

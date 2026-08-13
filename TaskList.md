@@ -13,7 +13,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 | Routing — route table, path params (`/user/:id`), method dispatch | ✅ | `ROUTES` + `HANDLE` + `SERVE ROUTES` codegen |
 | Request parsing — query map, JSON body→value, form, headers, cookies | ✅ | query/header/cookie/JSON + `FORM` → `form_*_error` cells |
 | Auth / session / login | 🟡 | Argon2id + session/CSRF + scoped `WATCH`; SECRET/FLOW/LIMIT/REVEAL — **no invented OAuth/TOTP** |
-| **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind` (this ship); prefer over raw SQL in app code |
+| **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind`; TLS pool + stmt cache (no open/prepare per request) |
 | `BACKEND_ROADMAP.md` track spine | ✅ | added (this ship) |
 | Auth-as-types (unauthorized = compile error) | 🟡 | `SECRET` + scoped path; `FLOW` totality; `REVEAL` declassify — see [`docs/AUTH.md`](./docs/AUTH.md) |
 | Migrations / schema helpers | ✅ | `SCHEMA`/`ENSURE SCHEMA`; `MIGRATION`/`MIGRATE`/`REWIND` |

@@ -90,11 +90,11 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 - **Mount path:** Argus id hash index (was O(N²)); arena grows by **block chain** (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.
 - **INTEGER:** exact `int64_t` with checked overflow + documented conversion rules ([`INTEGER.md`](./INTEGER.md)).
 - **SSE hardening:** heartbeats (`httpSseComment`), SIGPIPE-safe sends, Node reconnect + idle timeout (browser EventSource still owns reconnect).
-- **Concurrency ceiling:** `httpServe` bounded worker pool + evented accept + **worker-side parse**, HTTP/1.1 keep-alive, timeouts, graceful `SIGTERM`, chunked streaming. TLS via reverse proxy ([`DEPLOY.md`](./DEPLOY.md)). See [`BUILD_MODE.md`](./BUILD_MODE.md).
+- **Concurrency ceiling:** `httpServe` **epoll/kqueue/poll** event-loop I/O + handler pool (workers never block on `recv`), HTTP/1.1 keep-alive, idle timeouts, graceful `SIGTERM`, chunked streaming. TLS via reverse proxy ([`DEPLOY.md`](./DEPLOY.md)). See [`BUILD_MODE.md`](./BUILD_MODE.md).
 - **Live Graph:** `PRAGMA data_version` gate + trigger IVM cache + **NEW/OLD differential triggers** for `id = N` + **keyed 2-table and N-table equi-JOIN chains** + **multi-row join bags** + **bag aggregates for equality and inequality/LIKE filters** + **causal event log** with `Last-Event-ID` resume + **client scrub UI**. See [`LIVE_GRAPH.md`](./LIVE_GRAPH.md).
 - **LSP beachhead:** `luke LSP` — stdio JSON-RPC diagnostics via `analyzeLukeBuild`.
 - **Backend framework beachhead:** parameterized `dbExecBind` / `dbQueryBind`; `httpMatch` path params; `httpQueryMap` / `httpHeader` / `httpCookie` / `httpSetCookie`; **`std/auth`** (libsodium Argon2id, secure session + CSRF, `REQUIRE LOGIN`, `THE CURRENT USER`, `WATCH … FOR CURRENT USER`). See [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md) + [`TaskList.md`](../TaskList.md).
-- Next ceilings: optional epoll/io_uring; LEFT JOIN / non-equi shapes; server-seq DevTools scrub; Backend OAuth/TOTP **interop wrappers** (no invented providers).
+- Next ceilings: optional io_uring; LEFT JOIN / non-equi shapes; server-seq DevTools scrub; Backend OAuth/TOTP **interop wrappers** (no invented providers).
 
 ### Phase 3 — Expand from strength
 - Grow the **Live Graph** one tier at a time ([`LIVE_GRAPH.md`](./LIVE_GRAPH.md)): distributed time-travel / graph-parallelism as consequences — not separate products.

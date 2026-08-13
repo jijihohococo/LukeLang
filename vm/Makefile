@@ -436,6 +436,7 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/concurrent_server.luke -o build/concurrent_server
 	@grep -q 'luke_http_serve\|luke_http_wrap_' build/concurrent_server.luke.c
 	@grep -q 'LUKE_HTTP_POOL_WORKERS\|luke_http__pool_worker' runtime/luke_net.h
+	@grep -q 'epoll_wait\|kevent\|luke_http__ev_wait' runtime/luke_net.h
 	@grep -q 'luke_http_read_request\|luke_http_chunk_open\|luke_http__stop_flag' runtime/luke_net.h
 	@set -e; \
 	  rm -f /tmp/luke_conc_server.pid /tmp/luke_conc_fast.txt /tmp/luke_conc_slow.txt; \
@@ -482,6 +483,19 @@ test-build: build/luke
 	  wait $$(cat /tmp/luke_c10k_grace.pid); \
 	  grep -q "graceful=1" /tmp/luke_c10k_grace.log; \
 	  fuser -k 8805/tcp 2>/dev/null || true
+	./build/luke BUILD ../examples/build/http_event_idle.luke -o build/http_event_idle
+	@grep -q 'luke_http_serve_ev\|epoll_wait' runtime/luke_net.h
+	@set -e; \
+	  fuser -k 8806/tcp 2>/dev/null || true; \
+	  rm -f /tmp/luke_event_idle.pid /tmp/luke_event_idle.log /tmp/luke_event_idle_out.txt; \
+	  ./build/http_event_idle > /tmp/luke_event_idle.log 2>&1 & echo $$! > /tmp/luke_event_idle.pid; \
+	  sleep 0.35; \
+	  python3 ../scripts/luke_event_idle_probe.py; \
+	  grep -q event_idle_ok /tmp/luke_event_idle_out.txt; \
+	  kill -TERM $$(cat /tmp/luke_event_idle.pid); \
+	  wait $$(cat /tmp/luke_event_idle.pid); \
+	  grep -q "event_idle_done=1" /tmp/luke_event_idle.log; \
+	  fuser -k 8806/tcp 2>/dev/null || true
 	./build/luke BUILD ../examples/build/live_graph_server.luke -o build/live_graph_server
 	./build/luke BUILD ../examples/build/live_graph_client.luke -target browser -o build/live_graph_client
 	./build/luke BUILD ../examples/build/live_graph_updater.luke -o build/live_graph_updater

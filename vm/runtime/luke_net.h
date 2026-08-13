@@ -3,6 +3,10 @@
 
 /* Minimal HTTP/1.1 server for Luke Build mode (native only; stubbed on WASI). */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "luke_rt.h"
 
 #if !defined(__wasi__)
@@ -13,9 +17,17 @@
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <sys/epoll.h>
+#endif
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#include <sys/event.h>
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -339,53 +351,26 @@ static inline void luke_http__apply_forwarded(LukeHttpRequest *req) {
   }
 }
 
-/* Parse one HTTP request from an already-accepted client fd (worker-side). */
-static inline LukeHttpRequest *luke_http_read_request(LukeArena *a, int cfd) {
-  if (!a || cfd < 0) return NULL;
+/* 1 if buf holds a complete request (headers + Content-Length body). */
+static inline int luke_http__request_ready(const char *buf, size_t len) {
+  int hdr_end = luke_http__hdr_end(buf, len);
+  if (hdr_end < 0) return len > (1u << 20) ? -1 : 0;
+  long need_body = luke_http__content_length(buf, (size_t)hdr_end);
+  if (need_body < 0) need_body = 0;
+  if (need_body > (1L << 20)) return -1;
+  return (long)(len - (size_t)hdr_end) >= need_body ? 1 : 0;
+}
 
-  size_t cap = 8192, len = 0;
-  char *buf = (char *)malloc(cap);
-  if (!buf) return NULL;
-
-  int hdr_end = -1;
-  long need_body = -1;
-  for (;;) {
-    if (len + 2048 > cap) {
-      cap *= 2;
-      char *nb = (char *)realloc(buf, cap);
-      if (!nb) {
-        free(buf);
-        return NULL;
-      }
-      buf = nb;
-    }
-    ssize_t got = recv(cfd, buf + len, cap - len - 1, 0);
-    if (got <= 0) {
-      free(buf);
-      return NULL;
-    }
-    len += (size_t)got;
-    buf[len] = '\0';
-
-    if (hdr_end < 0) {
-      hdr_end = luke_http__hdr_end(buf, len);
-      if (hdr_end < 0) {
-        if (len > (1u << 20)) {
-          free(buf);
-          return NULL;
-        }
-        continue;
-      }
-      need_body = luke_http__content_length(buf, (size_t)hdr_end);
-      if (need_body < 0) need_body = 0;
-      if (need_body > (1L << 20)) {
-        free(buf);
-        return NULL;
-      }
-    }
-
-    if (hdr_end >= 0 && (long)(len - (size_t)hdr_end) >= need_body) break;
-  }
+/* Parse a complete request already in buf[0,len). Consumes one message; *used is bytes eaten. */
+static inline LukeHttpRequest *luke_http_parse_complete(LukeArena *a, const char *buf, size_t len,
+                                                        int cfd, size_t *used) {
+  if (!a || !buf) return NULL;
+  int hdr_end = luke_http__hdr_end(buf, len);
+  if (hdr_end < 0) return NULL;
+  long need_body = luke_http__content_length(buf, (size_t)hdr_end);
+  if (need_body < 0) need_body = 0;
+  if ((long)(len - (size_t)hdr_end) < need_body) return NULL;
+  if (used) *used = (size_t)hdr_end + (size_t)need_body;
 
   /* Request line: METHOD SP path[?query] SP HTTP/x.y */
   size_t i = 0;
@@ -450,7 +435,6 @@ static inline LukeHttpRequest *luke_http_read_request(LukeArena *a, int cfd) {
   }
 
   int keep_alive = luke_http__want_keepalive(buf, (size_t)hdr_end, http11);
-  free(buf);
 
   LukeHttpRequest *req = (LukeHttpRequest *)luke_arena_alloc(a, sizeof(LukeHttpRequest), 8);
   memset(req, 0, sizeof(*req));
@@ -472,6 +456,40 @@ static inline LukeHttpRequest *luke_http_read_request(LukeArena *a, int cfd) {
   return req;
 }
 
+/* Blocking read of one HTTP/1.1 request (legacy / LUKE_HTTP_IO=pool). */
+static inline LukeHttpRequest *luke_http_read_request(LukeArena *a, int cfd) {
+  if (!a || cfd < 0) return NULL;
+  size_t cap = 4096, n = 0;
+  char *buf = (char *)malloc(cap);
+  if (!buf) return NULL;
+  for (;;) {
+    if (n + 2048 > cap) {
+      cap *= 2;
+      char *nb = (char *)realloc(buf, cap);
+      if (!nb) {
+        free(buf);
+        return NULL;
+      }
+      buf = nb;
+    }
+    ssize_t r = recv(cfd, buf + n, cap - n, 0);
+    if (r <= 0) {
+      free(buf);
+      return NULL;
+    }
+    n += (size_t)r;
+    int ready = luke_http__request_ready(buf, n);
+    if (ready < 0) {
+      free(buf);
+      return NULL;
+    }
+    if (ready) break;
+  }
+  LukeHttpRequest *req = luke_http_parse_complete(a, buf, n, cfd, NULL);
+  free(buf);
+  return req;
+}
+
 static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s) {
   if (!s || s->fd < 0) return NULL;
   int cfd = accept(s->fd, NULL, NULL);
@@ -488,6 +506,86 @@ static inline LukeHttpRequest *luke_http_accept(LukeArena *a, LukeHttpServer *s)
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif
+
+enum {
+  LUKE_HTTP_ST_READ = 0,
+  LUKE_HTTP_ST_HANDLE,
+  LUKE_HTTP_ST_WRITE,
+  LUKE_HTTP_ST_STREAM
+};
+
+typedef struct LukeHttpLoop LukeHttpLoop;
+
+typedef struct LukeHttpConn {
+  int fd;
+  int state;
+  int close_after_write;
+  int keep_alive;
+  int ka_left;
+  int pending_handle;
+  int interest; /* bit0 = in, bit1 = out */
+  uint64_t last_ms;
+  char *in;
+  size_t in_len, in_cap;
+  char *out;
+  size_t out_len, out_off, out_cap;
+  LukeHttpLoop *loop;
+  struct LukeHttpConn *live_next;
+  struct LukeHttpConn *live_prev;
+  struct LukeHttpConn *done_next;
+} LukeHttpConn;
+
+static __thread LukeHttpConn *luke_http__cur_conn = NULL;
+
+static inline int luke_http__out_append(LukeHttpConn *c, const char *buf, size_t len) {
+  if (!c || !buf) return 0;
+  if (!len) return 1;
+  size_t need = c->out_len + len;
+  if (need > (4u << 20)) return 0;
+  if (need > c->out_cap) {
+    size_t cap = c->out_cap ? c->out_cap : 4096;
+    while (cap < need) cap *= 2;
+    char *nb = (char *)realloc(c->out, cap);
+    if (!nb) return 0;
+    c->out = nb;
+    c->out_cap = cap;
+  }
+  memcpy(c->out + c->out_len, buf, len);
+  c->out_len += len;
+  return 1;
+}
+
+static inline int luke_http__send_all_block(int fd, const char *buf, size_t len) {
+  size_t sent = 0;
+  while (sent < len) {
+    ssize_t n = send(fd, buf + sent, len - sent, MSG_NOSIGNAL);
+    if (n <= 0) return 0;
+    sent += (size_t)n;
+  }
+  return 1;
+}
+
+static inline int luke_http__send_all(int fd, const char *buf, size_t len) {
+  LukeHttpConn *c = luke_http__cur_conn;
+  if (c && c->fd == fd && c->state != LUKE_HTTP_ST_STREAM) return luke_http__out_append(c, buf, len);
+  return luke_http__send_all_block(fd, buf, len);
+}
+
+static inline void luke_http__take_stream(LukeHttpRequest *req) {
+  LukeHttpConn *c = luke_http__cur_conn;
+  if (!c) return;
+  luke_http__cur_conn = NULL;
+  c->state = LUKE_HTTP_ST_STREAM;
+  if (c->out_len > c->out_off) {
+    int ok = luke_http__send_all_block(c->fd, c->out + c->out_off, c->out_len - c->out_off);
+    c->out_off = c->out_len = 0;
+    if (!ok) {
+      if (c->fd >= 0) close(c->fd);
+      c->fd = -1;
+      if (req) req->client_fd = -1;
+    }
+  }
+}
 
 static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText content_type,
                                   LukeText body) {
@@ -569,51 +667,37 @@ static inline int luke_http_reply(LukeHttpRequest *req, double status, LukeText 
     hlen += add;
   }
 
-  size_t sent = 0;
-  while (sent < (size_t)hlen) {
-    ssize_t n = send(req->client_fd, hdr + sent, (size_t)hlen - sent, MSG_NOSIGNAL);
-    if (n <= 0) {
-      close(req->client_fd);
-      req->client_fd = -1;
-      return 0;
-    }
-    sent += (size_t)n;
+  if (!luke_http__send_all(req->client_fd, hdr, (size_t)hlen)) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
   }
-  sent = 0;
-  while (sent < body.len) {
-    ssize_t n = send(req->client_fd, body.ptr + sent, body.len - sent, MSG_NOSIGNAL);
-    if (n <= 0) {
-      close(req->client_fd);
-      req->client_fd = -1;
-      return 0;
-    }
-    sent += (size_t)n;
+  if (body.len && body.ptr && !luke_http__send_all(req->client_fd, body.ptr, body.len)) {
+    close(req->client_fd);
+    req->client_fd = -1;
+    return 0;
   }
 
   req->replied = 1;
   if (!ka) {
-    close(req->client_fd);
-    req->client_fd = -1;
+    if (luke_http__cur_conn) {
+      luke_http__cur_conn->close_after_write = 1;
+    } else {
+      close(req->client_fd);
+      req->client_fd = -1;
+    }
   }
   return 1;
 }
 
 /* ---------- SSE (Server-Sent Events) — keep connection open ---------- */
 
-static inline int luke_http__send_all(int fd, const char *buf, size_t len) {
-  size_t sent = 0;
-  while (sent < len) {
-    ssize_t n = send(fd, buf + sent, len - sent, MSG_NOSIGNAL);
-    if (n <= 0) return 0;
-    sent += (size_t)n;
-  }
-  return 1;
-}
-
 static inline int luke_http_sse_open(LukeHttpRequest *req) {
   if (!req || req->client_fd < 0) return 0;
   req->streaming = 1;
   req->keep_alive = 0;
+  luke_http__take_stream(req);
+  if (!req || req->client_fd < 0) return 0;
   const char *origin = getenv("LUKE_SSE_ORIGIN");
   if (!origin || !origin[0]) origin = "*";
   char hdr[512];
@@ -707,6 +791,10 @@ static inline int luke_http_close(LukeHttpRequest *req) {
 
 static inline int luke_http_chunk_open(LukeHttpRequest *req, double status, LukeText content_type) {
   if (!req || req->client_fd < 0) return 0;
+  req->streaming = 1;
+  req->keep_alive = 0;
+  luke_http__take_stream(req);
+  if (!req || req->client_fd < 0) return 0;
   int code = (int)status;
   if (code < 100 || code > 599) code = 200;
   char ctype[256];
@@ -771,13 +859,14 @@ static inline LukeText luke_http_client_ip(LukeArena *a, LukeHttpRequest *req) {
   return luke_text(req->peer_ip);
 }
 
-/* ---------- Concurrent serve (bounded worker pool) ---------- */
+/* ---------- Concurrent serve (event-loop I/O + handler pool) ---------- */
 
 typedef void (*LukeHttpHandler)(LukeArena *arena, LukeHttpRequest *req);
 
 typedef struct LukeHttpServeJob {
   LukeHttpHandler handler;
-  int client_fd; /* parse happens on the worker — accept path stays non-blocking */
+  int client_fd;      /* LUKE_HTTP_IO=pool: worker owns blocking recv */
+  LukeHttpConn *conn; /* event mode: request already buffered */
 } LukeHttpServeJob;
 
 #ifndef LUKE_HTTP_POOL_WORKERS
@@ -786,6 +875,9 @@ typedef struct LukeHttpServeJob {
 #ifndef LUKE_HTTP_POOL_QUEUE
 #define LUKE_HTTP_POOL_QUEUE 64
 #endif
+
+#define LUKE_HTTP_EV_LISTEN ((void *)(intptr_t)1)
+#define LUKE_HTTP_EV_WAKE ((void *)(intptr_t)2)
 
 typedef struct LukeHttpPool {
   pthread_mutex_t mu;
@@ -796,13 +888,599 @@ typedef struct LukeHttpPool {
   int len;
   int stop;
   LukeHttpHandler handler;
+  LukeHttpLoop *loop;
 } LukeHttpPool;
+
+struct LukeHttpLoop {
+  int evfd;
+  int kind; /* 1=epoll, 2=kqueue, 0=poll */
+  int wake[2];
+  int listen_fd;
+  int listen_on;
+  LukeHttpConn **by_fd;
+  int by_fd_cap;
+  LukeHttpConn *live;
+  int live_n;
+  int in_flight;
+  LukeHttpPool *pool;
+  LukeHttpHandler handler;
+  pthread_mutex_t done_mu;
+  LukeHttpConn *done_head;
+  struct pollfd *pfds;
+  int pfd_cap;
+};
 
 static volatile sig_atomic_t luke_http__stop_flag = 0;
 
 static void luke_http__on_signal(int sig) {
   (void)sig;
   luke_http__stop_flag = 1;
+}
+
+static inline uint64_t luke_http__now_ms(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+  return (uint64_t)ts.tv_sec * 1000ull + (uint64_t)ts.tv_nsec / 1000000ull;
+}
+
+static inline int luke_http__timeout_ms(void) {
+  int ms = LUKE_HTTP_TIMEOUT_MS;
+  const char *e = getenv("LUKE_HTTP_TIMEOUT_MS");
+  if (e && e[0]) ms = atoi(e);
+  return ms;
+}
+
+static inline int luke_http__set_nb(int fd) {
+  int fl = fcntl(fd, F_GETFL, 0);
+  if (fl < 0) return -1;
+  return fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+}
+
+static inline int luke_http__want_pool_io(void) {
+  const char *e = getenv("LUKE_HTTP_IO");
+  return e && (strcmp(e, "pool") == 0 || strcmp(e, "thread") == 0);
+}
+
+static inline void luke_http__conn_free(LukeHttpConn *c) {
+  if (!c) return;
+  free(c->in);
+  free(c->out);
+  free(c);
+}
+
+static inline void luke_http__live_link(LukeHttpLoop *loop, LukeHttpConn *c) {
+  c->live_prev = NULL;
+  c->live_next = loop->live;
+  if (loop->live) loop->live->live_prev = c;
+  loop->live = c;
+  loop->live_n++;
+}
+
+static inline void luke_http__live_unlink(LukeHttpLoop *loop, LukeHttpConn *c) {
+  if (c->live_prev)
+    c->live_prev->live_next = c->live_next;
+  else if (loop->live == c)
+    loop->live = c->live_next;
+  if (c->live_next) c->live_next->live_prev = c->live_prev;
+  c->live_next = c->live_prev = NULL;
+  if (loop->live_n > 0) loop->live_n--;
+}
+
+static inline void luke_http__reg_fd(LukeHttpLoop *loop, LukeHttpConn *c) {
+  if (!c || c->fd < 0) return;
+  if (c->fd >= loop->by_fd_cap) {
+    int ncap = loop->by_fd_cap ? loop->by_fd_cap : 64;
+    while (ncap <= c->fd) ncap *= 2;
+    LukeHttpConn **n = (LukeHttpConn **)realloc(loop->by_fd, (size_t)ncap * sizeof(*n));
+    if (!n) return;
+    memset(n + loop->by_fd_cap, 0, (size_t)(ncap - loop->by_fd_cap) * sizeof(*n));
+    loop->by_fd = n;
+    loop->by_fd_cap = ncap;
+  }
+  loop->by_fd[c->fd] = c;
+}
+
+static inline void luke_http__unreg_fd(LukeHttpLoop *loop, LukeHttpConn *c) {
+  if (!c || c->fd < 0 || c->fd >= loop->by_fd_cap) return;
+  if (loop->by_fd[c->fd] == c) loop->by_fd[c->fd] = NULL;
+}
+
+static inline int luke_http__ev_open(LukeHttpLoop *loop) {
+  loop->evfd = -1;
+  loop->kind = 0;
+#if defined(__linux__)
+  loop->evfd = epoll_create1(EPOLL_CLOEXEC);
+  if (loop->evfd < 0) loop->evfd = epoll_create(64);
+  if (loop->evfd >= 0) loop->kind = 1;
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+  loop->evfd = kqueue();
+  if (loop->evfd >= 0) loop->kind = 2;
+#endif
+  return 0;
+}
+
+static inline int luke_http__ev_add_special(LukeHttpLoop *loop, int fd, void *who) {
+  if (loop->kind == 1) {
+#if defined(__linux__)
+    struct epoll_event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.events = EPOLLIN;
+    ev.data.ptr = who;
+    return epoll_ctl(loop->evfd, EPOLL_CTL_ADD, fd, &ev);
+#else
+    (void)fd;
+    (void)who;
+    return 0;
+#endif
+  }
+  if (loop->kind == 2) {
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    struct kevent kev;
+    EV_SET(&kev, fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, who);
+    return kevent(loop->evfd, &kev, 1, NULL, 0, NULL);
+#else
+    (void)fd;
+    (void)who;
+    return 0;
+#endif
+  }
+  return 0;
+}
+
+static inline int luke_http__ev_del_fd(LukeHttpLoop *loop, int fd) {
+  if (fd < 0) return 0;
+  if (loop->kind == 1) {
+#if defined(__linux__)
+    return epoll_ctl(loop->evfd, EPOLL_CTL_DEL, fd, NULL);
+#else
+    return 0;
+#endif
+  }
+  if (loop->kind == 2) {
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    struct kevent kev;
+    EV_SET(&kev, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+    (void)kevent(loop->evfd, &kev, 1, NULL, 0, NULL);
+    EV_SET(&kev, fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+    (void)kevent(loop->evfd, &kev, 1, NULL, 0, NULL);
+    return 0;
+#else
+    return 0;
+#endif
+  }
+  return 0;
+}
+
+static inline int luke_http__ev_mod(LukeHttpLoop *loop, LukeHttpConn *c, int interest) {
+  if (!c || c->fd < 0) return 0;
+  c->interest = interest;
+  if (loop->kind == 1) {
+#if defined(__linux__)
+    if (interest == 0) return epoll_ctl(loop->evfd, EPOLL_CTL_DEL, c->fd, NULL);
+    struct epoll_event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.data.ptr = c;
+    if (interest & 1) ev.events |= EPOLLIN;
+    if (interest & 2) ev.events |= EPOLLOUT;
+    if (epoll_ctl(loop->evfd, EPOLL_CTL_MOD, c->fd, &ev) < 0)
+      return epoll_ctl(loop->evfd, EPOLL_CTL_ADD, c->fd, &ev);
+    return 0;
+#else
+    return 0;
+#endif
+  }
+  if (loop->kind == 2) {
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    struct kevent kev[2];
+    int n = 0;
+    if (interest & 1) {
+      EV_SET(&kev[n++], c->fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, c);
+    } else {
+      EV_SET(&kev[n++], c->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+    }
+    if (interest & 2) {
+      EV_SET(&kev[n++], c->fd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, c);
+    } else {
+      EV_SET(&kev[n++], c->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+    }
+    (void)kevent(loop->evfd, kev, n, NULL, 0, NULL);
+    return 0;
+#else
+    return 0;
+#endif
+  }
+  return 0;
+}
+
+typedef struct LukeHttpEvHit {
+  void *who;
+  int ev; /* bit0 in, bit1 out, bit2 err */
+} LukeHttpEvHit;
+
+static inline int luke_http__ev_wait(LukeHttpLoop *loop, LukeHttpEvHit *hits, int max_hits,
+                                     int timeout_ms) {
+  if (loop->kind == 1) {
+#if defined(__linux__)
+    struct epoll_event evs[64];
+    int ncap = max_hits < 64 ? max_hits : 64;
+    int n = epoll_wait(loop->evfd, evs, ncap, timeout_ms);
+    if (n < 0) return errno == EINTR ? 0 : -1;
+    for (int i = 0; i < n; ++i) {
+      hits[i].who = evs[i].data.ptr;
+      hits[i].ev = 0;
+      if (evs[i].events & EPOLLIN) hits[i].ev |= 1;
+      if (evs[i].events & EPOLLOUT) hits[i].ev |= 2;
+      if (evs[i].events & (EPOLLERR | EPOLLHUP)) hits[i].ev |= 4;
+#ifdef EPOLLRDHUP
+      if (evs[i].events & EPOLLRDHUP) hits[i].ev |= 4;
+#endif
+    }
+    return n;
+#else
+    (void)hits;
+    (void)max_hits;
+    (void)timeout_ms;
+    return 0;
+#endif
+  }
+  if (loop->kind == 2) {
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    struct kevent evs[64];
+    int ncap = max_hits < 64 ? max_hits : 64;
+    struct timespec ts;
+    ts.tv_sec = timeout_ms / 1000;
+    ts.tv_nsec = (long)(timeout_ms % 1000) * 1000000L;
+    int n = kevent(loop->evfd, NULL, 0, evs, ncap, timeout_ms < 0 ? NULL : &ts);
+    if (n < 0) return errno == EINTR ? 0 : -1;
+    for (int i = 0; i < n; ++i) {
+      hits[i].who = evs[i].udata;
+      hits[i].ev = 0;
+      if (evs[i].filter == EVFILT_READ) hits[i].ev |= 1;
+      if (evs[i].filter == EVFILT_WRITE) hits[i].ev |= 2;
+      if (evs[i].flags & (EV_EOF | EV_ERROR)) hits[i].ev |= 4;
+    }
+    return n;
+#else
+    (void)hits;
+    (void)max_hits;
+    (void)timeout_ms;
+    return 0;
+#endif
+  }
+
+  int need = 2 + loop->live_n;
+  if (need > loop->pfd_cap) {
+    int ncap = loop->pfd_cap ? loop->pfd_cap : 16;
+    while (ncap < need) ncap *= 2;
+    struct pollfd *n = (struct pollfd *)realloc(loop->pfds, (size_t)ncap * sizeof(*n));
+    if (!n) return -1;
+    loop->pfds = n;
+    loop->pfd_cap = ncap;
+  }
+  loop->pfds[0].fd = loop->listen_on ? loop->listen_fd : -1;
+  loop->pfds[0].events = POLLIN;
+  loop->pfds[0].revents = 0;
+  loop->pfds[1].fd = loop->wake[0];
+  loop->pfds[1].events = POLLIN;
+  loop->pfds[1].revents = 0;
+  int np = 2;
+  for (LukeHttpConn *c = loop->live; c; c = c->live_next) {
+    if (!c->interest || c->fd < 0) continue;
+    loop->pfds[np].fd = c->fd;
+    loop->pfds[np].events = 0;
+    if (c->interest & 1) loop->pfds[np].events |= POLLIN;
+    if (c->interest & 2) loop->pfds[np].events |= POLLOUT;
+    loop->pfds[np].revents = 0;
+    np++;
+  }
+  int pr = poll(loop->pfds, (nfds_t)np, timeout_ms);
+  if (pr < 0) return errno == EINTR ? 0 : -1;
+  if (pr == 0) return 0;
+  int out = 0;
+  if (loop->pfds[0].revents & (POLLIN | POLLERR | POLLHUP)) {
+    hits[out].who = LUKE_HTTP_EV_LISTEN;
+    hits[out].ev = (loop->pfds[0].revents & POLLIN) ? 1 : 4;
+    out++;
+  }
+  if (out < max_hits && (loop->pfds[1].revents & (POLLIN | POLLERR | POLLHUP))) {
+    hits[out].who = LUKE_HTTP_EV_WAKE;
+    hits[out].ev = 1;
+    out++;
+  }
+  for (int i = 2; i < np && out < max_hits; ++i) {
+    if (!loop->pfds[i].revents) continue;
+    int fd = loop->pfds[i].fd;
+    LukeHttpConn *c = (fd >= 0 && fd < loop->by_fd_cap) ? loop->by_fd[fd] : NULL;
+    if (!c) continue;
+    hits[out].who = c;
+    hits[out].ev = 0;
+    if (loop->pfds[i].revents & POLLIN) hits[out].ev |= 1;
+    if (loop->pfds[i].revents & POLLOUT) hits[out].ev |= 2;
+    if (loop->pfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) hits[out].ev |= 4;
+    out++;
+  }
+  return out;
+}
+
+static inline void luke_http__done_push(LukeHttpLoop *loop, LukeHttpConn *c) {
+  pthread_mutex_lock(&loop->done_mu);
+  c->done_next = loop->done_head;
+  loop->done_head = c;
+  pthread_mutex_unlock(&loop->done_mu);
+  char x = 1;
+  ssize_t w;
+  do {
+    w = write(loop->wake[1], &x, 1);
+  } while (w < 0 && errno == EINTR);
+}
+
+static inline void luke_http__wake_eat(LukeHttpLoop *loop) {
+  char buf[256];
+  ssize_t r;
+  do {
+    r = read(loop->wake[0], buf, sizeof(buf));
+  } while (r > 0 || (r < 0 && errno == EINTR));
+}
+
+static inline int luke_http__in_grow(LukeHttpConn *c, size_t add) {
+  size_t need = c->in_len + add;
+  if (need > (1u << 20)) return 0;
+  if (need <= c->in_cap) return 1;
+  size_t cap = c->in_cap ? c->in_cap : 4096;
+  while (cap < need) cap *= 2;
+  char *nb = (char *)realloc(c->in, cap);
+  if (!nb) return 0;
+  c->in = nb;
+  c->in_cap = cap;
+  return 1;
+}
+
+static inline int luke_http__nb_read(LukeHttpConn *c) {
+  for (;;) {
+    if (!luke_http__in_grow(c, 2048)) return -1;
+    ssize_t r = recv(c->fd, c->in + c->in_len, c->in_cap - c->in_len, 0);
+    if (r < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+      if (errno == EINTR) continue;
+      return -1;
+    }
+    if (r == 0) return -1;
+    c->in_len += (size_t)r;
+    int ready = luke_http__request_ready(c->in, c->in_len);
+    if (ready < 0) return -1;
+    if (ready) return 1;
+  }
+}
+
+static inline int luke_http__nb_flush(LukeHttpConn *c) {
+  while (c->out_off < c->out_len) {
+    ssize_t n = send(c->fd, c->out + c->out_off, c->out_len - c->out_off, MSG_NOSIGNAL);
+    if (n < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+      if (errno == EINTR) continue;
+      return -1;
+    }
+    if (n == 0) return -1;
+    c->out_off += (size_t)n;
+  }
+  c->out_off = c->out_len = 0;
+  return 1;
+}
+
+static inline void luke_http__conn_close(LukeHttpLoop *loop, LukeHttpConn *c) {
+  if (!c) return;
+  luke_http__ev_mod(loop, c, 0);
+  luke_http__unreg_fd(loop, c);
+  luke_http__live_unlink(loop, c);
+  if (c->fd >= 0) {
+    close(c->fd);
+    c->fd = -1;
+  }
+  luke_http__conn_free(c);
+}
+
+static inline int luke_http__try_enqueue(LukeHttpLoop *loop, LukeHttpConn *c);
+
+static inline void luke_http__after_write(LukeHttpLoop *loop, LukeHttpConn *c) {
+  c->out_len = c->out_off = 0;
+  if (c->close_after_write || !c->keep_alive || c->ka_left <= 0) {
+    luke_http__conn_close(loop, c);
+    return;
+  }
+  c->state = LUKE_HTTP_ST_READ;
+  c->close_after_write = 0;
+  c->last_ms = luke_http__now_ms();
+  if (c->in_len) {
+    int ready = luke_http__request_ready(c->in, c->in_len);
+    if (ready < 0) {
+      luke_http__conn_close(loop, c);
+      return;
+    }
+    if (ready > 0) {
+      (void)luke_http__try_enqueue(loop, c);
+      return;
+    }
+  }
+  luke_http__ev_mod(loop, c, 1);
+}
+
+static inline void luke_http__drain_done(LukeHttpLoop *loop) {
+  pthread_mutex_lock(&loop->done_mu);
+  LukeHttpConn *c = loop->done_head;
+  loop->done_head = NULL;
+  pthread_mutex_unlock(&loop->done_mu);
+  while (c) {
+    LukeHttpConn *next = c->done_next;
+    c->done_next = NULL;
+    if (loop->in_flight > 0) loop->in_flight--;
+    if (c->state == LUKE_HTTP_ST_STREAM || c->fd < 0) {
+      luke_http__ev_mod(loop, c, 0);
+      luke_http__unreg_fd(loop, c);
+      luke_http__live_unlink(loop, c);
+      if (c->fd >= 0) {
+        close(c->fd);
+        c->fd = -1;
+      }
+      luke_http__conn_free(c);
+    } else if (c->out_len > c->out_off) {
+      c->state = LUKE_HTTP_ST_WRITE;
+      c->last_ms = luke_http__now_ms();
+      luke_http__ev_mod(loop, c, 2);
+    } else {
+      luke_http__after_write(loop, c);
+    }
+    c = next;
+  }
+}
+
+static inline int luke_http__try_enqueue(LukeHttpLoop *loop, LukeHttpConn *c) {
+  LukeHttpPool *pool = loop->pool;
+  if (c->ka_left <= 0) {
+    luke_http__conn_close(loop, c);
+    return 0;
+  }
+  LukeHttpServeJob *job = (LukeHttpServeJob *)calloc(1, sizeof(LukeHttpServeJob));
+  if (!job) {
+    luke_http__conn_close(loop, c);
+    return 0;
+  }
+  job->handler = loop->handler;
+  job->client_fd = -1;
+  job->conn = c;
+
+  pthread_mutex_lock(&pool->mu);
+  if (pool->len >= LUKE_HTTP_POOL_QUEUE || pool->stop) {
+    pthread_mutex_unlock(&pool->mu);
+    free(job);
+    c->pending_handle = 1;
+    c->state = LUKE_HTTP_ST_READ;
+    return 0;
+  }
+  int slot = (pool->head + pool->len) % LUKE_HTTP_POOL_QUEUE;
+  pool->q[slot] = job;
+  pool->len++;
+  pthread_cond_signal(&pool->not_empty);
+  pthread_mutex_unlock(&pool->mu);
+
+  c->pending_handle = 0;
+  c->ka_left--;
+  c->state = LUKE_HTTP_ST_HANDLE;
+  luke_http__ev_mod(loop, c, 0);
+  loop->in_flight++;
+  return 1;
+}
+
+static inline void luke_http__retry_pending(LukeHttpLoop *loop) {
+  LukeHttpConn *c = loop->live;
+  while (c) {
+    LukeHttpConn *next = c->live_next;
+    if (c->pending_handle) (void)luke_http__try_enqueue(loop, c);
+    c = next;
+  }
+}
+
+static inline void luke_http__idle_sweep(LukeHttpLoop *loop) {
+  int to = luke_http__timeout_ms();
+  if (to <= 0) return;
+  uint64_t now = luke_http__now_ms();
+  LukeHttpConn *c = loop->live;
+  while (c) {
+    LukeHttpConn *next = c->live_next;
+    if ((c->state == LUKE_HTTP_ST_READ || c->state == LUKE_HTTP_ST_WRITE) &&
+        now - c->last_ms > (uint64_t)to)
+      luke_http__conn_close(loop, c);
+    c = next;
+  }
+}
+
+static inline void luke_http__run_ev_job(LukeHttpPool *pool, LukeHttpServeJob *job) {
+  LukeHttpConn *c = job->conn;
+  LukeHttpHandler handler = job->handler ? job->handler : pool->handler;
+  LukeHttpLoop *loop = pool->loop;
+  free(job);
+  if (!c || !loop) return;
+
+  LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
+  if (!arena) {
+    if (c->fd >= 0) {
+      close(c->fd);
+      c->fd = -1;
+    }
+    c->state = LUKE_HTTP_ST_STREAM;
+    luke_http__done_push(loop, c);
+    return;
+  }
+  luke_arena_init(arena, 1u << 16);
+  size_t used = 0;
+  LukeHttpRequest *req = luke_http_parse_complete(arena, c->in, c->in_len, c->fd, &used);
+  if (!req) {
+    luke_arena_free(arena);
+    free(arena);
+    if (c->fd >= 0) {
+      close(c->fd);
+      c->fd = -1;
+    }
+    c->state = LUKE_HTTP_ST_STREAM;
+    luke_http__done_push(loop, c);
+    return;
+  }
+  if (used < c->in_len) memmove(c->in, c->in + used, c->in_len - used);
+  c->in_len -= used;
+
+  luke_http__cur_conn = c;
+  if (handler) handler(arena, req);
+  luke_http__cur_conn = NULL;
+
+  if (c->state == LUKE_HTTP_ST_STREAM) {
+    if (req->client_fd >= 0) {
+      close(req->client_fd);
+      req->client_fd = -1;
+    }
+    c->fd = -1;
+  } else {
+    if (req->client_fd < 0) {
+      c->fd = -1;
+      c->close_after_write = 1;
+    }
+    c->keep_alive = req->keep_alive && req->replied && req->client_fd >= 0 && !c->close_after_write;
+    if (!req->replied) c->close_after_write = 1;
+  }
+  luke_http__done_push(loop, c);
+  luke_arena_free(arena);
+  free(arena);
+}
+
+static inline void luke_http__run_pool_job(LukeHttpPool *pool, LukeHttpServeJob *job) {
+  int cfd = job->client_fd;
+  LukeHttpHandler handler = job->handler ? job->handler : pool->handler;
+  free(job);
+  int ka_left = LUKE_HTTP_KEEPALIVE_MAX;
+  while (cfd >= 0 && ka_left-- > 0) {
+    LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
+    if (!arena) break;
+    luke_arena_init(arena, 1u << 16);
+    LukeHttpRequest *req = luke_http_read_request(arena, cfd);
+    if (!req) {
+      luke_arena_free(arena);
+      free(arena);
+      break;
+    }
+    if (handler) handler(arena, req);
+    int reuse = req->client_fd >= 0 && req->keep_alive && !req->streaming && req->replied;
+    if (!reuse && req->client_fd >= 0) {
+      close(req->client_fd);
+      req->client_fd = -1;
+      cfd = -1;
+    } else if (reuse) {
+      cfd = req->client_fd;
+    } else {
+      cfd = -1;
+    }
+    luke_arena_free(arena);
+    free(arena);
+    if (!reuse) break;
+  }
+  if (cfd >= 0) close(cfd);
 }
 
 static inline void *luke_http__pool_worker(void *arg) {
@@ -819,64 +1497,64 @@ static inline void *luke_http__pool_worker(void *arg) {
     pool->len--;
     pthread_cond_signal(&pool->not_full);
     pthread_mutex_unlock(&pool->mu);
-
-    if (job) {
-      int cfd = job->client_fd;
-      LukeHttpHandler handler = job->handler ? job->handler : pool->handler;
-      free(job);
-      int ka_left = LUKE_HTTP_KEEPALIVE_MAX;
-      while (cfd >= 0 && ka_left-- > 0) {
-        LukeArena *arena = (LukeArena *)calloc(1, sizeof(LukeArena));
-        if (!arena) break;
-        luke_arena_init(arena, 1u << 16);
-        LukeHttpRequest *req = luke_http_read_request(arena, cfd);
-        if (!req) {
-          luke_arena_free(arena);
-          free(arena);
-          break;
-        }
-        if (handler) handler(arena, req);
-        int reuse = req->client_fd >= 0 && req->keep_alive && !req->streaming && req->replied;
-        if (!reuse && req->client_fd >= 0) {
-          close(req->client_fd);
-          req->client_fd = -1;
-          cfd = -1;
-        } else if (reuse) {
-          cfd = req->client_fd;
-        } else {
-          cfd = -1;
-        }
-        luke_arena_free(arena);
-        free(arena);
-        if (!reuse) break;
-      }
-      if (cfd >= 0) close(cfd);
-    }
+    if (!job) continue;
+    if (job->conn)
+      luke_http__run_ev_job(pool, job);
+    else
+      luke_http__run_pool_job(pool, job);
   }
   return NULL;
 }
 
-/* Accept up to max_conn connections (max_conn<=0 → forever until stop/accept fails).
- * Bounded worker pool: accept enqueues bare fds; workers parse + handle (slow clients
- * no longer stall the accept loop). Evented accept: O_NONBLOCK listen + poll(POLLIN).
- * SIGTERM/SIGINT → graceful stop (drain queue, join workers).
- * Per-socket SO_RCVTIMEO/SO_SNDTIMEO (LUKE_HTTP_TIMEOUT_MS, default 30s).
- * HTTP/1.1 keep-alive reuse up to LUKE_HTTP_KEEPALIVE_MAX requests per connection. */
-static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
+static inline int luke_http__pool_start(LukeHttpPool *pool, LukeHttpHandler handler,
+                                        pthread_t *workers) {
+  memset(pool, 0, sizeof(*pool));
+  pool->handler = handler;
+  pthread_mutex_init(&pool->mu, NULL);
+  pthread_cond_init(&pool->not_empty, NULL);
+  pthread_cond_init(&pool->not_full, NULL);
+  for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) {
+    if (pthread_create(&workers[i], NULL, luke_http__pool_worker, pool) != 0) {
+      pool->stop = 1;
+      pthread_cond_broadcast(&pool->not_empty);
+      for (int j = 0; j < i; ++j) pthread_join(workers[j], NULL);
+      pthread_mutex_destroy(&pool->mu);
+      pthread_cond_destroy(&pool->not_empty);
+      pthread_cond_destroy(&pool->not_full);
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static inline void luke_http__pool_join(LukeHttpPool *pool, pthread_t *workers) {
+  pthread_mutex_lock(&pool->mu);
+  pool->stop = 1;
+  pthread_cond_broadcast(&pool->not_empty);
+  pthread_cond_broadcast(&pool->not_full);
+  pthread_mutex_unlock(&pool->mu);
+  for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) pthread_join(workers[i], NULL);
+  pthread_mutex_destroy(&pool->mu);
+  pthread_cond_destroy(&pool->not_empty);
+  pthread_cond_destroy(&pool->not_full);
+}
+
+static inline void luke_http__install_signals(void) {
+  luke_http__stop_flag = 0;
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = luke_http__on_signal;
+  sigemptyset(&sa.sa_mask);
+  sigaction(SIGTERM, &sa, NULL);
+  sigaction(SIGINT, &sa, NULL);
+}
+
+/* Legacy path: accept enqueues bare fds; workers block on recv/send. */
+static inline int luke_http_serve_pool(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
   if (!s || s->fd < 0 || !handler) return 0;
   int left = (int)max_conn;
   int unlimited = left <= 0;
   int started = 0;
-
-  luke_http__stop_flag = 0;
-  {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = luke_http__on_signal;
-    sigemptyset(&sa.sa_mask);
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-  }
 
   {
     int fl = fcntl(s->fd, F_GETFL, 0);
@@ -884,24 +1562,8 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
   }
 
   LukeHttpPool pool;
-  memset(&pool, 0, sizeof(pool));
-  pool.handler = handler;
-  pthread_mutex_init(&pool.mu, NULL);
-  pthread_cond_init(&pool.not_empty, NULL);
-  pthread_cond_init(&pool.not_full, NULL);
-
   pthread_t workers[LUKE_HTTP_POOL_WORKERS];
-  for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) {
-    if (pthread_create(&workers[i], NULL, luke_http__pool_worker, &pool) != 0) {
-      pool.stop = 1;
-      pthread_cond_broadcast(&pool.not_empty);
-      for (int j = 0; j < i; ++j) pthread_join(workers[j], NULL);
-      pthread_mutex_destroy(&pool.mu);
-      pthread_cond_destroy(&pool.not_empty);
-      pthread_cond_destroy(&pool.not_full);
-      return 0;
-    }
-  }
+  if (!luke_http__pool_start(&pool, handler, workers)) return 0;
 
   while ((unlimited || left > 0) && !luke_http__stop_flag) {
     struct pollfd pfd;
@@ -934,6 +1596,7 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
       }
       job->handler = handler;
       job->client_fd = cfd;
+      job->conn = NULL;
 
       pthread_mutex_lock(&pool.mu);
       while (pool.len >= LUKE_HTTP_POOL_QUEUE && !pool.stop && !luke_http__stop_flag)
@@ -958,16 +1621,187 @@ static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, do
     }
   }
 
-  pthread_mutex_lock(&pool.mu);
-  pool.stop = 1;
-  pthread_cond_broadcast(&pool.not_empty);
-  pthread_cond_broadcast(&pool.not_full);
-  pthread_mutex_unlock(&pool.mu);
-  for (int i = 0; i < LUKE_HTTP_POOL_WORKERS; ++i) pthread_join(workers[i], NULL);
-  pthread_mutex_destroy(&pool.mu);
-  pthread_cond_destroy(&pool.not_empty);
-  pthread_cond_destroy(&pool.not_full);
+  luke_http__pool_join(&pool, workers);
   return started > 0 ? 1 : 0;
+}
+
+static inline int luke_http__accept_one(LukeHttpLoop *loop, int *left, int unlimited, int *started) {
+  int cfd = accept(loop->listen_fd, NULL, NULL);
+  if (cfd < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) return 0;
+    return -1;
+  }
+  if (luke_http__set_nb(cfd) < 0) {
+    close(cfd);
+    return 0;
+  }
+  LukeHttpConn *c = (LukeHttpConn *)calloc(1, sizeof(LukeHttpConn));
+  if (!c) {
+    close(cfd);
+    return 0;
+  }
+  c->fd = cfd;
+  c->state = LUKE_HTTP_ST_READ;
+  c->ka_left = LUKE_HTTP_KEEPALIVE_MAX;
+  c->loop = loop;
+  c->last_ms = luke_http__now_ms();
+  luke_http__live_link(loop, c);
+  luke_http__reg_fd(loop, c);
+  luke_http__ev_mod(loop, c, 1);
+  (*started)++;
+  if (!unlimited) {
+    (*left)--;
+    if (*left <= 0) {
+      loop->listen_on = 0;
+      luke_http__ev_del_fd(loop, loop->listen_fd);
+    }
+  }
+  return 1;
+}
+
+/*
+ * Event-loop I/O (epoll / kqueue / poll) owns every socket.
+ * Handler pool runs only after a complete request is buffered — workers never
+ * block on recv. SSE/chunked streams leave the loop and may block on send.
+ * SIGTERM/SIGINT stop accepts, close idle conns, drain in-flight handlers.
+ */
+static inline int luke_http_serve_ev(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
+  if (!s || s->fd < 0 || !handler) return 0;
+  int left = (int)max_conn;
+  int unlimited = left <= 0;
+  int started = 0;
+
+  if (luke_http__set_nb(s->fd) < 0) return 0;
+
+  LukeHttpLoop loop;
+  memset(&loop, 0, sizeof(loop));
+  loop.listen_fd = s->fd;
+  loop.listen_on = 1;
+  loop.handler = handler;
+  loop.wake[0] = loop.wake[1] = -1;
+  pthread_mutex_init(&loop.done_mu, NULL);
+  luke_http__ev_open(&loop);
+  if (pipe(loop.wake) != 0) {
+    if (loop.evfd >= 0) close(loop.evfd);
+    pthread_mutex_destroy(&loop.done_mu);
+    return 0;
+  }
+  (void)luke_http__set_nb(loop.wake[0]);
+  (void)luke_http__set_nb(loop.wake[1]);
+  if (loop.kind != 0) {
+    if (luke_http__ev_add_special(&loop, loop.listen_fd, LUKE_HTTP_EV_LISTEN) < 0 ||
+        luke_http__ev_add_special(&loop, loop.wake[0], LUKE_HTTP_EV_WAKE) < 0) {
+      close(loop.wake[0]);
+      close(loop.wake[1]);
+      if (loop.evfd >= 0) close(loop.evfd);
+      pthread_mutex_destroy(&loop.done_mu);
+      return 0;
+    }
+  }
+
+  LukeHttpPool pool;
+  pthread_t workers[LUKE_HTTP_POOL_WORKERS];
+  if (!luke_http__pool_start(&pool, handler, workers)) {
+    close(loop.wake[0]);
+    close(loop.wake[1]);
+    if (loop.evfd >= 0) close(loop.evfd);
+    pthread_mutex_destroy(&loop.done_mu);
+    return 0;
+  }
+  pool.loop = &loop;
+  loop.pool = &pool;
+
+  while (!luke_http__stop_flag) {
+    if (!unlimited && left <= 0 && loop.live_n == 0 && loop.in_flight == 0) break;
+    luke_http__drain_done(&loop);
+    luke_http__retry_pending(&loop);
+    luke_http__idle_sweep(&loop);
+
+    LukeHttpEvHit hits[64];
+    int n = luke_http__ev_wait(&loop, hits, 64, 250);
+    if (n < 0) break;
+    for (int i = 0; i < n; ++i) {
+      void *who = hits[i].who;
+      int ev = hits[i].ev;
+      if (who == LUKE_HTTP_EV_LISTEN) {
+        if (!loop.listen_on) continue;
+        for (;;) {
+          int ar = luke_http__accept_one(&loop, &left, unlimited, &started);
+          if (ar <= 0) {
+            if (ar < 0) luke_http__stop_flag = 1;
+            break;
+          }
+        }
+        continue;
+      }
+      if (who == LUKE_HTTP_EV_WAKE) {
+        luke_http__wake_eat(&loop);
+        luke_http__drain_done(&loop);
+        continue;
+      }
+      LukeHttpConn *c = (LukeHttpConn *)who;
+      if (!c || c->fd < 0) continue;
+      if (c->state == LUKE_HTTP_ST_HANDLE || c->state == LUKE_HTTP_ST_STREAM) continue;
+      if ((ev & 4) && c->state == LUKE_HTTP_ST_READ && !(ev & 1)) {
+        luke_http__conn_close(&loop, c);
+        continue;
+      }
+      if ((ev & 1) && c->state == LUKE_HTTP_ST_READ) {
+        c->last_ms = luke_http__now_ms();
+        int rr = luke_http__nb_read(c);
+        if (rr < 0) {
+          luke_http__conn_close(&loop, c);
+          continue;
+        }
+        if (rr > 0) {
+          (void)luke_http__try_enqueue(&loop, c);
+          continue;
+        }
+      }
+      if ((ev & 2) && c->state == LUKE_HTTP_ST_WRITE) {
+        c->last_ms = luke_http__now_ms();
+        int wr = luke_http__nb_flush(c);
+        if (wr < 0)
+          luke_http__conn_close(&loop, c);
+        else if (wr > 0)
+          luke_http__after_write(&loop, c);
+      }
+    }
+  }
+
+  /* Graceful: drop idle sockets; wait for in-flight handlers. */
+  {
+    LukeHttpConn *c = loop.live;
+    while (c) {
+      LukeHttpConn *next = c->live_next;
+      if (c->state == LUKE_HTTP_ST_READ || c->state == LUKE_HTTP_ST_WRITE)
+        luke_http__conn_close(&loop, c);
+      c = next;
+    }
+  }
+  luke_http__pool_join(&pool, workers);
+  luke_http__drain_done(&loop);
+  while (loop.live) luke_http__conn_close(&loop, loop.live);
+
+  close(loop.wake[0]);
+  close(loop.wake[1]);
+  if (loop.evfd >= 0) close(loop.evfd);
+  free(loop.by_fd);
+  free(loop.pfds);
+  pthread_mutex_destroy(&loop.done_mu);
+  return started > 0 ? 1 : 0;
+}
+
+/* Accept up to max_conn connections (max_conn<=0 → forever until stop/accept fails).
+ * Default: epoll/kqueue/poll event loop owns socket I/O; handler pool runs only
+ * after a complete request is in memory. LUKE_HTTP_IO=pool restores blocking
+ * worker recv/send. SIGTERM/SIGINT → graceful stop.
+ * HTTP/1.1 keep-alive reuse up to LUKE_HTTP_KEEPALIVE_MAX requests per connection. */
+static inline int luke_http_serve(LukeHttpServer *s, LukeHttpHandler handler, double max_conn) {
+  if (!s || s->fd < 0 || !handler) return 0;
+  luke_http__install_signals();
+  if (luke_http__want_pool_io()) return luke_http_serve_pool(s, handler, max_conn);
+  return luke_http_serve_ev(s, handler, max_conn);
 }
 
 #endif /* !__wasi__ */

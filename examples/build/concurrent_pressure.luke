@@ -1,4 +1,4 @@
-// Pressure — thread-per-connection under overlapping load.
+// Pressure — overlapping handlers on the event-loop + pool path.
 // /slow sleeps ~100ms; /fast and /ok are immediate. Accept budget = 64.
 // Build: luke BUILD examples/build/concurrent_pressure.luke -o build/concurrent_pressure
 

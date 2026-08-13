@@ -66,9 +66,10 @@ Then `ASK httpClientIp WITH req` uses the first `X-Forwarded-For` hop
 
 | Env / define | Default | Meaning |
 |--------------|---------|---------|
-| `LUKE_HTTP_TIMEOUT_MS` | 10000 | Per-socket recv/send timeout |
-| `LUKE_HTTP_POOL_WORKERS` | 8 | Worker threads |
-| `LUKE_HTTP_POOL_QUEUE` | 64 | Accept queue depth |
+| `LUKE_HTTP_TIMEOUT_MS` | 10000 | Idle connection timeout (event loop) / recv-send timeout (pool I/O) |
+| `LUKE_HTTP_IO` | unset | `pool` → blocking worker recv/send (legacy) |
+| `LUKE_HTTP_POOL_WORKERS` | 8 | Handler threads (not one-thread-per-connection) |
+| `LUKE_HTTP_POOL_QUEUE` | 64 | Handler job queue depth |
 | `LUKE_HTTP_BACKLOG` | 512 | `listen()` backlog |
 | `LUKE_HTTP_KEEPALIVE_MAX` | 100 | Max requests per keep-alive connection |
 | `LUKE_TRUST_PROXY` | unset | `1` → honor `X-Forwarded-For` |
@@ -78,8 +79,8 @@ Then `ASK httpClientIp WITH req` uses the first `X-Forwarded-For` hop
 ## Graceful shutdown
 
 `httpServe` installs `SIGTERM` / `SIGINT` handlers. On signal it stops accepting,
-drains the worker queue, joins workers, and returns so your Luke program can
-finish (`SPEAK "done"` after `ASK httpServe`).
+closes idle sockets, drains in-flight handlers, joins workers, and returns so
+your Luke program can finish (`SPEAK "done"` after `ASK httpServe`).
 
 ```bash
 kill -TERM $(pidof your_luke_server)
@@ -87,8 +88,8 @@ kill -TERM $(pidof your_luke_server)
 
 ## Keep-alive & chunked
 
-- HTTP/1.1 keep-alive is honored (`Connection: keep-alive` / default); workers
-  parse on the pool so slow clients do not stall accepts.
+- HTTP/1.1 keep-alive is honored (`Connection: keep-alive` / default). The
+  event loop reads sockets; workers run only complete requests.
 - Stream without `Content-Length`: `httpChunkOpen` / `httpChunk` / `httpChunkEnd`.
 
 See [`BUILD_MODE.md`](./BUILD_MODE.md) and [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md).

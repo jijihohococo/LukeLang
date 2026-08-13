@@ -182,7 +182,7 @@ Inference (v0):
 - First assignment to a local fixes its type; later `SET` must match (`INTEGER` widens to `NUMBER`)
 - Function args/arity and `GIVE BACK` types are checked
 - Optional: `THIS IS FUNCTION f … GIVES BACK TEXT DO`
-- Concurrent HTTP: `ASK httpServe WITH server, handler, maxConn` (bounded worker pool; links `-lpthread`)
+- Concurrent HTTP: `ASK httpServe WITH server, handler, maxConn` (epoll/kqueue event loop + handler pool; links `-lpthread`)
 - Routing / request shape: `httpMatch`, `httpQueryMap`, `httpHeader` / `httpCookie` / `httpSetCookie`, `httpJson`
 - Parameterized SQL: `dbExecBind` / `dbQueryBind` (prefer over string-concat `dbExec` / `dbQuery`)
 - Auth: `IMPORT std/auth` — Argon2id passwords (libsodium), `REQUIRE LOGIN`, `THE CURRENT USER`, CSRF; see [`BACKEND_ROADMAP.md`](./BACKEND_ROADMAP.md)
@@ -192,17 +192,17 @@ Inference (v0):
 
 ### Backend concurrency ceiling
 
-`httpServe` uses a **bounded worker pool** (`LUKE_HTTP_POOL_WORKERS` default 8, queue 64):
+`httpServe` is an **epoll / kqueue / poll event loop** plus a **handler pool** (`LUKE_HTTP_POOL_WORKERS` default 8, queue 64):
 
-- **Evented accept** — listen socket is `O_NONBLOCK` + `poll(POLLIN)` (250 ms).
-- **Parse on workers** — accept enqueues bare client fds; workers run `read`/`parse` + handler so slow clients do not stall accepts.
-- **HTTP/1.1 keep-alive** — reuse up to `LUKE_HTTP_KEEPALIVE_MAX` requests per connection.
-- **Timeouts** — `SO_RCVTIMEO` / `SO_SNDTIMEO` (`LUKE_HTTP_TIMEOUT_MS`, default 10 s).
-- **Graceful stop** — `SIGTERM`/`SIGINT` stop accepting, drain queue, join workers.
-- **Chunked responses** — `httpChunkOpen` / `httpChunk` / `httpChunkEnd`.
+- **Event-loop I/O** — listen and every client socket are non-blocking. The loop `accept`s, reads until a complete HTTP/1.1 request is buffered, and flushes responses. Idle / half-open clients do not occupy a thread.
+- **Handler pool** — a worker runs only after the request is in memory. Slow Luke handlers (`/slow`, `PUSH WATCH`) overlap; they never block `recv` for other connections. `LUKE_HTTP_IO=pool` restores the old blocking-recv worker path.
+- **HTTP/1.1 keep-alive** — reuse up to `LUKE_HTTP_KEEPALIVE_MAX` requests per connection (pipelined leftovers stay in the connection buffer).
+- **Timeouts** — idle `READ`/`WRITE` connections are swept (`LUKE_HTTP_TIMEOUT_MS`, default 10 s). The pool path still uses `SO_RCVTIMEO` / `SO_SNDTIMEO`.
+- **Graceful stop** — `SIGTERM`/`SIGINT` stop accepting, close idle sockets, drain in-flight handlers, join workers.
+- **Chunked / SSE** — `httpChunkOpen` / `httpChunk` / `httpChunkEnd`; SSE (`PUSH WATCH`) unregisters the fd from the loop and may block that worker on send for the stream lifetime.
 - **Proxy / TLS** — terminate TLS at Caddy/nginx; set `LUKE_TRUST_PROXY=1` for `httpClientIp` via `X-Forwarded-For`. See [`DEPLOY.md`](./DEPLOY.md).
 
-Positive `maxConn` is a lifetime **accept** budget (then drain + join); `maxConn ≤ 0` accepts until signal/failure. Long-lived SSE still holds one pool worker for the stream lifetime. Full `epoll`/`io_uring` event loops remain optional next ceilings — the worker-pool path is the C10K beachhead.
+Positive `maxConn` is a lifetime **accept** budget (then drain + join); `maxConn ≤ 0` accepts until signal/failure.
 
 ## Memory (Luke words)
 

@@ -1,4 +1,4 @@
-// C10K beachhead — keep-alive reuse, chunked streaming, client IP, graceful SIGTERM.
+// C10K — event-loop keep-alive reuse, chunked streaming, client IP, graceful SIGTERM.
 // Build: luke BUILD examples/build/http_c10k_ok.luke -o build/http_c10k_ok
 // httpServe accept budget = 2 connections (keep-alive can serve multiple reqs on one).
 

@@ -7,7 +7,7 @@
 | --- | --- | --- |
 | **Honesty** | **A+** | Claims match tests; Live Graph differentials are real `WHEN NEW` / join-bag / bag — not recompute theater |
 | **Architecture** | **A** | `parseLuke` → `Program`/`Stmt`/`Ast` → `flattenProgram` → emit on every BUILD; Pratt exprs; IF/WHILE/FUNCTION/WHEN are nested Stmt nodes |
-| **Execution** | **A+** | Point + multi-row join IVM, inequality bag filters, N-table chains, wire fail-closed, C10K beachhead, wall smoke |
+| **Execution** | **A+** | Point + multi-row join IVM, inequality bag filters, N-table chains, wire fail-closed, C10K event-loop HTTP, wall smoke |
 | **Ambition** | **A+** | Vision held — reactive full-stack; mobile/game parked |
 | **Tooling** | **A** | LSP (hover types/signatures + outline/refs/rename/signatureHelp/FMT/semantic tokens/code actions) + FMT + `#line` maps; `luke DEBUG`/`DAP` |
 | **Adoption** | **A-** | Wall deploy proof + Caddy; `site/` stub; registry `sha256`; public DNS/traffic still to earn |

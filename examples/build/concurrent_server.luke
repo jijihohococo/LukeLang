@@ -1,4 +1,4 @@
-// Backend concurrency — thread-per-connection via ASK httpServe.
+// Backend concurrency — event-loop I/O + handler pool via ASK httpServe.
 // /slow sleeps ~200ms; /fast replies immediately. Overlapping clients prove concurrency.
 // Build: luke BUILD examples/build/concurrent_server.luke -o build/concurrent_server
 

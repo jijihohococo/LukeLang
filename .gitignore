@@ -8,3 +8,4 @@ node_modules/
 .tools/
 sample/dist/
 examples/deploy/wall/dist/
+Exam/dist/

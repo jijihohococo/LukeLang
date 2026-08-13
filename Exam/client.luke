@@ -1,0 +1,126 @@
+// Exam client — Material Design concepts + Tailwind skin, Live Graph WATCH.
+// Build:
+//   luke PUBLISH WEB Exam/client.luke -o Exam/dist/client --tailwind Exam/exam.tailwind.css
+// Served by Exam/server.luke at http://127.0.0.1:8820/
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "Exam — LukeLang"
+
+WEAR STYLE """
+html, body { margin: 0; min-height: 100vh; }
+#root {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 480px at 12% -10%, rgba(0, 150, 136, 0.22) 0%, transparent 55%),
+    radial-gradient(700px 420px at 100% 0%, rgba(25, 118, 210, 0.14) 0%, transparent 50%),
+    linear-gradient(165deg, #e8eef2 0%, #f4f6f8 42%, #e3e9ee 100%);
+  color: #1a2330;
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+}
+#brand {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(42px, 7vw, 64px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #0d1b2a;
+  line-height: 1.05;
+}
+#tag { font-size: 15px; color: #455a64; max-width: 36rem; line-height: 1.45; }
+#lbl_rps, #lbl_total, #lbl_lat, #lbl_status, #lbl_top, #lbl_ok, #lbl_err {
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #607d8b; font-weight: 700;
+}
+#v_rps, #v_total {
+  font-size: clamp(36px, 5vw, 48px); font-weight: 700; letter-spacing: -0.02em; color: #00695c;
+}
+#v_lat, #v_status, #v_top { font-size: 18px; font-weight: 500; color: #1a2330; }
+#v_ok, #v_err {
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  font-size: 13px; white-space: pre-wrap; color: #37474f; line-height: 1.5; max-height: 9rem; overflow: auto;
+}
+"""
+
+REMEMBER rps AS "0"
+REMEMBER total AS "0"
+REMEMBER lat AS "—"
+REMEMBER status AS "—"
+REMEMBER top AS "—"
+REMEMBER oks AS ""
+REMEMBER errs AS ""
+REMEMBER events AS 0
+
+BEGIN COLUMN AT 40, 36 SIZE 920, 640 PAD 0 GAP 20
+  SLOT TEXT "brand" SIZE AUTO, 72 SAY "Exam"
+  SLOT TEXT "tag" SIZE AUTO, 44 SAY "LukeLang watching itself — every hit is a write; IVM pushes the dashboard."
+
+  BEGIN ROW AT 0, 0 SIZE AUTO, 120 PAD 0 GAP 16 STACK BELOW 720
+    BEGIN COLUMN AT 0, 0 SIZE 200, 112 PAD 16 GAP 6 WEAR "rounded-2xl bg-white/90 shadow-md shadow-slate-900/10 ring-1 ring-black/5"
+      SLOT TEXT "lbl_rps" SIZE AUTO, 18 SAY "Req / s"
+      SLOT TEXT "v_rps" SIZE AUTO, 56 SAY "0"
+    END COLUMN
+    BEGIN COLUMN AT 0, 0 SIZE 200, 112 PAD 16 GAP 6 WEAR "rounded-2xl bg-white/90 shadow-md shadow-slate-900/10 ring-1 ring-black/5"
+      SLOT TEXT "lbl_total" SIZE AUTO, 18 SAY "Total"
+      SLOT TEXT "v_total" SIZE AUTO, 56 SAY "0"
+    END COLUMN
+    BEGIN COLUMN AT 0, 0 SIZE 280, 112 PAD 16 GAP 6 WEAR "rounded-2xl bg-white/90 shadow-md shadow-slate-900/10 ring-1 ring-black/5"
+      SLOT TEXT "lbl_lat" SIZE AUTO, 18 SAY "Latency"
+      SLOT TEXT "v_lat" SIZE AUTO, 56 SAY "—"
+    END COLUMN
+  END ROW
+
+  BEGIN COLUMN AT 0, 0 SIZE AUTO, 88 PAD 16 GAP 6 WEAR "rounded-2xl bg-white/90 shadow-md shadow-slate-900/10 ring-1 ring-black/5"
+    SLOT TEXT "lbl_status" SIZE AUTO, 18 SAY "Status codes"
+    SLOT TEXT "v_status" SIZE AUTO, 40 SAY "—"
+  END COLUMN
+
+  BEGIN COLUMN AT 0, 0 SIZE AUTO, 88 PAD 16 GAP 6 WEAR "rounded-2xl bg-white/90 shadow-md shadow-slate-900/10 ring-1 ring-black/5"
+    SLOT TEXT "lbl_top" SIZE AUTO, 18 SAY "Top paths"
+    SLOT TEXT "v_top" SIZE AUTO, 40 SAY "—"
+  END COLUMN
+
+  BEGIN ROW AT 0, 0 SIZE AUTO, 180 PAD 0 GAP 16 STACK BELOW 720
+    BEGIN COLUMN AT 0, 0 SIZE 420, 168 PAD 16 GAP 6 WEAR "rounded-2xl bg-teal-50/90 shadow-md shadow-slate-900/10 ring-1 ring-teal-900/10"
+      SLOT TEXT "lbl_ok" SIZE AUTO, 18 SAY "Live 2xx paths"
+      SLOT TEXT "v_ok" SIZE AUTO, 120 SAY "waiting…"
+    END COLUMN
+    BEGIN COLUMN AT 0, 0 SIZE 420, 168 PAD 16 GAP 6 WEAR "rounded-2xl bg-rose-50/90 shadow-md shadow-slate-900/10 ring-1 ring-rose-900/10"
+      SLOT TEXT "lbl_err" SIZE AUTO, 18 SAY "Live 4xx / 5xx paths"
+      SLOT TEXT "v_err" SIZE AUTO, 120 SAY "waiting…"
+    END COLUMN
+  END ROW
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND "v_rps" TO rps
+BIND "v_total" TO total
+BIND "v_lat" TO lat
+BIND "v_status" TO status
+BIND "v_top" TO top
+BIND "v_ok" TO oks
+BIND "v_err" TO errs
+
+WATCH rps FROM "/watch/rps"
+WATCH total FROM "/watch/total"
+WATCH lat FROM "/watch/latency"
+WATCH status FROM "/watch/status"
+WATCH top FROM "/watch/top"
+WATCH oks FROM "/watch/ok"
+WATCH errs FROM "/watch/err"
+
+WHEN WATCH rps IS READY DO
+  CHANGE events TO events ADD 1
+END WHEN
+
+WHEN WATCH oks IS READY DO
+  SPEAK "oks=" AND oks
+END WHEN
+
+WHEN WATCH errs IS READY DO
+  SPEAK "errs=" AND errs
+END WHEN
+
+SPEAK "exam_client_ready=1"

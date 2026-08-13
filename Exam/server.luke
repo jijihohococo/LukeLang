@@ -1,0 +1,304 @@
+// Exam — LukeLang watching itself (live traffic / ops dashboard).
+// Every request is a SQLite write; IVM WATCH bags/point cells stay hot; handlers
+// stream SSE to the Luke browser UI (PUSH WATCH is top-level-only today).
+// Build:  luke BUILD Exam/server.luke -o build/exam_server
+// Run:    ./build/exam_server   (from repo root; serves UI from Exam/dist/)
+// Load:   ./build/exam_load
+
+IMPORT std/server
+IMPORT std/sqlite
+IMPORT std/files
+IMPORT std/argus
+
+SPEAK "Exam ops dashboard :8820"
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_exam.db"
+ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
+ASK dbExec WITH db, "PRAGMA synchronous=NORMAL"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS requests"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS exam_metric"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS hit_ok"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS hit_err"
+ASK dbExec WITH db, "CREATE TABLE requests(id INTEGER PRIMARY KEY, method TEXT, path TEXT, status INTEGER, latency_ms INTEGER, ts INTEGER)"
+ASK dbExec WITH db, "CREATE TABLE exam_metric(id INTEGER PRIMARY KEY, v TEXT)"
+ASK dbExec WITH db, "CREATE TABLE hit_ok(id INTEGER PRIMARY KEY, path TEXT)"
+ASK dbExec WITH db, "CREATE TABLE hit_err(id INTEGER PRIMARY KEY, path TEXT)"
+ASK dbExec WITH db, "INSERT INTO exam_metric(id, v) VALUES(1, '0')"
+ASK dbExec WITH db, "INSERT INTO exam_metric(id, v) VALUES(2, '0')"
+ASK dbExec WITH db, "INSERT INTO exam_metric(id, v) VALUES(3, '—')"
+ASK dbExec WITH db, "INSERT INTO exam_metric(id, v) VALUES(4, '2xx 0 · 4xx 0 · 5xx 0')"
+ASK dbExec WITH db, "INSERT INTO exam_metric(id, v) VALUES(5, 'no traffic yet')"
+
+// Differential IVM — point metrics + bag path feeds (mutated on every logged request).
+WATCH m_rps FROM db AS "SELECT v FROM exam_metric WHERE id = 1"
+WATCH m_total FROM db AS "SELECT v FROM exam_metric WHERE id = 2"
+WATCH m_lat FROM db AS "SELECT v FROM exam_metric WHERE id = 3"
+WATCH m_status FROM db AS "SELECT v FROM exam_metric WHERE id = 4"
+WATCH m_top FROM db AS "SELECT v FROM exam_metric WHERE id = 5"
+WATCH oks FROM db AS "SELECT path FROM hit_ok"
+WATCH errs FROM db AS "SELECT path FROM hit_err"
+
+THIS IS FUNCTION examRefresh WITH db AS DATABASE DO
+  MY NAME IS now AS NUMBER SET TO THE CLOCK
+  MY NAME IS since AS NUMBER SET TO now SUBTRACT 1000
+  MY NAME IS sinceT AS TEXT SET TO "" AND since
+  MY NAME IS bRps AS LIST
+  ADD sinceT TO bRps
+  MY NAME IS rps AS TEXT SET TO ASK dbQueryBind WITH db, "SELECT COUNT(*) FROM requests WHERE ts > ?", bRps
+  MY NAME IS total AS TEXT SET TO ASK dbQuery WITH db, "SELECT COUNT(*) FROM requests"
+  MY NAME IS okN AS TEXT SET TO ASK dbQuery WITH db, "SELECT COUNT(*) FROM requests WHERE status >= 200 AND status < 300"
+  MY NAME IS e4 AS TEXT SET TO ASK dbQuery WITH db, "SELECT COUNT(*) FROM requests WHERE status >= 400 AND status < 500"
+  MY NAME IS e5 AS TEXT SET TO ASK dbQuery WITH db, "SELECT COUNT(*) FROM requests WHERE status >= 500"
+  MY NAME IS p50 AS TEXT SET TO ASK dbQuery WITH db, "SELECT latency_ms FROM requests ORDER BY latency_ms LIMIT 1 OFFSET (SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE COUNT(*) / 2 END FROM requests)"
+  MY NAME IS p99 AS TEXT SET TO ASK dbQuery WITH db, "SELECT latency_ms FROM requests ORDER BY latency_ms LIMIT 1 OFFSET (SELECT CASE WHEN COUNT(*) < 2 THEN 0 ELSE (COUNT(*) * 99) / 100 END FROM requests)"
+  MY NAME IS top AS TEXT SET TO ASK dbQuery WITH db, "SELECT path || ' · ' || COUNT(*) FROM requests GROUP BY path ORDER BY COUNT(*) DESC LIMIT 1"
+  MY NAME IS top2 AS TEXT SET TO ASK dbQuery WITH db, "SELECT path || ' · ' || COUNT(*) FROM requests GROUP BY path ORDER BY COUNT(*) DESC LIMIT 1 OFFSET 1"
+  MY NAME IS top3 AS TEXT SET TO ASK dbQuery WITH db, "SELECT path || ' · ' || COUNT(*) FROM requests GROUP BY path ORDER BY COUNT(*) DESC LIMIT 1 OFFSET 2"
+
+  MY NAME IS latLine AS TEXT SET TO "p50 " AND p50 AND "ms · p99 " AND p99 AND "ms"
+  MY NAME IS stLine AS TEXT SET TO "2xx " AND okN AND " · 4xx " AND e4 AND " · 5xx " AND e5
+  MY NAME IS topLine AS TEXT SET TO top
+  MY NAME IS blank2 AS FLAG SET TO FALSE
+  IF top2 EQUALS "" DO
+    SET blank2 TO TRUE
+  END IF
+  IF blank2 EQUALS FALSE DO
+    SET topLine TO topLine AND "  ·  " AND top2
+  END IF
+  MY NAME IS blank3 AS FLAG SET TO FALSE
+  IF top3 EQUALS "" DO
+    SET blank3 TO TRUE
+  END IF
+  IF blank3 EQUALS FALSE DO
+    SET topLine TO topLine AND "  ·  " AND top3
+  END IF
+  IF topLine EQUALS "" DO
+    SET topLine TO "no traffic yet"
+  END IF
+
+  MY NAME IS u1 AS LIST
+  ADD rps TO u1
+  ASK dbExecBind WITH db, "UPDATE exam_metric SET v = ? WHERE id = 1", u1
+  MY NAME IS u2 AS LIST
+  ADD total TO u2
+  ASK dbExecBind WITH db, "UPDATE exam_metric SET v = ? WHERE id = 2", u2
+  MY NAME IS u3 AS LIST
+  ADD latLine TO u3
+  ASK dbExecBind WITH db, "UPDATE exam_metric SET v = ? WHERE id = 3", u3
+  MY NAME IS u4 AS LIST
+  ADD stLine TO u4
+  ASK dbExecBind WITH db, "UPDATE exam_metric SET v = ? WHERE id = 4", u4
+  MY NAME IS u5 AS LIST
+  ADD topLine TO u5
+  ASK dbExecBind WITH db, "UPDATE exam_metric SET v = ? WHERE id = 5", u5
+END FUNCTION
+
+THIS IS FUNCTION examLog WITH db AS DATABASE, method AS TEXT, path AS TEXT, status AS NUMBER, ms AS NUMBER DO
+  MY NAME IS now AS NUMBER SET TO THE CLOCK
+  MY NAME IS binds AS LIST
+  ADD method TO binds
+  ADD path TO binds
+  ADD "" AND status TO binds
+  ADD "" AND ms TO binds
+  ADD "" AND now TO binds
+  ASK dbExecBind WITH db, "INSERT INTO requests(method, path, status, latency_ms, ts) VALUES(?, ?, ?, ?, ?)", binds
+
+  IF status IS LESS THAN 400 DO
+    MY NAME IS ob AS LIST
+    ADD path TO ob
+    ASK dbExecBind WITH db, "INSERT INTO hit_ok(path) VALUES(?)", ob
+    ASK dbExec WITH db, "DELETE FROM hit_ok WHERE id NOT IN (SELECT id FROM hit_ok ORDER BY id DESC LIMIT 64)"
+  END IF
+  IF status IS GREATER THAN 399 DO
+    MY NAME IS eb AS LIST
+    ADD path TO eb
+    ASK dbExecBind WITH db, "INSERT INTO hit_err(path) VALUES(?)", eb
+    ASK dbExec WITH db, "DELETE FROM hit_err WHERE id NOT IN (SELECT id FROM hit_err ORDER BY id DESC LIMIT 64)"
+  END IF
+
+  ASK examRefresh WITH db
+END FUNCTION
+
+// Stream one SQL scalar over SSE until beat budget (Live Graph client WATCH compatible).
+THIS IS FUNCTION examPushSql WITH req AS REQUEST, db AS DATABASE, sql AS TEXT DO
+  ASK httpSseOpen WITH req
+  MY NAME IS last AS TEXT SET TO ""
+  MY NAME IS beats AS NUMBER SET TO 0
+  WHILE beats IS LESS THAN 150 DO
+    SET beats TO beats ADD 1
+    MY NAME IS now AS TEXT SET TO ASK dbQuery WITH db, sql
+    MY NAME IS same AS FLAG SET TO FALSE
+    IF now EQUALS last DO
+      SET same TO TRUE
+    END IF
+    IF same EQUALS FALSE DO
+      SET last TO now
+      ASK httpSseData WITH req, now
+    END IF
+    MY NAME IS t0 AS NUMBER SET TO THE CLOCK
+    WHILE THE CLOCK SUBTRACT t0 IS LESS THAN 80 DO
+    END WHILE
+  END WHILE
+  ASK httpClose WITH req
+END FUNCTION
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  MY NAME IS t0 AS NUMBER SET TO THE CLOCK
+  MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_exam.db"
+  MY NAME IS method SET TO ASK httpMethod WITH req
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS status AS NUMBER SET TO 200
+  MY NAME IS answered AS FLAG SET TO FALSE
+  MY NAME IS skipLog AS FLAG SET TO FALSE
+
+  // Live Graph client speaks EventSource — stream IVM-backed / metric SQL.
+  IF path EQUALS "/watch/rps" DO
+    SET answered TO TRUE
+    SET skipLog TO TRUE
+    ASK examPushSql WITH req, db, "SELECT v FROM exam_metric WHERE id = 1"
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/watch/total" DO
+      SET answered TO TRUE
+      SET skipLog TO TRUE
+      ASK examPushSql WITH req, db, "SELECT v FROM exam_metric WHERE id = 2"
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/watch/latency" DO
+      SET answered TO TRUE
+      SET skipLog TO TRUE
+      ASK examPushSql WITH req, db, "SELECT v FROM exam_metric WHERE id = 3"
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/watch/status" DO
+      SET answered TO TRUE
+      SET skipLog TO TRUE
+      ASK examPushSql WITH req, db, "SELECT v FROM exam_metric WHERE id = 4"
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/watch/top" DO
+      SET answered TO TRUE
+      SET skipLog TO TRUE
+      ASK examPushSql WITH req, db, "SELECT v FROM exam_metric WHERE id = 5"
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/watch/ok" DO
+      SET answered TO TRUE
+      SET skipLog TO TRUE
+      ASK examPushSql WITH req, db, "SELECT IFNULL(group_concat(path, ' · '), '') FROM (SELECT path FROM hit_ok ORDER BY id DESC LIMIT 24)"
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/watch/err" DO
+      SET answered TO TRUE
+      SET skipLog TO TRUE
+      ASK examPushSql WITH req, db, "SELECT IFNULL(group_concat(path, ' · '), '') FROM (SELECT path FROM hit_err ORDER BY id DESC LIMIT 24)"
+    END IF
+  END IF
+
+  // Dashboard static (Luke PUBLISH WEB).
+  IF NOT answered DO
+    IF path EQUALS "/" DO
+      MY NAME IS html AS TEXT SET TO ASK readFile WITH "Exam/dist/client.html"
+      MY NAME IS htmlMissing AS FLAG SET TO FALSE
+      IF html EQUALS "" DO
+        SET htmlMissing TO TRUE
+      END IF
+      IF htmlMissing EQUALS TRUE DO
+        SET status TO 503
+        ASK httpReply WITH req, 503, "text/plain", "build client first: luke PUBLISH WEB Exam/client.luke -o Exam/dist/client --tailwind Exam/exam.tailwind.css"
+      END IF
+      IF htmlMissing EQUALS FALSE DO
+        ASK httpReply WITH req, 200, "text/html; charset=utf-8", html
+      END IF
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/client.wasm" DO
+      MY NAME IS wasm AS TEXT SET TO ASK readFile WITH "Exam/dist/client.wasm"
+      MY NAME IS wasmMissing AS FLAG SET TO FALSE
+      IF wasm EQUALS "" DO
+        SET wasmMissing TO TRUE
+      END IF
+      IF wasmMissing EQUALS TRUE DO
+        SET status TO 404
+        ASK httpReply WITH req, 404, "text/plain", "missing Exam/dist/client.wasm"
+      END IF
+      IF wasmMissing EQUALS FALSE DO
+        ASK httpReply WITH req, 200, "application/wasm", wasm
+      END IF
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/client.css" DO
+      MY NAME IS css AS TEXT SET TO ASK readFile WITH "Exam/dist/client.css"
+      ASK httpReply WITH req, 200, "text/css; charset=utf-8", css
+      SET answered TO TRUE
+    END IF
+  END IF
+
+  // Traffic surfaces.
+  IF NOT answered DO
+    IF path EQUALS "/ok" DO
+      ASK httpReply WITH req, 200, "text/plain", "ok"
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/api/ping" DO
+      ASK httpReply WITH req, 200, "application/json", "{\"ok\":true}"
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/slow" DO
+      MY NAME IS w0 AS NUMBER SET TO THE CLOCK
+      WHILE THE CLOCK SUBTRACT w0 IS LESS THAN 25 DO
+      END WHILE
+      ASK httpReply WITH req, 200, "text/plain", "slow"
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/err" DO
+      SET status TO 500
+      ASK httpReply WITH req, 500, "text/plain", "boom"
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/missing" DO
+      SET status TO 404
+      ASK httpReply WITH req, 404, "text/plain", "missing"
+      SET answered TO TRUE
+    END IF
+  END IF
+  IF NOT answered DO
+    IF path EQUALS "/health" DO
+      ASK httpReply WITH req, 200, "text/plain", "ok"
+      SET answered TO TRUE
+    END IF
+  END IF
+
+  IF NOT answered DO
+    SET status TO 404
+    ASK httpReply WITH req, 404, "text/plain", "not found"
+  END IF
+
+  IF NOT skipLog DO
+    MY NAME IS ms AS NUMBER SET TO THE CLOCK SUBTRACT t0
+    ASK examLog WITH db, method, path, status, ms
+  END IF
+
+  ASK dbClose WITH db
+END FUNCTION
+
+MY NAME IS server SET TO ASK httpListen WITH 8820
+ASK httpServe WITH server, handle, 0
+SPEAK "exam_server_done=1"

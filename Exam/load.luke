@@ -1,0 +1,23 @@
+// Exam load generator — pure Luke (httpGet). Point at the Exam server and dance.
+// Build: luke BUILD Exam/load.luke -o build/exam_load
+// Run:   ./build/exam_load
+
+IMPORT std/http
+
+SPEAK "exam load → http://127.0.0.1:8820"
+
+MY NAME IS i AS NUMBER SET TO 0
+WHILE i IS LESS THAN 120 DO
+  SET i TO i ADD 1
+  MY NAME IS a AS TEXT SET TO ASK httpGet WITH "http://127.0.0.1:8820/ok"
+  MY NAME IS b AS TEXT SET TO ASK httpGet WITH "http://127.0.0.1:8820/api/ping"
+  IF i IS GREATER THAN 40 DO
+    MY NAME IS c AS TEXT SET TO ASK httpGet WITH "http://127.0.0.1:8820/slow"
+  END IF
+  IF i IS GREATER THAN 70 DO
+    MY NAME IS d AS TEXT SET TO ASK httpGet WITH "http://127.0.0.1:8820/err"
+    MY NAME IS e AS TEXT SET TO ASK httpGet WITH "http://127.0.0.1:8820/missing"
+  END IF
+END WHILE
+
+SPEAK "exam_load_done=1"

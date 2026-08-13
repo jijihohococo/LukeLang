@@ -437,7 +437,9 @@ test-build: build/luke
 	@grep -q 'luke_http_serve\|luke_http_wrap_' build/concurrent_server.luke.c
 	@grep -q 'LUKE_HTTP_POOL_WORKERS\|luke_http__pool_worker' runtime/luke_net.h
 	@grep -q 'epoll_wait\|kevent\|luke_http__ev_wait' runtime/luke_net.h
+	@grep -q 'SO_REUSEPORT\|TCP_NODELAY\|writev\|accept4\|luke_http__arena_acquire' runtime/luke_net.h
 	@grep -q 'luke_http_read_request\|luke_http_chunk_open\|luke_http__stop_flag' runtime/luke_net.h
+	@grep -q 'LUKE_HTTP_KEEPALIVE_MAX 100000\|luke_http__ka_budget' runtime/luke_net.h
 	@set -e; \
 	  rm -f /tmp/luke_conc_server.pid /tmp/luke_conc_fast.txt /tmp/luke_conc_slow.txt; \
 	  ./build/concurrent_server > /tmp/luke_conc_server.log 2>&1 & echo $$! > /tmp/luke_conc_server.pid; \

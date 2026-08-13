@@ -68,10 +68,12 @@ Then `ASK httpClientIp WITH req` uses the first `X-Forwarded-For` hop
 |--------------|---------|---------|
 | `LUKE_HTTP_TIMEOUT_MS` | 10000 | Idle connection timeout (event loop) / recv-send timeout (pool I/O) |
 | `LUKE_HTTP_IO` | unset | `pool` → blocking worker recv/send (legacy) |
-| `LUKE_HTTP_POOL_WORKERS` | 8 | Handler threads (not one-thread-per-connection) |
-| `LUKE_HTTP_POOL_QUEUE` | 64 | Handler job queue depth |
+| `LUKE_HTTP_INLINE` | unset | `1` → run handlers on the loop thread (no queue) |
+| `LUKE_HTTP_LOOPS` | #CPUs | SO_REUSEPORT event-loop count |
+| `LUKE_HTTP_POOL_WORKERS` | 8 | Handler threads total (spread across loops) |
+| `LUKE_HTTP_POOL_QUEUE` | 64 | Per-loop handler job queue depth |
 | `LUKE_HTTP_BACKLOG` | 512 | `listen()` backlog |
-| `LUKE_HTTP_KEEPALIVE_MAX` | 100 | Max requests per keep-alive connection |
+| `LUKE_HTTP_KEEPALIVE_MAX` | 100000 | Max requests per keep-alive connection (`0` = unlimited) |
 | `LUKE_TRUST_PROXY` | unset | `1` → honor `X-Forwarded-For` |
 | `LUKE_AUTH_SECURE` | unset | `1` → `Secure` cookies |
 | `LUKE_SSE_ORIGIN` | `*` | `Access-Control-Allow-Origin` for SSE (`PUSH WATCH`) |

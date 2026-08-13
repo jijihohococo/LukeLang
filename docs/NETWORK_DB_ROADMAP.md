@@ -1,11 +1,15 @@
 # LukeLang Networked Database Driver — Implementation Spec
 
-> Status: **Phase 1 + Phase 2 shipped.** Blocking libpq driver with TLS pool + stmt cache,
-> plus a shared async pipelined executor (default). Target: beat idiomatic Go `database/sql`
-> on concurrent networked-DB workloads. See acceptance probes in CI (`pg_api`).
+> Status: **Phase 1 shipped (default). Slipstream (Phase 2 rewrite) behind `LUKE_PG_ASYNC=1`.**
+> Blocking libpq driver with TLS pool + stmt cache is the honest default (beats Go on
+> localhost). Slipstream shards across cores, drops the global submit mutex, and drafts
+> into pipelines only when queue depth ≥ `LUKE_PG_DRAFT_MIN` — so it ties blocking when
+> there is nothing to amortize and pulls ahead under real RTT. Flip to default only after
+> localhost parity + injected-latency acceptance (`scripts/luke_pg_slipstream_cmp.py`).
 >
-> Escape hatches: `LUKE_PG_ASYNC=0` (Phase-1 blocking TLS pool only), `LUKE_PG_POOL=0`,
-> `LUKE_PG_CONNS` (executor connection count, default 8).
+> Escape hatches / knobs: `LUKE_PG_ASYNC=1` (Slipstream), `LUKE_PG_POOL=0`,
+> `LUKE_PG_CONNS`, `LUKE_PG_SHARDS`, `LUKE_PG_PIPELINE_DEPTH`, `LUKE_PG_DRAFT_MIN`.
+> Transaction pin: `pgCheckout` / `pgCheckin`.
 
 ## 0. Why this exists
 
@@ -88,68 +92,53 @@ blocking `PQexec` on the handler pool caps in-flight queries at the handler-thre
 
 ---
 
-## 3. Phase 2 — Async pipelined executor (this is what beats Go)
+## 3. Slipstream — adaptive sharded pipelined executor
 
 Phase 1's ceiling is that a handler thread blocks for a whole round-trip, so concurrency =
-handler-pool size and every query pays a full RTT. Phase 2 keeps the **handler API
-synchronous** (no language change) but replaces the per-thread blocking connections with a
-shared async executor underneath.
+handler-pool size and every query pays a full RTT. Slipstream keeps the **handler API
+synchronous** (no language change) but replaces per-thread blocking connections with a
+sharded async executor underneath — and only pays pipeline coordination when there is a
+batch waiting.
 
-### 3.1 Design
+### 3.1 Design (fixes the three Phase-2 defects)
+
+Earlier Phase-2 used one dispatch thread, one global submit mutex, and unconditional
+pipelining — and lost to blocking on localhost. Slipstream:
+
+1. **Shard across cores.** `S = LUKE_PG_SHARDS` (default `sysconf(_SC_NPROCESSORS_ONLN)`),
+   each shard owns its epoll thread, `LUKE_PG_CONNS/S` connections, and submit queue.
+   Handlers pick `worker_thread_index % S` (stable TLS index).
+2. **Per-shard submit.** No global `qmu`. Per-shard mutex (v1; MPSC later). Wake the
+   shard's eventfd only on a 0→non-empty edge.
+3. **Opportunistic drafting.** Drain the shard queue; for each idle connection take up to
+   `PIPELINE_DEPTH` waiters. If `count < DRAFT_MIN` (default 2): `PQsendQueryPrepared` with
+   **no** pipeline mode. Else: `PQenterPipelineMode` → send × count → `PQpipelineSync`.
+   Queue depth is the batch size — self-tuning, no flag for "use pipeline".
 
 ```
-handler threads                     DB I/O thread(s)                 Postgres
-  (HTTP pool)                    (own epoll, M connections)
-      │  submit(query, params) ───────► MPSC queue                        
-      │  block on completion            │ batch ready queries             
-      │                                 ├─ PQsendQueryPrepared × k ──────► (pipeline: k queries,
-      │                                 │  (PQ pipeline mode, no wait)      one network write)
-      │                                 │ epoll PQsocket for readable       
-      │  ◄── signal(result) ────────────┤ PQconsumeInput / PQgetResult ◄── (k results, ~1 RTT)
-      ▼                                 (FIFO-match result → waiter)
+handler threads                     Slipstream shards (S)              Postgres
+  (HTTP pool)                    (own epoll, conns/S each)
+      │  submit → shard queue ───────► per-shard MPSC/mutex
+      │  block on own condvar           │ opportunistic draft
+      │                                 ├─ count < DRAFT_MIN: send alone
+      │                                 └─ else: pipeline × k + sync ──► ~1 RTT for k
+      │  ◄── signal(result) ────────────┤ drain all ready in one wakeup
   finish response
 ```
 
-- **A dedicated DB I/O layer**: a small pool of `M` persistent `PGconn*` (sized to the
-  Postgres connection budget, e.g. 16–64), owned by **one or two DB I/O threads**, each
-  running an epoll loop. Build these with the same epoll helpers the HTTP loop uses — model
-  the thread on `luke_http__loop_thread` (`luke_net.h:2135`) and register `PQsocket(conn)`
-  fds exactly like HTTP conn fds (`EPOLLIN`/`EPOLLOUT`, `EAGAIN` handling already exists).
-- **Submit + block, not spin.** A handler calls `pgQueryBind`; internally it enqueues a
-  request (SQL id + params + a completion slot) onto an MPSC queue and blocks on a per-request
-  completion (futex/`eventfd`/condvar). The handler thread is parked, not spinning.
-- **Cross-request pipelining.** The DB I/O thread drains the queue and, per connection,
-  enters pipeline mode (`PQenterPipelineMode`, libpq ≥14) and issues several queued queries
-  back-to-back with `PQsendQueryPrepared` before flushing — so `k` queries from `k` different
-  handlers cost ~one RTT on that connection instead of `k`. Responses return in FIFO order
-  per connection; match each result to its waiter and signal it.
-- **libpq async, no cgo boundary, no GC.** `PQsendQuery*` + `PQconsumeInput` + `PQgetResult`
-  driven off `PQsocket` readability. This is the same integration Go's fastest driver (pgx)
-  does — but LukeLang pays no cgo call cost per libpq call and no GC per result.
+### 3.2 Why this beats idiomatic Go (under latency)
+- `database/sql` issues **one query per connection per round-trip** — no pipelining.
+- Slipstream's ceiling is `(M connections × pipeline_depth) / RTT` when the queue is deep;
+  on localhost / shallow queues it takes the count==1 path and tracks blocking.
+- Against **pgx with pipelining** the fight is closer and decided by client overhead.
 
-### 3.2 Why this beats idiomatic Go
-- `database/sql` issues **one query per connection per round-trip** — no pipelining. Its
-  throughput ceiling is `pool_size / RTT`.
-- The executor's ceiling is `(M connections × pipeline_depth) / RTT`. With depth ≫ 1 that is
-  multiples higher on the same connection budget and the same Postgres.
-- Against **pgx with pipelining** the fight is closer and decided by client overhead — where
-  LukeLang's no-cgo / no-GC / native-arena path has the edge, the same way it did on SQLite.
-
-### 3.3 Correctness requirements (call these out in review)
-- **Pipeline FIFO matching.** Postgres returns pipelined results strictly in send order per
-  connection. The executor must dequeue waiters for a connection in the exact order it sent
-  their queries. An off-by-one here returns *another request's row* — the highest-severity
-  bug class. Gate CI on a concurrent distinct-id probe that would catch a mis-match.
-- **Error isolation in a pipeline.** One failing query in a pipeline puts the connection into
-  an aborted state until sync; handle `PQpipelineSync` boundaries and fail only the offending
-  waiter, not its neighbors.
-- **Connection loss / reconnect.** On `PQstatus == CONNECTION_BAD`, drain that connection's
-  in-flight waiters with a retryable error and re-establish; never leak a blocked handler.
-- **Backpressure.** Bound the submit queue; when full, either block the submitter or fail
-  fast with a clear error — do not grow unboundedly under load.
-- **Transactions.** A `BEGIN…COMMIT` sequence must pin to a single connection for its
-  duration (pipelining across a transaction boundary on shared connections is unsafe). Expose
-  a "checked-out connection" mode for transactional handlers.
+### 3.3 Correctness requirements (CI-gated)
+- **Pipeline FIFO matching.** Dequeue waiters in exact send order per connection. Distinct-id
+  probe at conc 50/200/300 under `LUKE_PG_ASYNC=1`.
+- **Error isolation.** Fail the errored waiter; `PGRES_PIPELINE_ABORTED` neighbors are
+  requeued after sync so they stay alive.
+- **Reconnect.** On `CONNECTION_BAD`, fail in-flight waiters and re-establish — never leak.
+- **Transactions.** `pgCheckout` / `pgCheckin` pin a dedicated `PGconn` — never drafted.
 
 ---
 
@@ -167,16 +156,16 @@ own connection limit means goroutine-scale request concurrency is not the bottle
 ## 5. Benchmark & acceptance (how we prove the claim)
 
 Reuse the existing Go-vs-Luke harness, pointed at a real Postgres:
-- **Servers:** Luke `pg_api` (Phase 2) vs Go `net/http` + `database/sql`/pgx, same schema,
+- **Servers:** Luke `pg_api` (Slipstream) vs Go `net/http` + `database/sql`/pgx, same schema,
   same parameterized `SELECT … WHERE id = $1`, same JSON shape.
 - **Baselines:** Go `database/sql` (idiomatic) **and** pgx-with-pipeline (Go's best) — beat
   the first, be competitive with the second.
 - **Load:** the random-id generator already built, at concurrency 50 / 200 / 500.
-- **Parity floor:** ≥ Go `database/sql`.
-- **"Beat Go" bar:** exceed Go `database/sql` at conc ≥ 200, driven by pipeline depth > 1.
-- **Correctness gate (must pass before any throughput number counts):** concurrent
-  distinct-id probe returns every request's own row, 0 mismatches; write-integrity probe
-  (exact N increments → counter == N) as done for SQLite.
+- **Localhost gate:** Slipstream ≥ blocking at 50/200/500 (count==1 fast path).
+- **Latency gate (required before default):** under `tc … netem delay 2ms` (or remote PG),
+  Slipstream beats blocking and beats Go pgx — `scripts/luke_pg_slipstream_cmp.py --latency-ms 2`.
+- **Correctness gate:** concurrent distinct-id probe, 0 mismatches, under Slipstream at every
+  concurrency level CI runs.
 
 ## 6. Honest ceiling (state this alongside any result)
 

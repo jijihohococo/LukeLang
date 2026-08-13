@@ -805,6 +805,8 @@ Expr BC::primary(std::string e, size_t line) {
         return mapCall("luke_pg_query_bind", Ty::text(), true);
       if (callee == "__luke_pg_rows_bind") return mapCall("luke_pg_rows_bind", Ty::text(), true);
       if (callee == "__luke_pg_close") return mapCall("luke_pg_close", Ty::flag(), false);
+      if (callee == "__luke_pg_checkout") return mapCall("luke_pg_checkout", Ty::flag(), false);
+      if (callee == "__luke_pg_checkin") return mapCall("luke_pg_checkin", Ty::flag(), false);
       if (callee == "__luke_auth_init") return mapCall("luke_auth_init", Ty::flag(), false);
       if (callee == "__luke_auth_create_account")
         return mapCall("luke_auth_create_account", Ty::text(), true);

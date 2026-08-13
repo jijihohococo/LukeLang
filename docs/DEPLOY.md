@@ -78,8 +78,11 @@ Then `ASK httpClientIp WITH req` uses the first `X-Forwarded-For` hop
 | `LUKE_AUTH_SECURE` | unset | `1` → `Secure` cookies |
 | `LUKE_SSE_ORIGIN` | `*` | `Access-Control-Allow-Origin` for SSE (`PUSH WATCH`) |
 | `LUKE_DB_POOL` | unset | `0` → real `sqlite3_close` (disable TLS pool) |
-| `LUKE_PG_ASYNC` | unset | `0` → blocking TLS pool (no pipeline executor) |
-| `LUKE_PG_CONNS` | 8 | Async executor Postgres connections |
+| `LUKE_PG_ASYNC` | unset/`0` | `1` → Slipstream (sharded opportunistic pipeline); default remains blocking until latency acceptance |
+| `LUKE_PG_SHARDS` | #CPUs | Slipstream shard count (one dispatch thread + conn subset each) |
+| `LUKE_PG_CONNS` | 8 | Total Slipstream Postgres connections (split across shards) |
+| `LUKE_PG_PIPELINE_DEPTH` | 32 | Max queries drafted per connection batch |
+| `LUKE_PG_DRAFT_MIN` | 2 | Min queue depth to enter pipeline mode (`1` = always pipeline when ≥1) |
 | `LUKE_PG_POOL` | unset | `0` → real `PQfinish` on pgClose |
 
 ## Graceful shutdown

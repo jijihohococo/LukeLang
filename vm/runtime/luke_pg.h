@@ -2,7 +2,8 @@
 #define LUKE_PG_H
 
 /* Postgres (libpq) driver for Luke Build — Phase 1 blocking TLS pool +
- * Phase 2 shared async pipelined executor. See docs/NETWORK_DB_ROADMAP.md. */
+ * Slipstream: adaptive sharded pipelined executor (opt-in via LUKE_PG_ASYNC=1).
+ * See docs/NETWORK_DB_ROADMAP.md. */
 
 #include "luke_rt.h"
 
@@ -12,6 +13,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,6 +65,14 @@ static inline int luke_pg_close(LukePg *pg) {
   (void)pg;
   return 0;
 }
+static inline int luke_pg_checkout(LukePg *pg) {
+  (void)pg;
+  return 0;
+}
+static inline int luke_pg_checkin(LukePg *pg) {
+  (void)pg;
+  return 0;
+}
 
 #else /* !__wasi__ */
 
@@ -78,6 +88,9 @@ static inline int luke_pg_close(LukePg *pg) {
 #ifndef LUKE_PG_PIPELINE_DEPTH
 #define LUKE_PG_PIPELINE_DEPTH 32
 #endif
+#ifndef LUKE_PG_DRAFT_MIN
+#define LUKE_PG_DRAFT_MIN 2
+#endif
 
 typedef struct LukePgStmt {
   char *sql;
@@ -91,7 +104,8 @@ struct LukePg {
   size_t conninfo_len;
   int refs;
   int pooled;
-  PGconn *blocking; /* Phase-1 TLS connection; NULL in async mode */
+  PGconn *blocking; /* Phase-1 TLS connection; NULL in Slipstream mode */
+  PGconn *pinned;   /* checkout — transactional pin; never drafted */
   LukePgStmt *stmts;
   int stmt_n;
   struct LukePg *next;
@@ -104,15 +118,48 @@ static inline int luke_pg__pool_enabled(void) {
   return !(e && e[0] == '0');
 }
 
+/* Slipstream is opt-in until localhost parity + real-latency acceptance pass.
+ * Honest default remains blocking (beats Go on localhost). */
 static inline int luke_pg__async_enabled(void) {
   const char *e = getenv("LUKE_PG_ASYNC");
-  if (e && e[0] == '0') return 0;
-  return 1; /* default: Phase-2 pipelined executor */
+  return e && e[0] == '1';
 }
 
 static inline int luke_pg__nconns(void) {
   int n = LUKE_PG_CONNS;
   const char *e = getenv("LUKE_PG_CONNS");
+  if (e && e[0]) n = atoi(e);
+  if (n < 1) n = 1;
+  if (n > 64) n = 64;
+  return n;
+}
+
+static inline int luke_pg__nshards(void) {
+  const char *e = getenv("LUKE_PG_SHARDS");
+  if (e && e[0]) {
+    int n = atoi(e);
+    if (n < 1) n = 1;
+    if (n > 64) n = 64;
+    return n;
+  }
+  long c = sysconf(_SC_NPROCESSORS_ONLN);
+  if (c < 1) c = 1;
+  if (c > 64) c = 64;
+  return (int)c;
+}
+
+static inline int luke_pg__pipeline_depth(void) {
+  int n = LUKE_PG_PIPELINE_DEPTH;
+  const char *e = getenv("LUKE_PG_PIPELINE_DEPTH");
+  if (e && e[0]) n = atoi(e);
+  if (n < 1) n = 1;
+  if (n > 256) n = 256;
+  return n;
+}
+
+static inline int luke_pg__draft_min(void) {
+  int n = LUKE_PG_DRAFT_MIN;
+  const char *e = getenv("LUKE_PG_DRAFT_MIN");
   if (e && e[0]) n = atoi(e);
   if (n < 1) n = 1;
   if (n > 64) n = 64;
@@ -198,6 +245,10 @@ static inline void luke_pg__stmt_clear(LukePg *pg) {
 static inline void luke_pg__destroy(LukePg *pg) {
   if (!pg) return;
   luke_pg__stmt_clear(pg);
+  if (pg->pinned) {
+    PQfinish(pg->pinned);
+    pg->pinned = NULL;
+  }
   if (pg->blocking) {
     PQfinish(pg->blocking);
     pg->blocking = NULL;
@@ -206,16 +257,22 @@ static inline void luke_pg__destroy(LukePg *pg) {
   free(pg);
 }
 
+static inline PGconn *luke_pg__active_blocking(LukePg *pg) {
+  if (pg->pinned) return pg->pinned;
+  return pg->blocking;
+}
+
 static inline const char *luke_pg__stmt_name(LukePg *pg, const char *sql, size_t sql_len) {
   for (LukePgStmt *s = pg->stmts; s; s = s->next) {
     if (s->sql_len == sql_len && memcmp(s->sql, sql, sql_len) == 0) return s->name;
   }
-  if (!pg->blocking) return NULL;
+  PGconn *c = luke_pg__active_blocking(pg);
+  if (!c) return NULL;
   if (pg->stmt_n >= LUKE_PG_STMT_CACHE) return NULL;
   unsigned h = luke_pg__hash(sql, sql_len);
   char name[32];
   snprintf(name, sizeof(name), "luke_p_%08x", h ^ (unsigned)pg->stmt_n);
-  PGresult *res = PQprepare(pg->blocking, name, sql, 0, NULL);
+  PGresult *res = PQprepare(c, name, sql, 0, NULL);
   if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
     if (res) PQclear(res);
     return NULL;
@@ -240,13 +297,15 @@ static inline const char *luke_pg__stmt_name(LukePg *pg, const char *sql, size_t
 
 static inline PGresult *luke_pg__exec_params(LukePg *pg, const char *sql, size_t sql_len,
                                              LukeList *params) {
+  PGconn *c = luke_pg__active_blocking(pg);
+  if (!c) return NULL;
   int n = 0;
   int *lens = NULL;
   char **vals = luke_pg__dup_params(params, &n, &lens);
   const char *stmt = luke_pg__stmt_name(pg, sql, sql_len);
   PGresult *res = NULL;
   if (stmt) {
-    res = PQexecPrepared(pg->blocking, stmt, n, (const char *const *)vals, lens, NULL, 0);
+    res = PQexecPrepared(c, stmt, n, (const char *const *)vals, lens, NULL, 0);
   } else {
     char *q = (char *)malloc(sql_len + 1);
     if (!q) {
@@ -255,7 +314,7 @@ static inline PGresult *luke_pg__exec_params(LukePg *pg, const char *sql, size_t
     }
     memcpy(q, sql, sql_len);
     q[sql_len] = '\0';
-    res = PQexecParams(pg->blocking, q, n, NULL, (const char *const *)vals, lens, NULL, 0);
+    res = PQexecParams(c, q, n, NULL, (const char *const *)vals, lens, NULL, 0);
     free(q);
   }
   luke_pg__free_params(vals, lens, n);
@@ -268,7 +327,7 @@ static inline int luke_pg__result_ok(PGresult *res) {
   return st == PGRES_COMMAND_OK || st == PGRES_TUPLES_OK || st == PGRES_SINGLE_TUPLE;
 }
 
-/* ---------- Phase 2: async pipelined executor ---------- */
+/* ---------- Slipstream: sharded opportunistic pipelined executor ---------- */
 
 typedef struct LukePgWaiter {
   char *sql;
@@ -296,33 +355,50 @@ typedef struct LukePgSlotStmt {
 typedef struct LukePgSlot {
   PGconn *conn;
   int fd;
-  int preparing; /* 1 while waiting for a Prepare result */
   LukePgWaiter *fifo_head;
   LukePgWaiter *fifo_tail;
   int in_flight;
+  int in_pipeline;
+  int expecting_sync;
   LukePgSlotStmt *stmts;
   int stmt_n;
 } LukePgSlot;
 
-typedef struct LukePgExecutor {
-  char *conninfo;
+typedef struct LukePgShard {
+  char *conninfo; /* borrowed from pool — not freed here */
   LukePgSlot *slots;
   int nslots;
   pthread_t thr;
   int started;
   int stop;
-  int wake_fd; /* eventfd or pipe read */
+  int wake_fd;
   int wake_wr;
   int epfd;
-  pthread_mutex_t qmu;
+  pthread_mutex_t qmu; /* per-shard; only producers contend within shard */
   LukePgWaiter *q_head;
   LukePgWaiter *q_tail;
   int q_len;
-  struct LukePgExecutor *next;
-} LukePgExecutor;
+} LukePgShard;
 
-static pthread_mutex_t luke_pg__exec_mu = PTHREAD_MUTEX_INITIALIZER;
-static LukePgExecutor *luke_pg__executors = NULL;
+typedef struct LukePgPool {
+  char *conninfo;
+  LukePgShard *shards;
+  int nshards;
+  struct LukePgPool *next;
+} LukePgPool;
+
+static pthread_mutex_t luke_pg__pool_mu = PTHREAD_MUTEX_INITIALIZER;
+static LukePgPool *luke_pg__pools = NULL;
+static atomic_int luke_pg__worker_seq = 0;
+static __thread int luke_pg__worker_idx = -1;
+
+static inline int luke_pg__worker_shard(int nshards) {
+  if (nshards <= 1) return 0;
+  if (luke_pg__worker_idx < 0)
+    luke_pg__worker_idx = atomic_fetch_add_explicit(&luke_pg__worker_seq, 1, memory_order_relaxed);
+  if (luke_pg__worker_idx < 0) luke_pg__worker_idx = -(luke_pg__worker_idx + 1);
+  return luke_pg__worker_idx % nshards;
+}
 
 static inline void luke_pg__waiter_free(LukePgWaiter *w) {
   if (!w) return;
@@ -348,6 +424,8 @@ static inline void luke_pg__slot_fail_all(LukePgSlot *slot, const char *why) {
   LukePgWaiter *w = slot->fifo_head;
   slot->fifo_head = slot->fifo_tail = NULL;
   slot->in_flight = 0;
+  slot->in_pipeline = 0;
+  slot->expecting_sync = 0;
   while (w) {
     LukePgWaiter *n = w->fifo_next;
     w->fifo_next = NULL;
@@ -356,16 +434,31 @@ static inline void luke_pg__slot_fail_all(LukePgSlot *slot, const char *why) {
   }
 }
 
+static inline void luke_pg__slot_stmt_clear(LukePgSlot *slot) {
+  LukePgSlotStmt *s = slot->stmts;
+  while (s) {
+    LukePgSlotStmt *n = s->next;
+    free(s->sql);
+    free(s);
+    s = n;
+  }
+  slot->stmts = NULL;
+  slot->stmt_n = 0;
+}
+
 static inline const char *luke_pg__slot_ensure_prep(LukePgSlot *slot, const char *sql,
                                                      size_t sql_len) {
   for (LukePgSlotStmt *s = slot->stmts; s; s = s->next) {
     if (s->sql_len == sql_len && memcmp(s->sql, sql, sql_len) == 0) return s->name;
   }
   if (slot->stmt_n >= LUKE_PG_STMT_CACHE) return NULL;
+  if (slot->in_pipeline) {
+    /* Prepare must happen outside pipeline mode. */
+    return NULL;
+  }
   unsigned h = luke_pg__hash(sql, sql_len);
   char name[32];
   snprintf(name, sizeof(name), "luke_a_%08x", h ^ (unsigned)slot->stmt_n);
-  /* Synchronous prepare on the I/O thread — rare (once per SQL per conn). */
   PGresult *res = PQprepare(slot->conn, name, sql, 0, NULL);
   if (!res || PQresultStatus(res) != PGRES_COMMAND_OK) {
     if (res) PQclear(res);
@@ -461,7 +554,6 @@ static inline int luke_pg__flush_conn(LukePgSlot *slot) {
     int r = PQflush(slot->conn);
     if (r == 0) return 1;
     if (r < 0) return 0;
-    /* r == 1: need to wait for socket writable — brief poll */
     struct pollfd pfd;
     pfd.fd = slot->fd;
     pfd.events = POLLOUT;
@@ -484,59 +576,114 @@ static inline int luke_pg__send_one(LukePgSlot *slot, LukePgWaiter *w) {
   return 1;
 }
 
-static inline void luke_pg__dispatch(LukePgExecutor *ex) {
-  /* Round-robin fill connections up to pipeline depth. */
-  for (;;) {
-    pthread_mutex_lock(&ex->qmu);
-    LukePgWaiter *w = ex->q_head;
-    if (!w) {
-      pthread_mutex_unlock(&ex->qmu);
-      break;
-    }
-    /* Pick slot with smallest in_flight under depth. */
+static inline void luke_pg__shard_enqueue_front(LukePgShard *sh, LukePgWaiter *w) {
+  pthread_mutex_lock(&sh->qmu);
+  int was_empty = (sh->q_len == 0);
+  w->q_next = sh->q_head;
+  sh->q_head = w;
+  if (!sh->q_tail) sh->q_tail = w;
+  sh->q_len++;
+  pthread_mutex_unlock(&sh->qmu);
+  if (was_empty) {
+#if defined(__linux__)
+    uint64_t one = 1;
+    (void)write(sh->wake_wr, &one, sizeof(one));
+#else
+    char x = 1;
+    (void)write(sh->wake_wr, &x, 1);
+#endif
+  }
+}
+
+static inline void luke_pg__dispatch(LukePgShard *sh) {
+  LukePgWaiter *batch[256];
+  int bn = 0;
+  int depth = luke_pg__pipeline_depth();
+  int draft_min = luke_pg__draft_min();
+  if (depth > 256) depth = 256;
+
+  pthread_mutex_lock(&sh->qmu);
+  while (sh->q_head && bn < 256) {
+    LukePgWaiter *w = sh->q_head;
+    sh->q_head = w->q_next;
+    if (!sh->q_head) sh->q_tail = NULL;
+    sh->q_len--;
+    w->q_next = NULL;
+    batch[bn++] = w;
+  }
+  pthread_mutex_unlock(&sh->qmu);
+
+  int bi = 0;
+  while (bi < bn) {
     int best = -1;
-    int best_n = 1 << 30;
-    for (int i = 0; i < ex->nslots; ++i) {
-      if (!ex->slots[i].conn || PQstatus(ex->slots[i].conn) != CONNECTION_OK) continue;
-      if (ex->slots[i].in_flight < best_n &&
-          ex->slots[i].in_flight < LUKE_PG_PIPELINE_DEPTH) {
-        best_n = ex->slots[i].in_flight;
-        best = i;
-      }
+    for (int i = 0; i < sh->nslots; ++i) {
+      LukePgSlot *s = &sh->slots[i];
+      if (!s->conn || PQstatus(s->conn) != CONNECTION_OK) continue;
+      if (s->in_flight != 0) continue; /* only fill idle slots */
+      best = i;
+      break;
     }
     if (best < 0) {
-      pthread_mutex_unlock(&ex->qmu);
+      /* All busy — put remainder back (preserve order). */
+      for (int j = bn - 1; j >= bi; --j) luke_pg__shard_enqueue_front(sh, batch[j]);
       break;
     }
-    ex->q_head = w->q_next;
-    if (!ex->q_head) ex->q_tail = NULL;
-    ex->q_len--;
-    w->q_next = NULL;
-    pthread_mutex_unlock(&ex->qmu);
 
-    LukePgSlot *slot = &ex->slots[best];
-    /* Prepare must happen outside pipeline mode (sync round-trip, once per SQL). */
-    (void)luke_pg__slot_ensure_prep(slot, w->sql, w->sql_len);
-    if (slot->in_flight == 0) {
-      if (!PQenterPipelineMode(slot->conn)) {
+    LukePgSlot *slot = &sh->slots[best];
+    int take = bn - bi;
+    if (take > depth) take = depth;
+
+    /* Ensure prepares outside pipeline (sync, once per SQL). */
+    for (int k = 0; k < take; ++k) {
+      (void)luke_pg__slot_ensure_prep(slot, batch[bi + k]->sql, batch[bi + k]->sql_len);
+    }
+
+    if (take < draft_min) {
+      /* Fast path: nothing drafting behind — no pipeline coordination. */
+      LukePgWaiter *w = batch[bi++];
+      if (!luke_pg__send_one(slot, w)) {
         luke_pg__waiter_signal(w, 0, NULL);
         continue;
       }
-    }
-    if (!luke_pg__send_one(slot, w)) {
-      luke_pg__waiter_signal(w, 0, NULL);
-      if (slot->in_flight == 0) (void)PQexitPipelineMode(slot->conn);
+      slot->in_pipeline = 0;
+      slot->expecting_sync = 0;
+      if (!luke_pg__flush_conn(slot)) {
+        luke_pg__slot_fail_all(slot, "flush");
+        PQfinish(slot->conn);
+        slot->conn = NULL;
+      }
       continue;
     }
-  }
-  /* Sync + flush every slot that has in-flight work. */
-  for (int i = 0; i < ex->nslots; ++i) {
-    LukePgSlot *slot = &ex->slots[i];
-    if (!slot->conn || slot->in_flight == 0) continue;
+
+    /* Batch path: draft k queries through one RTT. */
+    if (!PQenterPipelineMode(slot->conn)) {
+      for (int k = 0; k < take; ++k) luke_pg__waiter_signal(batch[bi + k], 0, NULL);
+      bi += take;
+      continue;
+    }
+    slot->in_pipeline = 1;
+    int sent = 0;
+    for (int k = 0; k < take; ++k) {
+      LukePgWaiter *w = batch[bi + k];
+      if (!luke_pg__send_one(slot, w)) {
+        luke_pg__waiter_signal(w, 0, NULL);
+        continue;
+      }
+      sent++;
+    }
+    bi += take;
+    if (sent == 0) {
+      (void)PQexitPipelineMode(slot->conn);
+      slot->in_pipeline = 0;
+      continue;
+    }
     if (!PQpipelineSync(slot->conn)) {
       luke_pg__slot_fail_all(slot, "sync");
+      (void)PQexitPipelineMode(slot->conn);
+      slot->in_pipeline = 0;
       continue;
     }
+    slot->expecting_sync = 1;
     if (!luke_pg__flush_conn(slot)) {
       luke_pg__slot_fail_all(slot, "flush");
       PQfinish(slot->conn);
@@ -545,7 +692,7 @@ static inline void luke_pg__dispatch(LukePgExecutor *ex) {
   }
 }
 
-static inline void luke_pg__on_readable(LukePgSlot *slot) {
+static inline void luke_pg__on_readable(LukePgShard *sh, LukePgSlot *slot) {
   if (!slot->conn) return;
   if (!PQconsumeInput(slot->conn)) {
     luke_pg__slot_fail_all(slot, "consume");
@@ -553,13 +700,30 @@ static inline void luke_pg__on_readable(LukePgSlot *slot) {
     slot->conn = NULL;
     return;
   }
-  while (!PQisBusy(slot->conn)) {
+  for (;;) {
+    if (PQisBusy(slot->conn)) break;
     PGresult *res = PQgetResult(slot->conn);
-    if (!res) break;
+    if (!res) {
+      /* End of one statement. Keep draining if more in-flight or sync pending. */
+      if (slot->in_flight > 0 || slot->expecting_sync) {
+        if (PQisBusy(slot->conn)) break;
+        continue;
+      }
+      break;
+    }
     ExecStatusType st = PQresultStatus(res);
     if (st == PGRES_PIPELINE_SYNC) {
       PQclear(res);
       (void)PQexitPipelineMode(slot->conn);
+      slot->in_pipeline = 0;
+      slot->expecting_sync = 0;
+      continue;
+    }
+    if (st == PGRES_PIPELINE_ABORTED) {
+      /* Neighbor aborted after a prior error — requeue so it stays alive. */
+      LukePgWaiter *w = luke_pg__fifo_pop(slot);
+      PQclear(res);
+      if (w) luke_pg__shard_enqueue_front(sh, w);
       continue;
     }
     LukePgWaiter *w = luke_pg__fifo_pop(slot);
@@ -577,6 +741,7 @@ static inline void luke_pg__on_readable(LukePgSlot *slot) {
       if (z) z[0] = '\0';
       luke_pg__waiter_signal(w, 1, z);
     } else {
+      /* Fail only this waiter; pipeline stays aborted until sync. */
       PQclear(res);
       luke_pg__waiter_signal(w, 0, NULL);
     }
@@ -588,12 +753,14 @@ static inline void luke_pg__on_readable(LukePgSlot *slot) {
   }
 }
 
-static inline int luke_pg__reconnect_slot(LukePgExecutor *ex, LukePgSlot *slot) {
+static inline int luke_pg__reconnect_slot(LukePgShard *sh, LukePgSlot *slot) {
   if (slot->conn) {
+    luke_pg__slot_fail_all(slot, "reconnect");
     PQfinish(slot->conn);
     slot->conn = NULL;
   }
-  slot->conn = PQconnectdb(ex->conninfo);
+  luke_pg__slot_stmt_clear(slot);
+  slot->conn = PQconnectdb(sh->conninfo);
   if (!slot->conn || PQstatus(slot->conn) != CONNECTION_OK) {
     if (slot->conn) {
       PQfinish(slot->conn);
@@ -603,30 +770,42 @@ static inline int luke_pg__reconnect_slot(LukePgExecutor *ex, LukePgSlot *slot) 
   }
   PQsetnonblocking(slot->conn, 1);
   slot->fd = PQsocket(slot->conn);
+  slot->in_pipeline = 0;
+  slot->expecting_sync = 0;
   return slot->fd >= 0;
 }
 
+static inline void luke_pg__wake(LukePgShard *sh) {
+#if defined(__linux__)
+  uint64_t one = 1;
+  (void)write(sh->wake_wr, &one, sizeof(one));
+#else
+  char x = 1;
+  (void)write(sh->wake_wr, &x, 1);
+#endif
+}
+
 static inline void *luke_pg__io_thread(void *arg) {
-  LukePgExecutor *ex = (LukePgExecutor *)arg;
+  LukePgShard *sh = (LukePgShard *)arg;
 #if defined(__linux__)
   struct epoll_event evs[64];
-  for (int i = 0; i < ex->nslots; ++i) {
-    if (ex->slots[i].fd < 0) continue;
+  for (int i = 0; i < sh->nslots; ++i) {
+    if (sh->slots[i].fd < 0) continue;
     struct epoll_event ev;
     memset(&ev, 0, sizeof(ev));
     ev.events = EPOLLIN;
     ev.data.u32 = (uint32_t)i;
-    epoll_ctl(ex->epfd, EPOLL_CTL_ADD, ex->slots[i].fd, &ev);
+    epoll_ctl(sh->epfd, EPOLL_CTL_ADD, sh->slots[i].fd, &ev);
   }
   {
     struct epoll_event ev;
     memset(&ev, 0, sizeof(ev));
     ev.events = EPOLLIN;
     ev.data.u32 = 0xffffffffu;
-    epoll_ctl(ex->epfd, EPOLL_CTL_ADD, ex->wake_fd, &ev);
+    epoll_ctl(sh->epfd, EPOLL_CTL_ADD, sh->wake_fd, &ev);
   }
-  while (!ex->stop) {
-    int n = epoll_wait(ex->epfd, evs, 64, 200);
+  while (!sh->stop) {
+    int n = epoll_wait(sh->epfd, evs, 64, 200);
     if (n < 0) {
       if (errno == EINTR) continue;
       break;
@@ -635,41 +814,40 @@ static inline void *luke_pg__io_thread(void *arg) {
     for (int i = 0; i < n; ++i) {
       if (evs[i].data.u32 == 0xffffffffu) {
         uint64_t x;
-        (void)read(ex->wake_fd, &x, sizeof(x));
+        (void)read(sh->wake_fd, &x, sizeof(x));
         woke = 1;
       } else {
         unsigned idx = evs[i].data.u32;
-        if (idx < (unsigned)ex->nslots) luke_pg__on_readable(&ex->slots[idx]);
+        if (idx < (unsigned)sh->nslots) luke_pg__on_readable(sh, &sh->slots[idx]);
       }
     }
-    if (woke || n == 0) luke_pg__dispatch(ex);
-    /* Re-arm reconnected sockets. */
-    for (int i = 0; i < ex->nslots; ++i) {
-      if (!ex->slots[i].conn && !ex->stop) {
-        if (luke_pg__reconnect_slot(ex, &ex->slots[i])) {
+    if (woke || n == 0) luke_pg__dispatch(sh);
+    for (int i = 0; i < sh->nslots; ++i) {
+      if (!sh->slots[i].conn && !sh->stop) {
+        if (luke_pg__reconnect_slot(sh, &sh->slots[i])) {
           struct epoll_event ev;
           memset(&ev, 0, sizeof(ev));
           ev.events = EPOLLIN;
           ev.data.u32 = (uint32_t)i;
-          epoll_ctl(ex->epfd, EPOLL_CTL_ADD, ex->slots[i].fd, &ev);
+          epoll_ctl(sh->epfd, EPOLL_CTL_ADD, sh->slots[i].fd, &ev);
         }
       }
     }
   }
 #else
-  while (!ex->stop) {
-    luke_pg__dispatch(ex);
+  while (!sh->stop) {
+    luke_pg__dispatch(sh);
     struct pollfd pfds[66];
     int np = 0;
-    pfds[np].fd = ex->wake_fd;
+    pfds[np].fd = sh->wake_fd;
     pfds[np].events = POLLIN;
     pfds[np].revents = 0;
     int wake_i = np++;
     int map[64];
-    for (int i = 0; i < ex->nslots; ++i) {
-      if (!ex->slots[i].conn || ex->slots[i].fd < 0) continue;
+    for (int i = 0; i < sh->nslots; ++i) {
+      if (!sh->slots[i].conn || sh->slots[i].fd < 0) continue;
       map[np] = i;
-      pfds[np].fd = ex->slots[i].fd;
+      pfds[np].fd = sh->slots[i].fd;
       pfds[np].events = POLLIN;
       pfds[np].revents = 0;
       np++;
@@ -681,109 +859,131 @@ static inline void *luke_pg__io_thread(void *arg) {
     }
     if (pfds[wake_i].revents & POLLIN) {
       char buf[64];
-      (void)read(ex->wake_fd, buf, sizeof(buf));
+      (void)read(sh->wake_fd, buf, sizeof(buf));
     }
     for (int i = 1; i < np; ++i) {
       if (pfds[i].revents & (POLLIN | POLLERR | POLLHUP))
-        luke_pg__on_readable(&ex->slots[map[i]]);
+        luke_pg__on_readable(sh, &sh->slots[map[i]]);
     }
   }
 #endif
   return NULL;
 }
 
-static inline void luke_pg__wake(LukePgExecutor *ex) {
+static inline int luke_pg__shard_start(LukePgShard *sh, const char *conninfo, int nslots) {
+  memset(sh, 0, sizeof(*sh));
+  sh->conninfo = (char *)conninfo;
+  sh->nslots = nslots;
+  sh->slots = (LukePgSlot *)calloc((size_t)nslots, sizeof(LukePgSlot));
+  if (!sh->slots) return 0;
+  for (int i = 0; i < nslots; ++i) sh->slots[i].fd = -1;
+  pthread_mutex_init(&sh->qmu, NULL);
 #if defined(__linux__)
-  uint64_t one = 1;
-  (void)write(ex->wake_wr, &one, sizeof(one));
+  sh->epfd = epoll_create1(EPOLL_CLOEXEC);
+  sh->wake_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+  sh->wake_wr = sh->wake_fd;
+  if (sh->epfd < 0 || sh->wake_fd < 0) return 0;
 #else
-  char x = 1;
-  (void)write(ex->wake_wr, &x, 1);
-#endif
-}
-
-static inline LukePgExecutor *luke_pg__executor_get(const char *conninfo) {
-  pthread_mutex_lock(&luke_pg__exec_mu);
-  for (LukePgExecutor *e = luke_pg__executors; e; e = e->next) {
-    if (e->conninfo && strcmp(e->conninfo, conninfo) == 0) {
-      pthread_mutex_unlock(&luke_pg__exec_mu);
-      return e;
-    }
-  }
-  LukePgExecutor *ex = (LukePgExecutor *)calloc(1, sizeof(LukePgExecutor));
-  if (!ex) {
-    pthread_mutex_unlock(&luke_pg__exec_mu);
-    return NULL;
-  }
-  ex->conninfo = strdup(conninfo);
-  ex->nslots = luke_pg__nconns();
-  ex->slots = (LukePgSlot *)calloc((size_t)ex->nslots, sizeof(LukePgSlot));
-  pthread_mutex_init(&ex->qmu, NULL);
-#if defined(__linux__)
-  ex->epfd = epoll_create1(EPOLL_CLOEXEC);
-  ex->wake_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-  ex->wake_wr = ex->wake_fd;
-#else
-  ex->epfd = -1;
+  sh->epfd = -1;
   int pfd[2];
-  if (pipe(pfd) != 0) {
-    free(ex->slots);
-    free(ex->conninfo);
-    free(ex);
-    pthread_mutex_unlock(&luke_pg__exec_mu);
-    return NULL;
-  }
-  ex->wake_fd = pfd[0];
-  ex->wake_wr = pfd[1];
-  fcntl(ex->wake_fd, F_SETFL, O_NONBLOCK);
+  if (pipe(pfd) != 0) return 0;
+  sh->wake_fd = pfd[0];
+  sh->wake_wr = pfd[1];
+  fcntl(sh->wake_fd, F_SETFL, O_NONBLOCK);
 #endif
   int ok_any = 0;
-  for (int i = 0; i < ex->nslots; ++i) {
-    if (luke_pg__reconnect_slot(ex, &ex->slots[i])) ok_any = 1;
+  for (int i = 0; i < nslots; ++i) {
+    if (luke_pg__reconnect_slot(sh, &sh->slots[i])) ok_any = 1;
   }
-  if (!ok_any) {
-    for (int i = 0; i < ex->nslots; ++i)
-      if (ex->slots[i].conn) PQfinish(ex->slots[i].conn);
-    free(ex->slots);
-    free(ex->conninfo);
-    if (ex->wake_fd >= 0) close(ex->wake_fd);
-#if !defined(__linux__)
-    if (ex->wake_wr >= 0 && ex->wake_wr != ex->wake_fd) close(ex->wake_wr);
-#endif
-    if (ex->epfd >= 0) close(ex->epfd);
-    free(ex);
-    pthread_mutex_unlock(&luke_pg__exec_mu);
-    return NULL;
-  }
-  if (pthread_create(&ex->thr, NULL, luke_pg__io_thread, ex) != 0) {
-    for (int i = 0; i < ex->nslots; ++i)
-      if (ex->slots[i].conn) PQfinish(ex->slots[i].conn);
-    free(ex->slots);
-    free(ex->conninfo);
-    free(ex);
-    pthread_mutex_unlock(&luke_pg__exec_mu);
-    return NULL;
-  }
-  ex->started = 1;
-  ex->next = luke_pg__executors;
-  luke_pg__executors = ex;
-  pthread_mutex_unlock(&luke_pg__exec_mu);
-  return ex;
+  if (!ok_any) return 0;
+  if (pthread_create(&sh->thr, NULL, luke_pg__io_thread, sh) != 0) return 0;
+  sh->started = 1;
+  return 1;
 }
 
-static inline int luke_pg__submit(LukePgExecutor *ex, LukePgWaiter *w) {
-  pthread_mutex_lock(&ex->qmu);
-  if (ex->q_len >= LUKE_PG_QUEUE) {
-    pthread_mutex_unlock(&ex->qmu);
+static inline void luke_pg__shard_fail_cleanup(LukePgShard *sh) {
+  if (!sh->slots) return;
+  for (int i = 0; i < sh->nslots; ++i) {
+    luke_pg__slot_stmt_clear(&sh->slots[i]);
+    if (sh->slots[i].conn) PQfinish(sh->slots[i].conn);
+  }
+  free(sh->slots);
+  sh->slots = NULL;
+  if (sh->wake_fd >= 0) close(sh->wake_fd);
+#if !defined(__linux__)
+  if (sh->wake_wr >= 0 && sh->wake_wr != sh->wake_fd) close(sh->wake_wr);
+#endif
+  if (sh->epfd >= 0) close(sh->epfd);
+  pthread_mutex_destroy(&sh->qmu);
+}
+
+static inline LukePgPool *luke_pg__pool_get(const char *conninfo) {
+  pthread_mutex_lock(&luke_pg__pool_mu);
+  for (LukePgPool *p = luke_pg__pools; p; p = p->next) {
+    if (p->conninfo && strcmp(p->conninfo, conninfo) == 0) {
+      pthread_mutex_unlock(&luke_pg__pool_mu);
+      return p;
+    }
+  }
+  int nshards = luke_pg__nshards();
+  int total = luke_pg__nconns();
+  if (nshards > total) nshards = total;
+  LukePgPool *pool = (LukePgPool *)calloc(1, sizeof(LukePgPool));
+  if (!pool) {
+    pthread_mutex_unlock(&luke_pg__pool_mu);
+    return NULL;
+  }
+  pool->conninfo = strdup(conninfo);
+  pool->nshards = nshards;
+  pool->shards = (LukePgShard *)calloc((size_t)nshards, sizeof(LukePgShard));
+  if (!pool->conninfo || !pool->shards) {
+    free(pool->conninfo);
+    free(pool->shards);
+    free(pool);
+    pthread_mutex_unlock(&luke_pg__pool_mu);
+    return NULL;
+  }
+  int base = total / nshards;
+  int rem = total % nshards;
+  for (int i = 0; i < nshards; ++i) {
+    int n = base + (i < rem ? 1 : 0);
+    if (n < 1) n = 1;
+    if (!luke_pg__shard_start(&pool->shards[i], pool->conninfo, n)) {
+      for (int j = 0; j < i; ++j) {
+        pool->shards[j].stop = 1;
+        luke_pg__wake(&pool->shards[j]);
+        if (pool->shards[j].started) pthread_join(pool->shards[j].thr, NULL);
+        luke_pg__shard_fail_cleanup(&pool->shards[j]);
+      }
+      luke_pg__shard_fail_cleanup(&pool->shards[i]);
+      free(pool->shards);
+      free(pool->conninfo);
+      free(pool);
+      pthread_mutex_unlock(&luke_pg__pool_mu);
+      return NULL;
+    }
+  }
+  pool->next = luke_pg__pools;
+  luke_pg__pools = pool;
+  pthread_mutex_unlock(&luke_pg__pool_mu);
+  return pool;
+}
+
+static inline int luke_pg__submit(LukePgShard *sh, LukePgWaiter *w) {
+  pthread_mutex_lock(&sh->qmu);
+  if (sh->q_len >= LUKE_PG_QUEUE) {
+    pthread_mutex_unlock(&sh->qmu);
     return 0;
   }
+  int was_empty = (sh->q_len == 0);
   w->q_next = NULL;
-  if (ex->q_tail) ex->q_tail->q_next = w;
-  else ex->q_head = w;
-  ex->q_tail = w;
-  ex->q_len++;
-  pthread_mutex_unlock(&ex->qmu);
-  luke_pg__wake(ex);
+  if (sh->q_tail) sh->q_tail->q_next = w;
+  else sh->q_head = w;
+  sh->q_tail = w;
+  sh->q_len++;
+  pthread_mutex_unlock(&sh->qmu);
+  /* Wake only on 0→non-empty edge — burst costs one wakeup. */
+  if (was_empty) luke_pg__wake(sh);
   pthread_mutex_lock(&w->mu);
   while (!w->done) pthread_cond_wait(&w->cv, &w->mu);
   int ok = w->ok;
@@ -791,10 +991,16 @@ static inline int luke_pg__submit(LukePgExecutor *ex, LukePgWaiter *w) {
   return ok;
 }
 
+static inline LukePgShard *luke_pg__pick_shard(LukePg *pg) {
+  LukePgPool *pool = luke_pg__pool_get(pg->conninfo);
+  if (!pool || pool->nshards < 1) return NULL;
+  return &pool->shards[luke_pg__worker_shard(pool->nshards)];
+}
+
 static inline LukeText luke_pg__async_query(LukeArena *a, LukePg *pg, LukeText sql, LukeList *params,
                                             int want_rows) {
-  LukePgExecutor *ex = luke_pg__executor_get(pg->conninfo);
-  if (!ex) return luke_text("");
+  LukePgShard *sh = luke_pg__pick_shard(pg);
+  if (!sh) return luke_text("");
   LukePgWaiter *w = (LukePgWaiter *)calloc(1, sizeof(LukePgWaiter));
   if (!w) return luke_text("");
   pthread_mutex_init(&w->mu, NULL);
@@ -809,7 +1015,7 @@ static inline LukeText luke_pg__async_query(LukeArena *a, LukePg *pg, LukeText s
   w->sql_len = sql.len;
   w->params = luke_pg__dup_params(params, &w->nparams, &w->param_lens);
   w->want_rows = want_rows;
-  if (!luke_pg__submit(ex, w)) {
+  if (!luke_pg__submit(sh, w)) {
     luke_pg__waiter_free(w);
     return luke_text("");
   }
@@ -825,8 +1031,8 @@ static inline LukeText luke_pg__async_query(LukeArena *a, LukePg *pg, LukeText s
 }
 
 static inline int luke_pg__async_exec(LukePg *pg, LukeText sql, LukeList *params) {
-  LukePgExecutor *ex = luke_pg__executor_get(pg->conninfo);
-  if (!ex) return 0;
+  LukePgShard *sh = luke_pg__pick_shard(pg);
+  if (!sh) return 0;
   LukePgWaiter *w = (LukePgWaiter *)calloc(1, sizeof(LukePgWaiter));
   if (!w) return 0;
   pthread_mutex_init(&w->mu, NULL);
@@ -841,7 +1047,7 @@ static inline int luke_pg__async_exec(LukePg *pg, LukeText sql, LukeList *params
   w->sql_len = sql.len;
   w->params = luke_pg__dup_params(params, &w->nparams, &w->param_lens);
   w->want_rows = 0;
-  int ok = luke_pg__submit(ex, w);
+  int ok = luke_pg__submit(sh, w);
   int rc = ok && w->ok;
   luke_pg__waiter_free(w);
   return rc;
@@ -883,8 +1089,7 @@ static inline LukePg *luke_pg_open(LukeArena *a, LukeText conninfo) {
       return NULL;
     }
   } else {
-    /* Ensure executor can connect (fail open early). */
-    if (!luke_pg__executor_get(ci)) {
+    if (!luke_pg__pool_get(ci)) {
       luke_pg__destroy(pg);
       return NULL;
     }
@@ -917,8 +1122,39 @@ static inline int luke_pg_close(LukePg *pg) {
   return 1;
 }
 
+/* Pin a dedicated connection for BEGIN…COMMIT — never drafted into a shared pipeline. */
+static inline int luke_pg_checkout(LukePg *pg) {
+  if (!pg) return 0;
+  if (pg->pinned) return 1;
+  pg->pinned = PQconnectdb(pg->conninfo);
+  if (!pg->pinned || PQstatus(pg->pinned) != CONNECTION_OK) {
+    if (pg->pinned) {
+      PQfinish(pg->pinned);
+      pg->pinned = NULL;
+    }
+    return 0;
+  }
+  luke_pg__stmt_clear(pg);
+  return 1;
+}
+
+static inline int luke_pg_checkin(LukePg *pg) {
+  if (!pg) return 0;
+  if (!pg->pinned) return 1;
+  luke_pg__stmt_clear(pg);
+  PQfinish(pg->pinned);
+  pg->pinned = NULL;
+  return 1;
+}
+
 static inline int luke_pg_exec_bind(LukePg *pg, LukeText sql, LukeList *params) {
   if (!pg) return 0;
+  if (pg->pinned) {
+    PGresult *res = luke_pg__exec_params(pg, sql.ptr ? sql.ptr : "", sql.len, params);
+    int ok = luke_pg__result_ok(res);
+    if (res) PQclear(res);
+    return ok;
+  }
   if (luke_pg__async_enabled() || !pg->blocking) return luke_pg__async_exec(pg, sql, params);
   PGresult *res = luke_pg__exec_params(pg, sql.ptr ? sql.ptr : "", sql.len, params);
   int ok = luke_pg__result_ok(res);
@@ -928,40 +1164,42 @@ static inline int luke_pg_exec_bind(LukePg *pg, LukeText sql, LukeList *params) 
 
 static inline LukeText luke_pg_query_bind(LukeArena *a, LukePg *pg, LukeText sql, LukeList *params) {
   if (!pg) return luke_text("");
-  if (luke_pg__async_enabled() || !pg->blocking)
-    return luke_pg__async_query(a, pg, sql, params, 0);
-  PGresult *res = luke_pg__exec_params(pg, sql.ptr ? sql.ptr : "", sql.len, params);
-  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
-    if (res) PQclear(res);
-    return luke_text("");
+  if (pg->pinned || (!luke_pg__async_enabled() && pg->blocking)) {
+    PGresult *res = luke_pg__exec_params(pg, sql.ptr ? sql.ptr : "", sql.len, params);
+    if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+      if (res) PQclear(res);
+      return luke_text("");
+    }
+    char *cell = luke_pg__cell0(res, 0);
+    PQclear(res);
+    if (!cell) return luke_text("");
+    size_t n = strlen(cell);
+    char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+    memcpy(p, cell, n + 1);
+    free(cell);
+    return luke_text_n(p, n);
   }
-  char *cell = luke_pg__cell0(res, 0);
-  PQclear(res);
-  if (!cell) return luke_text("");
-  size_t n = strlen(cell);
-  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
-  memcpy(p, cell, n + 1);
-  free(cell);
-  return luke_text_n(p, n);
+  return luke_pg__async_query(a, pg, sql, params, 0);
 }
 
 static inline LukeText luke_pg_rows_bind(LukeArena *a, LukePg *pg, LukeText sql, LukeList *params) {
   if (!pg) return luke_text("");
-  if (luke_pg__async_enabled() || !pg->blocking)
-    return luke_pg__async_query(a, pg, sql, params, 1);
-  PGresult *res = luke_pg__exec_params(pg, sql.ptr ? sql.ptr : "", sql.len, params);
-  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
-    if (res) PQclear(res);
-    return luke_text("");
+  if (pg->pinned || (!luke_pg__async_enabled() && pg->blocking)) {
+    PGresult *res = luke_pg__exec_params(pg, sql.ptr ? sql.ptr : "", sql.len, params);
+    if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+      if (res) PQclear(res);
+      return luke_text("");
+    }
+    char *rows = luke_pg__all_col0(res);
+    PQclear(res);
+    if (!rows) return luke_text("");
+    size_t n = strlen(rows);
+    char *p = (char *)luke_arena_alloc(a, n + 1, 1);
+    memcpy(p, rows, n + 1);
+    free(rows);
+    return luke_text_n(p, n);
   }
-  char *rows = luke_pg__all_col0(res);
-  PQclear(res);
-  if (!rows) return luke_text("");
-  size_t n = strlen(rows);
-  char *p = (char *)luke_arena_alloc(a, n + 1, 1);
-  memcpy(p, rows, n + 1);
-  free(rows);
-  return luke_text_n(p, n);
+  return luke_pg__async_query(a, pg, sql, params, 1);
 }
 
 #endif /* !__wasi__ */

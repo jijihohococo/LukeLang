@@ -512,6 +512,24 @@ test-build: build/luke
 	  wait $$(cat /tmp/luke_db_bench.pid); \
 	  grep -q "http_db_bench_done=1" /tmp/luke_db_bench.log; \
 	  fuser -k 8810/tcp 2>/dev/null || true
+	@set -e; \
+	  if command -v pg_isready >/dev/null 2>&1 && pg_isready -h 127.0.0.1 -p 5432 -q; then \
+	    ./build/luke BUILD ../examples/build/pg_api.luke -o build/pg_api; \
+	    grep -q 'luke_pg_open\|PQenterPipelineMode\|luke_pg__async' runtime/luke_pg.h; \
+	    grep -q 'push_back("pq")\|"pq"' src/build_c.cpp; \
+	    fuser -k 8811/tcp 2>/dev/null || true; \
+	    rm -f /tmp/luke_pg_api.pid /tmp/luke_pg_api.log /tmp/luke_pg_bench_out.txt; \
+	    ./build/pg_api > /tmp/luke_pg_api.log 2>&1 & echo $$! > /tmp/luke_pg_api.pid; \
+	    sleep 0.6; \
+	    python3 ../scripts/luke_pg_bench_probe.py; \
+	    grep -q pg_bench_ok /tmp/luke_pg_bench_out.txt; \
+	    kill -TERM $$(cat /tmp/luke_pg_api.pid); \
+	    wait $$(cat /tmp/luke_pg_api.pid); \
+	    grep -q "pg_api_done=1" /tmp/luke_pg_api.log; \
+	    fuser -k 8811/tcp 2>/dev/null || true; \
+	  else \
+	    echo "skip pg_api — Postgres not ready (install libpq-dev + postgresql)"; \
+	  fi
 	./build/luke BUILD ../examples/build/live_graph_server.luke -o build/live_graph_server
 	./build/luke BUILD ../examples/build/live_graph_client.luke -target browser -o build/live_graph_client
 	./build/luke BUILD ../examples/build/live_graph_updater.luke -o build/live_graph_updater

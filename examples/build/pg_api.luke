@@ -1,0 +1,58 @@
+// Postgres API beachhead — pgOpen / pgQueryBind / pgExecBind (libpq).
+// Build: luke BUILD examples/build/pg_api.luke -o build/pg_api
+// Requires: Postgres on 127.0.0.1 (user/db/password luke).
+
+IMPORT std/server
+IMPORT std/pg
+
+MY NAME IS setup SET TO ASK pgOpen WITH "host=127.0.0.1 port=5432 dbname=luke user=luke password=luke"
+MY NAME IS none AS LIST
+ASK pgExecBind WITH setup, "DROP TABLE IF EXISTS users", none
+ASK pgExecBind WITH setup, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)", none
+MY NAME IS s1 AS LIST
+ADD "1" TO s1
+ADD "Ada" TO s1
+ASK pgExecBind WITH setup, "INSERT INTO users(id, name) VALUES($1, $2)", s1
+MY NAME IS s2 AS LIST
+ADD "2" TO s2
+ADD "Bo" TO s2
+ASK pgExecBind WITH setup, "INSERT INTO users(id, name) VALUES($1, $2)", s2
+MY NAME IS s3 AS LIST
+ADD "3" TO s3
+ADD "Cy" TO s3
+ASK pgExecBind WITH setup, "INSERT INTO users(id, name) VALUES($1, $2)", s3
+ASK pgClose WITH setup
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  MY NAME IS pg SET TO ASK pgOpen WITH "host=127.0.0.1 port=5432 dbname=luke user=luke password=luke"
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS params AS MAP
+  MY NAME IS answered AS FLAG SET TO FALSE
+
+  IF ASK httpMatch WITH path, "/user/:id", params DO
+    MY NAME IS id SET TO GET "id" FROM params
+    MY NAME IS binds AS LIST
+    ADD id TO binds
+    MY NAME IS name SET TO ASK pgQueryBind WITH pg, "SELECT name FROM users WHERE id = $1", binds
+    ASK httpReply WITH req, 200, "text/plain", name
+    SET answered TO TRUE
+  END IF
+
+  IF NOT answered DO
+    IF path EQUALS "/ok" DO
+      ASK httpReply WITH req, 200, "text/plain", "ok"
+      SET answered TO TRUE
+    END IF
+  END IF
+
+  IF NOT answered DO
+    ASK httpReply WITH req, 404, "text/plain", "missing"
+  END IF
+
+  ASK pgClose WITH pg
+END FUNCTION
+
+SPEAK "pg_api :8811"
+MY NAME IS server SET TO ASK httpListen WITH 8811
+ASK httpServe WITH server, handle, 0
+SPEAK "pg_api_done=1"

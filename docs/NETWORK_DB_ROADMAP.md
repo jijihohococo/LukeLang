@@ -1,15 +1,11 @@
 # LukeLang Networked Database Driver — Implementation Spec
 
-> Status: **Phase 1 shipped (default). Slipstream (Phase 2 rewrite) behind `LUKE_PG_ASYNC=1`.**
-> Blocking libpq driver with TLS pool + stmt cache is the honest default (beats Go on
-> localhost). Slipstream shards across cores, drops the global submit mutex, and drafts
-> into pipelines only when queue depth ≥ `LUKE_PG_DRAFT_MIN` — so it ties blocking when
-> there is nothing to amortize and pulls ahead under real RTT. Flip to default only after
-> localhost parity + injected-latency acceptance (`scripts/luke_pg_slipstream_cmp.py`).
+> Status: **shipped. Slipstream is the default.** Blocking libpq TLS pool remains the
+> escape hatch (`LUKE_PG_ASYNC=0`). Official numbers vs Go: [`BACKEND_BENCHMARKS.md`](./BACKEND_BENCHMARKS.md)
+> — equal-budget Slipstream beats idiomatic pgx on localhost and ~2.6–3.3× under ~2 ms RTT.
 >
-> Escape hatches / knobs: `LUKE_PG_ASYNC=1` (Slipstream), `LUKE_PG_POOL=0`,
-> `LUKE_PG_CONNS`, `LUKE_PG_SHARDS`, `LUKE_PG_PIPELINE_DEPTH`, `LUKE_PG_DRAFT_MIN`.
-> Transaction pin: `pgCheckout` / `pgCheckin`.
+> Knobs: `LUKE_PG_ASYNC=0` (blocking), `LUKE_PG_POOL=0`, `LUKE_PG_CONNS`, `LUKE_PG_SHARDS`,
+> `LUKE_PG_PIPELINE_DEPTH`, `LUKE_PG_DRAFT_MIN`. Transaction pin: `pgCheckout` / `pgCheckin`.
 
 ## 0. Why this exists
 
@@ -161,11 +157,12 @@ Reuse the existing Go-vs-Luke harness, pointed at a real Postgres:
 - **Baselines:** Go `database/sql` (idiomatic) **and** pgx-with-pipeline (Go's best) — beat
   the first, be competitive with the second.
 - **Load:** the random-id generator already built, at concurrency 50 / 200 / 500.
-- **Localhost gate:** Slipstream ≥ blocking at 50/200/500 (count==1 fast path).
-- **Latency gate (required before default):** under `tc … netem delay 2ms` (or remote PG),
-  Slipstream beats blocking and beats Go pgx — `scripts/luke_pg_slipstream_cmp.py --latency-ms 2`.
+- **Localhost gate:** Slipstream ≥ blocking at equal connection budget (passed).
+- **Latency gate:** ~2 ms RTT (TCP delay proxy / `tc … netem`) — Slipstream 2.6–3.3× blocking
+  and idiomatic pgx at equal 16-conn budget (passed; see `BACKEND_BENCHMARKS.md` §7).
 - **Correctness gate:** concurrent distinct-id probe, 0 mismatches, under Slipstream at every
   concurrency level CI runs.
+- **Default:** Slipstream. Re-confirm on real hardware RTT before treating latency multiples as final.
 
 ## 6. Honest ceiling (state this alongside any result)
 

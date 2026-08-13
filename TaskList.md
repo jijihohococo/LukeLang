@@ -14,7 +14,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 | Request parsing — query map, JSON body→value, form, headers, cookies | ✅ | query/header/cookie/JSON + `FORM` → `form_*_error` cells |
 | Auth / session / login | 🟡 | Argon2id + session/CSRF + scoped `WATCH`; SECRET/FLOW/LIMIT/REVEAL — **no invented OAuth/TOTP** |
 | **SQL injection** — parameterized bind for app `dbQuery` / `dbExec` | ✅ | `dbExecBind` / `dbQueryBind`; TLS pool + stmt cache (no open/prepare per request) |
-| Networked Postgres (`std/pg`) | ✅ | libpq + Slipstream (opt-in) — [`docs/NETWORK_DB_ROADMAP.md`](./docs/NETWORK_DB_ROADMAP.md) |
+| Networked Postgres (`std/pg`) | ✅ | Slipstream default; beats Go — [`docs/BACKEND_BENCHMARKS.md`](./docs/BACKEND_BENCHMARKS.md) |
 | `BACKEND_ROADMAP.md` track spine | ✅ | added (this ship) |
 | Auth-as-types (unauthorized = compile error) | 🟡 | `SECRET` + scoped path; `FLOW` totality; `REVEAL` declassify — see [`docs/AUTH.md`](./docs/AUTH.md) |
 | Migrations / schema helpers | ✅ | `SCHEMA`/`ENSURE SCHEMA`; `MIGRATION`/`MIGRATE`/`REWIND` |

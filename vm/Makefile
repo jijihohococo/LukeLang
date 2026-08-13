@@ -520,22 +520,22 @@ test-build: build/luke
 	    grep -q 'luke_pg_checkout\|luke_pg_checkin' src/build_c.cpp; \
 	    fuser -k 8811/tcp 2>/dev/null || true; \
 	    rm -f /tmp/luke_pg_api.pid /tmp/luke_pg_api.log /tmp/luke_pg_bench_out.txt; \
-	    LUKE_PG_ASYNC=0 ./build/pg_api > /tmp/luke_pg_api.log 2>&1 & echo $$! > /tmp/luke_pg_api.pid; \
-	    sleep 0.6; \
-	    python3 ../scripts/luke_pg_bench_probe.py 240; \
-	    grep -q pg_bench_ok /tmp/luke_pg_bench_out.txt; \
-	    kill -TERM $$(cat /tmp/luke_pg_api.pid); \
-	    wait $$(cat /tmp/luke_pg_api.pid); \
-	    grep -q "pg_api_done=1" /tmp/luke_pg_api.log; \
-	    fuser -k 8811/tcp 2>/dev/null || true; \
-	    rm -f /tmp/luke_pg_api.pid /tmp/luke_pg_api.log /tmp/luke_pg_bench_out.txt; \
-	    LUKE_PG_ASYNC=1 ./build/pg_api > /tmp/luke_pg_api.log 2>&1 & echo $$! > /tmp/luke_pg_api.pid; \
+	    ./build/pg_api > /tmp/luke_pg_api.log 2>&1 & echo $$! > /tmp/luke_pg_api.pid; \
 	    sleep 0.7; \
 	    python3 ../scripts/luke_pg_bench_probe.py 50; \
 	    grep -q pg_bench_ok /tmp/luke_pg_bench_out.txt; \
 	    python3 ../scripts/luke_pg_bench_probe.py 200; \
 	    grep -q pg_bench_ok /tmp/luke_pg_bench_out.txt; \
 	    python3 ../scripts/luke_pg_bench_probe.py 300; \
+	    grep -q pg_bench_ok /tmp/luke_pg_bench_out.txt; \
+	    kill -TERM $$(cat /tmp/luke_pg_api.pid); \
+	    wait $$(cat /tmp/luke_pg_api.pid); \
+	    grep -q "pg_api_done=1" /tmp/luke_pg_api.log; \
+	    fuser -k 8811/tcp 2>/dev/null || true; \
+	    rm -f /tmp/luke_pg_api.pid /tmp/luke_pg_api.log /tmp/luke_pg_bench_out.txt; \
+	    LUKE_PG_ASYNC=0 ./build/pg_api > /tmp/luke_pg_api.log 2>&1 & echo $$! > /tmp/luke_pg_api.pid; \
+	    sleep 0.6; \
+	    python3 ../scripts/luke_pg_bench_probe.py 240; \
 	    grep -q pg_bench_ok /tmp/luke_pg_bench_out.txt; \
 	    kill -TERM $$(cat /tmp/luke_pg_api.pid); \
 	    wait $$(cat /tmp/luke_pg_api.pid); \

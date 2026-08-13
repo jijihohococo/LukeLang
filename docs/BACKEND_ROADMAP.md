@@ -20,7 +20,7 @@ Luke apps should declare **routes, binds, and sessions** the same way they decla
 | Gap | Status | Beachhead |
 |-----|--------|-----------|
 | Parameterized SQL (`?` binds) | ✅ | `dbExecBind` / `dbQueryBind` + `LIST` of TEXT; TLS conn pool + stmt cache + WAL |
-| Networked DB (Postgres / libpq) | ✅ | `std/pg` — TLS pool + Slipstream (`LUKE_PG_ASYNC=1`) — [`NETWORK_DB_ROADMAP.md`](./NETWORK_DB_ROADMAP.md) |
+| Networked DB (Postgres / libpq) | ✅ | `std/pg` — Slipstream default — [`NETWORK_DB_ROADMAP.md`](./NETWORK_DB_ROADMAP.md), numbers in [`BACKEND_BENCHMARKS.md`](./BACKEND_BENCHMARKS.md) |
 | Path params + match | ✅ | `httpMatch path, "/user/:id", params` |
 | Method-aware dispatch | ✅ | `SERVE ROUTES ON server WITH n` codegen from `ROUTES` + `HANDLE` |
 | Query string → MAP | ✅ | `httpQueryMap` |

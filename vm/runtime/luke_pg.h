@@ -118,11 +118,12 @@ static inline int luke_pg__pool_enabled(void) {
   return !(e && e[0] == '0');
 }
 
-/* Slipstream is opt-in until localhost parity + real-latency acceptance pass.
- * Honest default remains blocking (beats Go on localhost). */
+/* Slipstream is the default (sharded opportunistic pipeline). Escape hatch:
+ * LUKE_PG_ASYNC=0 → Phase-1 blocking TLS pool. See docs/BACKEND_BENCHMARKS.md. */
 static inline int luke_pg__async_enabled(void) {
   const char *e = getenv("LUKE_PG_ASYNC");
-  return e && e[0] == '1';
+  if (e && e[0] == '0') return 0;
+  return 1;
 }
 
 static inline int luke_pg__nconns(void) {

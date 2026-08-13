@@ -1,8 +1,7 @@
 // IMPORT std/pg — Postgres via libpq (links -lpq on native).
-// Phase 1: TLS connection pool + prepared statements (default).
-// Slipstream: sharded opportunistic pipeline — opt-in LUKE_PG_ASYNC=1 until latency acceptance.
+// Slipstream (default): sharded opportunistic pipeline — LUKE_PG_ASYNC=0 for blocking pool.
 // pgCheckout / pgCheckin pin a connection for BEGIN…COMMIT (never drafted).
-// See docs/NETWORK_DB_ROADMAP.md.
+// See docs/NETWORK_DB_ROADMAP.md and docs/BACKEND_BENCHMARKS.md.
 
 THIS IS FUNCTION pgOpen WITH conninfo AS TEXT GIVES BACK PGCONN DO
   GIVE BACK __luke_pg_open(conninfo)

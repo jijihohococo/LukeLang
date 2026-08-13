@@ -78,6 +78,9 @@ Then `ASK httpClientIp WITH req` uses the first `X-Forwarded-For` hop
 | `LUKE_AUTH_SECURE` | unset | `1` → `Secure` cookies |
 | `LUKE_SSE_ORIGIN` | `*` | `Access-Control-Allow-Origin` for SSE (`PUSH WATCH`) |
 | `LUKE_DB_POOL` | unset | `0` → real `sqlite3_close` (disable TLS pool) |
+| `LUKE_PG_ASYNC` | unset | `0` → blocking TLS pool (no pipeline executor) |
+| `LUKE_PG_CONNS` | 8 | Async executor Postgres connections |
+| `LUKE_PG_POOL` | unset | `0` → real `PQfinish` on pgClose |
 
 ## Graceful shutdown
 

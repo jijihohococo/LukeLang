@@ -16,7 +16,17 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ make python3 libsqlite3-dev libsodium-dev curl ca-certificates
+          sudo apt-get install -y g++ make python3 libsqlite3-dev libsodium-dev libpq-dev \
+            postgresql postgresql-client curl ca-certificates
+
+      - name: Start Postgres
+        run: |
+          set -euo pipefail
+          sudo service postgresql start
+          sudo -u postgres psql -c "CREATE USER luke WITH PASSWORD 'luke' SUPERUSER;" || true
+          sudo -u postgres psql -c "CREATE DATABASE luke OWNER luke;" || true
+          pg_isready -h 127.0.0.1 -p 5432
+          PGPASSWORD=luke psql -h 127.0.0.1 -U luke -d luke -c 'SELECT 1'
 
       - uses: actions/setup-node@v4
         with:

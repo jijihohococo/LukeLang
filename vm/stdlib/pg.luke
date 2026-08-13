@@ -1,0 +1,26 @@
+// IMPORT std/pg — Postgres via libpq (links -lpq on native).
+// Phase 1: TLS connection pool + prepared statements.
+// Phase 2: shared async pipelined executor (default; LUKE_PG_ASYNC=0 for blocking).
+// See docs/NETWORK_DB_ROADMAP.md.
+
+THIS IS FUNCTION pgOpen WITH conninfo AS TEXT GIVES BACK PGCONN DO
+  GIVE BACK __luke_pg_open(conninfo)
+END FUNCTION
+
+THIS IS FUNCTION pgExecBind WITH pg AS PGCONN, sql AS TEXT, params AS LIST GIVES BACK FLAG DO
+  GIVE BACK __luke_pg_exec_bind(pg, sql, params)
+END FUNCTION
+
+// First column of the first row (scalar).
+THIS IS FUNCTION pgQueryBind WITH pg AS PGCONN, sql AS TEXT, params AS LIST GIVES BACK TEXT DO
+  GIVE BACK __luke_pg_query_bind(pg, sql, params)
+END FUNCTION
+
+// First column of every row, joined by newlines (sqlite dbQueryBind shape).
+THIS IS FUNCTION pgRowsBind WITH pg AS PGCONN, sql AS TEXT, params AS LIST GIVES BACK TEXT DO
+  GIVE BACK __luke_pg_rows_bind(pg, sql, params)
+END FUNCTION
+
+THIS IS FUNCTION pgClose WITH pg AS PGCONN GIVES BACK FLAG DO
+  GIVE BACK __luke_pg_close(pg)
+END FUNCTION

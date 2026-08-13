@@ -231,6 +231,7 @@ std::string cTy(const Ty &t) {
       if (t.klass == "__HttpServer") return "LukeHttpServer *";
       if (t.klass == "__HttpReq") return "LukeHttpRequest *";
       if (t.klass == "__Db") return "LukeDb *";
+      if (t.klass == "__Pg") return "LukePg *";
       return cIdent(t.klass) + " *";
     default: return "void";
   }
@@ -248,6 +249,7 @@ std::string tyName(const Ty &t) {
       if (t.klass == "__HttpServer") return "SERVER";
       if (t.klass == "__HttpReq") return "REQUEST";
       if (t.klass == "__Db") return "DATABASE";
+      if (t.klass == "__Pg") return "PGCONN";
       return t.klass.empty() ? "blueprint" : t.klass;
     default: return "nothing";
   }
@@ -593,6 +595,7 @@ struct BC {
     if (U == "SERVER" || U == "HTTPSERVER") return Ty::ptr("__HttpServer");
     if (U == "REQUEST" || U == "HTTPREQ") return Ty::ptr("__HttpReq");
     if (U == "DATABASE" || U == "DB") return Ty::ptr("__Db");
+    if (U == "PGCONN" || U == "PG" || U == "POSTGRES") return Ty::ptr("__Pg");
     if (bps.count(t)) return Ty::ptr(t);
     return Ty::vod();
   }
@@ -796,6 +799,12 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__luke_db_query_bind")
         return mapCall("luke_db_query_bind_text", Ty::text(), true);
       if (callee == "__luke_db_close") return mapCall("luke_db_close", Ty::flag(), false);
+      if (callee == "__luke_pg_open") return mapCall("luke_pg_open", Ty::ptr("__Pg"), true);
+      if (callee == "__luke_pg_exec_bind") return mapCall("luke_pg_exec_bind", Ty::flag(), false);
+      if (callee == "__luke_pg_query_bind")
+        return mapCall("luke_pg_query_bind", Ty::text(), true);
+      if (callee == "__luke_pg_rows_bind") return mapCall("luke_pg_rows_bind", Ty::text(), true);
+      if (callee == "__luke_pg_close") return mapCall("luke_pg_close", Ty::flag(), false);
       if (callee == "__luke_auth_init") return mapCall("luke_auth_init", Ty::flag(), false);
       if (callee == "__luke_auth_create_account")
         return mapCall("luke_auth_create_account", Ty::text(), true);
@@ -880,7 +889,7 @@ Expr BC::primary(std::string e, size_t line) {
       if (callee == "__hanka_layout") return {"(hanka_layout(arena), 1)", Ty::flag()};
       fail(line, "Unknown native helper '" + callee +
                      "' — IMPORT std/files, std/json, std/http, std/server, std/sqlite, "
-                     "std/auth, std/args, std/env, std/paths, std/process, or std/js");
+                     "std/pg, std/auth, std/args, std/env, std/paths, std/process, or std/js");
       return {"0", Ty::num()};
     }
   }
@@ -7730,6 +7739,16 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
             for (auto &e : r.linkLibs)
               if (e == "sqlite3") dup = true;
             if (!dup) r.linkLibs.push_back("sqlite3");
+          }
+          if (mod == "PG") {
+            bool dup = false;
+            for (auto &e : r.linkLibs)
+              if (e == "pq") dup = true;
+            if (!dup) r.linkLibs.push_back("pq");
+            dup = false;
+            for (auto &e : r.linkLibs)
+              if (e == "pthread") dup = true;
+            if (!dup) r.linkLibs.push_back("pthread");
           }
           if (mod == "AUTH") {
             bool dup = false;

@@ -1,6 +1,10 @@
 #ifndef LUKE_RT_H
 #define LUKE_RT_H
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -94,6 +98,23 @@ static inline void luke_arena_free(LukeArena *a) {
   }
   a->block = a->first = NULL;
   a->cap = a->len = 0;
+}
+
+/* Keep the first block; free extras; rewind bump to 0. For request arena pools. */
+static inline void luke_arena_clear(LukeArena *a) {
+  if (!a || !a->first) return;
+  LukeArenaBlock *extra = a->first->next;
+  while (extra) {
+    LukeArenaBlock *n = extra->next;
+    free(extra->data);
+    free(extra);
+    extra = n;
+  }
+  a->first->next = NULL;
+  a->first->len = 0;
+  a->block = a->first;
+  a->len = 0;
+  a->cap = a->first->cap;
 }
 
 /* Checkpoint / restore — IN ARENA scopes (bulk free back to mark).

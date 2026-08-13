@@ -18,7 +18,7 @@ Primitives (HTTP, concurrency, DB, Live Graph) exist; the app framework layer is
 | Auth-as-types (unauthorized = compile error) | 🟡 | `SECRET` + scoped path; `FLOW` totality; `REVEAL` declassify — see [`docs/AUTH.md`](./docs/AUTH.md) |
 | Migrations / schema helpers | ✅ | `SCHEMA`/`ENSURE SCHEMA`; `MIGRATION`/`MIGRATE`/`REWIND` |
 | Declarative backend (routes/form/mw/schema) | ✅ | executable routes + form cells + migrate/rewind — see [`docs/BACKEND_ROADMAP.md`](./docs/BACKEND_ROADMAP.md) |
-| C10K HTTP — event-loop I/O + handler pool | ✅ | epoll/kqueue/poll; workers after full request; chunked; SIGTERM; TLS via proxy — [`docs/DEPLOY.md`](./docs/DEPLOY.md) |
+| C10K HTTP — event-loop I/O + handler pool | ✅ | SO_REUSEPORT multi-loop; arena/job pools; TCP_NODELAY; writev; SIGTERM; TLS via proxy — [`docs/DEPLOY.md`](./docs/DEPLOY.md) |
 
 ---
 

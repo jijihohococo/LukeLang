@@ -37,7 +37,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 #root {
-  overflow: auto !important;
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100vh !important;
   min-height: 100vh;
   background:
     radial-gradient(1200px 640px at 8% -10%, rgba(46,233,195,0.10) 0%, transparent 52%),
@@ -51,6 +53,26 @@ html, body {
     linear-gradient(180deg, #0b0e12 0%, #07090c 40%, #050608 100%);
   background-size: auto, auto, 48px 48px, 48px 48px, auto;
 }
+/* Hanka root frames are absolute px; pin the page shell to the viewport. */
+.shell {
+  left: 0 !important;
+  top: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+.row, .feeds {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+.row { flex: 0 0 auto !important; }
+.feeds {
+  flex: 1 1 auto !important;
+  min-height: 220px !important;
+  height: auto !important;
+}
 .kpi, .panel, .feed-ok, .feed-err {
   background: linear-gradient(180deg, var(--card-hi) 0%, var(--card) 100%);
   border: 1px solid var(--line);
@@ -58,6 +80,14 @@ html, body {
   box-shadow: 0 18px 50px -28px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.04);
   position: relative;
   overflow: hidden;
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+.feed-ok, .feed-err {
+  height: 100% !important;
+  min-height: 0 !important;
 }
 .kpi::after {
   content: "";
@@ -163,9 +193,15 @@ html, body {
   line-height: 1.65;
   overflow: auto;
   color: #c9d6d2;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
 }
 #v_err { color: #ffc2c8; }
 #foot {
+  width: 100% !important;
   font-size: 12px;
   color: var(--dim);
   letter-spacing: 0.02em;
@@ -214,8 +250,8 @@ REMEMBER probe AS ""
 REMEMBER probe_st AS 0
 REMEMBER probe_ready AS 0
 
-BEGIN COLUMN AT 28, 22 SIZE 1224, 676 PAD 0 GAP 16
-  BEGIN ROW AT 0, 0 SIZE AUTO, 48 PAD 0 GAP 12 ALIGN CENTER
+BEGIN COLUMN AT 0, 0 SIZE 1280, 800 PAD 24 GAP 16 WEAR "shell"
+  BEGIN ROW AT 0, 0 SIZE AUTO, 48 PAD 0 GAP 12 ALIGN CENTER WEAR "row"
     SLOT TEXT "mark" SIZE 40, 40 SAY "LL"
     SLOT TEXT "brand" SIZE AUTO, 40 SAY "Exam"
     SLOT TEXT "live" SIZE 92, 28 SAY "LIVE"
@@ -227,43 +263,43 @@ BEGIN COLUMN AT 28, 22 SIZE 1224, 676 PAD 0 GAP 16
     SLOT BUTTON "hit_err" SIZE 94, 32 SAY "HIT /err"
   END ROW
 
-  BEGIN ROW AT 0, 0 SIZE AUTO, 148 PAD 0 GAP 16 STACK BELOW 900
-    BEGIN COLUMN AT 0, 0 SIZE 397, 148 PAD 18 GAP 8 WEAR "kpi"
+  BEGIN ROW AT 0, 0 SIZE AUTO, 148 PAD 0 GAP 16 STACK BELOW 900 WEAR "row"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, 148 PAD 18 GAP 8 WEAR "kpi"
       SLOT TEXT "lbl_rps" SIZE AUTO, 16 SAY "Throughput"
       SLOT TEXT "v_rps" SIZE AUTO, 56 SAY "0" ANNOUNCE
       SLOT TEXT "u_rps" SIZE AUTO, 18 SAY "requests / second"
     END COLUMN
-    BEGIN COLUMN AT 0, 0 SIZE 397, 148 PAD 18 GAP 8 WEAR "kpi"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, 148 PAD 18 GAP 8 WEAR "kpi"
       SLOT TEXT "lbl_total" SIZE AUTO, 16 SAY "Volume"
       SLOT TEXT "v_total" SIZE AUTO, 56 SAY "0" ANNOUNCE
       SLOT TEXT "u_total" SIZE AUTO, 18 SAY "requests logged"
     END COLUMN
-    BEGIN COLUMN AT 0, 0 SIZE 397, 148 PAD 18 GAP 8 WEAR "kpi"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, 148 PAD 18 GAP 8 WEAR "kpi"
       SLOT TEXT "lbl_lat" SIZE AUTO, 16 SAY "Latency"
       SLOT TEXT "v_lat" SIZE AUTO, 56 SAY "—" ANNOUNCE
       SLOT TEXT "u_lat" SIZE AUTO, 18 SAY "p50 · p99 from SQLite"
     END COLUMN
   END ROW
 
-  BEGIN ROW AT 0, 0 SIZE AUTO, 108 PAD 0 GAP 16 STACK BELOW 900
-    BEGIN COLUMN AT 0, 0 SIZE 604, 108 PAD 16 GAP 8 WEAR "panel"
+  BEGIN ROW AT 0, 0 SIZE AUTO, 108 PAD 0 GAP 16 STACK BELOW 900 WEAR "row"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, 108 PAD 16 GAP 8 WEAR "panel"
       SLOT TEXT "lbl_status" SIZE AUTO, 16 SAY "Status mix"
       SLOT TEXT "v_status" SIZE AUTO, 48 SAY "—" ANNOUNCE
     END COLUMN
-    BEGIN COLUMN AT 0, 0 SIZE 604, 108 PAD 16 GAP 8 WEAR "panel"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, 108 PAD 16 GAP 8 WEAR "panel"
       SLOT TEXT "lbl_top" SIZE AUTO, 16 SAY "Hot paths"
       SLOT TEXT "v_top" SIZE AUTO, 48 SAY "—" ANNOUNCE
     END COLUMN
   END ROW
 
-  BEGIN ROW AT 0, 0 SIZE AUTO, 220 PAD 0 GAP 16 STACK BELOW 900
-    BEGIN COLUMN AT 0, 0 SIZE 604, 220 PAD 16 GAP 8 SCROLL WEAR "feed-ok"
+  BEGIN ROW AT 0, 0 SIZE AUTO, AUTO PAD 0 GAP 16 STACK BELOW 900 WEAR "feeds"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, AUTO PAD 16 GAP 8 SCROLL WEAR "feed-ok"
       SLOT TEXT "lbl_ok" SIZE AUTO, 16 SAY "Live 2xx"
-      SLOT TEXT "v_ok" SIZE AUTO, 168 SAY "waiting for traffic…" ANNOUNCE
+      SLOT TEXT "v_ok" SIZE AUTO, AUTO SAY "waiting for traffic…" ANNOUNCE
     END COLUMN
-    BEGIN COLUMN AT 0, 0 SIZE 604, 220 PAD 16 GAP 8 SCROLL WEAR "feed-err"
+    BEGIN COLUMN AT 0, 0 SIZE AUTO, AUTO PAD 16 GAP 8 SCROLL WEAR "feed-err"
       SLOT TEXT "lbl_err" SIZE AUTO, 16 SAY "Live 4xx / 5xx"
-      SLOT TEXT "v_err" SIZE AUTO, 168 SAY "waiting for traffic…" ANNOUNCE
+      SLOT TEXT "v_err" SIZE AUTO, AUTO SAY "waiting for traffic…" ANNOUNCE
     END COLUMN
   END ROW
 

@@ -1,8 +1,16 @@
 /* Exam ops console — class hatch for WEAR (PUBLISH --tailwind optional). */
+.shell {
+  width: 100vw;
+  height: 100vh;
+  box-sizing: border-box;
+}
+.row, .feeds { width: 100%; min-width: 0; }
 .kpi, .panel, .feed-ok, .feed-err {
   background: linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.035) 100%);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
+  flex: 1 1 0;
+  min-width: 0;
 }
 .feed-ok { box-shadow: inset 3px 0 0 #2ee9c3; }
 .feed-err { box-shadow: inset 3px 0 0 #ff6b7a; }

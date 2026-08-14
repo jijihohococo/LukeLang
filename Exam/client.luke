@@ -38,8 +38,8 @@ html, body {
 }
 #root {
   overflow: hidden !important;
-  width: 100vw !important;
-  height: 100vh !important;
+  width: 100% !important;
+  height: 100% !important;
   min-height: 100vh;
   background:
     radial-gradient(1200px 640px at 8% -10%, rgba(46,233,195,0.10) 0%, transparent 52%),
@@ -53,25 +53,33 @@ html, body {
     linear-gradient(180deg, #0b0e12 0%, #07090c 40%, #050608 100%);
   background-size: auto, auto, 48px 48px, 48px 48px, auto;
 }
-/* Hanka root frames are absolute px; pin the page shell to the viewport. */
+html, body, #root { width: 100%; height: 100%; }
+/* Hanka COLUMN defaults to align-items:start, so rows shrink to content
+   and leave a dead strip on the right. Stretch the page shell instead. */
+#root > div,
 .shell {
   left: 0 !important;
   top: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: none !important;
   box-sizing: border-box !important;
+  align-items: stretch !important;
 }
+#root > div > div,
 .row, .feeds {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
 }
 .row { flex: 0 0 auto !important; }
 .feeds {
   flex: 1 1 auto !important;
   min-height: 220px !important;
   height: auto !important;
+  align-items: stretch !important;
 }
 .kpi, .panel, .feed-ok, .feed-err {
   background: linear-gradient(180deg, var(--card-hi) 0%, var(--card) 100%);

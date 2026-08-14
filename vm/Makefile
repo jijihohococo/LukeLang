@@ -86,7 +86,7 @@ test-build: build/luke
 	@test $$(wc -l < /tmp/luke_numbers.txt) -eq 20
 	@test "$$(head -n1 /tmp/luke_numbers.txt)" = "1"
 	@test "$$(tail -n1 /tmp/luke_numbers.txt)" = "20"
-	@# Cell-graph face: SPEAK EACH EVEN NUMBER FROM — compiler filters
+	@# Cell-graph face: SPEAK EACH n FROM … WHERE n IS DIVISIBLE BY 2
 	./build/luke BUILD ../examples/build/even_numbers.luke -o build/ex_even_numbers
 	./build/ex_even_numbers | tee /tmp/luke_even_numbers.txt
 	@test $$(wc -l < /tmp/luke_even_numbers.txt) -eq 10

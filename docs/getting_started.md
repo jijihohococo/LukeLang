@@ -57,17 +57,17 @@ From `vm/`:
 
 You should see twenty lines, `1` then `2` … then `20`.
 
-Even numbers from the same range — still no `WHILE`. The compiler filters:
+Even numbers from the same range — still no `WHILE`. Name the item, filter with `WHERE`. `EVEN` is not a keyword; `IS DIVISIBLE BY` is the same kind of comparison as `EQUALS`:
 
 ```luke
-SPEAK EACH EVEN NUMBER FROM 1 TO 20
+SPEAK EACH n FROM 1 TO 20 WHERE n IS DIVISIBLE BY 2
 ```
 
 ```bash
 ./build/luke BUILD ../examples/build/even_numbers.luke -o even && ./even
 ```
 
-Ten lines: `2` `4` … `20`. `THE EVEN NUMBERS FROM 1 TO 20` is the list form; `SPEAK EACH OF` prints it.
+Ten lines: `2` `4` … `20`. Change `2` to `3` for multiples of 3 — no new syntax.
 
 A reactive screen names cells and reactions the same way:
 

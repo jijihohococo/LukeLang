@@ -35,7 +35,15 @@ WATCH user FROM db WHERE "id = 1"
 BIND "name" TO user
 ```
 
-Lists: `THE NUMBERS FROM lo TO hi` is an expression; `SPEAK EACH OF list` prints each item. `SPEAK list` still prints length. Filters stay on the face: `SPEAK EACH EVEN NUMBER FROM 1 TO 20` (and `THE EVEN NUMBERS FROM` / `ODD`). Recipes stay in the compiler for servers, algorithms, and stdlib — they are not the face.
+Lists: `THE NUMBERS FROM lo TO hi` is an expression; `SPEAK EACH OF list` prints each item. `SPEAK list` still prints length.
+
+The core is **closed**. A new homework does not add a new keyword. `EVEN` / `ODD` / `PRIME` are not words in the language. Learners compose `EACH` + `WHERE` + comparison operators they already have:
+
+```luke
+SPEAK EACH n FROM 1 TO 20 WHERE n IS DIVISIBLE BY 2
+```
+
+Multiples of 3 is the same sentence with `3`. Recipes stay in the compiler for servers, algorithms, and stdlib — they are not the face.
 
 ---
 

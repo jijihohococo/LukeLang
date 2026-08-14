@@ -321,27 +321,10 @@ static inline void luke_list_set(LukeList *l, double index, LukeText v) {
 
 static inline double luke_list_len(LukeList *l) { return l ? (double)l->len : 0; }
 
-/* Cell-graph face: the language iterates; user code does not write WHILE.
- * parity: 0 = all, 1 = odd, 2 = even */
-static inline int luke_near_even(double x) {
-  long long n = (long long)(x >= 0 ? x + 0.5 : x - 0.5);
-  return (n % 2) == 0;
-}
-
-static inline int luke_parity_keep(double x, int parity) {
-  if (parity == 0) return 1;
-  int even = luke_near_even(x);
-  return (parity == 2) ? even : !even;
-}
-
-static inline void luke_speak_each_number_parity(double lo, double hi, int parity) {
-  if (hi < lo) return;
-  for (double i = lo; i <= hi + 1e-9; i += 1)
-    if (luke_parity_keep(i, parity)) luke_speak_number(i);
-}
-
+/* Cell-graph face: the language iterates; user code does not write WHILE. */
 static inline void luke_speak_each_number(double lo, double hi) {
-  luke_speak_each_number_parity(lo, hi, 0);
+  if (hi < lo) return;
+  for (double i = lo; i <= hi + 1e-9; i += 1) luke_speak_number(i);
 }
 
 static inline void luke_speak_each_of(LukeList *l) {
@@ -349,25 +332,30 @@ static inline void luke_speak_each_of(LukeList *l) {
   for (double i = 0; i < n; i += 1) luke_speak_text(luke_list_get(l, i));
 }
 
-static inline void luke_list_add_number(LukeArena *a, LukeList *l, double x) {
-  char buf[64];
-  int k = snprintf(buf, sizeof(buf), "%.10g", x);
-  if (k < 0) k = 0;
-  char *p = (char *)luke_arena_alloc(a, (size_t)k + 1, 1);
-  memcpy(p, buf, (size_t)k + 1);
-  luke_list_add(a, l, luke_text_n(p, (size_t)k));
-}
-
-static inline LukeList *luke_numbers_from_to_parity(LukeArena *a, double lo, double hi, int parity) {
+static inline LukeList *luke_numbers_from_to(LukeArena *a, double lo, double hi) {
   LukeList *l = luke_list_new(a);
   if (hi < lo) return l;
-  for (double i = lo; i <= hi + 1e-9; i += 1)
-    if (luke_parity_keep(i, parity)) luke_list_add_number(a, l, i);
+  for (double i = lo; i <= hi + 1e-9; i += 1) {
+    char buf[64];
+    int k = snprintf(buf, sizeof(buf), "%.10g", i);
+    if (k < 0) k = 0;
+    char *p = (char *)luke_arena_alloc(a, (size_t)k + 1, 1);
+    memcpy(p, buf, (size_t)k + 1);
+    luke_list_add(a, l, luke_text_n(p, (size_t)k));
+  }
   return l;
 }
 
-static inline LukeList *luke_numbers_from_to(LukeArena *a, double lo, double hi) {
-  return luke_numbers_from_to_parity(a, lo, hi, 0);
+/* Closed core comparison — not EVEN/ODD adjectives. 0 divisor → false. */
+static inline int luke_i64_divisible(int64_t n, int64_t d) {
+  return d != 0 && (n % d) == 0;
+}
+
+static inline int luke_divisible(double n, double d) {
+  if (d == 0) return 0;
+  long long di = (long long)(d >= 0 ? d + 0.5 : d - 0.5);
+  long long ni = (long long)(n >= 0 ? n + 0.5 : n - 0.5);
+  return di != 0 && (ni % di) == 0;
 }
 
 static inline LukeMap *luke_map_new(LukeArena *a) {

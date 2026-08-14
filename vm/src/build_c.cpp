@@ -1063,6 +1063,24 @@ Expr BC::exprLegacy(std::string e, size_t line) {
 
   {
     auto U0 = toUpper(e);
+    if (startsWithCI(e, "THE NUMBERS FROM ")) {
+      auto rest = trim(e.substr(17));
+      auto U = toUpper(rest);
+      auto toPos = findOutsideQuotes(rest, U, " TO ");
+      if (toPos == std::string::npos) {
+        fail(line, "THE NUMBERS FROM needs: THE NUMBERS FROM lo TO hi");
+        return {"luke_list_new(arena)", Ty::list()};
+      }
+      auto lo = expr(trim(rest.substr(0, toPos)), line);
+      auto hi = expr(trim(rest.substr(toPos + 4)), line);
+      if (!isNumeric(lo.ty) || !isNumeric(hi.ty)) {
+        fail(line, "THE NUMBERS FROM … TO … wants NUMBER or INTEGER");
+        return {"luke_list_new(arena)", Ty::list()};
+      }
+      Expr loN = coerceTo(line, lo, Ty::num(), "THE NUMBERS FROM");
+      Expr hiN = coerceTo(line, hi, Ty::num(), "THE NUMBERS FROM");
+      return {"luke_numbers_from_to(arena, " + loN.code + ", " + hiN.code + ")", Ty::list()};
+    }
     if (U0 == "THE VIEWPORT WIDTH" || U0 == "THE WINDOW WIDTH")
       return {"argus_viewport_width()", Ty::num()};
     if (U0 == "THE VIEWPORT HEIGHT" || U0 == "THE WINDOW HEIGHT")
@@ -1717,6 +1735,39 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
   if (srcFile.empty()) srcFile = "luke";
   emitLineDir(srcFile, line, o);
   LineScope lineScope(o);
+  if (startsWithCI(text, "SPEAK EACH NUMBER FROM ") || startsWithCI(text, "SAY EACH NUMBER FROM ") ||
+      startsWithCI(text, "YELL EACH NUMBER FROM ") || startsWithCI(text, "SHOUT EACH NUMBER FROM ")) {
+    auto rest = trim(text.substr(text.find(' ') + 1)); /* skip SPEAK/SAY/… */
+    rest = trim(rest.substr(rest.find(' ') + 1));      /* skip EACH */
+    rest = trim(rest.substr(rest.find(' ') + 1));      /* skip NUMBER */
+    rest = trim(rest.substr(rest.find(' ') + 1));      /* skip FROM */
+    auto U = toUpper(rest);
+    auto toPos = findOutsideQuotes(rest, U, " TO ");
+    if (toPos == std::string::npos) {
+      bc.fail(line, "SPEAK EACH NUMBER FROM needs: SPEAK EACH NUMBER FROM lo TO hi");
+      return;
+    }
+    auto lo = bc.expr(trim(rest.substr(0, toPos)), line);
+    auto hi = bc.expr(trim(rest.substr(toPos + 4)), line);
+    if (!bc.isNumeric(lo.ty) || !bc.isNumeric(hi.ty)) {
+      bc.fail(line, "SPEAK EACH NUMBER FROM … TO … wants NUMBER or INTEGER");
+      return;
+    }
+    Expr loN = bc.coerceTo(line, lo, Ty::num(), "SPEAK EACH NUMBER FROM");
+    Expr hiN = bc.coerceTo(line, hi, Ty::num(), "SPEAK EACH NUMBER FROM");
+    o << "  luke_speak_each_number(" << loN.code << ", " << hiN.code << ");\n";
+    return;
+  }
+  if (startsWithCI(text, "SPEAK EACH OF ") || startsWithCI(text, "SAY EACH OF ") ||
+      startsWithCI(text, "YELL EACH OF ") || startsWithCI(text, "SHOUT EACH OF ")) {
+    auto rest = trim(text.substr(text.find(' ') + 1));
+    rest = trim(rest.substr(rest.find(' ') + 1)); /* EACH */
+    rest = trim(rest.substr(rest.find(' ') + 1)); /* OF */
+    auto listE = bc.expr(rest, line);
+    bc.expectTy(line, listE.ty, Ty::list(), "SPEAK EACH OF");
+    o << "  luke_speak_each_of(" << listE.code << ");\n";
+    return;
+  }
   if (startsWithCI(text, "SPEAK ") || startsWithCI(text, "SAY ") || startsWithCI(text, "YELL ") ||
       startsWithCI(text, "SHOUT ")) {
     auto sp = text.find(' ');

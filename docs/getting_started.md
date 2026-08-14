@@ -41,6 +41,34 @@ You should see:
 Hello, World!
 ```
 
+## The face (cells and reactions)
+
+Hello-world is a greeting. The **face** of a Build app is cells and reactions — not `WHILE`, mutation `SET`, or `THIS IS FUNCTION`. Print 1 through 20 by naming the range; the compiler writes the loop:
+
+```luke
+SPEAK EACH NUMBER FROM 1 TO 20
+```
+
+From `vm/`:
+
+```bash
+./build/luke BUILD ../examples/build/numbers.luke -o numbers && ./numbers
+```
+
+You should see twenty lines, `1` then `2` … then `20`.
+
+A reactive screen names cells and reactions the same way:
+
+```luke
+REMEMBER count AS NUMBER SET TO 0
+WHEN THE BUTTON "inc" IS CLICKED DO
+  INCREASE count BY 1
+END WHEN
+BIND "label" TO count
+```
+
+`WATCH` / `BIND` pull a row onto the graph (Live Graph). Recipes still exist for servers and algorithms; they are not the teaching surface. See [`STRATEGY.md`](./STRATEGY.md).
+
 Browser ship:
 
 ```bash

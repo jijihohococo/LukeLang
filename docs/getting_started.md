@@ -57,6 +57,18 @@ From `vm/`:
 
 You should see twenty lines, `1` then `2` … then `20`.
 
+Even numbers from the same range — still no `WHILE`. The compiler filters:
+
+```luke
+SPEAK EACH EVEN NUMBER FROM 1 TO 20
+```
+
+```bash
+./build/luke BUILD ../examples/build/even_numbers.luke -o even && ./even
+```
+
+Ten lines: `2` `4` … `20`. `THE EVEN NUMBERS FROM 1 TO 20` is the list form; `SPEAK EACH OF` prints it.
+
 A reactive screen names cells and reactions the same way:
 
 ```luke

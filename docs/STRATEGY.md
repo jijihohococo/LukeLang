@@ -35,7 +35,7 @@ WATCH user FROM db WHERE "id = 1"
 BIND "name" TO user
 ```
 
-Lists: `THE NUMBERS FROM lo TO hi` is an expression; `SPEAK EACH OF list` prints each item. `SPEAK list` still prints length. Recipes stay in the compiler for servers, algorithms, and stdlib — they are not the face.
+Lists: `THE NUMBERS FROM lo TO hi` is an expression; `SPEAK EACH OF list` prints each item. `SPEAK list` still prints length. Filters stay on the face: `SPEAK EACH EVEN NUMBER FROM 1 TO 20` (and `THE EVEN NUMBERS FROM` / `ODD`). Recipes stay in the compiler for servers, algorithms, and stdlib — they are not the face.
 
 ---
 

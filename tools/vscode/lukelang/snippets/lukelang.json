@@ -1,0 +1,56 @@
+{
+  "Function": {
+    "prefix": "luke-fn",
+    "body": [
+      "THIS IS FUNCTION ${1:name} WITH ${2:value} AS ${3:NUMBER} DO",
+      "  ${4:SPEAK ${2:value}}",
+      "  GIVE BACK ${2:value}",
+      "END FUNCTION"
+    ],
+    "description": "LukeLang function template"
+  },
+  "If block": {
+    "prefix": "luke-if",
+    "body": [
+      "IF ${1:condition} DO",
+      "  ${2:SPEAK \"ok\"}",
+      "END IF"
+    ],
+    "description": "LukeLang IF block"
+  },
+  "Reactive cell + derived": {
+    "prefix": "luke-rx",
+    "body": [
+      "REMEMBER ${1:price} AS ${2:100}",
+      "REMEMBER ${3:quantity} AS ${4:2}",
+      "THE ${5:total} IS ${1:price} MULTIPLIED BY ${3:quantity}",
+      "SPEAK \"${5:total}=\" AND ${5:total}"
+    ],
+    "description": "Reactive cell example"
+  },
+  "Route handler skeleton": {
+    "prefix": "luke-route",
+    "body": [
+      "THIS IS FUNCTION handle WITH req AS REQUEST DO",
+      "  MY NAME IS method SET TO ASK httpMethod WITH req",
+      "  MY NAME IS path SET TO ASK httpPath WITH req",
+      "  MY NAME IS params AS MAP",
+      "  IF method EQUALS \"GET\" DO",
+      "    IF ASK httpMatch WITH path, \"/ok\", params DO",
+      "      ASK httpReply WITH req, 200, \"text/plain\", \"ok\"",
+      "    END IF",
+      "  END IF",
+      "END FUNCTION"
+    ],
+    "description": "Backend route handler template"
+  },
+  "Test block": {
+    "prefix": "luke-test",
+    "body": [
+      "TEST \"${1:name}\" DO",
+      "  MAKE SURE ${2:left} EQUALS ${3:right}",
+      "END TEST"
+    ],
+    "description": "LukeLang test template"
+  }
+}

@@ -6,6 +6,7 @@
   "scripts": {
     "build": "make -C vm",
     "test": "make -C vm test",
-    "show": "make -C vm && vm/build/luke SHOW examples/build/hello.luke"
+    "show": "make -C vm && vm/build/luke SHOW examples/build/hello.luke",
+    "package:vscode": "bash scripts/vscode_extension_package.sh"
   }
 }

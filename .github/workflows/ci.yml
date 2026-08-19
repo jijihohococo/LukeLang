@@ -17,7 +17,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y g++ make python3 libsqlite3-dev libsodium-dev libpq-dev \
-            postgresql postgresql-client curl ca-certificates
+            postgresql postgresql-client curl ca-certificates gdb
 
       - name: Start Postgres
         run: |
@@ -49,3 +49,16 @@ jobs:
         run: make test
         env:
           LUKE_WASI_SDK: ${{ github.workspace }}/.tools/wasi-sdk
+
+  vscode-extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Package official VS Code extension (.vsix)
+        run: bash scripts/vscode_extension_package.sh

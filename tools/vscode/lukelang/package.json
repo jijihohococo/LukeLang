@@ -1,0 +1,140 @@
+{
+  "name": "lukelang-vscode",
+  "displayName": "LukeLang",
+  "description": "Official LukeLang syntax, LSP, DAP debug, snippets, and completions.",
+  "version": "0.2.1",
+  "publisher": "lukelang",
+  "icon": "icons/lukelang128x128.png",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onLanguage:lukelang",
+    "onDebugResolve:lukelang"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "lukelang",
+        "aliases": [
+          "LukeLang",
+          "luke"
+        ],
+        "extensions": [
+          ".luke"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lukelang",
+        "scopeName": "source.luke",
+        "path": "./syntaxes/lukelang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lukelang",
+        "path": "./snippets/lukelang.json"
+      }
+    ],
+    "configuration": {
+      "title": "LukeLang",
+      "properties": {
+        "lukelang.lukePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `luke` CLI binary. Leave empty to auto-detect `vm/build/luke` in the workspace."
+        },
+        "lukelang.enableLsp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the LukeLang LSP (luke LSP) for .luke files."
+        },
+        "lukelang.enableDebug": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable LukeLang debug sessions (luke DAP)."
+        }
+      }
+    },
+    "debuggers": [
+      {
+        "type": "lukelang",
+        "label": "LukeLang Debug",
+        "languages": [
+          "lukelang"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the .luke source file to debug.",
+                "default": "${file}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Stop at the first line.",
+                "default": true
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "lukelang",
+            "request": "launch",
+            "name": "Debug Luke file",
+            "program": "${file}",
+            "stopOnEntry": true
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "LukeLang: Debug current file",
+            "description": "Launch gdb-backed Luke debug adapter for the active .luke file.",
+            "body": {
+              "type": "lukelang",
+              "request": "launch",
+              "name": "Debug ${1:${TM_FILENAME}}",
+              "program": "^\"\\${file}\"",
+              "stopOnEntry": true
+            }
+          }
+        ]
+      }
+    ],
+    "configurationDefaults": {
+      "[lukelang]": {
+        "editor.wordBasedSuggestions": "off",
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": false
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package --allow-missing-repository",
+    "check": "node -c src/extension.js && node -c src/lukePath.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.1"
+  }
+}

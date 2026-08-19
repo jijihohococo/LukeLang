@@ -9,9 +9,12 @@ Change finds its own way — from database row to screen pixel.
 
 [Strategy](docs/STRATEGY.md) ·
 [Live Graph](docs/LIVE_GRAPH.md) ·
+[Backend Publish](docs/BACKEND_PUBLISH.md) ·
 [Build Mode](docs/BUILD_MODE.md) ·
+[Editor Tooling](docs/EDITOR_TOOLING.md) ·
 [Reactive](docs/REACTIVE.md) ·
 [Getting Started](docs/getting_started.md) ·
+[AGENTS](AGENTS.md) ·
 [Documentations](documentations/README.md)
 
 </div>
@@ -139,6 +142,12 @@ Hub: [`documentations/`](documentations/README.md) · papers: [`documentations/p
 | [`BACKEND_ROADMAP.md`](docs/BACKEND_ROADMAP.md) | HTTP framework / routes / migrations |
 | [`DEPLOY.md`](docs/DEPLOY.md) | TLS via reverse proxy, C10K knobs |
 | [`LEGACY.md`](docs/LEGACY.md) | Removed JS emitters |
+
+---
+
+## Contributors
+
+LukeLang is built in the open. See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for people we want to thank by name.
 
 ---
 

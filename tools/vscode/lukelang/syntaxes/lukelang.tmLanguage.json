@@ -1,0 +1,89 @@
+{
+  "scopeName": "source.luke",
+  "name": "LukeLang",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#constants"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.luke",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.luke",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.luke",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.luke",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.luke",
+          "match": "\\b(?:NUMBER|INTEGER|TEXT|FLAG|JSON|LIST|MAP|REQUEST|SERVER|DATABASE)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.luke",
+          "match": "\\b(?:TRUE|FALSE|NULL)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.luke",
+          "match": "\\b(?:IF|ELSE|END IF|END WHEN|END WHEN REACTIVE|WHEN|DO|THIS IS FUNCTION|END FUNCTION|GIVE BACK|SEND BACK|HAND BACK|ATTEMPT|OTHERWISE|END ATTEMPT|BEGIN REACTIVE BATCH|END REACTIVE BATCH|BEGIN|END|BLUEPRINT|CLASS|END BLUEPRINT|END CLASS|METHOD|WHEN BORN|END BORN)\\b"
+        },
+        {
+          "name": "keyword.operator.word.luke",
+          "match": "\\b(?:SET TO|SET|CHANGE|INCREASE|DECREASE|ADD|PUT|GET|FROM|TO|AND|OR|NOT|EQUALS|MULTIPLIED BY|DIVIDED BY|MOD|ASK|WITH|IS|AS|IMPORT|WATCH|PUSH WATCH|BIND|SECRET REMEMBER|REMEMBER|MY NAME IS|HAS|NEW|IN ARENA|END ARENA)\\b"
+        },
+        {
+          "name": "support.function.output.luke",
+          "match": "\\b(?:SPEAK|SAY|YELL)\\b"
+        }
+      ]
+    }
+  }
+}

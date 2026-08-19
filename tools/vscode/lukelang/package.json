@@ -1,0 +1,60 @@
+{
+  "name": "lukelang-vscode",
+  "displayName": "LukeLang",
+  "description": "Official LukeLang syntax, snippets, and keyword completion.",
+  "version": "0.1.0",
+  "publisher": "lukelang",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onLanguage:lukelang"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "lukelang",
+        "aliases": [
+          "LukeLang",
+          "luke"
+        ],
+        "extensions": [
+          ".luke"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lukelang",
+        "scopeName": "source.luke",
+        "path": "./syntaxes/lukelang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lukelang",
+        "path": "./snippets/lukelang.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[lukelang]": {
+        "editor.wordBasedSuggestions": "currentDocument",
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": false
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "node -e \"console.log('No lint configured')\""
+  },
+  "license": "MIT"
+}

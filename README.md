@@ -9,9 +9,12 @@ Change finds its own way — from database row to screen pixel.
 
 [Strategy](docs/STRATEGY.md) ·
 [Live Graph](docs/LIVE_GRAPH.md) ·
+[Backend Publish](docs/BACKEND_PUBLISH.md) ·
 [Build Mode](docs/BUILD_MODE.md) ·
+[Editor Tooling](docs/EDITOR_TOOLING.md) ·
 [Reactive](docs/REACTIVE.md) ·
 [Getting Started](docs/getting_started.md) ·
+[AGENTS](AGENTS.md) ·
 [Documentations](documentations/README.md)
 
 </div>

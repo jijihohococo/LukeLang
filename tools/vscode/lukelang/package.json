@@ -2,7 +2,7 @@
   "name": "lukelang-vscode",
   "displayName": "LukeLang",
   "description": "Official LukeLang syntax, LSP, DAP debug, snippets, and completions.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "lukelang",
   "icon": "icons/lukelang128x128.png",
   "license": "MIT",

@@ -1,0 +1,36 @@
+name: Publish VS Code Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional version bump (leave empty to publish current package.json version)"
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify icon assets exist
+        run: |
+          test -f tools/vscode/lukelang/icons/lukelang128x128.png
+          test -f tools/vscode/lukelang/icons/lukelang256x256.png
+          test -f tools/vscode/lukelang/icons/lukelang500x500.png
+
+      - name: Publish to Visual Studio Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [[ -z "${VSCE_PAT}" ]]; then
+            echo "VSCE_PAT secret is not configured on this repository."
+            exit 1
+          fi
+          bash scripts/vscode_extension_publish.sh

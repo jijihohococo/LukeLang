@@ -34,6 +34,25 @@ Output: `tools/vscode/lukelang/dist/*.vsix`
 
 Install locally in VS Code: **Extensions → … → Install from VSIX…**
 
+## Publish to Marketplace
+
+Prerequisites:
+
+1. Create publisher at https://marketplace.visualstudio.com/manage (e.g. `lukelang`)
+2. Create a PAT with **Marketplace → Manage** scope
+3. Add repo secret `VSCE_PAT` (or export locally)
+
+Then:
+
+```bash
+export VSCE_PAT=your_token_here
+bash scripts/vscode_extension_publish.sh
+```
+
+Or trigger GitHub Action: **Publish VS Code Extension** (workflow_dispatch).
+
+Official icon: `icons/lukelang128x128.png` (bundled in `.vsix`).
+
 ## Dev loop
 
 ```bash

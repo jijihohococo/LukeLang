@@ -5,39 +5,51 @@ LukeLang runtime already provides protocol servers:
 - `luke LSP` (hover, symbols, references, rename, formatting, semantic tokens, completion)
 - `luke DAP` (debug adapter over gdb backend)
 
-## Official VS Code language assets
+## Official VS Code extension
 
-This repo now includes an official VS Code extension scaffold at:
+Path: `tools/vscode/lukelang/`
 
-- `tools/vscode/lukelang/`
+Capabilities:
 
-Current capabilities:
+- `.luke` language registration + syntax highlighting
+- snippets + keyword/type completion
+- **LSP client** auto-starts `vm/build/luke LSP` (or `lukelang.lukePath`)
+- **DAP debug** launches `vm/build/luke DAP` with launch configs
 
-- `.luke` language registration
-- syntax highlighting
-- snippets
-- keyword/type completion suggestions
+Settings:
 
-## Run the protocol checks
+- `lukelang.lukePath` — override binary path
+- `lukelang.enableLsp` — toggle LSP
+- `lukelang.enableDebug` — toggle debug adapter
+
+## Package `.vsix`
 
 From repo root:
 
 ```bash
-cd vm && make
-bash ../scripts/lsp_providers.sh
-bash ../scripts/dap_handshake.sh
+bash scripts/vscode_extension_package.sh
 ```
 
-## Extension dev loop
+Output: `tools/vscode/lukelang/dist/*.vsix`
+
+Install locally in VS Code: **Extensions → … → Install from VSIX…**
+
+## Dev loop
 
 ```bash
 cd tools/vscode/lukelang
+npm install
 ```
 
-Open that folder in VS Code and press `F5` to run an Extension Development Host.
+Open that folder in VS Code and press `F5` (Extension Development Host).
 
-## Next layer (planned)
+Repo root also includes sample debug configs in `.vscode/launch.json`.
 
-- Wire an LSP client to launch `vm/build/luke LSP` automatically.
-- Wire a DAP client to launch `vm/build/luke DAP` for `.luke` debug sessions.
-- Add semantic token parity tests against `scripts/lsp_providers.sh`.
+## Protocol smoke tests
+
+```bash
+cd vm && make
+bash scripts/lsp_providers.sh
+bash scripts/dap_handshake.sh
+bash scripts/vscode_extension_package.sh
+```

@@ -130,6 +130,17 @@ Compiler/runtime boundaries:
 Rule: do not reintroduce a parallel parser/toolchain path just for editor features.
 LSP/FMT/diagnostics should stay aligned with the Build compiler truth.
 
+Editor extension boundary:
+
+- `tools/vscode/lukelang/` — VS Code client only (syntax, snippets, LSP/DAP launchers).
+- Do not duplicate language logic in JS; call `vm/build/luke LSP` / `DAP`.
+
+Package extension:
+
+```bash
+bash scripts/vscode_extension_package.sh
+```
+
 ## 8) Backend-first publishing guidance
 
 If the goal is backend adoption:

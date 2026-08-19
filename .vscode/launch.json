@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lukelang",
+      "request": "launch",
+      "name": "Debug current .luke file",
+      "program": "${file}",
+      "stopOnEntry": true
+    },
+    {
+      "type": "lukelang",
+      "request": "launch",
+      "name": "Debug backend API example",
+      "program": "${workspaceFolder}/examples/build/backend_api.luke",
+      "stopOnEntry": false
+    }
+  ]
+}

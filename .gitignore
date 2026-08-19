@@ -5,6 +5,8 @@ vm/build/
 *.luke.c
 *.luke.ir.txt
 node_modules/
+tools/vscode/lukelang/node_modules/
+tools/vscode/lukelang/dist/
 .tools/
 sample/dist/
 examples/deploy/wall/dist/

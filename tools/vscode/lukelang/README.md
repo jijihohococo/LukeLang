@@ -1,42 +1,60 @@
 # LukeLang VS Code Extension (Official)
 
-This extension adds:
+Official editor support for `.luke` files:
 
-- `.luke` language registration
 - syntax highlighting
-- snippets for common LukeLang blocks
-- keyword/type auto-suggest completions
+- snippets
+- keyword completions
+- LSP (`luke LSP`) — hover, diagnostics, rename, format, semantic tokens
+- DAP debug (`luke DAP`) — gdb-backed breakpoints + Reactive scope
 
-## Local development install
+## Prerequisites
+
+Build the Luke toolchain in the workspace:
+
+```bash
+cd vm && make
+```
+
+The extension auto-detects `vm/build/luke`. Override with setting `lukelang.lukePath`.
+
+Debugging requires `gdb` on your PATH.
+
+## Local development
+
+```bash
+npm install
+npm run check
+```
+
+Press `F5` in VS Code to launch an Extension Development Host.
+
+## Package installable `.vsix`
 
 From repository root:
 
 ```bash
-cd tools/vscode/lukelang
+bash scripts/vscode_extension_package.sh
 ```
 
-Then in VS Code:
-
-1. Open this folder.
-2. Press `F5` to launch an Extension Development Host.
-3. Open a `.luke` file in the host window.
-
-## Packaging (optional)
-
-If you want to package a `.vsix`:
+Or from this folder:
 
 ```bash
-npm install -g @vscode/vsce
-vsce package
+npm run package
 ```
 
-## Notes on LSP/DAP
+## Debug a `.luke` file
 
-LukeLang already ships protocol servers in the CLI:
+Use launch type `lukelang`:
 
-- `luke LSP`
-- `luke DAP`
+```json
+{
+  "type": "lukelang",
+  "request": "launch",
+  "name": "Debug Luke",
+  "program": "${file}",
+  "stopOnEntry": true
+}
+```
 
-This first extension iteration focuses on language assets and completion.
-LSP/DAP client wiring can be layered next by launching `vm/build/luke LSP` and
-`vm/build/luke DAP` from a workspace-aware client adapter.
+See repo root `.vscode/launch.json` for examples.

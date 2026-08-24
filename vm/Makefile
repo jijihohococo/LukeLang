@@ -74,7 +74,7 @@ test-play: build/luke
 	./build/luke SHOW ../examples/native/counter.luke --vm
 	./build/luke SHOW ../examples/native/functions.luke --vm
 	./build/luke SHOW ../examples/native/oop.luke --vm
-	./build/luke --syntax=1 SHOW ../examples/native/advanced_oop.luke --vm
+	./build/luke SHOW ../examples/native/advanced_oop.luke --vm
 	./build/luke SHOW ../examples/native/closures.luke --vm
 	./build/luke SHOW ../examples/native/privacy.luke --vm
 	@# Build-first SHOW (no --vm) for a Build program

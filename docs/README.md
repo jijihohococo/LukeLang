@@ -19,7 +19,9 @@ LukeLang uses verbose, human-readable syntax. The language of record is **Build*
 4.  **[Advanced Topics](./advanced_topics.md)**
 5.  **[Backend Publish Plan](./BACKEND_PUBLISH.md)**
 6.  **[Editor Tooling](./EDITOR_TOOLING.md)**
-7.  **[Syntax v2 Plan](./SYNTAX_V2_PLAN.md)** — proposed conversational → technical migration (awaiting sign-off)
+7.  **Syntax v2** — conversational → technical migration (decisions signed off)
+    *   [Plan](./SYNTAX_V2_PLAN.md) — strategy, phases, gates, risks
+    *   [Spec](./SYNTAX_V2_SPEC.md) — normative mapping for every live phrase
 8.  **Engine track**
     *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
     *   [INTEGER](./INTEGER.md) — exact int64 rules (overflow, mix, division)

@@ -1,0 +1,39 @@
+// Syntax v2 golden corpus — twin of examples/build/oop.luke
+// BLUEPRINT -> struct; WHEN BORN -> init; CALL PARENT -> super
+
+struct Animal {
+  name: str
+  sound = "..."
+
+  init(name: str) {
+    self.name = name
+  }
+
+  fn speak() {
+    print(self.name + " says " + self.sound)
+  }
+
+  fn eat(food: str) {
+    print(self.name + " eats " + food)
+  }
+}
+
+struct Dog : Animal {
+  sound = "Woof!"
+
+  fn speak() {
+    super.speak()
+    print(self.name + " wags happily.")
+  }
+
+  fn fetch(toy: str) {
+    print(self.name + " fetches the " + toy)
+  }
+}
+
+let buddy = Dog("Rex")
+buddy.speak()
+buddy.eat("kibble")
+buddy.fetch("ball")
+
+print("buddy lives in the Build arena — no GC.")

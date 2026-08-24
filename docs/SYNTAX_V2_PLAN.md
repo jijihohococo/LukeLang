@@ -422,29 +422,54 @@ green; VS Code extension packages and highlights v2 correctly.
 
 ## 8. Open decisions needing sign-off
 
-1. **Scope** — full technical, or technical core with declarative reactive keywords?
-   *Recommend: the latter.*
-2. **Blocks** — braces or significant indentation? *Recommend: braces.*
-3. **Mutability** — `let`/`var`, or `let` + `let mut`? *Recommend: `let`/`var`.*
-4. **Type syntax** — `x: int` or `int x`? *Recommend: `x: int`.*
-5. **Numeric names** — `int`/`float`, or keep `INTEGER`/`NUMBER` semantics under
-   `i64`/`f64`? *Recommend: `int`/`float`.*
-6. **String concat** — `+` only, or add `"${x}"` interpolation now? *Recommend: `+` now,
-   interpolation as a follow-up.*
-7. **Instantiation** — `Ticket(10)` or `new Ticket(10)`? *Recommend: `Ticket(10)`.*
-8. **Type keyword** — `struct`, `class`, or keep `blueprint`? *Recommend: `struct`.*
-9. **Extension at flip** — does `.lk` survive as an alias, or is `.luke` restored as the only
-   extension?
+**All nine are resolved** — signed off as recommended. Normative record:
+[`SYNTAX_V2_SPEC.md`](./SYNTAX_V2_SPEC.md) §1.
+
+| # | Decision | Resolution |
+| --- | --- | --- |
+| 1 | Scope | Technical imperative core; **reactive keywords stay declarative** |
+| 2 | Blocks | Braces `{ }` |
+| 3 | Mutability | `let` / `var` |
+| 4 | Type syntax | `x: int` |
+| 5 | Numeric names | `int` (int64) / `float` (double) |
+| 6 | String concat | `+` now; `"${x}"` deferred |
+| 7 | Instantiation | `Ticket(10)` — no `new` |
+| 8 | Type keyword | `struct` |
+| 9 | Extension at flip | `.luke` = v2; `.lk` transition-only, deleted at flip |
+
+One consequence surfaced while writing the golden corpus and is now spec'd: **decision 3 makes
+the `MY NAME IS` mapping non-mechanical.** v1 has no immutability distinction, so the migrator
+needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ---
 
-## 9. Immediate next step
+## 9. Status
 
-Phase 0 item 2 and Phase 1 item 1 are both pure documentation and can start immediately:
+**Phases 0 and 1 are complete.**
 
-- amend `docs/STRATEGY.md` with the decision record;
-- draft `docs/SYNTAX_V2_SPEC.md` covering the 170 live phrases;
-- hand-write the 10-file golden corpus.
+| Item | State |
+| --- | --- |
+| Nine decisions signed off | done — [§8](#8-open-decisions-needing-sign-off) |
+| `STRATEGY.md` amended (identity, "what we keep", decision table) | done |
+| `SYNTAX_V2_SPEC.md` covering every live phrase | done — gate: `scripts/syntax_v2_spec_check.py` |
+| 10-file golden corpus | done — [`examples/v2/`](../examples/v2/), gate: `scripts/syntax_v2_corpus_check.py` |
 
-No compiler code should be written until the spec and golden corpus exist, because Phase 2's
-acceptance gate is defined in terms of them.
+Both gates run in CI. Because this is a solo project with no second reviewer, the automated gates
+*are* the review — that is deliberate, and it is why the spec is machine-checked against codegen
+rather than maintained by hand.
+
+```bash
+python3 scripts/syntax_surface_census.py     # the measurements
+python3 scripts/syntax_v2_spec_check.py      # every live phrase is mapped or dropped
+python3 scripts/syntax_v2_corpus_check.py    # corpus paired with v1 twins, no v1 leakage
+```
+
+### Next: Phase 2
+
+Build the v2 front-end (`luke2_lex` / `luke2_parse` / `luke2_lower`) against the golden corpus.
+Its two acceptance gates are already defined:
+
+1. every file in `examples/v2/` builds with stdout byte-identical to its v1 twin;
+2. a deliberately broken `.lk` reports errors at **`.lk` positions**, via `// @luke-file` markers.
+
+Nothing in Phase 2 touches `build_c.cpp`.

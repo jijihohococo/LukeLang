@@ -1,0 +1,27 @@
+// Syntax v2 golden corpus — twin of examples/build/collections_test.luke
+// luke TEST examples/v2/collections_test.lk
+
+test "list basics" {
+  var nums: list = []
+  nums.push("a")
+  nums.push("b")
+  assert nums.len() == 2
+  assert nums[0] == "a"
+}
+
+test "map basics" {
+  var bag: map = {}
+  bag["k"] = "v"
+  assert bag["k"] == "v"
+  assert bag.len() == 1
+}
+
+test "attempt recovers" {
+  var saw: str = "no"
+  try {
+    throw "boom"
+  } catch (problem) {
+    saw = problem
+  }
+  assert saw == "boom"
+}

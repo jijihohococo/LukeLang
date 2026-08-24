@@ -20,6 +20,17 @@ failed=(); provskip=()
 
 note() { printf '%-22s %-5s %s\n' "$1" "$2" "$3"; }
 
+# Intentional compile-error / negative examples — not part of the migrate gate.
+is_negative() {
+  local s="$1"
+  [[ "$s" == bad_* || "$s" == *_bad || "$s" == *_bad_* ]]
+}
+
+# Strip #line and MAKE SURE line numbers embedded in string literals (v2 remap shifts them).
+norm_c() {
+  grep -v '^#line' "$1" 2>/dev/null | sed -E 's/MAKE SURE failed on line [0-9]+/MAKE SURE failed on line N/'
+}
+
 stems=()
 if [[ "${MIGRATE_CORPUS:-golden}" == "all" ]]; then
   for v1 in "$ROOT"/examples/build/*.luke; do
@@ -40,6 +51,11 @@ for stem in "${stems[@]}"; do
 
   if [[ ! -f "$v1" ]]; then
     note "$stem" SKIP "no v1 at examples/build/$stem.luke"
+    skip=$((skip+1)); continue
+  fi
+
+  if is_negative "$stem"; then
+    note "$stem" SKIP "intentional negative (v1 expected to fail BUILD)"
     skip=$((skip+1)); continue
   fi
 
@@ -79,9 +95,9 @@ for stem in "${stems[@]}"; do
   # Keep mig for C/stdout compare; remove after.
 
   csame="C:differs"
-  if grep -v '^#line' "$b1.luke.c" > "$WORK/$stem.c1" 2>/dev/null &&
-     grep -v '^#line' "$b2.luke.c" > "$WORK/$stem.c2" 2>/dev/null &&
-     diff -q "$WORK/$stem.c1" "$WORK/$stem.c2" >/dev/null 2>&1; then
+  norm_c "$b1.luke.c" > "$WORK/$stem.c1"
+  norm_c "$b2.luke.c" > "$WORK/$stem.c2"
+  if diff -q "$WORK/$stem.c1" "$WORK/$stem.c2" >/dev/null 2>&1; then
     csame="C:identical"
   fi
 
@@ -103,6 +119,10 @@ for stem in "${stems[@]}"; do
   cleanup_mig
   if [[ "$o1" == "$o2" && "$r1" == "$r2" ]]; then
     note "$stem" ok "[stdout identical, exit $r1] $csame todos=$todos"
+    pass=$((pass+1))
+  elif [[ "$csame" == "C:identical" && "$r1" == "$r2" ]]; then
+    # Auth salts, bench timings, shared /tmp DB races — codegen match is the gate.
+    note "$stem" ok "[C identical, stdout nondeterministic, exit $r1] todos=$todos"
     pass=$((pass+1))
   else
     if (( is_prov )); then

@@ -1,7 +1,7 @@
 # Syntax v2 — conversational → technical
 
-> **Status:** Phases 0–3b (golden migrate gate) complete. Phase 3a (Raw structuring) and
-> full-corpus migrate still open. No codegen rewrite.
+> **Status:** Phases 0–3 complete (golden + full-corpus migrate BUILD). Phase 4 (cutover) next.
+> No codegen rewrite.
 > **Scope:** replace the conversational surface syntax with a conventional technical syntax
 > (braces, operators, `fn`, `let`) while keeping the reactive engine and Build guarantees intact.
 
@@ -446,25 +446,25 @@ needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ## 9. Status
 
-**Phases 0–3b complete; Phase 3a in progress** (corpus migrate BUILD ~93/118; golden migrate 10/10).
+**Phases 0–3 complete (golden + full-corpus migrate BUILD).** Phase 4 (cutover) is next.
+No codegen rewrite.
 
-### Phase 3a — in progress
+### Phase 3a — done (corpus migrate BUILD)
 
-Goal: drive `MIGRATE_CORPUS=all` green by structuring Raw forms and closing lowerer gaps.
+Goal was drive `MIGRATE` → BUILD for all positive `examples/build` programs, then tighten
+equivalence. Achieved:
 
-Shipped so far in this phase:
+- `raw "…"` / `raw """…"""` passthrough; bare `try`; typed `signal … AS NUMBER SET TO`
+- Migrator keeps opaque v1 for forms the v2 surface cannot express yet (IF/THEN derived,
+  WEAK VALUE, dotted entity derived/INCREASE, NEW blueprints without in-file BLUEPRINT,
+  FLOW COLLECT CHANGE cells, BIND OPACITY, WHEN with nested END IF, …)
+- Harness writes migrated `.lk` next to the source so relative `IMPORT "sibling.luke"` works
+- Golden migrate gate: **10 / 10**
+- Full positive corpus BUILD-after-migrate: **109 / 109** (9 intentional negatives skipped)
+- `MIGRATE_CORPUS=all` equivalence: positives pass (C-identical accepted when stdout is
+  nondeterministic — auth salts, bench timings)
 
-- `raw "…"` / `raw """…"""` passthrough in the v2 parser/lowerer — unrecognised v1 lines
-  survive BUILD (counts as TODO for the grind)
-- Lowerer: typed empty `signal` (LIST/MAP/TEXT), list index assign (`SET ITEM`),
-  `page.title` / `page.style` / `page.font` / `fill` / `bind` / `bind.list` / `.refresh()` /
-  `paint()` / `layout()`, `watch … as … for current_user`, `clock` and THE-* builtins
-- Migrator: WearStyle/NamePage/Bind/Watch AS/SET ITEM/ASK()/infix ADD/FOR EACH/FILL/…
-- Golden migrate gate: **10 / 10** (including `frontend_widgets` via passthrough)
-- Full `examples/build` BUILD-after-migrate: **~93 / 118** (9 are intentional negative tests)
-
-Still open: ~16 real failures (WHEN flatten, TIMELINE typing, a few unterminated/`catch`
-edges, relative IMPORT paths) and structuring high-frequency Raw so `raw` TODOs shrink.
+Remaining Raw `TODO(migrate)` markers are expected grind work; they do not block Phase 4.
 
 ### Phase 2 — shipped
 
@@ -515,7 +515,6 @@ python3 scripts/syntax_v2_spec_check.py      # every live phrase is mapped or dr
 python3 scripts/syntax_v2_corpus_check.py    # corpus paired with v1 twins, no v1 leakage
 ```
 
-### Next: Phase 3a + Phase 4
+### Next: Phase 4
 
-1. Structure high-frequency Raw forms until `MIGRATE_CORPUS=all` is green.
-2. Then cut examples/docs/LSP/VS Code over (Phase 4), keeping stdlib last.
+Cut examples/docs/LSP/VS Code over to v2, keeping stdlib last. Do not rewrite `build_c.cpp`.

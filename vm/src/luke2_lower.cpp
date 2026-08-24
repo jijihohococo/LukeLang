@@ -67,6 +67,20 @@ Ty tyFromV1Word(const std::string &w) {
   return Ty::Unknown;
 }
 
+Ty tyFromV2Word(const std::string &w) {
+  if (w == "int") return Ty::Int;
+  if (w == "float") return Ty::Float;
+  if (w == "str") return Ty::Str;
+  if (w == "bool") return Ty::Bool;
+  if (w == "json") return Ty::Json;
+  if (w == "list") return Ty::List;
+  if (w == "map") return Ty::Map;
+  if (w == "Server") return Ty::Server;
+  if (w == "Request") return Ty::Request;
+  if (w == "Db") return Ty::Db;
+  return Ty::Unknown;
+}
+
 struct Lower {
   LowerOptions opt;
   std::ostringstream out;
@@ -109,18 +123,39 @@ struct Lower {
 
   /* ---------- stdlib signatures ---------- */
 
-  /* v1 stdlib declares `THIS IS FUNCTION name WITH … GIVES BACK TYPE DO`.
-   * Reading it gives exact return types with no hand-maintained table. */
+  /* v1: `THIS IS FUNCTION … GIVES BACK TYPE`. v2: `fn name(...) -> type`. */
   void loadStdlibModule(const std::string &spec) {
     if (opt.stdlibDir.empty()) return;
     const std::string pre = "std/";
     if (spec.compare(0, pre.size(), pre) != 0) return;
     std::string mod = spec.substr(pre.size());
-    std::ifstream in(opt.stdlibDir + "/" + mod + ".luke");
+    std::ifstream in(opt.stdlibDir + "/" + mod + ".lk");
+    if (!in) in.open(opt.stdlibDir + "/" + mod + ".luke");
     if (!in) return;
     std::string line;
     while (std::getline(in, line)) {
-      /* uppercase copy for matching; keep original for the name */
+      {
+        std::string t = line;
+        size_t i = 0;
+        while (i < t.size() && std::isspace((unsigned char)t[i])) ++i;
+        if (t.compare(i, 3, "fn ") == 0) {
+          i += 3;
+          while (i < t.size() && std::isspace((unsigned char)t[i])) ++i;
+          size_t ns = i;
+          while (i < t.size() && (std::isalnum((unsigned char)t[i]) || t[i] == '_')) ++i;
+          std::string name = t.substr(ns, i - ns);
+          auto arrow = t.find("->", i);
+          if (!name.empty() && arrow != std::string::npos) {
+            size_t ts = arrow + 2;
+            while (ts < t.size() && std::isspace((unsigned char)t[ts])) ++ts;
+            size_t te = ts;
+            while (te < t.size() && (std::isalnum((unsigned char)t[te]) || t[te] == '_')) ++te;
+            Ty ret = tyFromV2Word(t.substr(ts, te - ts));
+            if (ret != Ty::Unknown) fnRet[name] = ret;
+          }
+          continue;
+        }
+      }
       std::string up;
       up.reserve(line.size());
       for (char c : line) up.push_back((char)toupper((unsigned char)c));
@@ -288,7 +323,10 @@ struct Lower {
 
     if (op == "+") {
       Ty l = infer(L), r = infer(R);
-      if (l == Ty::Str || r == Ty::Str) return sub(L) + " AND " + sub(R);
+      /* String AND is associative and Play's SPEAK parser rejects parenthesised
+         AND-chains — emit a flat chain (`a AND b AND c`) instead of nested
+         `(a AND b) AND c`. Arithmetic still uses sub() so - / stay correct. */
+      if (l == Ty::Str || r == Ty::Str) return expr(L) + " AND " + expr(R);
       if (isNum(l) && isNum(r)) return "ADD " + sub(L) + " AND " + sub(R);
       fail(e.line,
            "cannot tell whether '+' is numeric addition or text concatenation here — "
@@ -296,8 +334,10 @@ struct Lower {
       return "";
     }
     if (op == "-") return sub(L) + " SUBTRACT " + sub(R);
-    if (op == "*") return sub(L) + " MULTIPLIED BY " + sub(R);
-    if (op == "/") return sub(L) + " DIVIDED BY " + sub(R);
+    /* Play understands prefix MULTIPLY/DIVIDE … AND …; infix MULTIPLIED BY /
+       DIVIDED BY are Build-only. Prefer the shared form. */
+    if (op == "*") return "MULTIPLY " + sub(L) + " AND " + sub(R);
+    if (op == "/") return "DIVIDE " + sub(L) + " AND " + sub(R);
     if (op == "%") {
       fail(e.line, "'%' has no Build-mode equivalent yet");
       return "";
@@ -346,6 +386,16 @@ struct Lower {
     if (structs.count(e.s)) {
       std::string s = "NEW " + e.s;
       if (!e.kids.empty()) s += " WITH " + args(e.kids, 0);
+      return s;
+    }
+    /* Runtime / UI intrinsics in stdlib: keep C-call spelling, not ASK. */
+    if (e.s.rfind("__", 0) == 0) {
+      std::string s = e.s + "(";
+      for (size_t i = 0; i < e.kids.size(); ++i) {
+        if (i) s += ", ";
+        s += expr(e.kids[i]);
+      }
+      s += ")";
       return s;
     }
     std::string s = "ASK " + e.s;
@@ -866,6 +916,24 @@ Result lowerSource(const std::string &src, const LowerOptions &opt) {
     return r;
   }
   return lower(parse(toks), opt);
+}
+
+std::string maybeLowerSource(const std::string &path, const std::string &raw, SyntaxMode mode,
+                             const std::string &stdlibDir, bool *ok, std::string *errOut,
+                             size_t *errLine) {
+  if (ok) *ok = true;
+  if (!wantsV2(path, mode)) return raw;
+  LowerOptions lo;
+  lo.sourcePath = path;
+  lo.stdlibDir = stdlibDir;
+  auto res = lowerSource(raw, lo);
+  if (!res.ok) {
+    if (ok) *ok = false;
+    if (errOut) *errOut = res.error;
+    if (errLine) *errLine = res.line;
+    return {};
+  }
+  return res.v1;
 }
 
 }  // namespace luke2

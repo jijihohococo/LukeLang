@@ -1,14 +1,8 @@
-// Phase 6 — Reactive animation UI (browser)
-// BIND OPACITY follows timeline progress cell
-// Build: luke BUILD examples/build/reactive_timeline_ui.luke -target browser -o build/reactive_timeline_ui
-
-IMPORT std/js
-IMPORT std/hanka
-IMPORT std/argus
-
-NAME THE PAGE "Luke Timeline"
-
-WEAR STYLE """
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Timeline")
+page.style("""
 html, body { margin: 0; background: #101820; }
 #brand, #hint { color: #f4fff8; font-family: Georgia, serif; }
 #brand { font-size: 40px; font-weight: 700; }
@@ -18,26 +12,20 @@ html, body { margin: 0; background: #101820; }
   background: #2a4034; color: #f4fff8; font-family: Georgia, serif;
   font-weight: 700; font-size: 16px; cursor: pointer;
 }
-"""
-
-REMEMBER fade AS NUMBER SET TO 0
-
-BEGIN COLUMN AT 48, 48 SIZE 720, 320 PAD 0 GAP 16
-  SLOT TEXT "brand" SIZE 640, 56 SAY "LukeLang"
-  SLOT BOX "panel" SIZE 320, 120 SAY ""
-  SLOT BUTTON "play" SIZE 180, 48 SAY "Fade in"
-  SLOT TEXT "hint" SIZE 640, 32 SAY "Timeline → opacity bind."
-END COLUMN
-
-LAY OUT THE SCREEN
-PAINT THE SCREEN
-
-BIND OPACITY "panel" TO fade
-
-WHEN "play" IS CLICKED DO
+""")
+signal fade: float = 0
+raw "BEGIN COLUMN AT 48, 48 SIZE 720, 320 PAD 0 GAP 16"
+raw "SLOT TEXT \"brand\" SIZE 640, 56 SAY \"LukeLang\""
+raw "SLOT BOX \"panel\" SIZE 320, 120 SAY \"\""
+raw "SLOT BUTTON \"play\" SIZE 180, 48 SAY \"Fade in\""
+raw "SLOT TEXT \"hint\" SIZE 640, 32 SAY \"Timeline → opacity bind.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+raw "BIND OPACITY \"panel\" TO fade"
+raw """WHEN "play" IS CLICKED DO
   START TIMELINE "fade" FOR 200 MILLISECONDS FROM 0 TO 1 INTO fade
-END WHEN
-
-WHEN TIMELINE "fade" IS FINISHED DO
+END WHEN"""
+raw """WHEN TIMELINE "fade" IS FINISHED DO
   UPDATE "hint" WITH "Timeline finished."
-END WHEN
+END WHEN"""

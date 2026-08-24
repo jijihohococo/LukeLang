@@ -1,0 +1,20 @@
+// Event-loop I/O — half-open sockets must not stall /fast.
+// Build: luke BUILD examples/build/http_event_idle.luke -o build/http_event_idle
+// Probe: scripts/luke_event_idle_probe.py
+
+IMPORT std/server
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  MY NAME IS path SET TO ASK httpPath WITH req
+  IF path EQUALS "/fast" DO
+    ASK httpReply WITH req, 200, "text/plain", "fast"
+  END IF
+  IF path EQUALS "/ok" DO
+    ASK httpReply WITH req, 200, "text/plain", "ok"
+  END IF
+END FUNCTION
+
+SPEAK "event_idle :8806"
+MY NAME IS server SET TO ASK httpListen WITH 8806
+ASK httpServe WITH server, handle, 0
+SPEAK "event_idle_done=1"

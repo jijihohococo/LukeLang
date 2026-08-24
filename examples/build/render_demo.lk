@@ -1,6 +1,0 @@
-import std/js
-import std/argus
-page.title("Argus")
-raw "PLACE \"brand\" AS TEXT AT 48, 420 SIZE 900, 80 SAY \"LukeLang\""
-raw "PLACE \"lead\" AS TEXT AT 48, 510 SIZE 640, 80 SAY \"Argus — use examples/build/argus_demo.luke\""
-raw "PAINT THE SCREEN"

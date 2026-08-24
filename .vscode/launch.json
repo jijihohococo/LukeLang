@@ -12,7 +12,7 @@
       "type": "lukelang",
       "request": "launch",
       "name": "Debug backend API example",
-      "program": "${workspaceFolder}/examples/build/backend_api.lk",
+      "program": "${workspaceFolder}/examples/build/backend_api.luke",
       "stopOnEntry": false
     }
   ]

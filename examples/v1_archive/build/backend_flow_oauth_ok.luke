@@ -1,0 +1,10 @@
+// OAuth FLOW with VERIFY BY OAUTH — compiles (provider stub later).
+
+FLOW oauth_login DO
+  COLLECT email
+  VERIFY email BY OAUTH
+  DONE → OAUTH CALLBACK
+END FLOW
+
+SPEAK "step=" AND oauth_login_step
+SPEAK "backend_oauth_ok=1"

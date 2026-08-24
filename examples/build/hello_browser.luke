@@ -1,4 +1,4 @@
-SPEAK "Hello from Luke in the browser"
-SPEAK "Build → WASM → your page. No GC."
-MY NAME IS n AS NUMBER SET TO 7
-SPEAK ADD n AND 35
+print("Hello from Luke in the browser")
+print("Build → WASM → your page. No GC.")
+let n: float = 7
+print(n + 35)

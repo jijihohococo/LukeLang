@@ -1,4 +1,0 @@
-import luke/echo
-print("=== registry package echo ===")
-print(shout("registry"))
-print(echoText("installed via luke PKG install"))

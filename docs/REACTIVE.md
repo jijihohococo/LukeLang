@@ -26,7 +26,7 @@ They **consume** invalidation/update signals from the Reactive Runtime.
 ## Placement in the stack
 
 ```text
-                    LUKE LANG (conversational surface)
+                    LUKE LANG (syntax v2 surface)
                             │
                       Compiler / AST
                             │
@@ -58,12 +58,12 @@ Reactive cells live in the arena; the graph is explicit, not tracing-GC magic.
 
 ### 1. Cell (remembered value)
 
-Surface (target conversational forms — may soft-land as aliases of today’s `MY NAME IS`):
+Surface (syntax v2):
 
 ```luke
-REMEMBER the user's name AS "Lucas"
-SPEAK "Hello, " AND THE USER'S NAME
-CHANGE the user's name TO "Alex"
+signal userName = "Lucas"
+print("Hello, " + userName)
+userName = "Alex"
 ```
 
 Internally:
@@ -77,9 +77,9 @@ Writers mark the cell dirty. Scheduler walks dependents. **No full app rerender.
 ### 2. Derived (computed cell)
 
 ```luke
-REMEMBER the price AS 100
-REMEMBER the quantity AS 3
-THE total IS the price MULTIPLIED BY the quantity
+signal price = 100
+signal quantity = 3
+derived total = price * quantity
 ```
 
 ```text
@@ -93,13 +93,13 @@ Library-level `useMemo` / Vue `computed` become a **runtime primitive**, not a f
 ### 3. Effect (side-effect subscription)
 
 ```luke
-WHENEVER the user's name CHANGES DO
-  SAVE the name
-END WHENEVER
+effect on userName {
+  save(userName)
+}
 ```
 
 Effects must be scheduled separately from pure derived recomputation.  
-**Cycle detection** is mandatory (save must not mutate `name` in a loop).
+**Cycle detection** is mandatory (save must not mutate `userName` in a loop).
 
 ### 4. Reactive events (first-class continuations)
 
@@ -118,14 +118,14 @@ Structural change (add) vs item/slot change (set/put) — dependents and Argus c
 can paint **per index**, not the whole list by default.
 
 ```luke
-REMEMBER players AS LIST
-BIND LIST players AS "row"   // paints row_0, row_1, …
-ADD "Ada" TO players
-SET ITEM 1 OF players TO "Zoe"   // only that row dirty-paints
+signal players: list = []
+bind.list(players, "row")  // paints row_0, row_1, …
+players.push("Ada")
+players[1] = "Zoe"  // only that row dirty-paints
 ```
 
 `change_kind` / `last_index` on the collection node drive `luke_rx_ui_paint_list`.
-Maps use the same touch model via `PUT` / `GET`.
+Maps use the same touch model via index assign / lookup.
 
 ### 6. Reactive scopes / components
 
@@ -133,11 +133,9 @@ A component is a **scope**: state + deps + handlers + UI tree + effects.
 Destroy → unsubscribe (owned cells/effects disposed; aligns with arena doctrine).
 
 ```luke
-BEGIN COMPONENT Counter
-  REMEMBER count AS 0
-  …
-END COMPONENT
-DESTROY COMPONENT Counter
+// Component scopes are still opaque v1 in the migrator (BEGIN/END COMPONENT).
+signal count = 0
+// … UI bind / handlers …
 ```
 
 ---
@@ -173,77 +171,65 @@ Sketch lives in `vm/runtime/luke_reactive.h` (Phase 1 API implemented).
 ### Phase 1 Build surface
 
 ```luke
-REMEMBER price AS 100
-REMEMBER quantity AS 3
-THE total IS price MULTIPLIED BY quantity
-CHANGE quantity TO 4
-INCREASE quantity BY 1
-BEGIN REACTIVE BATCH
-  CHANGE price TO 200
-  CHANGE quantity TO 5
-END REACTIVE BATCH
-FLUSH REACTIVE
-SPEAK total
+signal price = 100
+signal quantity = 3
+derived total = price * quantity
+quantity = 4
+quantity += 1
+batch {
+  price = 200
+  quantity = 5
+}
+print(total)
 ```
 
-Smoke: `examples/build/reactive_core.luke` · cycle tripwire: `examples/build/reactive_cycle.luke`
+Smoke: `examples/build/reactive_core.lk` · cycle tripwire: `examples/build/reactive_cycle.lk`
 
 ### Phase 2 UI surface
 
 ```luke
-REMEMBER username AS ""
-BIND "greeting" TO "Welcome, " AND username
-WHEN "name" IS CHANGED DO
+signal username = ""
+bind("greeting", "Welcome, " + username)
+raw """WHEN "name" IS CHANGED DO
   CHANGE username TO THE VALUE OF "name"
-END WHEN
-UPDATE "greeting" WITH "Welcome, " AND username
-PAINT DIRTY
+END WHEN"""
 ```
 
-Pipeline: event → `CHANGE` cell → effect (`BIND`) → `argus_set_text` → dirty paint.  
-**No** `CLEAR THE SCREEN`. Text-only updates skip Hanka relayout.
+Pipeline: event → cell write → effect (`bind`) → `argus_set_text` → dirty paint.  
+**No** full-screen clear. Text-only updates skip Hanka relayout.
 
-Demo: `examples/build/reactive_greeting.luke`
+Demo: `examples/build/reactive_greeting.lk`
 
 ### Phase 3 component surface
 
 ```luke
-BEGIN COMPONENT Counter
-  REMEMBER count AS 0
-  BIND "counter-label" TO "Count: " AND count
-END COMPONENT
-
-WHEN "counter-inc" IS CLICKED DO
+signal count = 0
+bind("counter-label", "Count: " + count)
+raw """WHEN "counter-inc" IS CLICKED DO
   INCREASE count BY 1
-END WHEN
-
-DESTROY COMPONENT Counter
+END WHEN"""
 ```
 
-`BEGIN COMPONENT` opens a reactive scope; cells/effects inside are owned.  
-`DESTROY COMPONENT` unsubscribes those nodes.
+`BEGIN COMPONENT` / `DESTROY COMPONENT` (still opaque v1 via `raw`) open and dispose a reactive scope.
 
-Demos: `reactive_counter_scope.luke` · `reactive_counter.luke`
+Demos: `reactive_counter_scope.lk` · `reactive_counter.lk`
 
 ### Phase 4 async surface
 
 ```luke
-REMEMBER body AS ""
-REMEMBER status AS 0
-REMEMBER ready AS 0
-
-START FETCH "demo" GET "luke://stub/profile" INTO body STATUS status READY ready
-
-WHEN FETCH "demo" IS READY DO
+signal body = ""
+signal status = 0
+signal ready = 0
+raw "START FETCH \"demo\" GET \"luke://stub/profile\" INTO body STATUS status READY ready"
+raw """WHEN FETCH "demo" IS READY DO
   CHANGE loading TO 0
-END WHEN
-
-BIND "body-label" TO "body: " AND body
+END WHEN"""
+bind("body-label", "body: " + body)
 ```
 
 On fetch ready: runtime writes result cells (batched) **then** runs the WHEN body — a continuation edge into the reactive graph. No Promise API in user code.
 
-`luke://…` URLs finish locally (deterministic tests). Demo: `reactive_fetch.luke` 
+`luke://…` URLs finish locally (deterministic tests). Demo: `reactive_fetch.lk`
 
 ---
 
@@ -333,8 +319,8 @@ Animation progress is itself a cell (`0.0 → 1.0`) that drives layout/paint dep
 Avoid “setState culture.” Prefer verbs that mutate cells:
 
 ```luke
-INCREASE the count BY 1
-CHANGE the user's name TO "Alex"
+count += 1
+userName = "Alex"
 ```
 
 Developer describes **what changed**. Runtime decides **what must react**.

@@ -1,4 +1,5 @@
 #include "luke/build.hpp"
+#include "luke2.hpp"
 #include "luke_ast.hpp"
 #include "luke_expr.hpp"
 #include "luke_parse.hpp"
@@ -7629,10 +7630,38 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
 
   std::string stdlib = options.stdlibPath;
   if (stdlib.empty()) {
-    if (std::ifstream("stdlib/files.luke")) stdlib = "stdlib";
-    else if (std::ifstream("vm/stdlib/files.luke")) stdlib = "vm/stdlib";
-    else if (std::ifstream("../stdlib/files.luke")) stdlib = "../stdlib";
+    if (std::ifstream("stdlib/files.lk") || std::ifstream("stdlib/files.luke"))
+      stdlib = "stdlib";
+    else if (std::ifstream("vm/stdlib/files.lk") || std::ifstream("vm/stdlib/files.luke"))
+      stdlib = "vm/stdlib";
+    else if (std::ifstream("../stdlib/files.lk") || std::ifstream("../stdlib/files.luke"))
+      stdlib = "../stdlib";
   }
+
+  auto resolveLukeFile = [](const std::string &baseNoExt) -> std::string {
+    if (std::ifstream(baseNoExt + ".lk")) return baseNoExt + ".lk";
+    if (std::ifstream(baseNoExt + ".luke")) return baseNoExt + ".luke";
+    return {};
+  };
+
+  auto loadImportBody = [&](const std::string &path, std::string *err) -> std::string {
+    auto body = readFile(path);
+    if (body.empty()) return {};
+    bool ok = true;
+    std::string lowerErr;
+    size_t lowerLine = 0;
+    /* Imports follow path rules (stdlib is v2 after Phase 5). Entry `--syntax=1`
+     * does not keep imported modules conversational. */
+    auto mode = luke2::SyntaxMode::Auto;
+    auto out = luke2::maybeLowerSource(path, body, mode, stdlib, &ok, &lowerErr, &lowerLine);
+    if (!ok) {
+      if (err)
+        *err = "Build error: syntax v2 error in IMPORT '" + path + "':" +
+               std::to_string(lowerLine) + ": " + lowerErr;
+      return {};
+    }
+    return out;
+  };
 
   std::vector<std::string> pkgRoots = options.packagePaths;
   auto addRoot = [&](const std::string &p) {
@@ -7734,7 +7763,8 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
             out << "// skipped " << t << "\n";
             continue;
           }
-          path = stdlib + "/" + spec.substr(4) + ".luke";
+          path = resolveLukeFile(stdlib + "/" + spec.substr(4));
+          if (path.empty()) path = stdlib + "/" + spec.substr(4) + ".luke";
           auto mod = toUpper(spec.substr(4));
           if (mod == "SQLITE") {
             bool dup = false;
@@ -7775,15 +7805,24 @@ static std::string expandImpl(const std::string &source, const BuildOptions &opt
             return {};
           }
         } else {
-          if (spec.size() < 5 || spec.substr(spec.size() - 5) != ".luke") spec += ".luke";
-          path = baseDir + "/" + spec;
+          /* Prefer explicit extension; otherwise try .lk then .luke. */
+          if (spec.size() >= 3 && spec.compare(spec.size() - 3, 3, ".lk") == 0) {
+            path = baseDir + "/" + spec;
+          } else if (spec.size() >= 5 && spec.compare(spec.size() - 5, 5, ".luke") == 0) {
+            path = baseDir + "/" + spec;
+          } else {
+            path = resolveLukeFile(baseDir + "/" + spec);
+            if (path.empty()) path = baseDir + "/" + spec + ".luke";
+          }
         }
         if (seen.count(path)) continue;
         seen.insert(path);
-        auto body = readFile(path);
+        std::string importErr;
+        auto body = loadImportBody(path, &importErr);
         if (body.empty()) {
           r.ok = false;
-          r.error = "Build error: IMPORT could not open '" + path + "'";
+          r.error = importErr.empty() ? ("Build error: IMPORT could not open '" + path + "'")
+                                      : importErr;
           return {};
         }
         r.importedFiles.push_back(path);

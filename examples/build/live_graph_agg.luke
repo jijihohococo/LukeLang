@@ -1,53 +1,35 @@
-// Differential aggregate IVM — multi-row group_concat maintained via bag table.
-// INSERT/UPDATE/DELETE mutate luke_ivm_bag_* and republish group_concat(bag),
-// never re-scan the base table for the aggregate.
-// Build: luke BUILD examples/build/live_graph_agg.luke -o build/live_graph_agg
-
-IMPORT std/sqlite
-
-SPEAK "agg start"
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph_agg.db"
-ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS notes"
-ASK dbExec WITH db, "CREATE TABLE notes(id INTEGER PRIMARY KEY, status TEXT, body TEXT)"
-ASK dbExec WITH db, "INSERT INTO notes(id, status, body) VALUES(1, 'open', 'alpha')"
-ASK dbExec WITH db, "INSERT INTO notes(id, status, body) VALUES(2, 'open', 'beta')"
-ASK dbExec WITH db, "INSERT INTO notes(id, status, body) VALUES(3, 'closed', 'gamma')"
-
-WATCH feed FROM db AS "SELECT body FROM notes WHERE status = 'open'"
-
-MY NAME IS v0 AS TEXT SET TO feed
-SPEAK "v0=" AND v0
-MAKE SURE v0 EQUALS "alpha\nbeta"
-
-// Closed-row write must not change the open feed.
-ASK dbExec WITH db, "UPDATE notes SET body = 'GAMMA' WHERE id = 3"
-REFRESH QUERY feed
-MY NAME IS vClosed AS TEXT SET TO feed
-SPEAK "vClosed=" AND vClosed
-MAKE SURE vClosed EQUALS "alpha\nbeta"
-
-// Insert into the filter.
-ASK dbExec WITH db, "INSERT INTO notes(id, status, body) VALUES(4, 'open', 'delta')"
-REFRESH QUERY feed
-MY NAME IS v1 AS TEXT SET TO feed
-SPEAK "v1=" AND v1
-MAKE SURE v1 EQUALS "alpha\nbeta\ndelta"
-
-// Delete from the filter.
-ASK dbExec WITH db, "DELETE FROM notes WHERE id = 1"
-REFRESH QUERY feed
-MY NAME IS v2 AS TEXT SET TO feed
-SPEAK "v2=" AND v2
-MAKE SURE v2 EQUALS "beta\ndelta"
-
-// Filter exit via UPDATE.
-ASK dbExec WITH db, "UPDATE notes SET status = 'closed' WHERE id = 2"
-REFRESH QUERY feed
-MY NAME IS v3 AS TEXT SET TO feed
-SPEAK "v3=" AND v3
-MAKE SURE v3 EQUALS "delta"
-
-ASK dbClose WITH db
-SPEAK "agg_ok=1"
+import std/sqlite
+print("agg start")
+let db = dbOpen("/tmp/luke_live_graph_agg.db")
+dbExec(db, "PRAGMA journal_mode=WAL")
+dbExec(db, "DROP TABLE IF EXISTS notes")
+dbExec(db, "CREATE TABLE notes(id INTEGER PRIMARY KEY, status TEXT, body TEXT)")
+dbExec(db, "INSERT INTO notes(id, status, body) VALUES(1, 'open', 'alpha')")
+dbExec(db, "INSERT INTO notes(id, status, body) VALUES(2, 'open', 'beta')")
+dbExec(db, "INSERT INTO notes(id, status, body) VALUES(3, 'closed', 'gamma')")
+watch feed from db as "SELECT body FROM notes WHERE status = 'open'"
+let v0: str = feed
+print("v0=" + v0)
+assert v0 == "alpha\nbeta"
+dbExec(db, "UPDATE notes SET body = 'GAMMA' WHERE id = 3")
+feed.refresh()
+let vClosed: str = feed
+print("vClosed=" + vClosed)
+assert vClosed == "alpha\nbeta"
+dbExec(db, "INSERT INTO notes(id, status, body) VALUES(4, 'open', 'delta')")
+feed.refresh()
+let v1: str = feed
+print("v1=" + v1)
+assert v1 == "alpha\nbeta\ndelta"
+dbExec(db, "DELETE FROM notes WHERE id = 1")
+feed.refresh()
+let v2: str = feed
+print("v2=" + v2)
+assert v2 == "beta\ndelta"
+dbExec(db, "UPDATE notes SET status = 'closed' WHERE id = 2")
+feed.refresh()
+let v3: str = feed
+print("v3=" + v3)
+assert v3 == "delta"
+dbClose(db)
+print("agg_ok=1")

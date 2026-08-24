@@ -82,9 +82,9 @@ See [`docs/LIVE_GRAPH.md`](docs/LIVE_GRAPH.md).
 git clone https://github.com/lucasdmarshall/LukeLang.git
 cd LukeLang/vm && make
 
-./build/luke BUILD ../examples/build/hello.lk -o hello && ./hello
-./build/luke BUILD ../examples/build/hello_browser.lk -target browser -o web/hello
-./build/luke SHOW  ../examples/build/hello.lk
+./build/luke BUILD ../examples/build/hello.luke -o hello && ./hello
+./build/luke BUILD ../examples/build/hello_browser.luke -target browser -o web/hello
+./build/luke SHOW  ../examples/build/hello.luke
 ```
 
 | Mode | Command | What you get |

@@ -32,21 +32,21 @@ note() { printf '%-20s %-5s %s\n' "$1" "$2" "$3"; }
 
 for v2 in "$ROOT"/examples/v2/*.lk; do
   stem="$(basename "$v2" .lk)"
-  v1="$ROOT/examples/build/$stem.luke"
+  v1="$ROOT/examples/v1_archive/build/$stem.luke"
   is_prov=0
   [[ "$PROVISIONAL" == *" $stem "* ]] && is_prov=1
   is_server=0
   [[ "$SERVERS" == *" $stem "* ]] && is_server=1
 
   if [[ ! -f "$v1" ]]; then
-    note "$stem" FAIL "no v1 twin at examples/build/$stem.luke"
+    note "$stem" FAIL "no v1 twin at examples/v1_archive/build/$stem.luke"
     fail=$((fail+1)); failed+=("$stem"); continue
   fi
 
   b1="$WORK/${stem}_v1"; b2="$WORK/${stem}_v2"
   e1="$WORK/${stem}_v1.err"; e2="$WORK/${stem}_v2.err"
 
-  if ! (cd "$ROOT/vm" && "$LUKE" BUILD "$v1" -o "$b1" >/dev/null 2>"$e1"); then
+  if ! (cd "$ROOT/vm" && "$LUKE" --syntax=1 BUILD "$v1" -o "$b1" >/dev/null 2>"$e1"); then
     note "$stem" FAIL "v1 build: $(head -1 "$e1")"
     fail=$((fail+1)); failed+=("$stem"); continue
   fi

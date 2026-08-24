@@ -1,20 +1,13 @@
-// Expression Pratt path — precedence without outer parens.
-// 2 ADD 3 MULTIPLY 4 = 2+(3*4) = 14
-
-SPEAK "pratt start"
-
-MY NAME IS a AS NUMBER SET TO 2 ADD 3 MULTIPLY 4
-MY NAME IS b AS NUMBER SET TO (2 ADD 3) MULTIPLY 4
-MY NAME IS c AS FLAG SET TO 5 IS GREATER THAN 3
-MY NAME IS d AS TEXT SET TO "Ada" AND " · " AND "Lovelace"
-
-SPEAK "a=" AND a
-SPEAK "b=" AND b
-SPEAK "d=" AND d
-
-MAKE SURE a EQUALS 14
-MAKE SURE b EQUALS 20
-MAKE SURE c EQUALS TRUE
-MAKE SURE d EQUALS "Ada · Lovelace"
-
-SPEAK "expr_pratt_ok=1"
+print("pratt start")
+let a: float = 2 + 3 * 4
+let b: float = (2 + 3) * 4
+let c: bool = 5 > 3
+let d: str = "Ada" + " · " + "Lovelace"
+print("a=" + a)
+print("b=" + b)
+print("d=" + d)
+assert a == 14
+assert b == 20
+assert c == true
+assert d == "Ada · Lovelace"
+print("expr_pratt_ok=1")

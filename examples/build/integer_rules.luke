@@ -1,24 +1,18 @@
-// INTEGER rules — division→NUMBER, mix→NUMBER, checked exact add.
-// Build: luke BUILD examples/build/integer_rules.luke -o build/integer_rules
-
-MY NAME IS a AS INTEGER SET TO 10
-MY NAME IS b AS INTEGER SET TO 3
-MY NAME IS q AS NUMBER SET TO a DIVIDED BY b
-MY NAME IS mixed AS NUMBER SET TO a ADD 0.5
-
-SPEAK "q=" AND q
-SPEAK "mixed=" AND mixed
-
-IF q IS GREATER THAN 3 DO
-  IF q IS LESS THAN 4 DO
-    SPEAK "div=1"
-  END IF
-END IF
-IF mixed IS GREATER THAN 10 DO
-  SPEAK "mix=1"
-END IF
-
-MY NAME IS cents AS INTEGER SET TO 199
-SET cents TO cents MULTIPLY 2
-SPEAK "cents=" AND cents
-MAKE SURE cents EQUALS 398
+let a: int = 10
+let b: int = 3
+let q: float = a / b
+let mixed: float = a + 0.5
+print("q=" + q)
+print("mixed=" + mixed)
+if q > 3 {
+  if q < 4 {
+    print("div=1")
+  }
+}
+if mixed > 10 {
+  print("mix=1")
+}
+var cents: int = 199
+cents = cents * 2
+print("cents=" + cents)
+assert cents == 398

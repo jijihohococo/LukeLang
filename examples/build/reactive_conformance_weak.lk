@@ -1,9 +1,0 @@
-raw "BEGIN COMPONENT Box"
-signal x = 10
-raw "END COMPONENT"
-raw "THE snap IS THE WEAK VALUE OF x"
-print("snap0=" + snap)
-x += 5
-print("snap=" + snap)
-print("live=" + x)
-raw "SPEAK \"weak_reads=\" AND THE WEAK READ COUNT"

@@ -1,0 +1,46 @@
+// Declarative ROUTES + FORM + SCHEMA + middleware order beachhead.
+// Build: luke BUILD examples/build/backend_lang_ok.luke -o build/backend_lang_ok
+
+IMPORT std/sqlite
+IMPORT std/server
+
+SPEAK "backend_lang_ok start"
+
+ROUTES DO
+  GET "/health"
+  GET "/user/:id" AS INTEGER REQUIRES AUTH
+  POST "/login"
+  GET "/notes" REQUIRES AUTH
+END ROUTES
+
+LINK TO "/health"
+LINK TO "/user/42"
+LINK TO "/notes"
+
+MIDDLEWARE ORDER AUTH THEN RATE LIMIT
+
+FORM login DO
+  HAS email AS EMAIL
+  HAS password AS PASSWORD
+  HAS age AS INTEGER 0..150
+END FORM
+
+SCHEMA notes DO
+  HAS id AS INTEGER
+  HAS user_id AS TEXT
+  HAS body AS TEXT
+END SCHEMA
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_backend_lang_ok.db"
+ENSURE SCHEMA notes ON db
+
+MY NAME IS params AS MAP
+PUT "email" TO "ada@example.com" IN params
+PUT "password" TO "correct horse" IN params
+PUT "age" TO "33" IN params
+VALIDATE FORM login FROM params
+SPEAK "form_cell_ok=" AND form_login_ok
+
+ASK dbClose WITH db
+SPEAK "backend_lang_ok=1"
+SPEAK "route=" AND current_route

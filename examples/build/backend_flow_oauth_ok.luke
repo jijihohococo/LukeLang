@@ -1,10 +1,7 @@
-// OAuth FLOW with VERIFY BY OAUTH — compiles (provider stub later).
-
-FLOW oauth_login DO
-  COLLECT email
-  VERIFY email BY OAUTH
-  DONE → OAUTH CALLBACK
-END FLOW
-
-SPEAK "step=" AND oauth_login_step
-SPEAK "backend_oauth_ok=1"
+raw "FLOW oauth_login DO"
+raw "COLLECT email"
+raw "VERIFY email BY OAUTH"
+raw "DONE → OAUTH CALLBACK"
+raw "END FLOW"
+print("step=" + oauth_login_step)
+print("backend_oauth_ok=1")

@@ -1,13 +1,9 @@
-// LukeLang — tiny HTTP server demo (native).
-// Listen, accept one request, reply, exit.
-
-IMPORT std/server
-
-SPEAK "LukeLang HTTP server on :8787 — send one request then done"
-MY NAME IS server SET TO ASK httpListen WITH 8787
-MY NAME IS req SET TO ASK httpAccept WITH server
-MY NAME IS method SET TO ASK httpMethod WITH req
-MY NAME IS path SET TO ASK httpPath WITH req
-SPEAK "got " AND method AND " " AND path
-ASK httpReply WITH req, 200, "text/plain", "Hello from LukeLang"
-SPEAK "replied — done"
+import std/server
+print("LukeLang HTTP server on :8787 — send one request then done")
+let server = httpListen(8787)
+let req = httpAccept(server)
+let method = httpMethod(req)
+let path = httpPath(req)
+print("got " + method + " " + path)
+httpReply(req, 200, "text/plain", "Hello from LukeLang")
+print("replied — done")

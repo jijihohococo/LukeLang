@@ -1,27 +1,20 @@
-// LukeLang browser app — page owned by Luke
-// Build: luke BUILD examples/build/browser_app.luke -target browser -o build/app
-
-IMPORT std/js
-
-NAME THE PAGE "LukeLang"
-
-WEAR STYLE """
+import std/js
+page.title("LukeLang")
+page.style("""
 body { margin:0; font-family: Georgia, serif; background:#0f1714; color:#e8f0eb; }
 main { max-width:36rem; margin:0 auto; padding:12vh 1.25rem; }
 .brand { font-size:clamp(2.5rem,8vw,4rem); font-weight:700; letter-spacing:-0.03em; color:#3ecf8e; margin:0 0 0.5rem; }
 button { font:inherit; padding:0.7rem 1rem; cursor:pointer; border:0; background:#3ecf8e; color:#0f1714; }
 #out { margin-top:1rem; min-height:1.4em; }
-"""
-
-FILL "root" WITH """
+""")
+fill("root", """
 <main>
   <p class="brand">LukeLang</p>
   <p><em>Not JavaScript. Not Python. Not Rust. LukeLang.</em></p>
   <button type="button" id="go">Try me</button>
   <p id="out"></p>
 </main>
-"""
-
-WHEN "go" IS CLICKED DO
+""")
+raw """WHEN "go" IS CLICKED DO
   FILL "out" WITH "You clicked — still LukeLang underneath."
-END WHEN
+END WHEN"""

@@ -1,7 +1,0 @@
-raw "FLOW oauth_login DO"
-raw "COLLECT email"
-raw "VERIFY email BY OAUTH"
-raw "DONE → OAUTH CALLBACK"
-raw "END FLOW"
-print("step=" + oauth_login_step)
-print("backend_oauth_ok=1")

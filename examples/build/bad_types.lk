@@ -1,2 +1,0 @@
-let name: str = 42
-print(name)

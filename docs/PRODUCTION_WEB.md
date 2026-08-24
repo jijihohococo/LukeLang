@@ -44,17 +44,17 @@ Static dist    .html + .wasm + fonts/
 ## Surface (v1)
 
 ```luke
-BEGIN COLUMN AT 48, 48 SIZE 720, 520 PAD 0 GAP 16 ALIGN CENTER
-  BEGIN ROW AT 0, 0 SIZE 720, 48 PAD 0 GAP 12
-    SLOT BUTTON "nav-home" SIZE 120, 44 SAY "Home"
-    SLOT BUTTON "nav-search" SIZE 120, 44 SAY "Search"
-  END ROW
-  SLOT INPUT "email" AS EMAIL SIZE 480, 48 SAY "you@example.com"
-  SLOT INPUT "pass" AS PASSWORD SIZE 480, 48 SAY "Password"
-  SLOT SELECT "plan" SIZE 240, 40 SAY "Free|Pro|Team"
-END COLUMN
-LAY OUT THE SCREEN
-PAINT THE SCREEN
+raw "BEGIN COLUMN AT 48, 48 SIZE 720, 520 PAD 0 GAP 16 ALIGN CENTER"
+raw "BEGIN ROW AT 0, 0 SIZE 720, 48 PAD 0 GAP 12"
+raw "SLOT BUTTON \"nav-home\" SIZE 120, 44 SAY \"Home\""
+raw "SLOT BUTTON \"nav-search\" SIZE 120, 44 SAY \"Search\""
+raw "END ROW"
+raw "SLOT INPUT \"email\" AS EMAIL SIZE 480, 48 SAY \"you@example.com\""
+raw "SLOT INPUT \"pass\" AS PASSWORD SIZE 480, 48 SAY \"Password\""
+raw "SLOT SELECT \"plan\" SIZE 240, 40 SAY \"Free|Pro|Team\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
 ```
 
 ## Demo / deploy

@@ -1,8 +1,5 @@
-// NEGATIVE: FLOW DONE without VERIFY → compile error (impossible auth state).
-
-FLOW signup DO
-  COLLECT email, password
-  DONE → CREATE ACCOUNT
-END FLOW
-
-SPEAK "should_not_build"
+raw "FLOW signup DO"
+raw "COLLECT email, password"
+raw "DONE → CREATE ACCOUNT"
+raw "END FLOW"
+print("should_not_build")

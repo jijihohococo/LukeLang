@@ -1,9 +1,6 @@
-// Registry package: luke/echo
-
-THIS IS FUNCTION echoText WITH msg AS TEXT GIVES BACK TEXT DO
-  GIVE BACK msg
-END FUNCTION
-
-THIS IS FUNCTION shout WITH msg AS TEXT GIVES BACK TEXT DO
-  GIVE BACK msg AND "!"
-END FUNCTION
+fn echoText(msg: str) -> str {
+  return msg
+}
+fn shout(msg: str) -> str {
+  return msg + "!"
+}

@@ -1,3 +1,2 @@
-IMPORT luke/echo
-
-SPEAK ASK shout WITH "from Build IR via Play"
+import luke/echo
+print(shout("from Build IR via Play"))

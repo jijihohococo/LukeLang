@@ -1,31 +1,23 @@
-// Backend concurrency — event-loop I/O + handler pool via ASK httpServe.
-// /slow sleeps ~200ms; /fast replies immediately. Overlapping clients prove concurrency.
-// Build: luke BUILD examples/build/concurrent_server.luke -o build/concurrent_server
-
-IMPORT std/server
-
-THIS IS FUNCTION handle WITH req AS REQUEST DO
-  MY NAME IS path SET TO ASK httpPath WITH req
-  IF path EQUALS "/slow" DO
-    MY NAME IS t0 AS NUMBER SET TO THE CLOCK
-    WHILE THE CLOCK SUBTRACT t0 IS LESS THAN 200 DO
-    END WHILE
-    ASK httpReply WITH req, 200, "text/plain", "slow"
-    SPEAK "served=slow"
-  END IF
-  IF path EQUALS "/fast" DO
-    ASK httpReply WITH req, 200, "text/plain", "fast"
-    SPEAK "served=fast"
-  END IF
-  IF path EQUALS "/ok" DO
-    ASK httpReply WITH req, 200, "text/plain", "ok"
-    SPEAK "served=ok"
-  END IF
-END FUNCTION
-
-SPEAK "concurrent server :8797"
-
-MY NAME IS server SET TO ASK httpListen WITH 8797
-ASK httpServe WITH server, handle, 2
-
-SPEAK "server done"
+import std/server
+fn handle(req: Request) {
+  let path = httpPath(req)
+  if path == "/slow" {
+    let t0: float = clock
+    while clock - t0 < 200 {
+    }
+    httpReply(req, 200, "text/plain", "slow")
+    print("served=slow")
+  }
+  if path == "/fast" {
+    httpReply(req, 200, "text/plain", "fast")
+    print("served=fast")
+  }
+  if path == "/ok" {
+    httpReply(req, 200, "text/plain", "ok")
+    print("served=ok")
+  }
+}
+print("concurrent server :8797")
+let server = httpListen(8797)
+httpServe(server, handle, 2)
+print("server done")

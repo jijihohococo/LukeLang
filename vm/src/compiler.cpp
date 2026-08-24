@@ -87,6 +87,24 @@ std::vector<std::string> splitNameList(const std::string &s) {
   return splitArgs(normalized);
 }
 
+/* Build/lower emit `WITH a AS NUMBER`; Play only needs the name. */
+std::string stripAsType(std::string raw) {
+  raw = trim(raw);
+  auto U = toUpper(raw);
+  auto as = U.find(" AS ");
+  if (as != std::string::npos) return trim(raw.substr(0, as));
+  return raw;
+}
+
+std::vector<std::string> paramNames(const std::string &rawList) {
+  std::vector<std::string> out;
+  for (auto &p : splitArgs(rawList)) {
+    auto n = stripAsType(p);
+    if (!n.empty()) out.push_back(n);
+  }
+  return out;
+}
+
 bool stripTrailingDo(std::string &s) {
   auto U = toUpper(s);
   auto doPos = U.rfind(" DO");
@@ -951,7 +969,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
           mname = methodRest;
         } else {
           mname = trim(methodRest.substr(0, withPos));
-          params = splitArgs(trim(methodRest.substr(withPos + 6)));
+          params = paramNames(trim(methodRest.substr(withPos + 6)));
         }
         current = startFunctionLike(mname, params, true, mname, flags, line);
         return;
@@ -1011,7 +1029,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
       stripTrailingDo(rest);
       std::vector<std::string> params;
       if (startsWithCI(rest, "WITH ")) {
-        params = splitArgs(trim(rest.substr(5)));
+        params = paramNames(trim(rest.substr(5)));
       } else if (!rest.empty()) {
         fail(line, "Expected WHEN BORN WITH args DO");
         return;
@@ -1047,7 +1065,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
           mname = rest;
         } else {
           mname = trim(rest.substr(0, withPos));
-          params = splitArgs(trim(rest.substr(withPos + 6)));
+          params = paramNames(trim(rest.substr(withPos + 6)));
         }
         current = startFunctionLike(mname, params, true, mname, flags, line);
         return;
@@ -1079,7 +1097,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         name = rest;
       } else {
         name = trim(rest.substr(0, withPos));
-        params = splitArgs(trim(rest.substr(withPos + 6)));
+        params = paramNames(trim(rest.substr(withPos + 6)));
       }
       current = startFunctionLike(name, params, false, name, 0, line);
       return;

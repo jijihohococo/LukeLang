@@ -1,0 +1,37 @@
+// Live Graph tier 2 — server declares WATCH FROM db; PUSH WATCH streams CDC.
+// No hand-rolled query / SSE poll loop in this program.
+// Build: luke BUILD examples/build/live_graph_server.luke -o build/live_graph_server
+
+IMPORT std/server
+IMPORT std/sqlite
+IMPORT std/argus
+
+SPEAK "live_graph server :8798 /watch"
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph.db"
+ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
+ASK dbExec WITH db, "CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT)"
+ASK dbExec WITH db, "DELETE FROM users"
+ASK dbExec WITH db, "INSERT INTO users(id, name) VALUES(1, 'seed')"
+
+WATCH user FROM db WHERE "id = 1"
+
+MY NAME IS server SET TO ASK httpListen WITH 8798
+MY NAME IS left AS NUMBER SET TO 4
+
+WHILE left IS GREATER THAN 0 DO
+  MY NAME IS req SET TO ASK httpAccept WITH server
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS hit AS FLAG SET TO FALSE
+  IF path EQUALS "/watch" DO
+    SET hit TO TRUE
+    PUSH WATCH user ON req FOR 50 BEATS EVERY 50 MILLISECONDS
+  END IF
+  IF NOT hit DO
+    ASK httpReply WITH req, 404, "text/plain", "not found"
+  END IF
+  SET left TO left SUBTRACT 1
+END WHILE
+
+ASK dbClose WITH db
+SPEAK "server done"

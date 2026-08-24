@@ -55,39 +55,35 @@ Examples: `auth_unit.luke`, `auth_api.luke`, `auth_scoped.luke`, `auth_secret_ok
 ## War cry surface (this beachhead)
 
 ```luke
-IMPORT std/server
-IMPORT std/sqlite
-
-THIS IS FUNCTION health WITH req AS REQUEST DO
-  ASK httpReply WITH req, 200, "text/plain", "ok"
-END FUNCTION
-
-THIS IS FUNCTION show_user WITH req AS REQUEST DO
-  MY NAME IS path SET TO ASK httpPath WITH req
-  MY NAME IS params AS MAP
-  ASK httpMatch WITH path, "/user/:id", params
-  MY NAME IS id SET TO GET "id" FROM params
-  ASK httpReply WITH req, 200, "text/plain", id
-END FUNCTION
-
-ROUTES DO
-  GET "/ok" HANDLE health
-  GET "/user/:id" AS INTEGER HANDLE show_user
-END ROUTES
-
-MY NAME IS server SET TO ASK httpListen WITH 8799
-SERVE ROUTES ON server WITH 8
+import std/server
+import std/sqlite
+fn health(req: Request) {
+  httpReply(req, 200, "text/plain", "ok")
+}
+fn show_user(req: Request) {
+  let path = httpPath(req)
+  var params: map = {}
+  httpMatch(path, "/user/:id", params)
+  let id = params["id"]
+  httpReply(req, 200, "text/plain", id)
+}
+raw "ROUTES DO"
+raw "GET \"/ok\" HANDLE health"
+raw "GET \"/user/:id\" AS INTEGER HANDLE show_user"
+raw "END ROUTES"
+let server = httpListen(8799)
+raw "SERVE ROUTES ON server WITH 8"
 ```
 
 Form validation feeds reactive cells (BIND in UI without a second declaration):
 
 ```luke
-FORM login DO
-  HAS email AS EMAIL
-  HAS password AS PASSWORD
-END FORM
-VALIDATE FORM login FROM params
-# → form_login_email_error / form_login_ok cells
+raw "FORM login DO"
+raw "HAS email AS EMAIL"
+raw "HAS password AS PASSWORD"
+raw "END FORM"
+raw "VALIDATE FORM login FROM params"
+raw "# → form_login_email_error / form_login_ok cells"
 ```
 
 Migrations are versioned UP/DOWN SQL (rewind = apply DOWN):

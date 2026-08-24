@@ -39,6 +39,10 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " FMT [-e expr|<file.luke>]  Format expression(s) via Pratt AST\n"
       << "  " << argv0 << " DEBUG <file.luke> [opts]   Build -O0 -g and debug with gdb (.luke:line)\n"
       << "\n"
+      << "Global options (before the command):\n"
+      << "  --syntax=1                     conversational v1 (deprecation window)\n"
+      << "  --syntax=2                     force syntax v2 lower\n"
+      << "\n"
       << "Build options:\n"
       << "  -o <path>                       output binary / wasm / browser stem\n"
       << "  -target native|wasm|browser|debug  default native (debug = -O0 -g)\n"
@@ -112,10 +116,11 @@ std::string findRuntimeInclude() {
   return "runtime";
 }
 
-/* Syntax v2: `.lk` files are lowered to conversational v1 source before they reach
- * the compiler, so codegen never sees v2. Emitted @luke-file markers make errors,
- * #line maps and gdb report .lk positions. See docs/SYNTAX_V2_PLAN.md §3. */
+/* Syntax v2: `.luke` / `.lk` lower to conversational v1 text before codegen.
+ * `--syntax=1` forces the conversational surface (deprecation window). */
 std::string findStdlib();
+
+luke2::SyntaxMode gSyntaxMode = luke2::SyntaxMode::Auto;
 
 std::string loadLukeSource(const std::string &path, bool *okOut) {
   if (okOut) *okOut = true;
@@ -125,19 +130,17 @@ std::string loadLukeSource(const std::string &path, bool *okOut) {
     if (okOut) *okOut = false;
     return {};
   }
-  if (!luke2::isV2Path(path)) return raw;
-
-  luke2::LowerOptions lo;
-  lo.sourcePath = path;
-  lo.stdlibDir = findStdlib();
-  auto res = luke2::lowerSource(raw, lo);
-  if (!res.ok) {
-    std::cerr << path << ":" << res.line << ": syntax v2 error: " << res.error << "\n";
+  std::string err;
+  size_t errLine = 0;
+  bool ok = true;
+  auto out = luke2::maybeLowerSource(path, raw, gSyntaxMode, findStdlib(), &ok, &err, &errLine);
+  if (!ok) {
+    std::cerr << path << ":" << errLine << ": syntax v2 error: " << err << "\n";
     if (okOut) *okOut = false;
     return {};
   }
-  if (std::getenv("LUKE_V2_DUMP")) std::cerr << res.v1;
-  return res.v1;
+  if (std::getenv("LUKE_V2_DUMP") && luke2::wantsV2(path, gSyntaxMode)) std::cerr << out;
+  return out;
 }
 
 std::string findStdlib() {
@@ -191,6 +194,7 @@ luke::BuildOptions makeBuildOptions(const std::string &path, const std::string &
   opt.packagePaths.push_back(dirnameOf(path) + "/luke_modules");
   opt.packagePaths.push_back("luke_modules");
   opt.packagePaths.push_back("../luke_modules");
+  opt.syntaxMode = static_cast<int>(gSyntaxMode);
   return opt;
 }
 
@@ -286,11 +290,9 @@ std::string makeBrowserHtml(const std::string &wasmFile, const luke::BuildResult
 }
 
 int runViaVm(const std::string &path) {
-  std::string source = readFile(path);
-  if (source.empty() && !std::ifstream(path)) {
-    std::cerr << "Error: could not open " << path << "\n";
-    return 1;
-  }
+  bool loaded = false;
+  std::string source = loadLukeSource(path, &loaded);
+  if (!loaded) return 1;
   luke::Heap heap;
   auto compiled = luke::compileLuke(source, heap);
   if (!compiled.ok) {
@@ -707,8 +709,30 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::string cmd = upper(argv[1]);
+  std::vector<char *> args;
+  args.push_back(argv[0]);
+  for (int i = 1; i < argc; ++i) {
+    std::string a = argv[i];
+    if (a.rfind("--syntax=", 0) == 0) {
+      auto v = a.substr(9);
+      if (v == "1") gSyntaxMode = luke2::SyntaxMode::ForceV1;
+      else if (v == "2") gSyntaxMode = luke2::SyntaxMode::ForceV2;
+      else {
+        std::cerr << "Error: --syntax must be 1 or 2\n";
+        return 1;
+      }
+      continue;
+    }
+    args.push_back(argv[i]);
+  }
+  argc = (int)args.size();
+  argv = args.data();
+  if (argc < 2) {
+    printUsage(argv[0]);
+    return 1;
+  }
 
+  std::string cmd = upper(argv[1]);
   if (cmd == "SHOW" || cmd == "PLAY") {
     if (argc < 3) {
       printUsage(argv[0]);

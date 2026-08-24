@@ -1,116 +1,84 @@
-SPEAK "=== OOP Feature Showcase ==="
-
-CONTRACT Movable DO
-  MUST METHOD move WITH distance
-END CONTRACT
-
-CONTRACT Eater DO
-  MUST METHOD eat WITH food
-END CONTRACT
-
-CONTRACT Sleeper DO
-  MUST METHOD sleep WITH hours
-END CONTRACT
-
-ABSTRACT BLUEPRINT Creature IMPLEMENTS Movable AND Eater AND Sleeper DO
-  PRIVATE energy
-  HAS name SET TO "Unknown"
-  ALWAYS HAS totalCount SET TO 0
-
-  WHEN BORN WITH name DO
-    SET SELF.name TO name
-    SET SELF.energy TO 100
-    SET Creature.totalCount TO Creature.totalCount ADD 1
-  END BORN
-
-  ALWAYS METHOD count DO
-    SPEAK "Total creatures: " AND SELF.totalCount
-  END METHOD
-
-  SECRET METHOD rest WITH minutes DO
-    SET SELF.energy TO SELF.energy ADD minutes
-  END METHOD
-
-  METHOD move WITH distance DO
-    SET SELF.energy TO SELF.energy SUBTRACT distance
-    SPEAK SELF.name AND " moves " AND distance
-    GIVE BACK SELF.energy
-  END METHOD
-
-  METHOD eat WITH food DO
-    SPEAK SELF.name AND " eats " AND food
-    ASK SELF TO rest WITH 10
-  END METHOD
-
-  METHOD sleep WITH hours DO
-    SPEAK SELF.name AND " sleeps for " AND hours AND " hours"
-    ASK SELF TO rest WITH hours MULTIPLY BY 10
-  END METHOD
-END CLASS
-
-BLUEPRINT Lion FOLLOWS Creature DO
-  ALWAYS HAS species SET TO "Lion"
-
-  METHOD roar DO
-    SPEAK SELF.name AND " roars loudly!"
-  END METHOD
-
-  METHOD eat WITH food DO
-    CALL PARENT eat WITH food
-    SPEAK SELF.name AND " tears into the meat fiercely."
-  END METHOD
-END CLASS
-
-BLUEPRINT Elephant FOLLOWS Creature DO
-  ALWAYS HAS species SET TO "Elephant"
-
-  METHOD trumpet DO
-    SPEAK SELF.name AND " trumpets proudly!"
-  END METHOD
-
-  METHOD eat WITH food DO
-    SPEAK SELF.name AND " gently munches on " AND food
-  END METHOD
-END CLASS
-
-THIS IS FUNCTION feedAll WITH animals AND food DO
-  FOR EACH a IN animals DO
-    ASK a TO eat WITH food
-  END FOR
-END FUNCTION
-
-THIS IS FUNCTION march WITH animals AND distance DO
-  FOR EACH a IN animals DO
-    ASK a TO move WITH distance
-  END FOR
-END FUNCTION
-
-THIS IS FUNCTION bedTime WITH animals AND hours DO
-  FOR EACH a IN animals DO
-    ASK a TO sleep WITH hours
-  END FOR
-END FUNCTION
-
-TRY DO
-  SET simba TO NEW Lion WITH "Simba"
-  SET dumbo TO NEW Elephant WITH "Dumbo"
-  SET zoo TO LIST OF simba AND dumbo END LIST
-
-  ASK simba TO roar
-  ASK dumbo TO trumpet
-
-  ASK Creature TO count
-
-  DO march WITH zoo AND 3
-  DO feedAll WITH zoo AND "bananas"
-  DO bedTime WITH zoo AND 8
-
-  SET energyLeft TO DO move OF simba WITH 2
-  SPEAK "Simba's energy left: " AND energyLeft
-
-  SPEAK "Second animal via indexing: " AND (ITEM AT 1 OF zoo).name
-CATCH AS e DO
-  SPEAK "Error: " AND e
-FINALLY DO
-  SPEAK "=== End of OOP Feature Showcase ==="
-END TRY
+print("=== OOP Feature Showcase ===")
+raw "CONTRACT Movable DO"
+raw "MUST METHOD move WITH distance"
+raw "END CONTRACT"
+raw "CONTRACT Eater DO"
+raw "MUST METHOD eat WITH food"
+raw "END CONTRACT"
+raw "CONTRACT Sleeper DO"
+raw "MUST METHOD sleep WITH hours"
+raw "END CONTRACT"
+raw "ABSTRACT BLUEPRINT Creature IMPLEMENTS Movable AND Eater AND Sleeper DO"
+raw "PRIVATE energy"
+raw "HAS name SET TO \"Unknown\""
+raw "ALWAYS HAS totalCount SET TO 0"
+raw "WHEN BORN WITH name DO"
+self.name = name
+self.energy = 100
+Creature.totalCount = Creature.totalCount + 1
+raw "ALWAYS METHOD count DO"
+print("Total creatures: " + self.totalCount)
+raw "SECRET METHOD rest WITH minutes DO"
+self.energy = self.energy + minutes
+raw "METHOD move WITH distance DO"
+self.energy = self.energy - distance
+print(self.name + " moves " + distance)
+return self.energy
+raw "METHOD eat WITH food DO"
+print(self.name + " eats " + food)
+SELF.rest(10)
+raw "METHOD sleep WITH hours DO"
+print(self.name + " sleeps for " + hours + " hours")
+SELF.rest(hours) * BY 10
+struct Lion : Creature {
+  raw "ALWAYS HAS species SET TO \"Lion\""
+  fn roar() {
+    print(self.name + " roars loudly!")
+  }
+  fn eat(food) {
+    super.eat(food)
+    print(self.name + " tears into the meat fiercely.")
+  }
+}
+struct Elephant : Creature {
+  raw "ALWAYS HAS species SET TO \"Elephant\""
+  fn trumpet() {
+    print(self.name + " trumpets proudly!")
+  }
+  fn eat(food) {
+    print(self.name + " gently munches on " + food)
+  }
+}
+fn feedAll(animals AND food) {
+  for a in animals {
+    a.eat(food)
+  }
+}
+fn march(animals AND distance) {
+  for a in animals {
+    a.move(distance)
+  }
+}
+fn bedTime(animals AND hours) {
+  for a in animals {
+    a.sleep(hours)
+  }
+}
+raw "TRY DO"
+raw "SET simba TO NEW Lion WITH \"Simba\""
+raw "SET dumbo TO NEW Elephant WITH \"Dumbo\""
+let zoo = LIST OF simba + dumbo END LIST
+simba.roar()
+dumbo.trumpet()
+Creature.count()
+raw "DO march WITH zoo AND 3"
+raw "DO feedAll WITH zoo AND \"bananas\""
+raw "DO bedTime WITH zoo AND 8"
+let energyLeft = DO move OF simba WITH 2
+print("Simba's energy left: " + energyLeft)
+print("Second animal via indexing: " + (ITEM AT 1 OF zoo).name)
+raw "CATCH AS e DO"
+print("Error: " + e)
+raw "FINALLY DO"
+print("=== End of OOP Feature Showcase ===")
+raw "END TRY"

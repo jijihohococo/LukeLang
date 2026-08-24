@@ -1,0 +1,58 @@
+// Differential IVM — JOIN with a NON-key filter (WHERE u.status = 'active').
+// Users triggers are WHEN-gated on status; profiles (partner) use EXISTS
+// runtime key analysis into users — unrelated partner writes are no-ops.
+// Proves: filter enter, partner update, filter exit, and delete all stay correct.
+// Build: luke BUILD examples/build/live_graph_join_filter.luke -o build/lgjf
+
+IMPORT std/sqlite
+
+SPEAK "join_filter start"
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph_join_filter.db"
+ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS profiles"
+ASK dbExec WITH db, "DROP TABLE IF EXISTS users"
+ASK dbExec WITH db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, status TEXT)"
+ASK dbExec WITH db, "CREATE TABLE profiles(user_id INTEGER PRIMARY KEY, title TEXT)"
+ASK dbExec WITH db, "INSERT INTO users(id, name, status) VALUES(1, 'Ada', 'active')"
+ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(1, 'Engineer')"
+
+WATCH card FROM db AS "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.status = 'active'"
+
+MY NAME IS v0 AS TEXT SET TO card
+SPEAK "v0=" AND v0
+MAKE SURE v0 EQUALS "Ada · Engineer"
+
+// Unrelated user (inactive) + its profile — must NOT change the watched cell.
+ASK dbExec WITH db, "INSERT INTO users(id, name, status) VALUES(2, 'Bob', 'inactive')"
+ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(2, 'Other')"
+ASK dbExec WITH db, "UPDATE users SET name = 'Bobby' WHERE id = 2"
+ASK dbExec WITH db, "UPDATE profiles SET title = 'Nope' WHERE user_id = 2"
+REFRESH QUERY card
+MY NAME IS vUn AS TEXT SET TO card
+SPEAK "vUn=" AND vUn
+MAKE SURE vUn EQUALS "Ada · Engineer"
+
+// Partner (profiles) update for the active user — must update.
+ASK dbExec WITH db, "UPDATE profiles SET title = 'Founder' WHERE user_id = 1"
+REFRESH QUERY card
+MY NAME IS v1 AS TEXT SET TO card
+SPEAK "v1=" AND v1
+MAKE SURE v1 EQUALS "Ada · Founder"
+
+// Filter exit: Ada leaves the filter (active -> retired). Result clears.
+ASK dbExec WITH db, "UPDATE users SET status = 'retired' WHERE id = 1"
+REFRESH QUERY card
+MY NAME IS v2 AS TEXT SET TO card
+SPEAK "v2=" AND v2
+MAKE SURE v2 EQUALS ""
+
+// Filter re-enter: Ada comes back to active. Result returns.
+ASK dbExec WITH db, "UPDATE users SET status = 'active' WHERE id = 1"
+REFRESH QUERY card
+MY NAME IS v3 AS TEXT SET TO card
+SPEAK "v3=" AND v3
+MAKE SURE v3 EQUALS "Ada · Founder"
+
+ASK dbClose WITH db
+SPEAK "join_filter_ok=1"

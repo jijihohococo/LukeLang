@@ -1,29 +1,21 @@
-// IMPORT std/argus — Argus rendering engine (DOM presentment)
-
-THIS IS FUNCTION argusPlaceText WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
-  GIVE BACK __argus_place_text(id, x, y, w, h, text)
-END FUNCTION
-
-THIS IS FUNCTION argusPlaceButton WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
-  GIVE BACK __argus_place_button(id, x, y, w, h, text)
-END FUNCTION
-
-THIS IS FUNCTION argusPlaceImage WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, src AS TEXT GIVES BACK FLAG DO
-  GIVE BACK __argus_place_image(id, x, y, w, h, src)
-END FUNCTION
-
-THIS IS FUNCTION argusPlaceBox WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER GIVES BACK FLAG DO
-  GIVE BACK __argus_place_box(id, x, y, w, h)
-END FUNCTION
-
-THIS IS FUNCTION argusPlaceInput WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, placeholder AS TEXT, inputType AS NUMBER GIVES BACK FLAG DO
-  GIVE BACK __argus_place_input(id, x, y, w, h, placeholder, inputType)
-END FUNCTION
-
-THIS IS FUNCTION argusPaint GIVES BACK FLAG DO
-  GIVE BACK __argus_paint()
-END FUNCTION
-
-THIS IS FUNCTION argusClear GIVES BACK FLAG DO
-  GIVE BACK __argus_clear()
-END FUNCTION
+fn argusPlaceText(id: str, x: float, y: float, w: float, h: float, text: str) -> bool {
+  return __argus_place_text(id, x, y, w, h, text)
+}
+fn argusPlaceButton(id: str, x: float, y: float, w: float, h: float, text: str) -> bool {
+  return __argus_place_button(id, x, y, w, h, text)
+}
+fn argusPlaceImage(id: str, x: float, y: float, w: float, h: float, src: str) -> bool {
+  return __argus_place_image(id, x, y, w, h, src)
+}
+fn argusPlaceBox(id: str, x: float, y: float, w: float, h: float) -> bool {
+  return __argus_place_box(id, x, y, w, h)
+}
+fn argusPlaceInput(id: str, x: float, y: float, w: float, h: float, placeholder: str, inputType: float) -> bool {
+  return __argus_place_input(id, x, y, w, h, placeholder, inputType)
+}
+fn argusPaint() -> bool {
+  return __argus_paint()
+}
+fn argusClear() -> bool {
+  return __argus_clear()
+}

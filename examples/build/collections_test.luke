@@ -1,26 +1,22 @@
-// LukeLang TEST example — luke TEST collections_test.luke
-
-TEST "list basics" DO
-  MY NAME IS nums AS LIST
-  ADD "a" TO nums
-  ADD "b" TO nums
-  MAKE SURE HOW MANY IN nums EQUALS 2
-  MAKE SURE ITEM 0 OF nums EQUALS "a"
-END TEST
-
-TEST "map basics" DO
-  MY NAME IS bag AS MAP
-  PUT "k" TO "v" IN bag
-  MAKE SURE GET "k" FROM bag EQUALS "v"
-  MAKE SURE HOW MANY IN bag EQUALS 1
-END TEST
-
-TEST "attempt recovers" DO
-  MY NAME IS saw AS TEXT SET TO "no"
-  ATTEMPT DO
-    GIVE UP WITH "boom"
-  OTHERWISE WITH problem DO
-    MY NAME IS saw SET TO problem
-  END ATTEMPT
-  MAKE SURE saw EQUALS "boom"
-END TEST
+test "list basics" {
+  var nums: list = []
+  nums.push("a")
+  nums.push("b")
+  assert nums.len() == 2
+  assert nums[0] == "a"
+}
+test "map basics" {
+  var bag: map = {}
+  bag["k"] = "v"
+  assert bag["k"] == "v"
+  assert bag.len() == 1
+}
+test "attempt recovers" {
+  var saw: str = "no"
+  try {
+    throw "boom"
+  } catch (problem) {
+    saw = problem
+  }
+  assert saw == "boom"
+}

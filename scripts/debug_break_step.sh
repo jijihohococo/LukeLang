@@ -12,7 +12,7 @@ if ! command -v gdb >/dev/null 2>&1; then
   exit 1
 fi
 
-SRC="$ROOT/examples/build/functions.lk"
+SRC="$ROOT/examples/build/functions.luke"
 OUT="$ROOT/vm/build/ex_debug_functions"
 
 # Break on print("2 + 3 =") (line 8): next→9, next→10, step→greet body, finish

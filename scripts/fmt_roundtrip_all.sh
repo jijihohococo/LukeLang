@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LUKE="${LUKE:-$ROOT/vm/build/luke}"
-EX_DIR="$ROOT/examples/build"
+EX_DIR="$ROOT/examples/v1_archive/build"
 WORK="${TMPDIR:-/tmp}/luke_fmt_rt_$$"
 BUILD_TIMEOUT=45
 RUN_TIMEOUT=8
@@ -116,11 +116,11 @@ for f in "$WORK/orig"/*.luke; do
   fbin="$WORK/bin/f_${base%.luke}"
 
   if is_negative "$base"; then
-    if "$LUKE" BUILD "$orig" -o "$obin" >"$WORK/neg_o_$base.txt" 2>&1; then
+    if "$LUKE" --syntax=1 BUILD "$orig" -o "$obin" >"$WORK/neg_o_$base.txt" 2>&1; then
       echo "FAIL $base: expected original compile failure, but BUILD succeeded" >&2
       exit 1
     fi
-    if "$LUKE" BUILD "$fmtf" -o "$fbin" >"$WORK/neg_f_$base.txt" 2>&1; then
+    if "$LUKE" --syntax=1 BUILD "$fmtf" -o "$fbin" >"$WORK/neg_f_$base.txt" 2>&1; then
       echo "FAIL $base: FMT'd file compiled but original was a negative example" >&2
       exit 1
     fi
@@ -129,9 +129,9 @@ for f in "$WORK/orig"/*.luke; do
   fi
 
   if is_browserish "$base"; then
-    if timeout "$BUILD_TIMEOUT" "$LUKE" BUILD "$orig" -target browser -o "$obin" \
+    if timeout "$BUILD_TIMEOUT" "$LUKE" --syntax=1 BUILD "$orig" -target browser -o "$obin" \
         >"$WORK/br_o_$base.txt" 2>&1; then
-      if ! timeout "$BUILD_TIMEOUT" "$LUKE" BUILD "$fmtf" -target browser -o "$fbin" \
+      if ! timeout "$BUILD_TIMEOUT" "$LUKE" --syntax=1 BUILD "$fmtf" -target browser -o "$fbin" \
           >"$WORK/br_f_$base.txt" 2>&1; then
         echo "FAIL $base: original browser BUILD ok, FMT'd browser BUILD failed" >&2
         tail -20 "$WORK/br_f_$base.txt" >&2 || true
@@ -139,9 +139,9 @@ for f in "$WORK/orig"/*.luke; do
       fi
       browser_count=$((browser_count + 1))
     fi
-    if timeout "$BUILD_TIMEOUT" "$LUKE" BUILD "$orig" -o "$obin" \
+    if timeout "$BUILD_TIMEOUT" "$LUKE" --syntax=1 BUILD "$orig" -o "$obin" \
         >"$WORK/nat_o_$base.txt" 2>&1; then
-      if ! timeout "$BUILD_TIMEOUT" "$LUKE" BUILD "$fmtf" -o "$fbin" \
+      if ! timeout "$BUILD_TIMEOUT" "$LUKE" --syntax=1 BUILD "$fmtf" -o "$fbin" \
           >"$WORK/nat_f_$base.txt" 2>&1; then
         echo "FAIL $base: original native BUILD ok, FMT'd native BUILD failed" >&2
         tail -20 "$WORK/nat_f_$base.txt" >&2 || true
@@ -152,11 +152,11 @@ for f in "$WORK/orig"/*.luke; do
     continue
   fi
 
-  if ! timeout "$BUILD_TIMEOUT" "$LUKE" BUILD "$orig" -o "$obin" \
+  if ! timeout "$BUILD_TIMEOUT" "$LUKE" --syntax=1 BUILD "$orig" -o "$obin" \
       >"$WORK/bo_$base.txt" 2>&1; then
     continue
   fi
-  if ! timeout "$BUILD_TIMEOUT" "$LUKE" BUILD "$fmtf" -o "$fbin" \
+  if ! timeout "$BUILD_TIMEOUT" "$LUKE" --syntax=1 BUILD "$fmtf" -o "$fbin" \
       >"$WORK/bf_$base.txt" 2>&1; then
     echo "FAIL $base: original BUILD ok, FMT'd BUILD failed" >&2
     tail -30 "$WORK/bf_$base.txt" >&2 || true

@@ -1,28 +1,17 @@
-// JSON INTEGER round-trip — exact int64 past the 2^53 double cliff.
-// Build: luke BUILD examples/build/json_integer.luke -o build/json_integer
-
-IMPORT std/json
-
-SPEAK "=== JSON INTEGER ==="
-
-MY NAME IS raw AS TEXT SET TO "{\"id\":9007199254740993,\"cents\":199,\"pi\":3.14}"
-MY NAME IS doc AS JSON SET TO ASK jsonParse WITH raw
-
-MY NAME IS idNode AS JSON SET TO ASK jsonGet WITH doc, "id"
-MY NAME IS id AS INTEGER SET TO ASK jsonAsInteger WITH idNode
-SPEAK "id=" AND id
-
-MY NAME IS centsNode AS JSON SET TO ASK jsonGet WITH doc, "cents"
-MY NAME IS cents AS INTEGER SET TO ASK jsonAsInteger WITH centsNode
-SPEAK "cents=" AND cents
-
-MY NAME IS piNode AS JSON SET TO ASK jsonGet WITH doc, "pi"
-SPEAK "pi=" AND ASK jsonAsNumber WITH piNode
-
-MY NAME IS round AS TEXT SET TO ASK jsonStringify WITH doc
-SPEAK "round-trip=" AND round
-
-MAKE SURE id EQUALS 9007199254740993
-MAKE SURE cents EQUALS 199
-
-SPEAK "json_integer_ok=1"
+import std/json
+print("=== JSON INTEGER ===")
+let raw: str = "{\"id\":9007199254740993,\"cents\":199,\"pi\":3.14}"
+let doc: json = jsonParse(raw)
+let idNode: json = jsonGet(doc, "id")
+let id: int = jsonAsInteger(idNode)
+print("id=" + id)
+let centsNode: json = jsonGet(doc, "cents")
+let cents: int = jsonAsInteger(centsNode)
+print("cents=" + cents)
+let piNode: json = jsonGet(doc, "pi")
+print("pi=" + jsonAsNumber(piNode))
+let round: str = jsonStringify(doc)
+print("round-trip=" + round)
+assert id == 9007199254740993
+assert cents == 199
+print("json_integer_ok=1")

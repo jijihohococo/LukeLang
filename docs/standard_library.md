@@ -11,10 +11,9 @@ LukeLang provides simple keywords for handling console input and output.
 The `SPEAK` keyword (and its synonyms `YELL`, `SHOUT`, `SAY`) prints a message to the console.
 
 ```luke
-SPEAK "Hello, World!"
-
-LET name BE "Luke"
-SPEAK "Hello, " AND name
+print("Hello, World!")
+raw "LET name BE \"Luke\""
+print("Hello, " + name)
 ```
 
 ### `ASK USER`
@@ -22,11 +21,8 @@ SPEAK "Hello, " AND name
 The `ASK USER` keyword prompts the user for input and assigns it to a variable.
 
 ```luke
-// Verbose
-SET name TO ASK USER FOR "What is your name? "
-
-// Shorthand
-name = ASK USER FOR "What is your name? "
+let name = USER FOR "What is your name? "()
+raw "name = ASK USER FOR \"What is your name? \""
 ```
 
 ## 2. File System — Build `IMPORT std/files`
@@ -34,10 +30,9 @@ name = ASK USER FOR "What is your name? "
 File ops ship in Build via `std/files` (native; arena-backed TEXT):
 
 ```luke
-IMPORT std/files
-
-MY NAME IS body SET TO ASK readFile WITH "hello.txt"
-ASK writeFile WITH "out.txt", "hello from Luke"
+import std/files
+let body = readFile("hello.txt")
+writeFile("out.txt", "hello from Luke")
 ```
 
 See `vm/stdlib/files.luke` and `examples/build/modules.luke`.
@@ -50,8 +45,8 @@ Play/VM scripting file APIs remain a separate track.
 Returns a random number between 0 and 1.
 
 ```luke
-LET randomNumber BE RANDOM
-SPEAK "Your lucky number is: " AND randomNumber
+raw "LET randomNumber BE RANDOM"
+print("Your lucky number is: " + randomNumber)
 ```
 
 ### `ROUND`
@@ -59,8 +54,8 @@ SPEAK "Your lucky number is: " AND randomNumber
 Rounds a number to the nearest integer.
 
 ```luke
-LET num BE 3.14
-SPEAK ROUND(num) // Outputs: 3
+raw "LET num BE 3.14"
+print(ROUND(num) // Outputs: 3)
 ```
 
 This standard library is continuously evolving. Prefer Build `vm/stdlib/*.luke` and `make test` over stale prose — see [`BUILD_MODE.md`](./BUILD_MODE.md).

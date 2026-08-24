@@ -40,13 +40,10 @@ LukeLang supports standard arithmetic, comparison, and logical operators.
 ### Conditional Statements
 
 ```luke
-IF condition THEN
-  // Code to execute if condition is true
-ELSE IF anotherCondition THEN
-  // Code to execute if anotherCondition is true
-ELSE
-  // Code to execute otherwise
-END IF
+if condition THEN {
+} else {
+  raw "ELSE"
+}
 ```
 
 ### Loops
@@ -90,33 +87,32 @@ LukeLang provides robust support for object-oriented programming, including clas
 ### Class Definition
 
 ```luke
-BLUEPRINT Ticket {
-  init(ticketPrice, totalSeats) {
-    price = ticketPrice
-    seats = totalSeats
-  }
-
-  book(num) {
-    seats = seats - num
-    SPEAK "Booked " AND num AND " seats"
-  }
+struct Ticket { {
+  raw "init(ticketPrice, totalSeats) {"
+  raw "price = ticketPrice"
+  raw "seats = totalSeats"
+  raw "}"
+  raw "book(num) {"
+  raw "seats = seats - num"
+  print("Booked " + num + " seats")
+  raw "}"
+  raw "}"
 }
 ```
 
 ### Inheritance
 
 ```luke
-BLUEPRINT ConcertTicket FOLLOWS Ticket {
-  artist
-
-  init(artistName, price, seats) {
-    PARENT TAKES price, seats
-    artist = artistName
-  }
-
-  showInfo() {
-    SPEAK "Artist: " AND artist
-  }
+struct ConcertTicket : Ticket { {
+  raw "artist"
+  raw "init(artistName, price, seats) {"
+  raw "PARENT TAKES price, seats"
+  raw "artist = artistName"
+  raw "}"
+  raw "showInfo() {"
+  print("Artist: " + artist)
+  raw "}"
+  raw "}"
 }
 ```
 

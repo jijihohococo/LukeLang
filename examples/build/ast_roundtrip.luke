@@ -1,28 +1,20 @@
-// AST round-trip — structured stmts (IF/WHILE/FUNCTION) parse → flatten → emit.
-// Build: luke BUILD examples/build/ast_roundtrip.luke -o build/ast_roundtrip
-
-SPEAK "ast roundtrip"
-
-THIS IS FUNCTION double WITH n AS NUMBER GIVES BACK NUMBER DO
-  GIVE BACK n ADD n
-END FUNCTION
-
-MY NAME IS x AS NUMBER SET TO 3
-MY NAME IS y AS NUMBER SET TO ASK double WITH x
-
-IF y IS GREATER THAN 5 DO
-  SPEAK "big"
-OTHERWISE
-  SPEAK "small"
-END IF
-
-MY NAME IS i AS NUMBER SET TO 0
-MY NAME IS sum AS NUMBER SET TO 0
-WHILE i IS LESS THAN 3 DO
-  SET sum TO sum ADD i
-  SET i TO i ADD 1
-END WHILE
-
-MAKE SURE y EQUALS 6
-MAKE SURE sum EQUALS 3
-SPEAK "ast_roundtrip_ok=1"
+print("ast roundtrip")
+fn double(n: float) -> float {
+  return n + n
+}
+let x: float = 3
+let y: float = double(x)
+if y > 5 {
+  print("big")
+} else {
+  print("small")
+}
+var i: float = 0
+var sum: float = 0
+while i < 3 {
+  sum = sum + i
+  i = i + 1
+}
+assert y == 6
+assert sum == 3
+print("ast_roundtrip_ok=1")

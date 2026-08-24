@@ -1,0 +1,22 @@
+// Phase 1 — Reactive Core smoke
+// Lukelang understands change.
+
+REMEMBER price AS 100
+REMEMBER quantity AS 3
+REMEMBER unused AS 42
+
+THE total IS price MULTIPLIED BY quantity
+
+SPEAK "total=" AND total
+SPEAK "unused=" AND unused
+
+BEGIN REACTIVE BATCH
+  CHANGE quantity TO 4
+  CHANGE price TO 100
+END REACTIVE BATCH
+
+SPEAK "total=" AND total
+SPEAK "unused=" AND unused
+
+INCREASE quantity BY 1
+SPEAK "total=" AND total

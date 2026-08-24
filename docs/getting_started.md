@@ -40,7 +40,7 @@ So unlike Python/Node/Java where you install one runtime first, LukeLang's prima
 
 ## Your first program
 
-Create `hello.lk`:
+Create `hello.luke`:
 
 ```luke
 print("Hello, World!")
@@ -51,9 +51,9 @@ print("Hello, World!")
 From `vm/`:
 
 ```bash
-./build/luke BUILD ../path/to/hello.lk -o hello && ./hello
+./build/luke BUILD ../path/to/hello.luke -o hello && ./hello
 # or:
-./build/luke SHOW ../path/to/hello.lk
+./build/luke SHOW ../path/to/hello.luke
 ```
 
 You should see:
@@ -65,7 +65,7 @@ Hello, World!
 Browser ship:
 
 ```bash
-./build/luke PUBLISH WEB ../examples/build/frontend_widgets.lk -o /tmp/luke_web
+./build/luke PUBLISH WEB ../examples/build/frontend_widgets.luke -o /tmp/luke_web
 ```
 
 ## Next

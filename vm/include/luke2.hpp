@@ -95,8 +95,19 @@ Result lower(const Program &p, const LowerOptions &opt);
 /* One-shot: v2 source → v1 source. */
 Result lowerSource(const std::string &src, const LowerOptions &opt);
 
-/* True when the path should be treated as Syntax v2. */
+/* True when the path should be treated as Syntax v2 under the default (Auto) mode.
+ * After Phase 5 flip both `.luke` and `.lk` are v2; `--syntax=1` forces conversational. */
 bool isV2Path(const std::string &path);
+
+enum class SyntaxMode { Auto = 0, ForceV1 = 1, ForceV2 = 2 };
+
+/* Resolve whether this path's source must be lowered (v2 → v1 text). */
+bool wantsV2(const std::string &path, SyntaxMode mode = SyntaxMode::Auto);
+
+/* Lower v2 source if wantsV2; otherwise return raw. On lower failure set *ok=false. */
+std::string maybeLowerSource(const std::string &path, const std::string &raw,
+                             SyntaxMode mode, const std::string &stdlibDir, bool *ok,
+                             std::string *errOut = nullptr, size_t *errLine = nullptr);
 
 /* ---------- migration (v1 → v2) ---------- */
 

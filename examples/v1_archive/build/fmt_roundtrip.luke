@@ -1,0 +1,20 @@
+// FMT round-trip: BUILD(FMT(x)) ≡ BUILD(x).
+// User-defined names that share spellings with keywords (add) must keep their
+// casing; commas must not grow a leading space (`2, 3` not `2 , 3`).
+// Build: luke FMT examples/build/fmt_roundtrip.luke | luke BUILD -o …
+
+THIS IS FUNCTION add WITH a AS NUMBER, b AS NUMBER GIVES BACK NUMBER DO
+  GIVE BACK ADD a AND b
+END FUNCTION
+
+THIS IS FUNCTION mul WITH a AS NUMBER, b AS NUMBER GIVES BACK NUMBER DO
+  GIVE BACK a MULTIPLY b
+END FUNCTION
+
+SPEAK "fmt_roundtrip start"
+SPEAK ASK add WITH 2, 3
+SPEAK ASK mul WITH 4, 5
+MY NAME IS x AS NUMBER SET TO 2 ADD 3 MULTIPLY 4
+SPEAK "x=" AND x
+MAKE SURE x EQUALS 14
+SPEAK "fmt_roundtrip_ok=1"

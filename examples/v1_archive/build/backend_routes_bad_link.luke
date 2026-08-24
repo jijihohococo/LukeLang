@@ -1,0 +1,9 @@
+// NEGATIVE: LINK TO unknown path → compile error
+
+ROUTES DO
+  GET "/health"
+END ROUTES
+
+LINK TO "/missing"
+
+SPEAK "should_not_build"

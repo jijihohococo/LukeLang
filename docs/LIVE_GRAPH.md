@@ -35,26 +35,22 @@ Acceptance: external `UPDATE` → pixel with `region=1`; reconnect resumes from 
 ### War cry surface
 
 ```luke
-# server
-WATCH user FROM db WHERE "id = 1"
-PUSH WATCH user ON req FOR 50 BEATS EVERY 50 MILLISECONDS
-
-# client
-REMEMBER user AS ""
-BIND "name" TO user
-WATCH user FROM "http://127.0.0.1:8798/watch"
+raw "# server"
+watch user from db where "id = 1"
+push watch user on req for 50 beats every 50 ms
+raw "# client"
+signal user = ""
+bind("name", user)
+watch user from "http://127.0.0.1:8798/watch"
 ```
 
 Differential shapes (not recompute):
 
 ```luke
-WATCH card FROM db AS "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.id = 1"
-
-WATCH card FROM db AS "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.status = 'active'"
-
-WATCH adults FROM db AS "SELECT name FROM people WHERE age > 30"
-
-WATCH feed FROM db AS "SELECT body FROM notes WHERE status = 'open'"
+watch card from db as "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.id = 1"
+watch card from db as "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.status = 'active'"
+watch adults from db as "SELECT name FROM people WHERE age > 30"
+watch feed from db as "SELECT body FROM notes WHERE status = 'open'"
 ```
 
 ## Prior tiers

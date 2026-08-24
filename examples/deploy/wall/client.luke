@@ -1,47 +1,33 @@
-// Wall client — browser pixel half of the deployed Live Graph proof.
-// Build: luke BUILD examples/deploy/wall/client.luke -target browser -o examples/deploy/wall/dist/client
-// Point WATCH at the reverse-proxied /watch (same origin under Caddy).
-
-IMPORT std/js
-IMPORT std/hanka
-IMPORT std/argus
-
-NAME THE PAGE "Luke Wall"
-
-WEAR STYLE """
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Wall")
+page.style("""
 html, body { margin: 0; min-height: 100vh; background:
   radial-gradient(1200px 600px at 20% 0%, #1a3328 0%, #0b1210 55%, #070a09 100%);
   color: #f2fbf6; font-family: Georgia, serif; }
 #brand { font-size: 56px; font-weight: 700; letter-spacing: -0.02em; }
 #name { font-size: 28px; opacity: 0.95; }
 #hint { font-size: 15px; opacity: 0.65; max-width: 28rem; }
-"""
-
-REMEMBER user AS ""
-REMEMBER display AS ""
-REMEMBER events AS 0
-
-BEGIN COLUMN AT 48, 56 SIZE 720, 220 PAD 0 GAP 18
-  SLOT TEXT "brand" SIZE AUTO, 80 SAY "LukeLang"
-  SLOT TEXT "name" SIZE AUTO, 48 SAY "waiting for the row"
-  SLOT TEXT "hint" SIZE AUTO, 40 SAY "One graph: SQLite row to PUSH WATCH to pixel."
-END COLUMN
-
-LAY OUT THE SCREEN
-PAINT THE SCREEN
-
-BIND "name" TO display
-
-WATCH user FROM "/watch"
-
-WHEN REACTIVE user CHANGES DO
-  CHANGE display TO user
-END WHEN REACTIVE
-
-WHEN WATCH user IS READY DO
+""")
+signal user = ""
+signal display = ""
+signal events = 0
+raw "BEGIN COLUMN AT 48, 56 SIZE 720, 220 PAD 0 GAP 18"
+raw "SLOT TEXT \"brand\" SIZE AUTO, 80 SAY \"LukeLang\""
+raw "SLOT TEXT \"name\" SIZE AUTO, 48 SAY \"waiting for the row\""
+raw "SLOT TEXT \"hint\" SIZE AUTO, 40 SAY \"One graph: SQLite row to PUSH WATCH to pixel.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("name", display)
+watch user from "/watch"
+effect on user {
+  display = user
+}
+raw """WHEN WATCH user IS READY DO
   CHANGE events TO events ADD 1
   SPEAK "user=" AND user
   SPEAK "events=" AND events
-END WHEN
-
-SPEAK "wall_client_ready=1"
+END WHEN"""
+print("wall_client_ready=1")

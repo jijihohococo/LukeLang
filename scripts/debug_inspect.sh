@@ -12,7 +12,7 @@ if ! command -v gdb >/dev/null 2>&1; then
   exit 1
 fi
 
-SRC="$ROOT/examples/build/reactive_core.lk"
+SRC="$ROOT/examples/build/reactive_core.luke"
 OUT="$ROOT/vm/build/ex_debug_inspect"
 
 # Break on first print (line 5); DEBUG --inspect steps once so derived total has deps.

@@ -1,130 +1,90 @@
-// Interactive Ticket Booking System Demo
-
-// Custom exception for seat unavailability
-THIS IS CLASS SeatUnavailableException
-  HAS message SET TO "No seats available"
-  
-  WHEN BORN WITH errorMessage
-    SET message OF SELF TO errorMessage
-  END CONSTRUCTOR
-END CLASS
-
-// Base ticket class
-THIS IS CLASS Ticket
-  HAS price
-  HAS availableSeats
-  
-  WHEN BORN WITH ticketPrice AND totalSeats
-    SET price OF SELF TO ticketPrice
-    SET availableSeats OF SELF TO totalSeats
-  END CONSTRUCTOR
-  
-  METHOD bookTicket WITH numberOfSeats
-    IF availableSeats OF SELF IS LESS THAN numberOfSeats THEN
-      THROW NEW SeatUnavailableException WITH "Not enough seats available"
-    END IF
-    SET availableSeats OF SELF TO SUBTRACT numberOfSeats FROM availableSeats OF SELF
-    SPEAK "Booked " AND numberOfSeats AND " seats successfully!"
-    SPEAK "Remaining seats:" AND availableSeats OF SELF
-  END METHOD
-  
-  METHOD cancelTicket WITH numberOfSeats
-    SET availableSeats OF SELF TO ADD numberOfSeats TO availableSeats OF SELF
-    SPEAK "Cancelled " AND numberOfSeats AND " seats successfully!"
-    SPEAK "Remaining seats:" AND availableSeats OF SELF
-  END METHOD
-  
-  METHOD setTotalSeats WITH newTotal
-    SET availableSeats OF SELF TO newTotal
-    SPEAK "Total seats set to " AND newTotal
-  END METHOD
-  
-  METHOD showInfo
-    SPEAK "Price: $" AND price OF SELF
-    SPEAK "Available seats: " AND availableSeats OF SELF
-  END METHOD
-END CLASS
-
-// Movie ticket class
-THIS IS CLASS MovieTicket EXTENDS Ticket
-  HAS movieTitle
-  
-  WHEN BORN WITH title AND ticketPrice AND totalSeats
-    SET movieTitle OF SELF TO title
-    SET price OF SELF TO ticketPrice
-    SET availableSeats OF SELF TO totalSeats
-  END CONSTRUCTOR
-  
-  METHOD showInfo
-    SPEAK "Movie: " AND movieTitle OF SELF
-    SPEAK "Price: $" AND price OF SELF
-    SPEAK "Available seats: " AND availableSeats OF SELF
-  END METHOD
-END CLASS
-
-// Concert ticket class  
-THIS IS CLASS ConcertTicket EXTENDS Ticket
-  HAS artistName
-  
-  WHEN BORN WITH artist AND ticketPrice AND totalSeats
-    SET artistName OF SELF TO artist
-    SET price OF SELF TO ticketPrice
-    SET availableSeats OF SELF TO totalSeats
-  END CONSTRUCTOR
-  
-  METHOD showInfo
-    SPEAK "Artist: " AND artistName OF SELF
-    SPEAK "Price: $" AND price OF SELF
-    SPEAK "Available seats: " AND availableSeats OF SELF
-  END METHOD
-END CLASS
-
-// Interactive Menu System
-SPEAK "=== Interactive Ticket Booking System ==="
-SPEAK ""
-
-// Get artist name from user
-SET artistName TO ASK USER FOR "Enter artist name: "
-SPEAK ""
-
-// Create concert ticket with default values
-LET concertTicket BE NEW ConcertTicket WITH artistName AND 50 AND 100
-
-// Main menu loop
-SET running TO true
-WHILE running IS EQUAL TO true DO
-  SPEAK "=== Concert Ticket Management ==="
-  ASK concertTicket TO showInfo
-  SPEAK ""
-  SPEAK "Menu Options:"
-  SPEAK "1. Set total seats"
-  SPEAK "2. Buy tickets"
-  SPEAK "3. Cancel tickets"
-  SPEAK "4. Exit"
-  SPEAK ""
-  
-  SET choice TO ASK USER FOR "Enter your choice (1-4): "
-  SPEAK ""
-  
-  IF choice IS EQUAL TO "1" THEN
-    SET newTotal TO ASK USER FOR "Enter new total seats: "
-    ASK concertTicket TO setTotalSeats WITH newTotal
-  ELSE IF choice IS EQUAL TO "2" THEN
-    SET numSeats TO ASK USER FOR "Enter number of seats to book: "
-    TRY
-      ASK concertTicket TO bookTicket WITH numSeats
-    CATCH error
-      SPEAK "Error: " AND message OF error
-    END TRY
-  ELSE IF choice IS EQUAL TO "3" THEN
-    SET numSeats TO ASK USER FOR "Enter number of seats to cancel: "
-    ASK concertTicket TO cancelTicket WITH numSeats
-  ELSE IF choice IS EQUAL TO "4" THEN
-    SET running TO false
-    SPEAK "Thank you for using the ticket booking system!"
-  ELSE
-    SPEAK "Invalid choice. Please enter 1-4."
-  END IF
-  
-  SPEAK ""
-END WHILE
+raw "THIS IS CLASS SeatUnavailableException"
+raw "HAS message SET TO \"No seats available\""
+raw "WHEN BORN WITH errorMessage"
+let message OF SELF = errorMessage
+raw "END CONSTRUCTOR"
+raw "THIS IS CLASS Ticket"
+raw "HAS price"
+raw "HAS availableSeats"
+raw "WHEN BORN WITH ticketPrice AND totalSeats"
+var price OF SELF = ticketPrice
+var availableSeats OF SELF = totalSeats
+raw "END CONSTRUCTOR"
+raw "METHOD bookTicket WITH numberOfSeats"
+if availableSeats OF SELF < numberOfSeats THEN {
+  raw "THROW NEW SeatUnavailableException WITH \"Not enough seats available\""
+}
+availableSeats OF SELF = availableSeats OF SELF - numberOfSeats
+print("Booked " + numberOfSeats + " seats successfully!")
+print("Remaining seats:" + availableSeats OF SELF)
+raw "METHOD cancelTicket WITH numberOfSeats"
+availableSeats OF SELF = ADD numberOfSeats TO availableSeats OF SELF
+print("Cancelled " + numberOfSeats + " seats successfully!")
+print("Remaining seats:" + availableSeats OF SELF)
+raw "METHOD setTotalSeats WITH newTotal"
+availableSeats OF SELF = newTotal
+print("Total seats set to " + newTotal)
+raw "METHOD showInfo"
+print("Price: $" + price OF SELF)
+print("Available seats: " + availableSeats OF SELF)
+raw "THIS IS CLASS MovieTicket EXTENDS Ticket"
+raw "HAS movieTitle"
+raw "WHEN BORN WITH title AND ticketPrice AND totalSeats"
+let movieTitle OF SELF = title
+price OF SELF = ticketPrice
+availableSeats OF SELF = totalSeats
+raw "END CONSTRUCTOR"
+raw "METHOD showInfo"
+print("Movie: " + movieTitle OF SELF)
+print("Price: $" + price OF SELF)
+print("Available seats: " + availableSeats OF SELF)
+raw "THIS IS CLASS ConcertTicket EXTENDS Ticket"
+raw "HAS artistName"
+raw "WHEN BORN WITH artist AND ticketPrice AND totalSeats"
+let artistName OF SELF = artist
+price OF SELF = ticketPrice
+availableSeats OF SELF = totalSeats
+raw "END CONSTRUCTOR"
+raw "METHOD showInfo"
+print("Artist: " + artistName OF SELF)
+print("Price: $" + price OF SELF)
+print("Available seats: " + availableSeats OF SELF)
+print("=== Interactive Ticket Booking System ===")
+print("")
+let artistName = USER FOR "Enter artist name: "()
+print("")
+raw "LET concertTicket BE NEW ConcertTicket WITH artistName AND 50 AND 100"
+var running = true
+while running == true {
+  print("=== Concert Ticket Management ===")
+  concertTicket.showInfo()
+  print("")
+  print("Menu Options:")
+  print("1. Set total seats")
+  print("2. Buy tickets")
+  print("3. Cancel tickets")
+  print("4. Exit")
+  print("")
+  let choice = USER FOR "Enter your choice (1-4): "()
+  print("")
+  if choice IS EQUAL TO "1" THEN {
+    let newTotal = USER FOR "Enter new total seats: "()
+    concertTicket.setTotalSeats(newTotal)
+  } else {
+    var numSeats = USER FOR "Enter number of seats to book: "()
+    raw "TRY"
+    concertTicket.bookTicket(numSeats)
+    raw "CATCH error"
+    print("Error: " + message OF error)
+    raw "END TRY"
+    raw "ELSE IF choice IS EQUAL TO \"3\" THEN"
+    numSeats = USER FOR "Enter number of seats to cancel: "()
+    concertTicket.cancelTicket(numSeats)
+    raw "ELSE IF choice IS EQUAL TO \"4\" THEN"
+    running = false
+    print("Thank you for using the ticket booking system!")
+    raw "ELSE"
+    print("Invalid choice. Please enter 1-4.")
+  }
+  print("")
+}

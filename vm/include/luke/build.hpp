@@ -7,12 +7,14 @@ namespace luke {
 
 struct BuildOptions {
   std::string sourcePath;   // used to resolve relative IMPORT paths
-  std::string stdlibPath;   // directory containing std/*.luke (optional)
+  std::string stdlibPath;   // directory containing std/* (optional; .lk preferred, .luke fallback)
   std::vector<std::string> packagePaths; // luke_modules roots for IMPORT luke/<name>
   bool forWasm = false;     // WASI / browser wasm artifact
   bool forBrowser = false;  // also emit browser glue (html/js) via CLI
   bool expandStd = true;    // Play may set false (no native helpers)
   bool expandCImports = true;
+  /* Phase 5: Auto treats .luke/.lk as v2; ForceV1 (--syntax=1) keeps conversational. */
+  int syntaxMode = 0; // 0=Auto, 1=ForceV1, 2=ForceV2
 };
 
 struct BrowserFont {

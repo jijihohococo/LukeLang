@@ -1,9 +1,0 @@
-signal x = 1
-raw "THE t IS x ADD 1"
-batch {
-  x = 2
-  x = 3
-  x = 4
-}
-raw "SPEAK \"dedup=\" AND THE DIRTY DEDUP COUNT"
-print("t=" + t)

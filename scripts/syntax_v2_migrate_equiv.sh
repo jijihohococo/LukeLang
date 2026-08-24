@@ -33,7 +33,7 @@ norm_c() {
 
 stems=()
 if [[ "${MIGRATE_CORPUS:-golden}" == "all" ]]; then
-  for v1 in "$ROOT"/examples/build/*.luke; do
+  for v1 in "$ROOT"/examples/v1_archive/build/*.luke; do
     stems+=("$(basename "$v1" .luke)")
   done
 else
@@ -43,7 +43,7 @@ else
 fi
 
 for stem in "${stems[@]}"; do
-  v1="$ROOT/examples/build/$stem.luke"
+  v1="$ROOT/examples/v1_archive/build/$stem.luke"
   is_prov=0
   [[ "$PROVISIONAL" == *" $stem "* ]] && is_prov=1
   is_server=0
@@ -59,8 +59,8 @@ for stem in "${stems[@]}"; do
     skip=$((skip+1)); continue
   fi
 
-  # Write next to the v1 source so relative IMPORT "sibling.luke" still resolves.
-  mig="$ROOT/examples/build/${stem}.migrated.lk"
+  # Write next to the v1 archive source so relative IMPORT "sibling.luke" still resolves.
+  mig="$ROOT/examples/v1_archive/build/${stem}.migrated.lk"
   e_mig="$WORK/${stem}_mig.err"
   cleanup_mig() { rm -f "$mig"; }
   if ! "$LUKE" MIGRATE "$v1" -o "$mig" >/dev/null 2>"$e_mig"; then
@@ -80,7 +80,7 @@ for stem in "${stems[@]}"; do
   b1="$WORK/${stem}_v1"; b2="$WORK/${stem}_mig"
   e1="$WORK/${stem}_v1.err"; e2="$WORK/${stem}_mig.err"
 
-  if ! (cd "$ROOT/vm" && "$LUKE" BUILD "$v1" -o "$b1" >/dev/null 2>"$e1"); then
+  if ! (cd "$ROOT/vm" && "$LUKE" --syntax=1 BUILD "$v1" -o "$b1" >/dev/null 2>"$e1"); then
     note "$stem" FAIL "v1 build: $(head -1 "$e1")"
     fail=$((fail+1)); failed+=("$stem"); cleanup_mig; continue
   fi

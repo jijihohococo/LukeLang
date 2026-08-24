@@ -389,25 +389,24 @@ only because the surface was English.
 v1 — `examples/build/backend_api.luke` (excerpt):
 
 ```luke
-IMPORT std/server
-IMPORT std/sqlite
-
-THIS IS FUNCTION handle WITH req AS REQUEST DO
-  MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_backend_api.db"
-  MY NAME IS method SET TO ASK httpMethod WITH req
-  MY NAME IS path SET TO ASK httpPath WITH req
-  MY NAME IS params AS MAP
-  IF method EQUALS "GET" DO
-    IF ASK httpMatch WITH path, "/user/:id", params DO
-      MY NAME IS id SET TO GET "id" FROM params
-      MY NAME IS binds AS LIST
-      ADD id TO binds
-      MY NAME IS name SET TO ASK dbQueryBind WITH db, "SELECT name FROM users WHERE id = ?", binds
-      ASK httpReply WITH req, 200, "text/plain", name
-    END IF
-  END IF
-  ASK dbClose WITH db
-END FUNCTION
+import std/server
+import std/sqlite
+fn handle(req: Request) {
+  let db = dbOpen("/tmp/luke_backend_api.db")
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  var params: map = {}
+  if method == "GET" {
+    if httpMatch(path, "/user/:id", params) {
+      let id = params["id"]
+      var binds: list = []
+      binds.push(id)
+      let name = dbQueryBind(db, "SELECT name FROM users WHERE id = ?", binds)
+      httpReply(req, 200, "text/plain", name)
+    }
+  }
+  dbClose(db)
+}
 ```
 
 v2 — `examples/v2/backend_api.lk`:

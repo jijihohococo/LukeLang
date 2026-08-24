@@ -1,7 +1,7 @@
 # Syntax v2 — conversational → technical
 
-> **Status:** Phases 0–3 complete. **Phase 4 in progress** (examples `.lk` + VS Code/LSP
-> cutover landed; remaining doc fences + stdlib still open). No codegen rewrite.
+> **Status:** Phases 0–5 flip complete (`.luke` is v2; `--syntax=1` deprecation window).
+> Phrase-prefix deletion in `build_c.cpp` is the post-window cleanup. No codegen AST rewrite yet.
 > **Scope:** replace the conversational surface syntax with a conventional technical syntax
 > (braces, operators, `fn`, `let`) while keeping the reactive engine and Build guarantees intact.
 
@@ -263,14 +263,13 @@ vocabulary, so they read as *more* familiar to modern developers, not less disti
 ### Illustrative before/after
 
 ```luke
-// v1
-IMPORT std/server
-THIS IS FUNCTION handle WITH req AS REQUEST DO
-  MY NAME IS path SET TO ASK httpPath WITH req
-  IF path EQUALS "/ok" DO
-    ASK httpReply WITH req, 200, "text/plain", "ok"
-  END IF
-END FUNCTION
+import std/server
+fn handle(req: Request) {
+  let path = httpPath(req)
+  if path == "/ok" {
+    httpReply(req, 200, "text/plain", "ok")
+  }
+}
 ```
 
 ```rust
@@ -446,22 +445,27 @@ needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ## 9. Status
 
-**Phases 0–3 complete. Phase 4 in progress** (examples `.lk` + VS Code/LSP cutover landed;
-remaining doc fences + stdlib still open). No codegen rewrite.
+**Phases 0–5 flip complete.** `.luke` is syntax v2 by default; conversational v1 is
+`--syntax=1` (sources archived under `examples/v1_archive/` + `vm/stdlib_v1_archive/`).
+Codegen still consumes lowered v1 text — phrase-prefix deletion is the post-window step.
 
-### Phase 4 — in progress
+### Phase 5 — flip (shipped)
 
-Shipped so far:
+- `.luke` means v2 (`isV2Path`); `--syntax=1` / `--syntax=2` on the CLI
+- Live `examples/build/` + `vm/stdlib/` rewritten to v2; transition `.lk` removed there
+- IMPORT lowers v2 modules (stdlib/siblings); `__*` intrinsics keep C-call spelling
+- Twin / FMT / migrate gates read `examples/v1_archive/`
+- LSP lowers v2 buffers before analyze
+- Play VM accepts typed `WITH a AS NUMBER` params; string `+` lowers to flat `AND` chains;
+  `*`/`/` lower to prefix `MULTIPLY`/`DIVIDE` (Play-compatible)
+- Play-only gaps still on `--syntax=1` for the deprecation window: native closures,
+  privacy, and `advanced_oop` (nested-fn upvalues break under typed lowered forms)
 
-- **`examples/build/*.lk`** — all 118 programs migrated beside their `.luke` twins (stdlib still v1)
-- **`vm/Makefile` `test-build`** paths retargeted to `.lk` (`#line` / DWARF cite `.lk`)
-- **VS Code extension 0.3.0** — `.lk` + `.luke`, v2 grammar/snippets/KEYWORDS, brace indent
-- **LSP** keyword tables include v2 while retaining v1 for the dual-syntax window
-- **`luke DEBUG`** accepts `.lk`; debug scripts use `.lk` breakpoints
-- README / getting_started taste examples switched to v2
+### Phase 4 — done
 
-Still open: remaining conversational doc fences; `lsp_providers.sh` still on v1 source;
-**`vm/stdlib/` last and separately**.
+- Doc fences converted; VS Code 0.3.0; examples + stdlib cutover; LSP keywords/providers
+- Deploy wall + Makefile inline probes (c10k grace, LSP fixture) on v2
+- `make test` green after the flip
 
 ### Phase 3a — done (corpus migrate BUILD)
 
@@ -529,7 +533,8 @@ python3 scripts/syntax_v2_spec_check.py      # every live phrase is mapped or dr
 python3 scripts/syntax_v2_corpus_check.py    # corpus paired with v1 twins, no v1 leakage
 ```
 
-### Next: finish Phase 4, then Phase 5
+### Next: post-window cleanup
 
-1. Finish remaining doc fences; leave `vm/stdlib/` for a separate cut.
-2. Phase 5: `.luke` means v2; deprecation window; then delete v1 statement prefixes from codegen.
+1. After the deprecation window: delete the v1 statement parser and strip conversational
+   phrase prefixes from `build_c.cpp` (plan Phase 5 step 2).
+2. Optional later: codegen consumes the AST directly (rejected-as-blocker for the flip).

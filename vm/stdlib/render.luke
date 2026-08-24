@@ -1,19 +1,13 @@
-// IMPORT std/render — alias for Argus (prefer IMPORT std/argus)
-
-IMPORT std/argus
-
-THIS IS FUNCTION renderPlaceText WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
-  GIVE BACK argusPlaceText(id, x, y, w, h, text)
-END FUNCTION
-
-THIS IS FUNCTION renderPlaceButton WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, text AS TEXT GIVES BACK FLAG DO
-  GIVE BACK argusPlaceButton(id, x, y, w, h, text)
-END FUNCTION
-
-THIS IS FUNCTION renderPlaceImage WITH id AS TEXT, x AS NUMBER, y AS NUMBER, w AS NUMBER, h AS NUMBER, src AS TEXT GIVES BACK FLAG DO
-  GIVE BACK argusPlaceImage(id, x, y, w, h, src)
-END FUNCTION
-
-THIS IS FUNCTION renderPaint GIVES BACK FLAG DO
-  GIVE BACK argusPaint()
-END FUNCTION
+import std/argus
+fn renderPlaceText(id: str, x: float, y: float, w: float, h: float, text: str) -> bool {
+  return argusPlaceText(id, x, y, w, h, text)
+}
+fn renderPlaceButton(id: str, x: float, y: float, w: float, h: float, text: str) -> bool {
+  return argusPlaceButton(id, x, y, w, h, text)
+}
+fn renderPlaceImage(id: str, x: float, y: float, w: float, h: float, src: str) -> bool {
+  return argusPlaceImage(id, x, y, w, h, src)
+}
+fn renderPaint() -> bool {
+  return argusPaint()
+}

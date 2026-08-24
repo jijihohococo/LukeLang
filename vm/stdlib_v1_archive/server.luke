@@ -1,0 +1,103 @@
+// IMPORT std/server — conversational HTTP server (native Build; stubbed on WASI)
+
+THIS IS FUNCTION httpListen WITH port AS NUMBER GIVES BACK SERVER DO
+  GIVE BACK __luke_http_listen(port)
+END FUNCTION
+
+THIS IS FUNCTION httpAccept WITH server AS SERVER GIVES BACK REQUEST DO
+  GIVE BACK __luke_http_accept(server)
+END FUNCTION
+
+THIS IS FUNCTION httpReply WITH req AS REQUEST, status AS NUMBER, contentType AS TEXT, body AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_reply(req, status, contentType, body)
+END FUNCTION
+
+// Chunked transfer — stream response body without Content-Length.
+THIS IS FUNCTION httpChunkOpen WITH req AS REQUEST, status AS NUMBER, contentType AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_chunk_open(req, status, contentType)
+END FUNCTION
+
+THIS IS FUNCTION httpChunk WITH req AS REQUEST, data AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_chunk(req, data)
+END FUNCTION
+
+THIS IS FUNCTION httpChunkEnd WITH req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_http_chunk_end(req)
+END FUNCTION
+
+// Peer address (or first X-Forwarded-For hop when LUKE_TRUST_PROXY=1).
+THIS IS FUNCTION httpClientIp WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_client_ip(req)
+END FUNCTION
+
+THIS IS FUNCTION httpSseOpen WITH req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_open(req)
+END FUNCTION
+
+THIS IS FUNCTION httpSseData WITH req AS REQUEST, data AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_data(req, data)
+END FUNCTION
+
+THIS IS FUNCTION httpSseId WITH req AS REQUEST, id AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_id(req, id)
+END FUNCTION
+
+THIS IS FUNCTION httpSseComment WITH req AS REQUEST, comment AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_sse_comment(req, comment)
+END FUNCTION
+
+THIS IS FUNCTION httpClose WITH req AS REQUEST GIVES BACK FLAG DO
+  GIVE BACK __luke_http_close(req)
+END FUNCTION
+
+THIS IS FUNCTION httpPath WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_path(req)
+END FUNCTION
+
+THIS IS FUNCTION httpMethod WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_method(req)
+END FUNCTION
+
+THIS IS FUNCTION httpQuery WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_query(req)
+END FUNCTION
+
+THIS IS FUNCTION httpBody WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_body(req)
+END FUNCTION
+
+THIS IS FUNCTION httpLastEventId WITH req AS REQUEST GIVES BACK TEXT DO
+  GIVE BACK __luke_http_last_event_id(req)
+END FUNCTION
+
+// Path match with :param captures into MAP. Returns YES on match.
+THIS IS FUNCTION httpMatch WITH path AS TEXT, pattern AS TEXT, params AS MAP GIVES BACK FLAG DO
+  GIVE BACK __luke_http_match(path, pattern, params)
+END FUNCTION
+
+THIS IS FUNCTION httpQueryMap WITH req AS REQUEST GIVES BACK MAP DO
+  GIVE BACK __luke_http_query_map(req)
+END FUNCTION
+
+// application/x-www-form-urlencoded body → MAP (compiler-synced FORM beachhead).
+THIS IS FUNCTION httpFormMap WITH req AS REQUEST GIVES BACK MAP DO
+  GIVE BACK __luke_http_form_map(req)
+END FUNCTION
+
+THIS IS FUNCTION httpHeader WITH req AS REQUEST, name AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_http_header(req, name)
+END FUNCTION
+
+THIS IS FUNCTION httpCookie WITH req AS REQUEST, name AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_http_cookie(req, name)
+END FUNCTION
+
+// Queue a Set-Cookie header for the next httpReply on this request.
+THIS IS FUNCTION httpSetCookie WITH req AS REQUEST, name AS TEXT, value AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_http_set_cookie(req, name, value)
+END FUNCTION
+
+// JSON body — parses httpBody (empty / invalid → null-ish JSON tree).
+THIS IS FUNCTION httpJson WITH req AS REQUEST GIVES BACK JSON DO
+  GIVE BACK __luke_json_parse(__luke_http_body(req))
+END FUNCTION

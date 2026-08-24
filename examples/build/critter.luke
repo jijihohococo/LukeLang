@@ -1,14 +1,10 @@
-// Shared animal blueprint — IMPORTed by other Build programs.
-
-BLUEPRINT Critter DO
-  HAS name AS TEXT
-  HAS mood SET TO "curious"
-
-  WHEN BORN WITH name AS TEXT DO
-    SET SELF.name TO name
-  END BORN
-
-  METHOD greet DO
-    SPEAK SELF.name AND " feels " AND SELF.mood
-  END METHOD
-END CLASS
+struct Critter {
+  name: str
+  mood = "curious"
+  init(name: str) {
+    self.name = name
+  }
+  fn greet() {
+    print(self.name + " feels " + self.mood)
+  }
+}

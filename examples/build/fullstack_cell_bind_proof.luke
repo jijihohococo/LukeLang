@@ -1,28 +1,17 @@
-// Spike A — native BIND paint-count proof (no network).
-// THE REGION PAINT COUNT is per-flush (exactly the nodes painted this wave).
-// THE GRANULAR PAINT COUNT is cumulative across flushes.
-// Expect: each CHANGE → region=1 and granular increases by 1.
-
-IMPORT std/hanka
-IMPORT std/argus
-
-REMEMBER v AS "a"
-
-BEGIN COLUMN AT 10, 10 SIZE 240, 80 PAD 0 GAP 8
-  SLOT TEXT "lab" SIZE 220, 40 SAY "x"
-END COLUMN
-
-LAY OUT THE SCREEN
-PAINT THE SCREEN
-
-BIND "lab" TO v
-SPEAK "bind_region=" AND THE REGION PAINT COUNT
-SPEAK "bind_granular=" AND THE GRANULAR PAINT COUNT
-
-CHANGE v TO "b"
-SPEAK "ch1_region=" AND THE REGION PAINT COUNT
-SPEAK "ch1_granular=" AND THE GRANULAR PAINT COUNT
-
-CHANGE v TO "c"
-SPEAK "ch2_region=" AND THE REGION PAINT COUNT
-SPEAK "ch2_granular=" AND THE GRANULAR PAINT COUNT
+import std/hanka
+import std/argus
+signal v = "a"
+raw "BEGIN COLUMN AT 10, 10 SIZE 240, 80 PAD 0 GAP 8"
+raw "SLOT TEXT \"lab\" SIZE 220, 40 SAY \"x\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("lab", v)
+print("bind_region=" + region_paint_count)
+print("bind_granular=" + granular_paint_count)
+v = "b"
+print("ch1_region=" + region_paint_count)
+print("ch1_granular=" + granular_paint_count)
+v = "c"
+print("ch2_region=" + region_paint_count)
+print("ch2_granular=" + granular_paint_count)

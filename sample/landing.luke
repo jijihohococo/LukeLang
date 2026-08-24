@@ -1,17 +1,9 @@
-// sample/landing.luke — full LukeLang landing page
-// Fonts are local packs. Markup/CSS/title/events are Luke. Boot is Luke runtime.
-//
-//   cd vm && ./build/luke BUILD ../sample/landing.luke -target browser -o ../sample/dist/landing
-
-IMPORT std/js
-
-NAME THE PAGE "LukeLang"
-
-BRING FONT "Syne" FROM "./fonts/syne-700.woff2"
-BRING FONT "Literata" FROM "./fonts/literata-400.woff2"
-BRING FONT "Literata" FROM "./fonts/literata-600.woff2"
-
-WEAR STYLE """
+import std/js
+page.title("LukeLang")
+page.font("Syne", "./fonts/syne-700.woff2")
+page.font("Literata", "./fonts/literata-400.woff2")
+page.font("Literata", "./fonts/literata-600.woff2")
+page.style("""
 :root {
   --ink: #101820;
   --fog: #e8eef2;
@@ -104,9 +96,8 @@ html, body {
   from { opacity: 0.4; transform: scale(1.02); }
   to { opacity: 1; transform: none; }
 }
-"""
-
-FILL "root" WITH """
+""")
+fill("root", """
 <section class="hero" aria-label="LukeLang">
   <p class="brand">LukeLang</p>
   <p class="lead">Speak programs out loud. Ship native code. Not JavaScript, not Python, not Rust — LukeLang.</p>
@@ -117,8 +108,7 @@ FILL "root" WITH """
   <h2>One spine. Many packs.</h2>
   <p>Build is AOT and arena-backed. The words stay conversational. The runtime stays light.</p>
 </section>
-"""
-
-WHEN "cta" IS CLICKED DO
+""")
+raw """WHEN "cta" IS CLICKED DO
   FILL "cta-out" WITH "Still LukeLang — Build mode, arena memory, no GC."
-END WHEN
+END WHEN"""

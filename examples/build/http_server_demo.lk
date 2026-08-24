@@ -1,9 +1,0 @@
-import std/server
-print("LukeLang HTTP server on :8787 — send one request then done")
-let server = httpListen(8787)
-let req = httpAccept(server)
-let method = httpMethod(req)
-let path = httpPath(req)
-print("got " + method + " " + path)
-httpReply(req, 200, "text/plain", "Hello from LukeLang")
-print("replied — done")

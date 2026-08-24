@@ -177,8 +177,16 @@ std::vector<Tok> lex(const std::string &src, std::string *err, size_t *errLine) 
 }
 
 bool isV2Path(const std::string &path) {
-  if (path.size() < 3) return false;
-  return path.compare(path.size() - 3, 3, ".lk") == 0;
+  if (path.size() >= 3 && path.compare(path.size() - 3, 3, ".lk") == 0) return true;
+  /* Phase 5: also true for `.luke` once conversational content has been rewritten. */
+  if (path.size() >= 5 && path.compare(path.size() - 5, 5, ".luke") == 0) return true;
+  return false;
+}
+
+bool wantsV2(const std::string &path, SyntaxMode mode) {
+  if (mode == SyntaxMode::ForceV1) return false;
+  if (mode == SyntaxMode::ForceV2) return true;
+  return isV2Path(path);
 }
 
 }  // namespace luke2

@@ -1,57 +1,39 @@
-// Multi-row JOIN card — bag-maintained group_concat of join rows (not scalar).
-// Unrelated inactive rows must not disturb the card; active enter/exit + partner
-// updates maintain the bag differentially via luke_ivm_jbag_*.
-// Build: luke BUILD examples/build/live_graph_join_multi.luke -o build/lgjm
-
-IMPORT std/sqlite
-
-SPEAK "join_multi start"
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph_join_multi.db"
-ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS profiles"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS users"
-ASK dbExec WITH db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, status TEXT)"
-ASK dbExec WITH db, "CREATE TABLE profiles(user_id INTEGER PRIMARY KEY, title TEXT)"
-ASK dbExec WITH db, "INSERT INTO users(id, name, status) VALUES(1, 'Ada', 'active')"
-ASK dbExec WITH db, "INSERT INTO users(id, name, status) VALUES(2, 'Bo', 'active')"
-ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(1, 'Engineer')"
-ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(2, 'Designer')"
-
-WATCH card FROM db AS "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.status = 'active'"
-
-MY NAME IS v0 AS TEXT SET TO card
-SPEAK "v0=" AND v0
-MAKE SURE v0 EQUALS "Ada · Engineer\nBo · Designer"
-
-// Inactive user + profile — must not change the card.
-ASK dbExec WITH db, "INSERT INTO users(id, name, status) VALUES(3, 'Cy', 'inactive')"
-ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(3, 'Other')"
-REFRESH QUERY card
-MY NAME IS vUn AS TEXT SET TO card
-SPEAK "vUn=" AND vUn
-MAKE SURE vUn EQUALS "Ada · Engineer\nBo · Designer"
-
-// Partner update on an active row.
-ASK dbExec WITH db, "UPDATE profiles SET title = 'Founder' WHERE user_id = 1"
-REFRESH QUERY card
-MY NAME IS v1 AS TEXT SET TO card
-SPEAK "v1=" AND v1
-MAKE SURE v1 EQUALS "Ada · Founder\nBo · Designer"
-
-// Filter exit: Bo leaves active set.
-ASK dbExec WITH db, "UPDATE users SET status = 'retired' WHERE id = 2"
-REFRESH QUERY card
-MY NAME IS v2 AS TEXT SET TO card
-SPEAK "v2=" AND v2
-MAKE SURE v2 EQUALS "Ada · Founder"
-
-// Filter enter: Cy becomes active.
-ASK dbExec WITH db, "UPDATE users SET status = 'active' WHERE id = 3"
-REFRESH QUERY card
-MY NAME IS v3 AS TEXT SET TO card
-SPEAK "v3=" AND v3
-MAKE SURE v3 EQUALS "Ada · Founder\nCy · Other"
-
-ASK dbClose WITH db
-SPEAK "join_multi_ok=1"
+import std/sqlite
+print("join_multi start")
+let db = dbOpen("/tmp/luke_live_graph_join_multi.db")
+dbExec(db, "PRAGMA journal_mode=WAL")
+dbExec(db, "DROP TABLE IF EXISTS profiles")
+dbExec(db, "DROP TABLE IF EXISTS users")
+dbExec(db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, status TEXT)")
+dbExec(db, "CREATE TABLE profiles(user_id INTEGER PRIMARY KEY, title TEXT)")
+dbExec(db, "INSERT INTO users(id, name, status) VALUES(1, 'Ada', 'active')")
+dbExec(db, "INSERT INTO users(id, name, status) VALUES(2, 'Bo', 'active')")
+dbExec(db, "INSERT INTO profiles(user_id, title) VALUES(1, 'Engineer')")
+dbExec(db, "INSERT INTO profiles(user_id, title) VALUES(2, 'Designer')")
+watch card from db as "SELECT u.name || ' · ' || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.status = 'active'"
+let v0: str = card
+print("v0=" + v0)
+assert v0 == "Ada · Engineer\nBo · Designer"
+dbExec(db, "INSERT INTO users(id, name, status) VALUES(3, 'Cy', 'inactive')")
+dbExec(db, "INSERT INTO profiles(user_id, title) VALUES(3, 'Other')")
+card.refresh()
+let vUn: str = card
+print("vUn=" + vUn)
+assert vUn == "Ada · Engineer\nBo · Designer"
+dbExec(db, "UPDATE profiles SET title = 'Founder' WHERE user_id = 1")
+card.refresh()
+let v1: str = card
+print("v1=" + v1)
+assert v1 == "Ada · Founder\nBo · Designer"
+dbExec(db, "UPDATE users SET status = 'retired' WHERE id = 2")
+card.refresh()
+let v2: str = card
+print("v2=" + v2)
+assert v2 == "Ada · Founder"
+dbExec(db, "UPDATE users SET status = 'active' WHERE id = 3")
+card.refresh()
+let v3: str = card
+print("v3=" + v3)
+assert v3 == "Ada · Founder\nCy · Other"
+dbClose(db)
+print("join_multi_ok=1")

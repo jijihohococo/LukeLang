@@ -1,10 +1,8 @@
-MY NAME IS count SET TO 0
-
-WHILE count IS LESS THAN 5 DO
-  SPEAK "count = " AND count
-  SET count TO ADD count AND 1
-END WHILE
-
-IF count EQUALS 5 DO
-  SPEAK "Done counting in native Build mode."
-END IF
+var count = 0
+while count < 5 {
+  print("count = " + count)
+  count = count + 1
+}
+if count == 5 {
+  print("Done counting in native Build mode.")
+}

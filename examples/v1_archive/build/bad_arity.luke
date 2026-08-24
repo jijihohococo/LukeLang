@@ -1,0 +1,7 @@
+// Should fail Build typecheck: wrong arity.
+
+THIS IS FUNCTION add WITH a AS NUMBER, b AS NUMBER GIVES BACK NUMBER DO
+  GIVE BACK ADD a AND b
+END FUNCTION
+
+SPEAK ASK add WITH 1

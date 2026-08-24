@@ -2,7 +2,7 @@
 """Gate: the v2 golden corpus stays paired with its v1 twins, and stays v2.
 
 Checks, for examples/v2/*.lk:
-  1. every .lk has a v1 twin at examples/build/<same-stem>.luke
+  1. every .lk has a v1 twin at examples/v1_archive/build/<same-stem>.luke
   2. no v1 conversational keyword leaked into a .lk file (a translation miss)
   3. no v2 file still uses `AND` for concatenation or `ASK`/`SET TO` forms
 
@@ -56,7 +56,7 @@ def main():
         stem = os.path.splitext(os.path.basename(path))[0]
         twin = os.path.join(V1_DIR, stem + ".luke")
         if not os.path.exists(twin):
-            problems.append(f"{stem}.lk has no v1 twin at examples/build/{stem}.luke")
+            problems.append(f"{stem}.lk has no v1 twin at examples/v1_archive/build/{stem}.luke")
 
         with open(path, errors="ignore") as fh:
             for n, raw in enumerate(fh, 1):

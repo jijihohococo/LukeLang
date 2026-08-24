@@ -1,4 +1,3 @@
-IMPORT luke/greeter
-
-SPEAK ASK packageHello WITH "Build"
-SPEAK "Packages resolve from luke_modules/."
+import luke/greeter
+print(packageHello("Build"))
+print("Packages resolve from luke_modules/.")

@@ -1,29 +1,19 @@
-// Schema migration up/down + rewind — conventional versioned SQL.
-// Build: luke BUILD examples/build/backend_migrate_ok.luke -o build/backend_migrate_ok
-
-IMPORT std/sqlite
-
-MIGRATION app DO
-  VERSION 1 UP "CREATE TABLE items(id INTEGER PRIMARY KEY, name TEXT)" DOWN "DROP TABLE items"
-  VERSION 2 UP "CREATE TABLE tags(id INTEGER PRIMARY KEY, name TEXT)" DOWN "DROP TABLE tags"
-END MIGRATION
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_migrate_ok.db"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS items"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS tags"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_schema_migrations"
-
-MIGRATE app ON db TO 2
-SPEAK "migrated=2"
-
-REWIND app ON db TO 1
-SPEAK "rewound=1"
-
-MIGRATE app ON db TO 2
-SPEAK "migrated_again=2"
-
-MY NAME IS ver SET TO ASK dbQuery WITH db, "SELECT version FROM luke_schema_migrations WHERE id=1"
-SPEAK "version=" AND ver
-
-ASK dbClose WITH db
-SPEAK "migrate_ok=1"
+import std/sqlite
+raw "MIGRATION app DO"
+raw "VERSION 1 UP \"CREATE TABLE items(id INTEGER PRIMARY KEY, name TEXT)\" DOWN \"DROP TABLE items\""
+raw "VERSION 2 UP \"CREATE TABLE tags(id INTEGER PRIMARY KEY, name TEXT)\" DOWN \"DROP TABLE tags\""
+raw "END MIGRATION"
+let db = dbOpen("/tmp/luke_migrate_ok.db")
+dbExec(db, "DROP TABLE IF EXISTS items")
+dbExec(db, "DROP TABLE IF EXISTS tags")
+dbExec(db, "DROP TABLE IF EXISTS luke_schema_migrations")
+raw "MIGRATE app ON db TO 2"
+print("migrated=2")
+raw "REWIND app ON db TO 1"
+print("rewound=1")
+raw "MIGRATE app ON db TO 2"
+print("migrated_again=2")
+let ver = dbQuery(db, "SELECT version FROM luke_schema_migrations WHERE id=1")
+print("version=" + ver)
+dbClose(db)
+print("migrate_ok=1")

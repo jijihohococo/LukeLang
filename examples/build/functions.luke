@@ -1,15 +1,11 @@
-THIS IS FUNCTION add WITH a AS NUMBER, b AS NUMBER GIVES BACK NUMBER DO
-  GIVE BACK ADD a AND b
-END FUNCTION
-
-THIS IS FUNCTION greet WITH name AS TEXT GIVES BACK TEXT DO
-  SPEAK "Hello, " AND name AND "!"
-  GIVE BACK name
-END FUNCTION
-
-SPEAK "2 + 3 ="
-SPEAK ASK add WITH 2, 3
-
-ASK greet WITH "Luke"
-
-SPEAK "Build functions are plain C calls."
+fn add(a: float, b: float) -> float {
+  return a + b
+}
+fn greet(name: str) -> str {
+  print("Hello, " + name + "!")
+  return name
+}
+print("2 + 3 =")
+print(add(2, 3))
+greet("Luke")
+print("Build functions are plain C calls.")

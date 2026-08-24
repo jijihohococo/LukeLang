@@ -1,26 +1,21 @@
-// LukeLang — lists, maps, and conversational ATTEMPT
-
-MY NAME IS nums AS LIST
-ADD "one" TO nums
-ADD "two" TO nums
-ADD "three" TO nums
-SPEAK HOW MANY IN nums
-SPEAK ITEM 0 OF nums
-SPEAK ITEM 2 OF nums
-
-MY NAME IS bag AS MAP
-PUT "name" TO "Luke" IN bag
-PUT "lang" TO "LukeLang" IN bag
-SPEAK GET "name" FROM bag
-SPEAK GET "lang" FROM bag
-SPEAK HOW MANY IN bag
-
-ATTEMPT DO
-  SPEAK "trying something risky"
-  GIVE UP WITH "could not finish the job"
-  SPEAK "you should not see this"
-OTHERWISE WITH problem DO
-  SPEAK "caught: " AND problem
-END ATTEMPT
-
-SPEAK "still here after ATTEMPT"
+var nums: list = []
+nums.push("one")
+nums.push("two")
+nums.push("three")
+print(nums.len())
+print(nums[0])
+print(nums[2])
+var bag: map = {}
+bag["name"] = "Luke"
+bag["lang"] = "LukeLang"
+print(bag["name"])
+print(bag["lang"])
+print(bag.len())
+try {
+  print("trying something risky")
+  throw "could not finish the job"
+  print("you should not see this")
+} catch (problem) {
+  print("caught: " + problem)
+}
+print("still here after ATTEMPT")

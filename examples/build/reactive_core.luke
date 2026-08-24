@@ -1,22 +1,14 @@
-// Phase 1 — Reactive Core smoke
-// Lukelang understands change.
-
-REMEMBER price AS 100
-REMEMBER quantity AS 3
-REMEMBER unused AS 42
-
-THE total IS price MULTIPLIED BY quantity
-
-SPEAK "total=" AND total
-SPEAK "unused=" AND unused
-
-BEGIN REACTIVE BATCH
-  CHANGE quantity TO 4
-  CHANGE price TO 100
-END REACTIVE BATCH
-
-SPEAK "total=" AND total
-SPEAK "unused=" AND unused
-
-INCREASE quantity BY 1
-SPEAK "total=" AND total
+signal price = 100
+signal quantity = 3
+signal unused = 42
+derived total = price * quantity
+print("total=" + total)
+print("unused=" + unused)
+batch {
+  quantity = 4
+  price = 100
+}
+print("total=" + total)
+print("unused=" + unused)
+quantity += 1
+print("total=" + total)

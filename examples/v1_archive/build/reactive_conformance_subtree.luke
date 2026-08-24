@@ -1,0 +1,13 @@
+// Phase 11 — Component subtree invalidation (Granularity)
+// Disposing a scope marks external dependents dirty before unlink.
+
+BEGIN COMPONENT Box
+  REMEMBER x AS 1
+END COMPONENT
+
+THE external IS x ADD 100
+
+SPEAK "before=" AND external
+DESTROY COMPONENT Box
+SPEAK "subtree=" AND THE SUBTREE INVALID COUNT
+SPEAK "after=" AND external

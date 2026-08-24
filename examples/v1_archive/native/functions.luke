@@ -1,0 +1,26 @@
+// Native LukeLang functions — own call frames, no JS.
+
+THIS IS FUNCTION add WITH a, b DO
+  GIVE BACK ADD a AND b
+END FUNCTION
+
+THIS IS FUNCTION greet WITH name DO
+  SPEAK "Hello, " AND name AND "!"
+  GIVE BACK name
+END FUNCTION
+
+THIS IS FUNCTION factorial WITH n DO
+  IF n IS LESS THAN 2 DO
+    GIVE BACK 1
+  END IF
+  MY NAME IS prev SET TO ASK factorial WITH SUBTRACT n AND 1
+  GIVE BACK MULTIPLY n AND prev
+END FUNCTION
+
+SPEAK "2 + 3 ="
+SPEAK ASK add WITH 2, 3
+
+ASK greet WITH "Luke"
+
+SPEAK "5! ="
+SPEAK ASK factorial WITH 5

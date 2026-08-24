@@ -1,0 +1,9 @@
+SPEAK "=== Arena scopes ==="
+
+IN ARENA DO
+  MY NAME IS blob AS TEXT SET TO "temporary work in a scope"
+  SPEAK blob
+END ARENA
+
+SPEAK "after END ARENA the bump mark is restored"
+SPEAK "ready for request/frame-scoped work"

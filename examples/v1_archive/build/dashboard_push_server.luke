@@ -1,0 +1,38 @@
+// Phase 2 flagship — push dashboard (server SSE)
+// Build: luke BUILD examples/build/dashboard_push_server.luke -o build/dashboard_push_server
+
+IMPORT std/server
+IMPORT std/argus
+
+SPEAK "dashboard push server :8794 /events"
+
+MY NAME IS server SET TO ASK httpListen WITH 8794
+MY NAME IS left AS NUMBER SET TO 6
+
+WHILE left IS GREATER THAN 0 DO
+  MY NAME IS req SET TO ASK httpAccept WITH server
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS hit AS FLAG SET TO FALSE
+  IF path EQUALS "/events" DO
+    SET hit TO TRUE
+    ASK httpSseOpen WITH req
+    MY NAME IS n AS NUMBER SET TO 100
+    MY NAME IS i AS NUMBER SET TO 0
+    WHILE i IS LESS THAN 10 DO
+      SET i TO i ADD 1
+      SET n TO n ADD 1
+      ASK httpSseData WITH req, "" AND n
+      SPEAK "reqs=" AND n
+      MY NAME IS t0 AS NUMBER SET TO THE CLOCK
+      WHILE THE CLOCK SUBTRACT t0 IS LESS THAN 45 DO
+      END WHILE
+    END WHILE
+    ASK httpClose WITH req
+  END IF
+  IF NOT hit DO
+    ASK httpReply WITH req, 404, "text/plain", "not found"
+  END IF
+  SET left TO left SUBTRACT 1
+END WHILE
+
+SPEAK "server done"

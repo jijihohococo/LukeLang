@@ -1,6 +1,4 @@
-// Phase 1 — derived cycle must fail loudly (stderr).
-
-REMEMBER seed AS 1
-THE a IS b ADD seed
-THE b IS a ADD seed
-SPEAK a
+signal seed = 1
+raw "THE a IS b ADD seed"
+raw "THE b IS a ADD seed"
+print(a)

@@ -1,0 +1,10 @@
+signal x = 0
+signal y = 0
+effect on x {
+  y += 1
+}
+x = 1
+print("y=" + y)
+raw "SPEAK \"passes=\" AND THE FLUSH PASS COUNT"
+print("turns=" + flush_count)
+raw "SPEAK \"deferred=\" AND THE DEFERRED FLUSH COUNT"

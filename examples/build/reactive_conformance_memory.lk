@@ -1,0 +1,14 @@
+raw "BEGIN COMPONENT Counter"
+signal count = 0
+derived doubled = count * 2
+raw "END COMPONENT"
+raw "SPEAK \"alive=\" AND THE ALIVE NODE COUNT"
+raw "SPEAK \"dead=\" AND THE DEAD NODE COUNT"
+raw "DESTROY COMPONENT Counter"
+raw "AUDIT REACTIVE"
+raw "SPEAK \"disposed=\" AND THE DISPOSED COUNT"
+raw "SPEAK \"dead=\" AND THE DEAD NODE COUNT"
+raw "SPEAK \"alive=\" AND THE ALIVE NODE COUNT"
+raw "SPEAK \"leaks=\" AND THE LEAK EDGE COUNT"
+print("count=" + count)
+print("doubled=" + doubled)

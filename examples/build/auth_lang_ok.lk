@@ -1,0 +1,29 @@
+import std/sqlite
+import std/auth
+print("auth_lang_ok start")
+raw "LIMIT login TO 5 PER MINUTE PER ip"
+let db = dbOpen("/tmp/luke_auth_lang_ok.db")
+dbExec(db, "DROP TABLE IF EXISTS luke_auth_attempts")
+dbExec(db, "DROP TABLE IF EXISTS luke_sessions")
+dbExec(db, "DROP TABLE IF EXISTS luke_users")
+dbExec(db, "DROP TABLE IF EXISTS profiles")
+authInit(db)
+dbExec(db, "CREATE TABLE profiles(user_id TEXT PRIMARY KEY, ssn TEXT NOT NULL)")
+let uid = authCreateAccount(db, "lang@example.com", "password long enough")
+var ba: list = []
+ba.push(uid)
+ba.push("078-05-1120")
+dbExecBind(db, "INSERT INTO profiles(user_id, ssn) VALUES(?, ?)", ba)
+assert authAssume(uid) == true
+secret signal ssn: str = "078-05-1120"
+raw "REVEAL last 4 OF ssn AS masked"
+print("masked=" + masked)
+bind("lab", masked)
+raw "WHO SAW ssn SINCE \"last week\""
+raw "SCRUB TO access OF ssn"
+raw "REFRESH LIMIT login WITH db, \"lang@example.com\""
+print("remaining=" + login.remaining)
+bind("attempts_left", login.remaining)
+print("chain_ok=" + authSawVerify())
+dbClose(db)
+print("auth_lang_ok=1")

@@ -1,0 +1,39 @@
+import std/server
+print("dashboard server :8792 /reqs /cpu /mem")
+let server = httpListen(8792)
+var reqs: float = 0
+var cpu: float = 37
+var mem: float = 54
+var left: float = 48
+while left > 0 {
+  let req = httpAccept(server)
+  let path = httpPath(req)
+  var hit: bool = false
+  if path == "/reqs" {
+    hit = true
+    reqs = reqs + 1
+    httpReply(req, 200, "text/plain", "" + reqs)
+    print("reqs=" + reqs)
+  }
+  if path == "/cpu" {
+    hit = true
+    cpu = cpu + 1
+    if cpu > 99 {
+      cpu = 31
+    }
+    httpReply(req, 200, "text/plain", "" + cpu)
+  }
+  if path == "/mem" {
+    hit = true
+    mem = mem + 1
+    if mem > 91 {
+      mem = 48
+    }
+    httpReply(req, 200, "text/plain", "" + mem)
+  }
+  if !hit {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+  left = left - 1
+}
+print("server done")

@@ -1,0 +1,21 @@
+import std/server
+print("fullstack_cell server :8791 /cell")
+let server = httpListen(8791)
+var count: float = 0
+var left: float = 24
+while left > 0 {
+  let req = httpAccept(server)
+  let path = httpPath(req)
+  var hit: bool = false
+  if path == "/cell" {
+    hit = true
+    count = count + 1
+    httpReply(req, 200, "text/plain", "" + count)
+    print("served=" + count)
+  }
+  if !hit {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+  left = left - 1
+}
+print("server done")

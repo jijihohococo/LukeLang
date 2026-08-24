@@ -1,0 +1,23 @@
+import std/server
+fn health(req: Request) {
+  httpReply(req, 200, "text/plain", "ok")
+  print("served=ok")
+}
+fn show_user(req: Request) {
+  let path = httpPath(req)
+  var params: map = {}
+  httpMatch(path, "/user/:id", params)
+  let id = params["id"]
+  httpReply(req, 200, "text/plain", "user=" + id)
+  print("served=user")
+}
+raw "ROUTES DO"
+raw "GET \"/ok\" HANDLE health"
+raw "GET \"/user/:id\" AS INTEGER HANDLE show_user"
+raw "END ROUTES"
+raw "LINK TO \"/ok\""
+raw "LINK TO \"/user/7\""
+print("routes_serve :8803")
+let server = httpListen(8803)
+raw "SERVE ROUTES ON server WITH 3"
+print("routes_serve_done=1")

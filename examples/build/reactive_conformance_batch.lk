@@ -1,0 +1,12 @@
+signal x = 1
+derived doubled = x * 2
+print("doubled=" + doubled)
+print("flush1=" + flush_count)
+batch {
+  x = 5
+  x = 10
+}
+print("doubled=" + doubled)
+print("flush2=" + flush_count)
+x += 1
+print("flush3=" + flush_count)

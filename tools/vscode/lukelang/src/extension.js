@@ -10,7 +10,62 @@ const {
   ensureLukeBinary
 } = require("./lukePath");
 
+/* Prefer syntax v2; keep v1 phrases for the dual-syntax window (Phase 4→5). */
 const KEYWORDS = [
+  "print",
+  "let",
+  "var",
+  "fn",
+  "return",
+  "if",
+  "else",
+  "while",
+  "for",
+  "in",
+  "break",
+  "try",
+  "catch",
+  "throw",
+  "arena",
+  "import",
+  "struct",
+  "init",
+  "private",
+  "test",
+  "assert",
+  "signal",
+  "secret",
+  "derived",
+  "effect",
+  "batch",
+  "watch",
+  "bind",
+  "from",
+  "where",
+  "as",
+  "on",
+  "fill",
+  "paint",
+  "layout",
+  "page",
+  "raw",
+  "true",
+  "false",
+  "self",
+  "super",
+  "current_user",
+  "clock",
+  "int",
+  "float",
+  "str",
+  "bool",
+  "json",
+  "list",
+  "map",
+  "Server",
+  "Request",
+  "Db",
+  /* v1 (still valid in .luke until Phase 5) */
   "SPEAK",
   "SAY",
   "YELL",
@@ -86,7 +141,7 @@ async function startLanguageClient(context) {
   const clientOptions = {
     documentSelector: [{ scheme: "file", language: "lukelang" }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.luke")
+      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.{luke,lk}")
     }
   };
 
@@ -162,7 +217,7 @@ function registerDebugAdapter(context) {
         }
         if (!config.program) {
           vscode.window.showErrorMessage(
-            "LukeLang debug: open a .luke file or set launch.json program"
+            "LukeLang debug: open a .luke or .lk file or set launch.json program"
           );
           return null;
         }

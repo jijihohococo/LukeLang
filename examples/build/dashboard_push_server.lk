@@ -1,0 +1,31 @@
+import std/server
+import std/argus
+print("dashboard push server :8794 /events")
+let server = httpListen(8794)
+var left: float = 6
+while left > 0 {
+  let req = httpAccept(server)
+  let path = httpPath(req)
+  var hit: bool = false
+  if path == "/events" {
+    hit = true
+    httpSseOpen(req)
+    var n: float = 100
+    var i: float = 0
+    while i < 10 {
+      i = i + 1
+      n = n + 1
+      httpSseData(req, "" + n)
+      print("reqs=" + n)
+      let t0: float = clock
+      while clock - t0 < 45 {
+      }
+    }
+    httpClose(req)
+  }
+  if !hit {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+  left = left - 1
+}
+print("server done")

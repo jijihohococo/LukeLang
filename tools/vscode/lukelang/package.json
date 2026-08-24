@@ -2,7 +2,7 @@
   "name": "lukelang-vscode",
   "displayName": "LukeLang",
   "description": "Official LukeLang syntax, LSP, DAP debug, snippets, and completions.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "lukelang",
   "icon": "icons/lukelang128x128.png",
   "license": "MIT",
@@ -28,6 +28,7 @@
           "luke"
         ],
         "extensions": [
+          ".lk",
           ".luke"
         ],
         "configuration": "./language-configuration.json"
@@ -57,7 +58,7 @@
         "lukelang.enableLsp": {
           "type": "boolean",
           "default": true,
-          "description": "Start the LukeLang LSP (luke LSP) for .luke files."
+          "description": "Start the LukeLang LSP (luke LSP) for .lk / .luke files."
         },
         "lukelang.enableDebug": {
           "type": "boolean",
@@ -81,7 +82,7 @@
             "properties": {
               "program": {
                 "type": "string",
-                "description": "Path to the .luke source file to debug.",
+                "description": "Path to the .lk / .luke source file to debug.",
                 "default": "${file}"
               },
               "stopOnEntry": {
@@ -104,7 +105,7 @@
         "configurationSnippets": [
           {
             "label": "LukeLang: Debug current file",
-            "description": "Launch gdb-backed Luke debug adapter for the active .luke file.",
+            "description": "Launch gdb-backed Luke debug adapter for the active .lk / .luke file.",
             "body": {
               "type": "lukelang",
               "request": "launch",

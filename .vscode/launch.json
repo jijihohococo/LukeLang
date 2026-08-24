@@ -4,7 +4,7 @@
     {
       "type": "lukelang",
       "request": "launch",
-      "name": "Debug current .luke file",
+      "name": "Debug current Luke file",
       "program": "${file}",
       "stopOnEntry": true
     },
@@ -12,7 +12,7 @@
       "type": "lukelang",
       "request": "launch",
       "name": "Debug backend API example",
-      "program": "${workspaceFolder}/examples/build/backend_api.luke",
+      "program": "${workspaceFolder}/examples/build/backend_api.lk",
       "stopOnEntry": false
     }
   ]

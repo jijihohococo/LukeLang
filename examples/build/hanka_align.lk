@@ -1,0 +1,19 @@
+import std/hanka
+import std/argus
+raw "BEGIN ROW AT 0, 0 SIZE 400, 80 PAD 0 GAP 10 ALIGN CENTER"
+raw "SLOT BUTTON \"a\" SIZE 40, 40 SAY \"A\""
+raw "SLOT BUTTON \"b\" SIZE 40, 40 SAY \"B\""
+raw "END ROW"
+raw "BEGIN COLUMN AT 0, 100 SIZE 200, 200 PAD 0 GAP 8 ALIGN END"
+raw "SLOT TEXT \"t1\" SIZE 80, 24 SAY \"one\""
+raw "SLOT TEXT \"t2\" SIZE 80, 24 SAY \"two\""
+raw "END COLUMN"
+raw "BEGIN ROW AT 0, 320 SIZE 400, 80 PAD 0 GAP 10 ALIGN MAIN CENTER CROSS START"
+raw "SLOT BUTTON \"c\" SIZE 40, 40 SAY \"C\""
+raw "SLOT BUTTON \"d\" SIZE 40, 40 SAY \"D\""
+raw "END ROW"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+print("align=1")
+print("axes=1")
+raw "SPEAK \"measure=\" AND THE TEXT WIDTH OF \"abcd\""

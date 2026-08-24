@@ -1,0 +1,4 @@
+signal seed = 1
+raw "THE a IS b ADD seed"
+raw "THE b IS a ADD seed"
+print(a)

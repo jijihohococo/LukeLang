@@ -1,0 +1,16 @@
+signal useA = 1
+signal pathA = 10
+signal pathB = 20
+raw "THE pick IS IF useA THEN pathA OTHERWISE pathB"
+print("pick=" + pick)
+useA = 0
+print("pick=" + pick)
+raw "SPEAK \"stale=\" AND THE STALE EDGE COUNT"
+raw "SPEAK \"total_stale=\" AND THE TOTAL STALE EDGE COUNT"
+signal a = 1
+signal b = 2
+raw "THE sum IS a ADD b"
+print("sum=" + sum)
+a += 1
+raw "SPEAK \"sum_stale=\" AND THE STALE EDGE COUNT"
+raw "SPEAK \"total_stale=\" AND THE TOTAL STALE EDGE COUNT"

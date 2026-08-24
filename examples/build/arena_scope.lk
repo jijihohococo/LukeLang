@@ -1,0 +1,7 @@
+print("=== Arena scopes ===")
+raw "IN ARENA DO"
+let blob: str = "temporary work in a scope"
+print(blob)
+raw "END ARENA"
+print("after END ARENA the bump mark is restored")
+print("ready for request/frame-scoped work")

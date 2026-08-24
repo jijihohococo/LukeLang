@@ -1,0 +1,29 @@
+import std/hanka
+import std/argus
+raw "BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640"
+raw "SLOT BUTTON \"a\" SIZE 80, 40 SAY \"A\""
+raw "SLOT BUTTON \"b\" SIZE 80, 40 SAY \"B\" WEAR \"px-5 rounded-xl bg-indigo-600 text-white\""
+raw "SLOT BUTTON \"cta\" SIZE 120, 40 SAY \"Open\""
+raw "END ROW"
+raw "BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL"
+raw "SLOT TEXT \"g1\" SIZE AUTO, 24 SAY \"one\""
+raw "SLOT TEXT \"status\" SIZE AUTO, 24 SAY \"Ready\" ANNOUNCE"
+raw "END GRID"
+raw "BEGIN COLUMN AT 0, 320 SIZE 280, 120 PAD 8 GAP 8 SCROLL"
+raw "SLOT TEXT \"s1\" SIZE AUTO, 24 SAY \"scroll line 1\""
+raw "SLOT TEXT \"s2\" SIZE AUTO, 24 SAY \"scroll line 2\""
+raw "SLOT MODAL \"dlg\" SIZE 240, 64 SAY \"Dialog\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+raw """WHEN "cta" IS CLICKED DO
+  OPEN THE MODAL "dlg"
+END WHEN"""
+raw """WHEN THE VIEWPORT IS BELOW 640 DO
+  SPEAK "below=1"
+END WHEN"""
+raw """WHEN THE VIEWPORT IS ABOVE 1000 DO
+  SPEAK "above=1"
+END WHEN"""
+print("ok=1")
+print("frontend_done=1")

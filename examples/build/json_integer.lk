@@ -1,0 +1,17 @@
+import std/json
+print("=== JSON INTEGER ===")
+let raw: str = "{\"id\":9007199254740993,\"cents\":199,\"pi\":3.14}"
+let doc: json = jsonParse(raw)
+let idNode: json = jsonGet(doc, "id")
+let id: int = jsonAsInteger(idNode)
+print("id=" + id)
+let centsNode: json = jsonGet(doc, "cents")
+let cents: int = jsonAsInteger(centsNode)
+print("cents=" + cents)
+let piNode: json = jsonGet(doc, "pi")
+print("pi=" + jsonAsNumber(piNode))
+let round: str = jsonStringify(doc)
+print("round-trip=" + round)
+assert id == 9007199254740993
+assert cents == 199
+print("json_integer_ok=1")

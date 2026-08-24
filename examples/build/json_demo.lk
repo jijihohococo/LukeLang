@@ -1,0 +1,26 @@
+import std/json
+print("=== Build JSON ===")
+let raw: str = "{\"name\":\"Luke\",\"version\":2,\"ok\":true,\"tags\":[\"build\",\"native\"],\"meta\":{\"role\":\"builder\"}}"
+let doc: json = jsonParse(raw)
+let nameNode: json = jsonGet(doc, "name")
+print("name = " + jsonAsText(nameNode))
+let verNode: json = jsonGet(doc, "version")
+print("version =")
+print(jsonAsNumber(verNode))
+let okNode: json = jsonGet(doc, "ok")
+if jsonAsFlag(okNode) {
+  print("ok is true")
+}
+let tags: json = jsonGet(doc, "tags")
+let tag0: json = jsonIndex(tags, 0)
+print("tag0 = " + jsonAsText(tag0))
+print("tag count =")
+print(jsonLen(tags))
+let meta: json = jsonGet(doc, "meta")
+let roleNode: json = jsonGet(meta, "role")
+print("role = " + jsonAsText(roleNode))
+print("round-trip = " + jsonStringify(doc))
+if jsonHas(doc, "name") {
+  print("has name")
+}
+print("JSON tree lives in the Build arena — no GC.")

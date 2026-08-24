@@ -1,0 +1,32 @@
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Reactive Lists")
+page.style("""
+html, body { margin: 0; background: #101820; }
+#brand, #row_0, #row_1, #row_2, #hint { color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; }
+#hint { font-size: 15px; opacity: 0.7; }
+#rename {
+  background: #f4a259; color: #101820; font-family: Georgia, serif;
+  font-weight: 700; font-size: 16px; cursor: pointer;
+}
+""")
+signal players: list = []
+raw "BEGIN COLUMN AT 48, 48 SIZE 720, 360 PAD 0 GAP 12"
+raw "SLOT TEXT \"brand\" SIZE 640, 56 SAY \"LukeLang\""
+raw "SLOT TEXT \"row_0\" SIZE 640, 36 SAY \"\""
+raw "SLOT TEXT \"row_1\" SIZE 640, 36 SAY \"\""
+raw "SLOT TEXT \"row_2\" SIZE 640, 36 SAY \"\""
+raw "SLOT BUTTON \"rename\" SIZE 220, 48 SAY \"Rename Bea\""
+raw "SLOT TEXT \"hint\" SIZE 640, 32 SAY \"Granular list paint — one row.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind.list(players, "row")
+players.push("Ada")
+players.push("Bea")
+players.push("Cal")
+raw """WHEN "rename" IS CLICKED DO
+  SET ITEM 1 OF players TO "Zoe"
+END WHEN"""

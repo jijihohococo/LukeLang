@@ -1,0 +1,81 @@
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Syntax Stress")
+page.style("""
+html, body { margin: 0; background: #10140f; color: #f2f7f0; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
+#brand { font-size: 42px; letter-spacing: -0.02em; }
+#eyebrow { opacity: 0.65; font-size: 14px; }
+#metric { font-size: 28px; }
+#note { opacity: 0.75; font-size: 15px; }
+#inbox { font-size: 18px; }
+button { font: inherit; }
+""")
+signal brand = "LukeLang"
+signal title = "Ops board"
+signal reqs: float = 0
+signal errors: float = 0
+signal selected = ""
+signal note = "Conversational surface. Reactive core. One graph."
+signal inbox: list = []
+signal filter = "all"
+signal dirty: float = 0
+inbox.push("Ada — deploy green")
+inbox.push("Tom — retry payment")
+inbox.push("Nia — bump quota")
+raw "BEGIN COLUMN AT 32, 28 SIZE 880, 640 PAD 0 GAP 18"
+raw "SLOT TEXT \"eyebrow\" SIZE AUTO, 24 SAY \"syntax stress · complex screen\""
+raw "SLOT TEXT \"brand\" SIZE AUTO, 52 SAY \"LukeLang\""
+raw "SLOT TEXT \"title\" SIZE AUTO, 36 SAY \"Ops board\""
+raw "BEGIN ROW AT 0, 0 SIZE AUTO, 64 PAD 0 GAP 28"
+raw "SLOT TEXT \"metric\" SIZE AUTO, 40 SAY \"reqs: 0\""
+raw "SLOT TEXT \"errs\" SIZE AUTO, 40 SAY \"errors: 0\""
+raw "SLOT BUTTON \"tick\" SIZE 120, 44 SAY \"Tick\""
+raw "SLOT BUTTON \"fail\" SIZE 120, 44 SAY \"Fail\""
+raw "END ROW"
+raw "BEGIN ROW AT 0, 0 SIZE AUTO, 48 PAD 0 GAP 12"
+raw "SLOT BUTTON \"all\" SIZE 88, 40 SAY \"All\""
+raw "SLOT BUTTON \"open\" SIZE 88, 40 SAY \"Open\""
+raw "SLOT TEXT \"filter\" SIZE AUTO, 36 SAY \"filter: all\""
+raw "END ROW"
+raw "SLOT TEXT \"inbox\" SIZE AUTO, 120 SAY \"inbox…\""
+raw "SLOT TEXT \"note\" SIZE AUTO, 48 SAY \"note\""
+raw "SLOT TEXT \"selected\" SIZE AUTO, 36 SAY \"selected: —\""
+raw "SLOT BUTTON \"pick0\" SIZE 160, 40 SAY \"Pick first\""
+raw "SLOT BUTTON \"clear\" SIZE 120, 40 SAY \"Clear sel\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("brand", brand)
+bind("title", title)
+bind("metric", reqs)
+bind("errs", errors)
+bind("note", note)
+bind("filter", filter)
+bind("selected", selected)
+raw """WHEN "tick" IS CLICKED DO
+  INCREASE reqs BY 1
+  CHANGE dirty TO 1
+  CHANGE note TO "Traffic pulsed."
+END WHEN"""
+raw """WHEN "fail" IS CLICKED DO
+  INCREASE errors BY 1
+  CHANGE note TO "Error recorded — region stays surgical."
+END WHEN"""
+raw """WHEN "all" IS CLICKED DO
+  CHANGE filter TO "all"
+END WHEN"""
+raw """WHEN "open" IS CLICKED DO
+  CHANGE filter TO "open"
+END WHEN"""
+raw """WHEN "pick0" IS CLICKED DO
+  CHANGE selected TO ITEM 0 OF inbox
+  CHANGE note TO "Selected from LIST — still one graph."
+END WHEN"""
+raw """WHEN "clear" IS CLICKED DO
+  CHANGE selected TO ""
+END WHEN"""
+effect on dirty {
+  dirty = 0
+}
+print("syntax_stress_ok=1")

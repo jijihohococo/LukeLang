@@ -1,0 +1,34 @@
+import std/sqlite
+import std/server
+print("backend_lang_ok start")
+raw "ROUTES DO"
+raw "GET \"/health\""
+raw "GET \"/user/:id\" AS INTEGER REQUIRES AUTH"
+raw "POST \"/login\""
+raw "GET \"/notes\" REQUIRES AUTH"
+raw "END ROUTES"
+raw "LINK TO \"/health\""
+raw "LINK TO \"/user/42\""
+raw "LINK TO \"/notes\""
+raw "MIDDLEWARE ORDER AUTH THEN RATE LIMIT"
+raw "FORM login DO"
+raw "HAS email AS EMAIL"
+raw "HAS password AS PASSWORD"
+raw "HAS age AS INTEGER 0..150"
+raw "END FORM"
+raw "SCHEMA notes DO"
+raw "HAS id AS INTEGER"
+raw "HAS user_id AS TEXT"
+raw "HAS body AS TEXT"
+raw "END SCHEMA"
+let db = dbOpen("/tmp/luke_backend_lang_ok.db")
+raw "ENSURE SCHEMA notes ON db"
+var params: map = {}
+params["email"] = "ada@example.com"
+params["password"] = "correct horse"
+params["age"] = "33"
+raw "VALIDATE FORM login FROM params"
+print("form_cell_ok=" + form_login_ok)
+dbClose(db)
+print("backend_lang_ok=1")
+print("route=" + current_route)

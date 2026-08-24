@@ -1,0 +1,11 @@
+raw "BEGIN ENTITY Player"
+signal health = 100
+raw "END ENTITY"
+raw "THE Player.healthPct IS Player.health MULTIPLIED BY 0.01"
+print("hp=" + Player.health)
+print("pct=" + Player.healthPct)
+raw "INCREASE Player.health BY -25"
+print("hp=" + Player.health)
+print("pct=" + Player.healthPct)
+raw "INCREASE Player.health BY -80"
+print("hp=" + Player.health)

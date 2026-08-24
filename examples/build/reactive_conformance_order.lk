@@ -1,0 +1,9 @@
+signal base = 1
+raw "THE d1 IS base ADD 1"
+raw "THE d2 IS d1 ADD 1"
+raw "THE d3 IS d2 ADD 1"
+print("chain=" + d3)
+base += 10
+print("chain=" + d3)
+raw "SPEAK \"derived_runs=\" AND THE DERIVED RUN COUNT"
+raw "SPEAK \"epoch=\" AND THE EPOCH"

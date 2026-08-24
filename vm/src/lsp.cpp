@@ -417,15 +417,24 @@ void publishDiagnostics(const std::string &uri, const std::string &source,
   writeMessage(note.str());
 }
 
-const char *kStmtKeywords[] = {"MY", "NAME", "IS", "SET", "TO", "AS", "SPEAK", "ASK", "WITH",
-                               "REMEMBER", "WATCH", "PUSH", "WHEN", "IF", "DO", "END", "WHILE",
-                               "FOR", "IMPORT", "GIVE", "BACK", "MAKE", "SURE", "CHANGE",
-                               "INCREASE", "DECREASE", "THE", "THIS", "FUNCTION", "BLUEPRINT",
-                               "SECRET", "BIND", "BEGIN", "COLUMN", "LAY", "OUT", "PAINT",
-                               nullptr};
+/* Dual-syntax window (Phase 4): v2 keywords first, v1 phrases retained until Phase 5. */
+const char *kStmtKeywords[] = {
+    /* v2 */
+    "print", "let", "var", "fn", "return", "if", "else", "while", "for", "in", "break", "try",
+    "catch", "throw", "arena", "import", "struct", "init", "private", "test", "assert", "signal",
+    "secret", "derived", "effect", "batch", "watch", "bind", "from", "where", "as", "on", "fill",
+    "paint", "layout", "page", "raw",
+    /* v1 */
+    "MY", "NAME", "IS", "SET", "TO", "AS", "SPEAK", "ASK", "WITH", "REMEMBER", "WATCH", "PUSH",
+    "WHEN", "IF", "DO", "END", "WHILE", "FOR", "IMPORT", "GIVE", "BACK", "MAKE", "SURE", "CHANGE",
+    "INCREASE", "DECREASE", "THE", "THIS", "FUNCTION", "BLUEPRINT", "SECRET", "BIND", "BEGIN",
+    "COLUMN", "LAY", "OUT", "PAINT",
+    nullptr};
 
-const char *kTypeKeywords[] = {"NUMBER", "INTEGER", "TEXT", "FLAG", "LIST", "MAP", "JSON",
-                               "TRUE", "FALSE", nullptr};
+const char *kTypeKeywords[] = {"int",    "float", "str",  "bool", "json", "list", "map",
+                               "Server", "Request", "Db",  "NUMBER", "INTEGER", "TEXT", "FLAG",
+                               "LIST",   "MAP",   "JSON", "TRUE", "FALSE", "true", "false",
+                               nullptr};
 
 const char *kExprKeywords[] = {"ADD", "SUBTRACT", "MULTIPLY", "DIVIDE", "AND", "EQUALS",
                                "NOT", "MULTIPLIED", "DIVIDED", "BY", nullptr};

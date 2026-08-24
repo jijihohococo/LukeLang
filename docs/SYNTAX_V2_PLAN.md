@@ -1,7 +1,7 @@
 # Syntax v2 — conversational → technical
 
-> **Status:** Phases 0–3 complete (golden + full-corpus migrate BUILD). Phase 4 (cutover) next.
-> No codegen rewrite.
+> **Status:** Phases 0–3 complete. **Phase 4 in progress** (examples `.lk` + VS Code/LSP
+> cutover landed; remaining doc fences + stdlib still open). No codegen rewrite.
 > **Scope:** replace the conversational surface syntax with a conventional technical syntax
 > (braces, operators, `fn`, `let`) while keeping the reactive engine and Build guarantees intact.
 
@@ -446,8 +446,22 @@ needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ## 9. Status
 
-**Phases 0–3 complete (golden + full-corpus migrate BUILD).** Phase 4 (cutover) is next.
-No codegen rewrite.
+**Phases 0–3 complete. Phase 4 in progress** (examples `.lk` + VS Code/LSP cutover landed;
+remaining doc fences + stdlib still open). No codegen rewrite.
+
+### Phase 4 — in progress
+
+Shipped so far:
+
+- **`examples/build/*.lk`** — all 118 programs migrated beside their `.luke` twins (stdlib still v1)
+- **`vm/Makefile` `test-build`** paths retargeted to `.lk` (`#line` / DWARF cite `.lk`)
+- **VS Code extension 0.3.0** — `.lk` + `.luke`, v2 grammar/snippets/KEYWORDS, brace indent
+- **LSP** keyword tables include v2 while retaining v1 for the dual-syntax window
+- **`luke DEBUG`** accepts `.lk`; debug scripts use `.lk` breakpoints
+- README / getting_started taste examples switched to v2
+
+Still open: remaining conversational doc fences; `lsp_providers.sh` still on v1 source;
+**`vm/stdlib/` last and separately**.
 
 ### Phase 3a — done (corpus migrate BUILD)
 
@@ -515,6 +529,7 @@ python3 scripts/syntax_v2_spec_check.py      # every live phrase is mapped or dr
 python3 scripts/syntax_v2_corpus_check.py    # corpus paired with v1 twins, no v1 leakage
 ```
 
-### Next: Phase 4
+### Next: finish Phase 4, then Phase 5
 
-Cut examples/docs/LSP/VS Code over to v2, keeping stdlib last. Do not rewrite `build_c.cpp`.
+1. Finish remaining doc fences; leave `vm/stdlib/` for a separate cut.
+2. Phase 5: `.luke` means v2; deprecation window; then delete v1 statement prefixes from codegen.

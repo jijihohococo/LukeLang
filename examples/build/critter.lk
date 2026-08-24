@@ -1,0 +1,10 @@
+struct Critter {
+  name: str
+  mood = "curious"
+  init(name: str) {
+    self.name = name
+  }
+  fn greet() {
+    print(self.name + " feels " + self.mood)
+  }
+}

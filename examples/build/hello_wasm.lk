@@ -1,0 +1,3 @@
+print("Hello from Luke WASM")
+let n = 7
+print(n + 35)

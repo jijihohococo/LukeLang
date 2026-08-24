@@ -1,11 +1,11 @@
 # Syntax v2 golden corpus
 
-Hand-written v2 twins of ten representative v1 programs. These are the **acceptance tests for
+Hand-written v2 twins of ten representative programs. These are the **acceptance tests for
 Phase 2** of [`docs/SYNTAX_V2_PLAN.md`](../../docs/SYNTAX_V2_PLAN.md) and the executable examples
 for [`docs/SYNTAX_V2_SPEC.md`](../../docs/SYNTAX_V2_SPEC.md).
 
-> **These do not build yet.** The v2 front-end does not exist — that is Phase 2. This corpus is
-> the target it must hit.
+Phase 4 also landed auto-migrated `.lk` copies beside every `examples/build/*.luke` file. This
+directory remains the **hand-written** golden set (not mechanically regenerated).
 
 | v2 file | v1 twin | Covers |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ for [`docs/SYNTAX_V2_SPEC.md`](../../docs/SYNTAX_V2_SPEC.md).
    `ATTEMPT` — output is compared byte for byte, so touching literals breaks the gate. Only
    *syntax* is translated, never data.
 3. **Identifiers keep their v1 spelling.** `httpReply`, `dbQueryBind`, `authCsrf` are stdlib API
-   names, not syntax. Renaming them is a separate breaking change (plan, Phase 4).
+   names, not syntax. Renaming them is a separate breaking change.
 4. **`let` vs `var` follows mutation analysis**, not a mechanical rule — see spec §2.1.
 5. **`frontend_widgets.lk` is provisional.** The frontend track is parked; its spelling must not
    block backend publish.
@@ -37,4 +37,5 @@ for [`docs/SYNTAX_V2_SPEC.md`](../../docs/SYNTAX_V2_SPEC.md).
 
 ```bash
 python3 scripts/syntax_v2_corpus_check.py
+cd vm && make test-syntax-v2
 ```

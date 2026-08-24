@@ -1,0 +1,3 @@
+signal progress: float = 0
+raw "RUN TIMELINE \"fade\" FOR 100 MILLISECONDS FROM 0 TO 1 INTO progress"
+print("progress=" + progress)

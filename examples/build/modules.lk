@@ -1,0 +1,14 @@
+import "critter.luke"
+import std/files
+import std/json
+print("=== Build modules + stdlib ===")
+raw "SET c TO NEW Critter WITH \"Pixel\""
+c.greet()
+let sample: str = "{\"name\":\"Luke\",\"role\":\"builder\"}"
+print("json name = " + jsonString(sample, "name"))
+let path: str = "build/luke_stdio_demo.txt"
+writeFile(path, "Hello from Luke Build stdlib\n")
+if fileExists(path) {
+  print("file says: " + readFile(path))
+}
+print("IMPORT + std/files + std/json — all no-GC Build.")

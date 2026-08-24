@@ -1,0 +1,20 @@
+import std/sqlite
+import std/auth
+print("auth_unit start")
+let db = dbOpen("/tmp/luke_auth_unit.db")
+dbExec(db, "DROP TABLE IF EXISTS luke_auth_attempts")
+dbExec(db, "DROP TABLE IF EXISTS luke_sessions")
+dbExec(db, "DROP TABLE IF EXISTS luke_users")
+assert authInit(db) == true
+let uid = authCreateAccount(db, "Ada@Example.com", "correct horse battery")
+assert uid == uid
+print("uid=" + uid)
+let phash = dbQuery(db, "SELECT phash FROM luke_users LIMIT 1")
+print("phash_prefix=" + phash)
+assert phash == phash
+let tooShort = authCreateAccount(db, "tom@example.com", "short")
+assert tooShort == ""
+let dup = authCreateAccount(db, "ada@example.com", "another long password")
+assert dup == ""
+dbClose(db)
+print("auth_unit_ok=1")

@@ -1,0 +1,11 @@
+import std/http
+print("=== Build HTTP ===")
+let body: str = httpGet("http://example.com")
+let empty: bool = body == ""
+if empty {
+  print("HTTP GET returned empty (offline?) — try again later")
+}
+if !empty {
+  print("fetched example.com OK")
+}
+print("httpGet is Build-native via curl — no GC.")

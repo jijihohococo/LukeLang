@@ -1,0 +1,5 @@
+import std/sqlite
+let db = dbOpen("/tmp/luke_live_graph.db")
+dbExec(db, "UPDATE users SET name='Ada' WHERE id = 1")
+dbClose(db)
+print("updated=Ada")

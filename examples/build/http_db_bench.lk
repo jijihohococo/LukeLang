@@ -1,0 +1,46 @@
+import std/server
+import std/sqlite
+let setup = dbOpen("/tmp/luke_http_db_bench.db")
+dbExec(setup, "DROP TABLE IF EXISTS users")
+dbExec(setup, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)")
+var s1: list = []
+s1.push("1")
+s1.push("Ada")
+dbExecBind(setup, "INSERT INTO users(id, name) VALUES(?, ?)", s1)
+var s2: list = []
+s2.push("2")
+s2.push("Bo")
+dbExecBind(setup, "INSERT INTO users(id, name) VALUES(?, ?)", s2)
+var s3: list = []
+s3.push("3")
+s3.push("Cy")
+dbExecBind(setup, "INSERT INTO users(id, name) VALUES(?, ?)", s3)
+dbClose(setup)
+fn handle(req: Request) {
+  let db = dbOpen("/tmp/luke_http_db_bench.db")
+  let path = httpPath(req)
+  var params: map = {}
+  var answered: bool = false
+  if httpMatch(path, "/user/:id", params) {
+    let id = params["id"]
+    var binds: list = []
+    binds.push(id)
+    let name = dbQueryBind(db, "SELECT name FROM users WHERE id = ?", binds)
+    httpReply(req, 200, "text/plain", name)
+    answered = true
+  }
+  if !answered {
+    if path == "/ok" {
+      httpReply(req, 200, "text/plain", "ok")
+      answered = true
+    }
+  }
+  if !answered {
+    httpReply(req, 404, "text/plain", "missing")
+  }
+  dbClose(db)
+}
+print("http_db_bench :8810")
+let server = httpListen(8810)
+httpServe(server, handle, 0)
+print("http_db_bench_done=1")

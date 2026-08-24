@@ -1,0 +1,7 @@
+import c:m
+raw "FOREIGN FUNCTION cos WITH x AS NUMBER GIVES BACK NUMBER"
+raw "FOREIGN FUNCTION sin WITH x AS NUMBER GIVES BACK NUMBER"
+print("=== C FFI (libm) ===")
+print(cos(0))
+print(sin(0))
+print("FOREIGN FUNCTION + IMPORT c:m — linked with -lm")

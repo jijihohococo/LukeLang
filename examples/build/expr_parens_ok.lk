@@ -1,0 +1,7 @@
+let t0: float = 1
+let t1: float = 5
+let elapsed: float = (t1 - t0)
+print("elapsed=" + elapsed)
+let nested: float = (2 + (3 * 4))
+print("nested=" + nested)
+print("expr_parens_ok=1")

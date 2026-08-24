@@ -1,0 +1,4 @@
+print("Hello from Luke in the browser")
+print("Build → WASM → your page. No GC.")
+let n: float = 7
+print(n + 35)

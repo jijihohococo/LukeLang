@@ -1,0 +1,12 @@
+import std/sqlite
+let db = dbOpen("/tmp/luke_rx_query.db")
+dbExec(db, "CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, body TEXT)")
+dbExec(db, "DELETE FROM notes")
+dbExec(db, "INSERT INTO notes(body) VALUES('alpha')")
+dbExec(db, "INSERT INTO notes(body) VALUES('beta')")
+raw "REMEMBER rows AS QUERY ON db AS \"SELECT body FROM notes ORDER BY id\""
+print(rows)
+dbExec(db, "INSERT INTO notes(body) VALUES('gamma')")
+rows.refresh()
+print(rows)
+dbClose(db)

@@ -1,0 +1,23 @@
+import std/server
+fn handle(req: Request) {
+  let path = httpPath(req)
+  if path == "/slow" {
+    let t0: float = clock
+    while clock - t0 < 200 {
+    }
+    httpReply(req, 200, "text/plain", "slow")
+    print("served=slow")
+  }
+  if path == "/fast" {
+    httpReply(req, 200, "text/plain", "fast")
+    print("served=fast")
+  }
+  if path == "/ok" {
+    httpReply(req, 200, "text/plain", "ok")
+    print("served=ok")
+  }
+}
+print("concurrent server :8797")
+let server = httpListen(8797)
+httpServe(server, handle, 2)
+print("server done")

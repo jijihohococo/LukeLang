@@ -1,0 +1,9 @@
+import std/sqlite
+let db = dbOpen("/tmp/luke_demo.db")
+dbExec(db, "CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, body TEXT)")
+dbExec(db, "DELETE FROM notes")
+dbExec(db, "INSERT INTO notes(body) VALUES('hello from LukeLang')")
+dbExec(db, "INSERT INTO notes(body) VALUES('arena memory, no GC')")
+let rows = dbQuery(db, "SELECT body FROM notes ORDER BY id")
+print(rows)
+dbClose(db)

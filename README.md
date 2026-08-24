@@ -2,9 +2,9 @@
 
 <img src="assets/lukelang-logo.png" alt="LukeLang" width="520" />
 
-**The conversational, reactive-native, full-stack language.**
+**A reactive-native, full-stack language with a technical syntax.**
 
-Write like you talk. Ship like systems.  
+Write clearly. Ship like systems.  
 Change finds its own way — from database row to screen pixel.
 
 [Strategy](docs/STRATEGY.md) ·
@@ -42,33 +42,32 @@ That graph is the **Live Graph**: the reactive substrate of the whole stack.
 ## Taste the language
 
 ```luke
-SPEAK "Hello from Luke Build"
+print("Hello from Luke Build")
 
-MY NAME IS name SET TO "Luke"
-SPEAK "My name is " AND name
+let name = "Luke"
+print("My name is " + name)
 
-REMEMBER count AS NUMBER SET TO 0
-WHEN THE BUTTON "inc" IS CLICKED DO
-  INCREASE count BY 1
-END WHEN
-BIND "label" TO count
+signal price = 100
+signal quantity = 3
+derived total = price * quantity
+print("total=" + total)
 ```
 
-Conversational on the surface. Precise underneath: typed Build mode, arena memory, no GC on the ship path.
-
+Technical on the surface. Precise underneath: typed Build mode, arena memory, no GC on the ship path.
+See [`docs/SYNTAX_V2_SPEC.md`](docs/SYNTAX_V2_SPEC.md).
 ---
 
 ## Live Graph — war cry surface
 
 ```luke
 # server
-WATCH user FROM db WHERE "id = 1"
-PUSH WATCH user ON req
+watch user from db where "id = 1"
+push watch user on req
 
 # client
-REMEMBER user AS ""
-BIND "name" TO user
-WATCH user FROM "http://127.0.0.1:8798/watch"
+signal user = ""
+bind("name", user)
+watch user from "http://127.0.0.1:8798/watch"
 ```
 
 External `UPDATE` → one SSE push → one reactive write → **exactly one region paints**.
@@ -83,16 +82,17 @@ See [`docs/LIVE_GRAPH.md`](docs/LIVE_GRAPH.md).
 git clone https://github.com/lucasdmarshall/LukeLang.git
 cd LukeLang/vm && make
 
-./build/luke BUILD ../examples/build/hello.luke -o hello && ./hello
-./build/luke BUILD ../examples/build/hello_browser.luke -target browser -o web/hello
-./build/luke SHOW  ../examples/build/hello.luke
+./build/luke BUILD ../examples/build/hello.lk -o hello && ./hello
+./build/luke BUILD ../examples/build/hello_browser.lk -target browser -o web/hello
+./build/luke SHOW  ../examples/build/hello.lk
 ```
 
 | Mode | Command | What you get |
 | --- | --- | --- |
-| **Build** | `luke BUILD file.luke` | Native / WASM / browser — **no GC**, arena memory |
-| **Show** | `luke SHOW file.luke` | Build when possible; Play VM fallback |
-| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer) |
+| **Build** | `luke BUILD file.lk` | Native / WASM / browser — **no GC**, arena memory |
+| **Show** | `luke SHOW file.lk` | Build when possible; Play VM fallback |
+| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer; conversational `.luke`) |
+| **Migrate** | `luke MIGRATE file.luke -o out.lk` | Conversational → syntax v2 |
 
 Need WASI / browser targets? Install [WASI SDK](https://github.com/WebAssembly/wasi-sdk) under `.tools/wasi-sdk` (or set `LUKE_WASI_SDK`).
 

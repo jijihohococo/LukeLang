@@ -1,0 +1,10 @@
+import std/js
+print("Luke browser JS bridge")
+fill("root", """
+<main style="font-family:Georgia,serif;padding:2rem">
+  <p id="luke-status"></p>
+  <div id="luke-panel"></div>
+</main>
+""")
+jsSetText("luke-status", "Hello from Luke → DOM")
+jsSetHtml("luke-panel", "<strong>Build</strong> · arena · no GC")

@@ -1,0 +1,36 @@
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Counter")
+page.style("""
+html, body { margin: 0; background: #0e1512; }
+#brand, #counter-label, #hint { color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; }
+#counter-label { font-size: 28px; }
+#hint { font-size: 14px; opacity: 0.7; }
+#counter-inc, #counter-destroy {
+  background: #f4a259; color: #101820; font-family: Georgia, serif;
+  font-weight: 700; font-size: 16px; cursor: pointer;
+}
+#counter-destroy { background: #8b5e4b; }
+""")
+raw "BEGIN COMPONENT Counter"
+signal count = 0
+raw "BEGIN COLUMN AT 48, 48 SIZE 640, 280 PAD 0 GAP 16"
+raw "SLOT TEXT \"brand\" SIZE 560, 56 SAY \"LukeLang\""
+raw "SLOT BUTTON \"counter-inc\" SIZE 180, 48 SAY \"Increase\""
+raw "SLOT TEXT \"counter-label\" SIZE 400, 40 SAY \"Count: 0\""
+raw "SLOT BUTTON \"counter-destroy\" SIZE 220, 48 SAY \"Destroy scope\""
+raw "SLOT TEXT \"hint\" SIZE 560, 32 SAY \"Component scope cleans subscriptions.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("counter-label", "Count: " + count)
+raw "END COMPONENT"
+raw """WHEN "counter-inc" IS CLICKED DO
+  INCREASE count BY 1
+END WHEN"""
+raw """WHEN "counter-destroy" IS CLICKED DO
+  DESTROY COMPONENT Counter
+  UPDATE "hint" WITH "Counter scope destroyed — clicks no longer update."
+END WHEN"""

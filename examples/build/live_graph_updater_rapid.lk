@@ -1,0 +1,15 @@
+import std/sqlite
+import std/argus
+let db = dbOpen("/tmp/luke_live_graph.db")
+dbExec(db, "PRAGMA journal_mode=WAL")
+dbExec(db, "UPDATE users SET name='Ada1' WHERE id = 1")
+var t0: float = clock
+while clock - t0 < 120 {
+}
+dbExec(db, "UPDATE users SET name='Ada2' WHERE id = 1")
+t0 = clock
+while clock - t0 < 120 {
+}
+dbExec(db, "UPDATE users SET name='Ada3' WHERE id = 1")
+dbClose(db)
+print("updated=Ada3")

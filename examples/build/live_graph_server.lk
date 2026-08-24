@@ -1,0 +1,27 @@
+import std/server
+import std/sqlite
+import std/argus
+print("live_graph server :8798 /watch")
+let db = dbOpen("/tmp/luke_live_graph.db")
+dbExec(db, "PRAGMA journal_mode=WAL")
+dbExec(db, "CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(db, "DELETE FROM users")
+dbExec(db, "INSERT INTO users(id, name) VALUES(1, 'seed')")
+watch user from db where "id = 1"
+let server = httpListen(8798)
+var left: float = 4
+while left > 0 {
+  let req = httpAccept(server)
+  let path = httpPath(req)
+  var hit: bool = false
+  if path == "/watch" {
+    hit = true
+    push watch user on req for 50 beats every 50 ms
+  }
+  if !hit {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+  left = left - 1
+}
+dbClose(db)
+print("server done")

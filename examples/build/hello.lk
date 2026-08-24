@@ -1,0 +1,7 @@
+print("Hello from Luke Build")
+print("Native code. Arena memory. No garbage collector.")
+let name = "Luke"
+print("My name is " + name)
+let a = 21
+let b = 21
+print(a + b)

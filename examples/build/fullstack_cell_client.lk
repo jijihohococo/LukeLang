@@ -1,0 +1,52 @@
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Full-Stack Cell")
+page.style("""
+html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 40px; font-weight: 700; }
+#counter { font-size: 28px; }
+#hint { font-size: 14px; opacity: 0.7; }
+#start {
+  background: #f4a259; color: #101820; font-weight: 700; font-size: 16px; cursor: pointer;
+}
+""")
+signal server_count = ""
+signal status = 0
+signal ready = 0
+signal tick: float = 0
+signal region_now = 0
+signal granular_before = 0
+signal granular_now = 0
+signal granular_delta = 0
+signal polls = 0
+raw "BEGIN COLUMN AT 40, 40 SIZE 640, 280 PAD 0 GAP 14"
+raw "SLOT TEXT \"brand\" SIZE 560, 48 SAY \"LukeLang\""
+raw "SLOT TEXT \"counter\" SIZE 560, 40 SAY \"cell: —\""
+raw "SLOT TEXT \"hint\" SIZE 560, 32 SAY \"Server cell → BIND → one region paint.\""
+raw "SLOT BUTTON \"start\" SIZE 200, 44 SAY \"Start poll\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("counter", "cell: " + server_count)
+raw """WHEN "start" IS CLICKED DO
+  CHANGE granular_before TO THE GRANULAR PAINT COUNT
+  UPDATE "hint" WITH "Polling http://127.0.0.1:8791/cell …"
+  CHANGE granular_before TO THE GRANULAR PAINT COUNT
+  START FETCH "poll" GET "http://127.0.0.1:8791/cell" INTO server_count STATUS status READY ready
+END WHEN"""
+raw """WHEN FETCH "poll" IS READY DO
+  CHANGE region_now TO THE REGION PAINT COUNT
+  CHANGE granular_now TO THE GRANULAR PAINT COUNT
+  CHANGE granular_delta TO granular_now SUBTRACT granular_before
+  CHANGE polls TO polls ADD 1
+  SPEAK "cell=" AND server_count
+  SPEAK "region=" AND region_now
+  SPEAK "granular_delta=" AND granular_delta
+  SPEAK "polls=" AND polls
+  CHANGE granular_before TO granular_now
+  START TIMELINE "wait" FOR 120 MILLISECONDS FROM 0 TO 1 INTO tick
+END WHEN"""
+raw """WHEN TIMELINE "wait" IS FINISHED DO
+  START FETCH "poll" GET "http://127.0.0.1:8791/cell" INTO server_count STATUS status READY ready
+END WHEN"""

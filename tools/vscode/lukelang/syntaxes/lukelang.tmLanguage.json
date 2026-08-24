@@ -2,28 +2,24 @@
   "scopeName": "source.luke",
   "name": "LukeLang",
   "patterns": [
-    {
-      "include": "#comments"
-    },
-    {
-      "include": "#strings"
-    },
-    {
-      "include": "#numbers"
-    },
-    {
-      "include": "#keywords"
-    },
-    {
-      "include": "#types"
-    },
-    {
-      "include": "#constants"
-    }
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords-v2" },
+    { "include": "#types-v2" },
+    { "include": "#constants-v2" },
+    { "include": "#keywords-v1" },
+    { "include": "#types-v1" },
+    { "include": "#constants-v1" }
   ],
   "repository": {
     "comments": {
       "patterns": [
+        {
+          "name": "comment.block.luke",
+          "begin": "/\\*",
+          "end": "\\*/"
+        },
         {
           "name": "comment.line.double-slash.luke",
           "match": "//.*$"
@@ -32,6 +28,11 @@
     },
     "strings": {
       "patterns": [
+        {
+          "name": "string.quoted.triple.luke",
+          "begin": "\"\"\"",
+          "end": "\"\"\""
+        },
         {
           "name": "string.quoted.double.luke",
           "begin": "\"",
@@ -53,7 +54,39 @@
         }
       ]
     },
-    "types": {
+    "types-v2": {
+      "patterns": [
+        {
+          "name": "storage.type.luke",
+          "match": "\\b(?:int|float|str|bool|json|list|map|Server|Request|Db)\\b"
+        }
+      ]
+    },
+    "constants-v2": {
+      "patterns": [
+        {
+          "name": "constant.language.luke",
+          "match": "\\b(?:true|false|null|self|super|current_user|clock)\\b"
+        }
+      ]
+    },
+    "keywords-v2": {
+      "patterns": [
+        {
+          "name": "keyword.control.luke",
+          "match": "\\b(?:if|else|while|for|in|fn|return|break|continue|try|catch|throw|arena|test|assert|import|struct|init|private|raw)\\b"
+        },
+        {
+          "name": "keyword.other.reactive.luke",
+          "match": "\\b(?:let|var|signal|secret|derived|effect|batch|watch|bind|from|where|as|on)\\b"
+        },
+        {
+          "name": "support.function.output.luke",
+          "match": "\\b(?:print|fill|paint|layout|page)\\b"
+        }
+      ]
+    },
+    "types-v1": {
       "patterns": [
         {
           "name": "storage.type.luke",
@@ -61,7 +94,7 @@
         }
       ]
     },
-    "constants": {
+    "constants-v1": {
       "patterns": [
         {
           "name": "constant.language.luke",
@@ -69,7 +102,7 @@
         }
       ]
     },
-    "keywords": {
+    "keywords-v1": {
       "patterns": [
         {
           "name": "keyword.control.luke",

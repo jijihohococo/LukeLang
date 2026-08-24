@@ -1,0 +1,5 @@
+raw "FLOW signup DO"
+raw "COLLECT email, password"
+raw "DONE → CREATE ACCOUNT"
+raw "END FLOW"
+print("should_not_build")

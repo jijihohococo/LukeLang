@@ -1,0 +1,23 @@
+import std/sqlite
+print("agg_fn start")
+let db = dbOpen("/tmp/luke_live_graph_agg_fn.db")
+dbExec(db, "DROP TABLE IF EXISTS people")
+dbExec(db, "CREATE TABLE people(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(db, "INSERT INTO people(id, name) VALUES(1, 'Ada')")
+watch anames from db as "SELECT name FROM people WHERE substr(name, 1, 1) = 'A'"
+let v0: str = anames
+print("v0=" + v0)
+assert v0 == "Ada"
+dbExec(db, "INSERT INTO people(id, name) VALUES(2, 'Bob')")
+dbExec(db, "INSERT INTO people(id, name) VALUES(3, 'Al')")
+dbExec(db, "DELETE FROM people WHERE id = 1")
+let cnt: str = dbQuery(db, "SELECT count(*) FROM people")
+print("rowcount=" + cnt)
+assert cnt == "2"
+anames.refresh()
+let m: str = anames
+let truth: str = dbQuery(db, "SELECT group_concat(name, char(10)) FROM (SELECT name FROM people WHERE substr(name, 1, 1) = 'A' ORDER BY rowid)")
+print("maintained=[" + m + "] truth=[" + truth + "]")
+assert m == truth
+dbClose(db)
+print("agg_fn_ok=1")

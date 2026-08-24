@@ -1,0 +1,21 @@
+import std/hanka
+import std/argus
+var i: float = 0
+var col: float = 0
+var row: float = 0
+let t0: float = clock
+while i < 100 {
+  raw "PLACE \"c\" AND i AS BOX AT col MULTIPLY 36, row MULTIPLY 36 SIZE 28, 28"
+  i = i + 1
+  col = col + 1
+  while col > 9 {
+    col = 0
+    row = row + 1
+  }
+}
+raw "PAINT THE SCREEN"
+let t1: float = clock
+let elapsed: float = t1 - t0
+print("nodes=100")
+print("ms=" + elapsed)
+print("ok=1")

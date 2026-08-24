@@ -1,0 +1,11 @@
+fn add(a: float, b: float) -> float {
+  return a + b
+}
+fn greet(name: str) -> str {
+  print("Hello, " + name + "!")
+  return name
+}
+print("2 + 3 =")
+print(add(2, 3))
+greet("Luke")
+print("Build functions are plain C calls.")

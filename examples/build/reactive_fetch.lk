@@ -1,0 +1,39 @@
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Fetch")
+page.style("""
+html, body { margin: 0; background: #0e1512; }
+#brand, #status-label, #body-label, #hint { color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; }
+#status-label, #body-label { font-size: 18px; }
+#hint { font-size: 14px; opacity: 0.7; }
+#load {
+  background: #f4a259; color: #101820; font-family: Georgia, serif;
+  font-weight: 700; font-size: 16px; cursor: pointer;
+}
+""")
+signal body = ""
+signal status = 0
+signal ready = 0
+signal loading = 0
+raw "BEGIN COLUMN AT 48, 48 SIZE 720, 360 PAD 0 GAP 14"
+raw "SLOT TEXT \"brand\" SIZE 640, 56 SAY \"LukeLang\""
+raw "SLOT BUTTON \"load\" SIZE 200, 48 SAY \"Load profile\""
+raw "SLOT TEXT \"status-label\" SIZE 640, 36 SAY \"status: 0\""
+raw "SLOT TEXT \"body-label\" SIZE 640, 72 SAY \"body: \""
+raw "SLOT TEXT \"hint\" SIZE 640, 32 SAY \"Async → cells → BIND. No promises.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("status-label", "status: " + status)
+bind("body-label", "body: " + body)
+raw """WHEN "load" IS CLICKED DO
+  CHANGE loading TO 1
+  UPDATE "hint" WITH "Fetching…"
+  START FETCH "demo" GET "luke://stub/profile" INTO body STATUS status READY ready
+END WHEN"""
+raw """WHEN FETCH "demo" IS READY DO
+  CHANGE loading TO 0
+  UPDATE "hint" WITH "Fetch ready — reactive cells updated."
+END WHEN"""

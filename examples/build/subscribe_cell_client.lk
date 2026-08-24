@@ -1,0 +1,31 @@
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Subscribe Cell")
+page.style("""
+html, body { margin: 0; background: #0e1512; color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 40px; font-weight: 700; }
+#counter { font-size: 28px; }
+#hint { font-size: 14px; opacity: 0.7; }
+""")
+signal server_count = ""
+signal ready = 0
+signal region_now = 0
+signal events = 0
+raw "BEGIN COLUMN AT 40, 40 SIZE 720, 200 PAD 0 GAP 14"
+raw "SLOT TEXT \"brand\" SIZE AUTO, 48 SAY \"LukeLang\""
+raw "SLOT TEXT \"counter\" SIZE AUTO, 40 SAY \"cell: —\""
+raw "SLOT TEXT \"hint\" SIZE AUTO, 32 SAY \"SUBSCRIBE — server push, one region paint.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("counter", "cell: " + server_count)
+raw "START SUBSCRIBE \"feed\" GET \"http://127.0.0.1:8793/events\" INTO server_count READY ready"
+raw """WHEN SUBSCRIBE "feed" IS READY DO
+  CHANGE region_now TO THE REGION PAINT COUNT
+  CHANGE events TO events ADD 1
+  SPEAK "cell=" AND server_count
+  SPEAK "region=" AND region_now
+  SPEAK "events=" AND events
+  UPDATE "hint" WITH "push ok — region paints: " AND region_now
+END WHEN"""

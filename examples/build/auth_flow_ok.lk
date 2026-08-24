@@ -1,0 +1,23 @@
+import std/sqlite
+import std/auth
+print("auth_flow_ok start")
+raw "FLOW signup DO"
+raw "COLLECT email, password"
+raw "VERIFY email BY CODE"
+raw "DONE → CREATE ACCOUNT"
+raw "END FLOW"
+let db = dbOpen("/tmp/luke_auth_flow_ok.db")
+dbExec(db, "DROP TABLE IF EXISTS luke_auth_attempts")
+dbExec(db, "DROP TABLE IF EXISTS luke_sessions")
+dbExec(db, "DROP TABLE IF EXISTS luke_users")
+authInit(db)
+raw "CHANGE signup_email TO \"flow@example.com\""
+raw "CHANGE signup_password TO \"password long enough\""
+print("step0=" + signup_step)
+raw "ADVANCE FLOW signup"
+print("step1=" + signup_step)
+raw "ADVANCE FLOW signup"
+print("step2=" + signup_step)
+raw "CREATE ACCOUNT FROM FLOW signup WITH db"
+dbClose(db)
+print("auth_flow_ok=1")

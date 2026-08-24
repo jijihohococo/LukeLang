@@ -1,0 +1,21 @@
+signal x = 1
+signal ok = 0
+signal status = 200
+effect on x {
+  try {
+    throw "boom"
+  }
+}
+effect on x {
+  ok = 1
+}
+x += 1
+print("errors=" + reactive_error_count)
+print("iso=" + error_isolation_count)
+print("ok=" + ok)
+print("last=" + last_error_node)
+raw "REPORT REACTIVE FAILURE FOR status WITH \"bad fetch\""
+print("async=" + async_failure_count)
+print("errors2=" + reactive_error_count)
+raw "RETRY REACTIVE ERROR"
+raw "SPEAK \"retries=\" AND THE REACTIVE RETRY COUNT"

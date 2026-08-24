@@ -1,0 +1,17 @@
+raw "FORM login DO"
+raw "HAS email AS EMAIL"
+raw "HAS password AS PASSWORD"
+raw "END FORM"
+var bad: map = {}
+bad["email"] = "not-an-email"
+bad["password"] = "short"
+raw "VALIDATE FORM login FROM bad"
+print("email_err=" + form_login_email_error)
+print("pass_err=" + form_login_password_error)
+print("ok_cell=" + form_login_ok)
+var good: map = {}
+good["email"] = "ada@example.com"
+good["password"] = "correct horse"
+raw "VALIDATE FORM login FROM good"
+print("ok_cell2=" + form_login_ok)
+print("form_errors_ok=1")

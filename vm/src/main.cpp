@@ -514,13 +514,14 @@ std::string findGdb() {
   return {};
 }
 
-/* luke DEBUG — Build -O0 -g, then gdb with .luke breakpoints + statement step.
+/* luke DEBUG — Build -O0 -g, then gdb with source breakpoints + statement step.
  * Batch mode proves break / next (over) / step (into) / finish (out).
  * Inspect mode dumps luke_rx_inspect_cstr (cells + deps) at the breakpoint. */
 int runDebug(const std::string &path, const std::string &outBin, const std::string &breakSpec,
              bool batch, bool inspect) {
-  if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
-    std::cerr << "Error: DEBUG needs a .luke file\n";
+  bool isLuke = path.size() >= 5 && path.substr(path.size() - 5) == ".luke";
+  if (!isLuke && !luke2::isV2Path(path)) {
+    std::cerr << "Error: DEBUG needs a .luke or .lk file\n";
     return 1;
   }
   std::string gdb = findGdb();
@@ -684,7 +685,8 @@ int runDebug(const std::string &path, const std::string &outBin, const std::stri
     if (pos != std::string::npos) {
       auto slice = log.substr(pos, 500);
       intoFn = slice.find("greet (") != std::string::npos ||
-               (slice.find(".luke:") != std::string::npos &&
+               ((slice.find(".luke:") != std::string::npos ||
+                 slice.find(".lk:") != std::string::npos) &&
                 slice.find("main (") == std::string::npos);
     }
   }

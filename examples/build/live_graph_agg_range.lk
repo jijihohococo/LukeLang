@@ -1,0 +1,24 @@
+import std/sqlite
+print("agg_range start")
+let db = dbOpen("/tmp/luke_live_graph_agg_range.db")
+dbExec(db, "DROP TABLE IF EXISTS people")
+dbExec(db, "CREATE TABLE people(id INTEGER PRIMARY KEY, name TEXT, age INTEGER)")
+dbExec(db, "INSERT INTO people(id, name, age) VALUES(1, 'Ada', 40)")
+dbExec(db, "INSERT INTO people(id, name, age) VALUES(2, 'Bo', 20)")
+watch adults from db as "SELECT name FROM people WHERE age > 30"
+let v0: str = adults
+print("v0=" + v0)
+assert v0 == "Ada"
+dbExec(db, "INSERT INTO people(id, name, age) VALUES(3, 'Cy', 55)")
+dbExec(db, "UPDATE people SET age = 35 WHERE id = 2")
+dbExec(db, "DELETE FROM people WHERE id = 1")
+let cnt: str = dbQuery(db, "SELECT count(*) FROM people")
+print("rowcount=" + cnt)
+assert cnt == "2"
+adults.refresh()
+let m: str = adults
+let truth: str = dbQuery(db, "SELECT group_concat(name, char(10)) FROM (SELECT name FROM people WHERE age > 30 ORDER BY rowid)")
+print("maintained=[" + m + "] truth=[" + truth + "]")
+assert m == truth
+dbClose(db)
+print("agg_range_ok=1")

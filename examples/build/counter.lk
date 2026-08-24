@@ -1,0 +1,8 @@
+var count = 0
+while count < 5 {
+  print("count = " + count)
+  count = count + 1
+}
+if count == 5 {
+  print("Done counting in native Build mode.")
+}

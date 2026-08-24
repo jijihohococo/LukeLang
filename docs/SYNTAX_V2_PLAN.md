@@ -446,31 +446,25 @@ needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ## 9. Status
 
-**Phases 0–3b (golden gate) are complete.** Phase 3a (structuring the Raw tail) and the
-full-corpus migrate harness remain.
+**Phases 0–3b complete; Phase 3a in progress** (corpus migrate BUILD ~93/118; golden migrate 10/10).
 
-### Phase 3 — shipped for golden twins (3b)
+### Phase 3a — in progress
 
-`luke MIGRATE <file.luke> [-o out.lk]` prints technical v2 from the v1 `parseLuke` AST.
-Unrecognised Raw becomes `// TODO(migrate): …` (exit status 3 when TODOs remain).
+Goal: drive `MIGRATE_CORPUS=all` green by structuring Raw forms and closing lowerer gaps.
 
-| Gate | Result |
-| --- | --- |
-| Golden migrate-then-BUILD equivalence | **9 / 9 normative** — same harness shape as Phase 2 |
-| `frontend_widgets` | provisional (spec §6) — TODOs / not lowered |
-| `build_c.cpp` modified | **no** |
+Shipped so far in this phase:
 
-New: `vm/src/luke2_migrate.cpp`, `scripts/syntax_v2_migrate_equiv.sh`.
-CLI: `MIGRATE` in `main.cpp`. Mutation analysis chooses `let`/`var` (spec §2.1).
+- `raw "…"` / `raw """…"""` passthrough in the v2 parser/lowerer — unrecognised v1 lines
+  survive BUILD (counts as TODO for the grind)
+- Lowerer: typed empty `signal` (LIST/MAP/TEXT), list index assign (`SET ITEM`),
+  `page.title` / `page.style` / `page.font` / `fill` / `bind` / `bind.list` / `.refresh()` /
+  `paint()` / `layout()`, `watch … as … for current_user`, `clock` and THE-* builtins
+- Migrator: WearStyle/NamePage/Bind/Watch AS/SET ITEM/ASK()/infix ADD/FOR EACH/FILL/…
+- Golden migrate gate: **10 / 10** (including `frontend_widgets` via passthrough)
+- Full `examples/build` BUILD-after-migrate: **~93 / 118** (9 are intentional negative tests)
 
-```bash
-cd vm && make && make test-syntax-v2
-# optional full corpus probe (expect failures until 3a lands):
-MIGRATE_CORPUS=all bash ../scripts/syntax_v2_migrate_equiv.sh
-```
-
-**Still open for Phase 3:** grind Raw forms in `luke_parse.cpp` (3a) until
-`MIGRATE_CORPUS=all` is green, then wire that into CI.
+Still open: ~16 real failures (WHEN flatten, TIMELINE typing, a few unterminated/`catch`
+edges, relative IMPORT paths) and structuring high-frequency Raw so `raw` TODOs shrink.
 
 ### Phase 2 — shipped
 

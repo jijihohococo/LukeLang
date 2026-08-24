@@ -201,6 +201,32 @@ std::string rewriteIdentSpelling(std::string s) {
   if (eqCI(s, "TRUE")) return "true";
   if (eqCI(s, "FALSE")) return "false";
   if (eqCI(s, "THE CURRENT USER")) return "current_user";
+  if (eqCI(s, "THE CLOCK") || eqCI(s, "THE TIME IN MILLISECONDS") ||
+      eqCI(s, "THE CLOCK IN MILLISECONDS"))
+    return "clock";
+  if (eqCI(s, "THE GRANULAR PAINT COUNT") || eqCI(s, "GRANULAR PAINTS") ||
+      eqCI(s, "THE GRANULAR PAINTS"))
+    return "granular_paint_count";
+  if (eqCI(s, "THE REGION PAINT COUNT")) return "region_paint_count";
+  if (eqCI(s, "THE REACTIVE ERROR COUNT")) return "reactive_error_count";
+  if (eqCI(s, "THE ERROR ISOLATION COUNT")) return "error_isolation_count";
+  if (eqCI(s, "THE LAST ERROR NODE")) return "last_error_node";
+  if (eqCI(s, "THE ASYNC FAILURE COUNT")) return "async_failure_count";
+  if (eqCI(s, "THE FLUSH COUNT")) return "flush_count";
+  if (eqCI(s, "THE DIRTY COUNT")) return "dirty_count";
+  if (eqCI(s, "THE DERIVED COUNT")) return "derived_count";
+  if (eqCI(s, "THE ALIVE COUNT")) return "alive_count";
+  if (eqCI(s, "THE STALE COUNT")) return "stale_count";
+  if (eqCI(s, "THE SUBTREE COUNT")) return "subtree_count";
+  if (eqCI(s, "THE WEAK COUNT")) return "weak_count";
+  if (eqCI(s, "THE LEAK COUNT")) return "leak_count";
+  if (eqCI(s, "THE SCOPE COUNT")) return "scope_count";
+  if (eqCI(s, "THE SCHEDULER COUNT") || eqCI(s, "THE SCHEDULER TICK")) return "scheduler_count";
+  if (eqCI(s, "THE LAST ERROR NODE")) return "last_error_node";
+  if (eqCI(s, "THE BENCH MEDIAN")) return "bench_median";
+  if (eqCI(s, "THE BENCH MIN")) return "bench_min";
+  if (eqCI(s, "THE BENCH MAX")) return "bench_max";
+  if (eqCI(s, "THE BENCH SAMPLE COUNT")) return "bench_sample_count";
   /* SELF.foo → self.foo (also mid-token SELF.) */
   std::string out;
   for (size_t i = 0; i < s.size();) {
@@ -258,7 +284,14 @@ std::string rewriteExpr(std::string s) {
     if (bal && d == 1) return rewriteExpr(s.substr(1, s.size() - 2));
   }
 
-  if (startsCI(s, "ASK ")) return rewriteExpr(s.substr(4));
+  if (startsCI(s, "ASK ")) {
+    auto rest = trim(s.substr(4));
+    /* ASK f  (no WITH) → f() */
+    if (findTopCI(rest, " WITH ") == std::string::npos &&
+        findTopCI(rest, " TO ") == std::string::npos)
+      return rewriteExpr(rest) + "()";
+    return rewriteExpr(rest);
+  }
 
   if (eqCI(s, "THE CURRENT USER")) return "current_user";
   if (eqCI(s, "TRUE")) return "true";
@@ -282,6 +315,13 @@ std::string rewriteExpr(std::string s) {
     auto a = findTopCI(rest, " AND ");
     if (a != std::string::npos)
       return bin(rest.substr(0, a), "+", rest.substr(a + 5));
+  }
+
+  /* infix: a ADD b (derived / arithmetic without AND) */
+  {
+    auto p = findTopCI(s, " ADD ");
+    if (p != std::string::npos)
+      return bin(s.substr(0, p), "+", s.substr(p + 5));
   }
 
   /* SUBTRACT b FROM a */
@@ -541,10 +581,34 @@ struct Mig {
 
   void line(const std::string &s) { out << ind() << s << "\n"; }
 
-  void todo(const std::string &raw) {
+  /* Emit opaque v1 via `raw "…"` / `raw """…"""` so BUILD still sees the original
+   * statement. Counts as a TODO for the 3a grind. */
+  void emitV1Raw(const std::string &raw) {
     ++todos;
-    line("// TODO(migrate): " + trim(raw));
+    auto body = raw;
+    if (body.find("\"\"\"") != std::string::npos) {
+      line("/* TODO(migrate):");
+      out << body << "\n";
+      line("*/");
+      return;
+    }
+    /* Single-line → escaped regular string (avoids """ colliding with a trailing "). */
+    if (body.find('\n') == std::string::npos) {
+      std::string esc;
+      for (char c : body) {
+        if (c == '\\' || c == '"') esc.push_back('\\');
+        esc.push_back(c);
+      }
+      line(std::string("raw \"") + esc + "\"");
+      return;
+    }
+    /* Multi-line triple-quote: if body ends with ", add a newline so the closer
+     * is not absorbed into a 4-quote run (`" """` → dangling quote). */
+    if (!body.empty() && body.back() == '"') body.push_back('\n');
+    line(std::string("raw \"\"\"") + body + "\"\"\"");
   }
+
+  void todo(const std::string &raw) { emitV1Raw(raw); }
 
   void collectMut(const Stmt &s) {
     switch (s.kind) {
@@ -775,25 +839,39 @@ struct Mig {
   }
 
   void emitWatchLine(const std::string &t) {
-    /* WATCH name FROM src WHERE "…" */
+    /* WATCH name FROM src WHERE "…"
+       WATCH name FROM src AS "SELECT…" [FOR CURRENT USER] */
     auto rest = trim(t.substr(6));
     auto u = upper(rest);
     auto from = u.find(" FROM ");
-    auto where = u.find(" WHERE ");
     if (from == std::string::npos) {
-      todo(t);
+      emitV1Raw(t);
       return;
     }
     auto name = trim(rest.substr(0, from));
-    std::string src, pred;
-    if (where != std::string::npos && where > from) {
-      src = trim(rest.substr(from + 6, where - (from + 6)));
-      pred = trim(rest.substr(where + 7));
-      line("watch " + name + " from " + rewriteExpr(src) + " where " + pred);
-    } else {
-      src = trim(rest.substr(from + 6));
-      line("watch " + name + " from " + rewriteExpr(src));
+    auto after = trim(rest.substr(from + 6));
+    auto aU = upper(after);
+    bool forUser = false;
+    auto forPos = aU.rfind(" FOR CURRENT USER");
+    if (forPos != std::string::npos) {
+      forUser = true;
+      after = trim(after.substr(0, forPos));
+      aU = upper(after);
     }
+    auto asPos = aU.find(" AS ");
+    auto wherePos = aU.find(" WHERE ");
+    std::ostringstream o;
+    o << "watch " << name << " from ";
+    if (asPos != std::string::npos) {
+      o << trim(after.substr(0, asPos)) << " as " << trim(after.substr(asPos + 4));
+    } else if (wherePos != std::string::npos) {
+      o << trim(after.substr(0, wherePos)) << " where "
+        << trim(after.substr(wherePos + 7));
+    } else {
+      o << after;
+    }
+    if (forUser) o << " for current_user";
+    line(o.str());
   }
 
   void emitPushWatchLine(const std::string &t) {
@@ -842,6 +920,13 @@ struct Mig {
       auto is = findTopCI(rest, " IS ");
       auto name = trim(rest.substr(0, is));
       auto expr = trim(rest.substr(is + 4));
+      /* Infix ADD/SUBTRACT without typed operands — keep v1 (cycle/bench forms). */
+      auto eU = upper(expr);
+      if (eU.find(" ADD ") != std::string::npos || eU.find(" SUBTRACT ") != std::string::npos ||
+          startsCI(expr, "ADD ") || startsCI(expr, "SUBTRACT ")) {
+        emitV1Raw(t);
+        return true;
+      }
       line("derived " + name + " = " + rewriteExpr(expr));
       return true;
     }
@@ -949,6 +1034,63 @@ struct Mig {
       emitCallParent(t);
       return true;
     }
+    if (startsCI(t, "FILL ")) {
+      /* FILL "id" WITH body */
+      auto rest = trim(t.substr(5));
+      auto u = upper(rest);
+      auto with = u.find(" WITH ");
+      if (with != std::string::npos) {
+        auto id = trim(rest.substr(0, with));
+        auto body = trim(rest.substr(with + 6));
+        line("fill(" + id + ", " + body + ")");
+        return true;
+      }
+    }
+    if (startsCI(t, "REFRESH QUERY ")) {
+      line(rewriteExpr(trim(t.substr(14))) + ".refresh()");
+      return true;
+    }
+    if (startsCI(t, "FOR EACH ")) {
+      auto rest = trim(t.substr(9));
+      auto u = upper(rest);
+      auto in = u.find(" IN ");
+      if (in != std::string::npos) {
+        auto var = trim(rest.substr(0, in));
+        auto xs = trim(rest.substr(in + 4));
+        if (upper(xs).size() >= 3 && upper(xs).substr(upper(xs).size() - 3) == " DO")
+          xs = trim(xs.substr(0, xs.size() - 3));
+        line("for " + var + " in " + rewriteExpr(xs) + " {");
+        ++indent;
+        return true;
+      }
+    }
+    if (eqCI(t, "END FOR") || startsCI(t, "END FOR EACH") || eqCI(t, "END FOR EACH")) {
+      --indent;
+      line("}");
+      return true;
+    }
+    if (eqCI(t, "PAINT THE SCREEN") || startsCI(t, "PAINT THE SCREEN")) {
+      line("paint()");
+      return true;
+    }
+    if (eqCI(t, "LAY OUT THE SCREEN") || startsCI(t, "LAY OUT THE SCREEN")) {
+      line("layout()");
+      return true;
+    }
+    if (startsCI(t, "FOREIGN FUNCTION ") || startsCI(t, "FOREIGN ")) {
+      emitV1Raw(t);
+      return true;
+    }
+    if (startsCI(t, "BRING FONT ")) {
+      auto rest = trim(t.substr(11));
+      auto u = upper(rest);
+      auto from = u.find(" FROM ");
+      if (from != std::string::npos) {
+        line("page.font(" + trim(rest.substr(0, from)) + ", " + trim(rest.substr(from + 6)) +
+             ")");
+        return true;
+      }
+    }
     /* Blueprint leftovers that appear at top level somehow */
     if (startsCI(t, "HAS ") || startsCI(t, "METHOD ") || startsCI(t, "WHEN BORN") ||
         startsCI(t, "END METHOD") || startsCI(t, "END BORN") ||
@@ -972,6 +1114,11 @@ struct Mig {
 
       case StmtKind::Speak: {
         std::string e = emitExpr(s.expr);
+        /* Unmapped THE … phrases (and any multi-word remnant) are invalid v2. */
+        if (e.find("THE ") != std::string::npos || e.find(" THE") != std::string::npos) {
+          emitV1Raw(s.text.empty() ? ("SPEAK " + e) : s.text);
+          return;
+        }
         line("print(" + e + ")");
         return;
       }
@@ -982,13 +1129,17 @@ struct Mig {
         if (!already) declared.insert(s.name);
 
         if (already && s.expr.kind != AstKind::Empty) {
-          line(s.name + " = " + emitExpr(s.expr));
+          std::string rhs = emitExpr(s.expr);
+          if (rhs.find("THE ") != std::string::npos) {
+            emitV1Raw(s.text);
+            return;
+          }
+          line(s.name + " = " + rhs);
           return;
         }
 
         bool noInit = (s.expr.kind == AstKind::Empty);
         std::string ty = s.typeName.empty() ? "" : v2Type(s.typeName);
-        /* AS LIST / AS MAP without value → always var + empty literal */
         bool collection = (upper(s.typeName) == "LIST" || upper(s.typeName) == "MAP");
         bool useVar = isVar(s.name) || noInit || collection;
 
@@ -999,7 +1150,12 @@ struct Mig {
           if (upper(s.typeName) == "LIST") o << " = []";
           else if (upper(s.typeName) == "MAP") o << " = {}";
         } else {
-          o << " = " << emitExpr(s.expr);
+          std::string rhs = emitExpr(s.expr);
+          if (rhs.find("THE ") != std::string::npos) {
+            emitV1Raw(s.text);
+            return;
+          }
+          o << " = " << rhs;
         }
         line(o.str());
         return;
@@ -1009,9 +1165,17 @@ struct Mig {
         std::ostringstream o;
         if (s.flag) o << "secret ";
         o << "signal " << s.name;
+        if (!s.typeName.empty() && startsCI(s.typeName, "QUERY ON ")) {
+          /* Keep query cells as opaque v1 — lowerer has no query-on form yet. */
+          emitV1Raw(s.text);
+          return;
+        }
         if (!s.typeName.empty() && isV1TypeWord(s.typeName)) {
           o << ": " << v2Type(s.typeName);
           if (s.expr.kind != AstKind::Empty) o << " = " << emitExpr(s.expr);
+          else if (upper(s.typeName) == "LIST") o << " = []";
+          else if (upper(s.typeName) == "MAP") o << " = {}";
+          /* TEXT/NUMBER/FLAG typed-empty: annotation only */
         } else if (!s.typeName.empty() && looksLikeValue(s.typeName) &&
                    s.expr.kind == AstKind::Empty) {
           o << " = " << rewriteExpr(s.typeName);
@@ -1024,11 +1188,32 @@ struct Mig {
         return;
       }
 
-      case StmtKind::Change:
-        line(s.name + " = " + emitExpr(s.expr));
+      case StmtKind::Change: {
+        std::string rhs = emitExpr(s.expr);
+        if (rhs.find("THE ") != std::string::npos) {
+          emitV1Raw(s.text);
+          return;
+        }
+        line(s.name + " = " + rhs);
         return;
+      }
 
       case StmtKind::Set: {
+        /* SET ITEM n OF xs TO v */
+        if (startsCI(s.name, "ITEM ") || startsCI(s.text, "SET ITEM ")) {
+          auto t = s.text;
+          if (startsCI(t, "SET ")) t = trim(t.substr(4));
+          auto u = upper(t);
+          auto of = u.find(" OF ");
+          auto to = u.find(" TO ");
+          if (startsCI(t, "ITEM ") && of != std::string::npos && to != std::string::npos &&
+              to > of) {
+            auto idx = trim(t.substr(5, of - 5));
+            auto xs = trim(t.substr(of + 4, to - (of + 4)));
+            line(rewriteExpr(xs) + "[" + rewriteExpr(idx) + "] = " + emitExpr(s.expr));
+            return;
+          }
+        }
         std::string lhs = rewriteIdentSpelling(s.name);
         auto b = baseAssignName(s.name);
         /* Top-level SET of a fresh name is a declaration in v1 (e.g. SET buddy TO NEW …). */
@@ -1160,9 +1345,18 @@ struct Mig {
       }
 
       case StmtKind::When: {
-        /* generic WHEN … DO — uncommon in Build goldens */
-        todo(s.text);
-        emitBlock(s.body);
+        /* Flatten WHEN…END WHEN to opaque v1 (click/viewport/route not in v2 surface yet). */
+        std::ostringstream v1;
+        v1 << trim(s.text) << "\n";
+        std::vector<const Stmt *> stack;
+        for (auto &c : s.body) {
+          if (!c.text.empty())
+            v1 << "  " << c.text << "\n";
+          for (auto &n : c.body)
+            if (!n.text.empty()) v1 << "    " << n.text << "\n";
+        }
+        v1 << "END WHEN";
+        emitV1Raw(v1.str());
         return;
       }
 
@@ -1174,14 +1368,58 @@ struct Mig {
         emitPushWatchLine(s.text);
         return;
 
-      case StmtKind::Bind:
-      case StmtKind::WearStyle:
-      case StmtKind::NamePage:
+      case StmtKind::Bind: {
+        auto t = trim(s.text);
+        if (startsCI(t, "BIND LIST ")) {
+          auto rest = trim(t.substr(10));
+          auto u = upper(rest);
+          auto as = u.find(" AS ");
+          if (as != std::string::npos) {
+            line("bind.list(" + rewriteExpr(trim(rest.substr(0, as))) + ", " +
+                 trim(rest.substr(as + 4)) + ")");
+            return;
+          }
+        }
+        if (startsCI(t, "BIND ")) {
+          auto rest = trim(t.substr(5));
+          auto u = upper(rest);
+          auto to = u.find(" TO ");
+          if (to != std::string::npos) {
+            line("bind(" + trim(rest.substr(0, to)) + ", " +
+                 rewriteExpr(trim(rest.substr(to + 4))) + ")");
+            return;
+          }
+        }
+        emitV1Raw(t);
+        return;
+      }
+
+      case StmtKind::WearStyle: {
+        std::string css = s.aux;
+        if (css.empty() && startsCI(s.text, "WEAR STYLE ")) {
+          auto rest = trim(s.text.substr(11));
+          if (rest.size() >= 6 && rest.rfind("\"\"\"", 0) == 0)
+            css = rest.substr(3, rest.size() - 6);
+          else
+            css = rest;
+        }
+        line(std::string("page.style(\"\"\"") + css + "\"\"\")");
+        return;
+      }
+
+      case StmtKind::NamePage: {
+        if (s.expr.kind != AstKind::Empty)
+          line("page.title(" + emitExpr(s.expr) + ")");
+        else
+          emitV1Raw(s.text);
+        return;
+      }
+
       case StmtKind::BeginColumn:
       case StmtKind::EndColumn:
       case StmtKind::LayOut:
       case StmtKind::Paint:
-        if (!emitRaw(s.text)) todo(s.text.empty() ? luke::stmtKindName(s.kind) : s.text);
+        emitV1Raw(s.text.empty() ? luke::stmtKindName(s.kind) : s.text);
         return;
 
       case StmtKind::Block:
@@ -1189,7 +1427,7 @@ struct Mig {
         return;
 
       case StmtKind::Raw:
-        if (!emitRaw(s.text)) todo(s.text);
+        if (!emitRaw(s.text)) emitV1Raw(s.text);
         return;
     }
   }

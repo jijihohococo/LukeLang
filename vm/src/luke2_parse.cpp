@@ -362,13 +362,25 @@ struct P {
           s.aux = expectIdent();
         }
       }
-      if (eatKw("where")) {
+      if (eatKw("as")) {
+        if (cur().kind != Tk::Str) {
+          fail("`as` needs a string SQL");
+          return s;
+        }
+        s.aux2 = std::string("AS ") + cur().raw;
+        ++i;
+      } else if (eatKw("where")) {
         if (cur().kind == Tk::Str) {
-          s.aux2 = cur().raw;
+          s.aux2 = std::string("WHERE ") + cur().raw;
           ++i;
         } else {
           fail("`where` needs a string predicate");
         }
+      }
+      if (isKw("for") && peek().kind == Tk::Ident && peek().text == "current_user") {
+        i += 2;
+        if (s.aux2.empty()) s.aux2 = "FOR CURRENT USER";
+        else s.aux2 += " FOR CURRENT USER";
       }
       return s;
     }
@@ -488,15 +500,16 @@ struct P {
     if (isKw("import")) {
       s.k = Sk::Import;
       ++i;
-      /* `import std/server` or `import "./x.lk"` */
+      /* `import std/server`, `import "./x.lk"`, or `import c:m` (FFI). */
       if (cur().kind == Tk::Str) {
         s.aux = cur().raw;
         ++i;
       } else {
         std::string spec = expectIdent();
-        while (isPunct("/")) {
+        while (isPunct("/") || isPunct(":")) {
+          spec += cur().text;
           ++i;
-          spec += "/" + expectIdent();
+          spec += expectIdent();
         }
         s.aux = spec;
       }
@@ -510,6 +523,37 @@ struct P {
       if (eatKw("with")) tail += " WITH " + expectIdent();
       s.aux = tail;
       s.name = "__raw__";
+      return s;
+    }
+    /* Phase 3a: opaque v1 statement passthrough for forms not yet in the v2 surface. */
+    if (isKw("raw")) {
+      s.k = Sk::ExprStmt;
+      s.name = "__raw__";
+      ++i;
+      if (cur().kind != Tk::Str) {
+        fail("`raw` needs a string (prefer \"\"\"…\"\"\" for multi-line)");
+        return s;
+      }
+      std::string r = cur().raw;
+      ++i;
+      if (r.size() >= 6 && r.rfind("\"\"\"", 0) == 0 &&
+          r.compare(r.size() - 3, 3, "\"\"\"") == 0) {
+        s.aux = r.substr(3, r.size() - 6);
+      } else if (r.size() >= 2 && r.front() == '"' && r.back() == '"') {
+        std::string body = r.substr(1, r.size() - 2);
+        std::string decoded;
+        for (size_t k = 0; k < body.size(); ++k) {
+          if (body[k] == '\\' && k + 1 < body.size()) {
+            decoded.push_back(body[k + 1]);
+            ++k;
+            continue;
+          }
+          decoded.push_back(body[k]);
+        }
+        s.aux = decoded;
+      } else {
+        s.aux = r;
+      }
       return s;
     }
 

@@ -202,6 +202,27 @@ struct Lower {
   std::string ident(const std::string &n) {
     if (n == "self") return "SELF";
     if (n == "current_user") return "THE CURRENT USER";
+    if (n == "clock") return "THE CLOCK";
+    if (n == "granular_paint_count") return "THE GRANULAR PAINT COUNT";
+    if (n == "region_paint_count") return "THE REGION PAINT COUNT";
+    if (n == "reactive_error_count") return "THE REACTIVE ERROR COUNT";
+    if (n == "error_isolation_count") return "THE ERROR ISOLATION COUNT";
+    if (n == "last_error_node") return "THE LAST ERROR NODE";
+    if (n == "async_failure_count") return "THE ASYNC FAILURE COUNT";
+    if (n == "flush_count") return "THE FLUSH COUNT";
+    if (n == "dirty_count") return "THE DIRTY COUNT";
+    if (n == "derived_count") return "THE DERIVED COUNT";
+    if (n == "alive_count") return "THE ALIVE COUNT";
+    if (n == "stale_count") return "THE STALE COUNT";
+    if (n == "subtree_count") return "THE SUBTREE COUNT";
+    if (n == "weak_count") return "THE WEAK COUNT";
+    if (n == "leak_count") return "THE LEAK COUNT";
+    if (n == "scope_count") return "THE SCOPE COUNT";
+    if (n == "scheduler_count") return "THE SCHEDULER COUNT";
+    if (n == "bench_median") return "THE BENCH MEDIAN";
+    if (n == "bench_min") return "THE BENCH MIN";
+    if (n == "bench_max") return "THE BENCH MAX";
+    if (n == "bench_sample_count") return "THE BENCH SAMPLE COUNT";
     return n;
   }
 
@@ -401,10 +422,26 @@ struct Lower {
 
       case Sk::Signal: {
         signals.insert(s.name);
-        bind(s.name, s.type.empty() ? infer(s.e) : tyFromV2(s.type));
+        Ty t = s.type.empty() ? infer(s.e) : tyFromV2(s.type);
+        bind(s.name, t);
+        bool emptyLit =
+            (s.e.k == Ek::ListLit || s.e.k == Ek::MapLit) && s.e.kids.empty();
+        bool noInit = (s.e.k == Ek::Ident && s.e.s.empty() && s.e.kids.empty());
+        /* REMEMBER x AS LIST|MAP|TEXT|… — typed empty reactive cell */
+        if ((noInit || emptyLit) && !s.type.empty()) {
+          out << ind << (s.secret ? "SECRET REMEMBER " : "REMEMBER ") << s.name
+              << " AS " << v1Type(s.type) << "\n";
+          break;
+        }
         std::string v = expr(s.e);
         if (!err.empty()) return;
-        out << ind << (s.secret ? "SECRET REMEMBER " : "REMEMBER ") << s.name << " AS " << v << "\n";
+        if (v.empty() && !s.type.empty()) {
+          out << ind << (s.secret ? "SECRET REMEMBER " : "REMEMBER ") << s.name
+              << " AS " << v1Type(s.type) << "\n";
+          break;
+        }
+        out << ind << (s.secret ? "SECRET REMEMBER " : "REMEMBER ") << s.name << " AS " << v
+            << "\n";
         break;
       }
 
@@ -442,9 +479,15 @@ struct Lower {
       case Sk::Watch: {
         out << ind << "WATCH " << s.name;
         if (!s.aux.empty()) out << " FROM " << s.aux;
-        if (!s.aux2.empty()) out << " WHERE " << s.aux2;
+        /* aux2: "WHERE …" | "AS …" | either plus " FOR CURRENT USER" */
+        if (!s.aux2.empty()) {
+          if (s.aux2.rfind("AS ", 0) == 0 || s.aux2.rfind("WHERE ", 0) == 0)
+            out << " " << s.aux2;
+          else
+            out << " WHERE " << s.aux2;
+        }
         out << "\n";
-        bind(s.name, Ty::Unknown);
+        bind(s.name, Ty::Str);
         break;
       }
 
@@ -475,7 +518,12 @@ struct Lower {
                 << "\n";
             break;
           }
-          fail(s.line, "indexed assignment is only supported on maps");
+          if (recv == Ty::List) {
+            out << ind << "SET ITEM " << expr(t.kids[1]) << " OF " << expr(t.kids[0]) << " TO "
+                << v << "\n";
+            break;
+          }
+          fail(s.line, "indexed assignment needs a list or map receiver");
           return;
         }
         fail(s.line, "unsupported assignment target");
@@ -512,6 +560,55 @@ struct Lower {
           std::string v = expr(s.e.kids[0]);
           if (!err.empty()) return;
           out << ind << "SPEAK " << v << "\n";
+          break;
+        }
+        /* fill("id", body) -> FILL "id" WITH body */
+        if (s.e.k == Ek::Call && s.e.s == "fill" && s.e.kids.size() == 2) {
+          out << ind << "FILL " << expr(s.e.kids[0]) << " WITH " << expr(s.e.kids[1]) << "\n";
+          break;
+        }
+        /* page.title("t") / page.style("""…""") */
+        if (s.e.k == Ek::Method && s.e.kids.size() >= 1 && s.e.kids[0].k == Ek::Ident &&
+            s.e.kids[0].s == "page") {
+          if (s.e.s == "title" && s.e.kids.size() == 2) {
+            out << ind << "NAME THE PAGE " << expr(s.e.kids[1]) << "\n";
+            break;
+          }
+          if (s.e.s == "style" && s.e.kids.size() == 2) {
+            out << ind << "WEAR STYLE " << expr(s.e.kids[1]) << "\n";
+            break;
+          }
+          if (s.e.s == "font" && s.e.kids.size() == 3) {
+            out << ind << "BRING FONT " << expr(s.e.kids[1]) << " FROM " << expr(s.e.kids[2])
+                << "\n";
+            break;
+          }
+        }
+        /* bind.list(xs, "prefix") / bind("id", cell) */
+        if (s.e.k == Ek::Method && s.e.kids.size() >= 1 && s.e.kids[0].k == Ek::Ident &&
+            s.e.kids[0].s == "bind") {
+          if (s.e.s == "list" && s.e.kids.size() == 3) {
+            out << ind << "BIND LIST " << expr(s.e.kids[1]) << " AS " << expr(s.e.kids[2])
+                << "\n";
+            break;
+          }
+        }
+        if (s.e.k == Ek::Call && s.e.s == "bind" && s.e.kids.size() == 2) {
+          out << ind << "BIND " << expr(s.e.kids[0]) << " TO " << expr(s.e.kids[1]) << "\n";
+          break;
+        }
+        /* q.refresh() -> REFRESH QUERY q */
+        if (s.e.k == Ek::Method && s.e.s == "refresh" && s.e.kids.size() == 1) {
+          out << ind << "REFRESH QUERY " << expr(s.e.kids[0]) << "\n";
+          break;
+        }
+        /* paint() / layout() */
+        if (s.e.k == Ek::Call && s.e.s == "paint" && s.e.kids.empty()) {
+          out << ind << "PAINT THE SCREEN\n";
+          break;
+        }
+        if (s.e.k == Ek::Call && s.e.s == "layout" && s.e.kids.empty()) {
+          out << ind << "LAY OUT THE SCREEN\n";
           break;
         }
         /* xs.push(e) -> ADD e TO xs */

@@ -460,7 +460,8 @@ Shipped in `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`, `luke2_
 | Spec ↔ live-phrase coverage | `scripts/syntax_v2_spec_check.py` |
 | Golden corpus pairing | `scripts/syntax_v2_corpus_check.py` |
 | Lower: BUILD(v2) ≡ BUILD(v1) | `scripts/syntax_v2_equiv.sh` — **9 / 9 normative** |
-| Migrate: BUILD(MIGRATE(v1)) ≡ BUILD(v1) | `scripts/syntax_v2_migrate_equiv.sh` — **9 / 9 normative** |
+| Migrate: BUILD(MIGRATE(v1)) ≡ BUILD(v1) | `scripts/syntax_v2_migrate_equiv.sh` — **10 / 10 goldens** |
+| Full corpus BUILD-after-migrate | ~**93 / 118** (Phase 3a in progress; 9 intentional negatives) |
 | Errors report `.lk` positions | **pass** |
 | Debug info points at `.lk` | **pass** |
 | Layout/UI surface (§6) | **not lowered** — provisional |

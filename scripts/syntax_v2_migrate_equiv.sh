@@ -12,7 +12,7 @@ fi
 
 # Golden twins first (same set as Phase 2). Optional: MIGRATE_CORPUS=all
 SERVERS=" backend_api auth_api live_graph_server dashboard_server concurrent_server "
-PROVISIONAL=" frontend_widgets "
+PROVISIONAL=""
 
 mkdir -p "$WORK"
 pass=0; fail=0; prov=0; skip=0

@@ -19,7 +19,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 V2_DIR = os.path.join(ROOT, "examples", "v2")
-V1_DIR = os.path.join(ROOT, "examples", "build")
+V1_DIR = os.path.join(ROOT, "examples", "v1_archive", "build")
 
 # v1 forms that must not survive in a .lk file. Word-boundary matched, case sensitive
 # (v2 keywords are lowercase, so uppercase hits are genuine leftovers).

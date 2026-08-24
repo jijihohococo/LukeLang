@@ -105,6 +105,19 @@ std::vector<std::string> paramNames(const std::string &rawList) {
   return out;
 }
 
+/* Drop `GIVES BACK T` / `RETURNS T` from a function header (Build/lower emit these). */
+void stripGivesBack(std::string &rest) {
+  auto U = toUpper(rest);
+  auto gb = U.find(" GIVES BACK ");
+  size_t kwLen = 12;
+  if (gb == std::string::npos) {
+    gb = U.find(" RETURNS ");
+    kwLen = 9;
+  }
+  if (gb != std::string::npos) rest = trim(rest.substr(0, gb));
+  (void)kwLen;
+}
+
 bool stripTrailingDo(std::string &s) {
   auto U = toUpper(s);
   auto doPos = U.rfind(" DO");
@@ -940,10 +953,10 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         auto setPos = U.find(" SET TO ");
         std::string field;
         if (setPos == std::string::npos) {
-          field = rest;
+          field = stripAsType(rest);
           emit(Op::Nil, line);
         } else {
-          field = trim(rest.substr(0, setPos));
+          field = stripAsType(trim(rest.substr(0, setPos)));
           compileExpression(trim(rest.substr(setPos + 8)), line);
         }
         emit(Op::StaticField, line);
@@ -961,6 +974,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         else if (startsWithCI(rest, "TRICK ")) methodRest = trim(rest.substr(6));
         else methodRest = trim(rest.substr(8));
         stripTrailingDo(methodRest);
+        stripGivesBack(methodRest);
         auto U = toUpper(methodRest);
         auto withPos = U.find(" WITH ");
         std::string mname;
@@ -1003,10 +1017,10 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         auto setPos = U.find(" SET TO ");
         std::string field;
         if (setPos == std::string::npos) {
-          field = rest;
+          field = stripAsType(rest);
           emit(Op::Nil, line);
         } else {
-          field = trim(rest.substr(0, setPos));
+          field = stripAsType(trim(rest.substr(0, setPos)));
           compileExpression(trim(rest.substr(setPos + 8)), line);
         }
         emit(Op::Field, line);
@@ -1057,6 +1071,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         else if (startsWithCI(methodLine, "TRICK ")) rest = trim(methodLine.substr(6));
         else rest = trim(methodLine.substr(8));
         stripTrailingDo(rest);
+        stripGivesBack(rest);
         auto U = toUpper(rest);
         auto withPos = U.find(" WITH ");
         std::string mname;
@@ -1089,6 +1104,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
     }
     if (isFn) {
       stripTrailingDo(rest);
+      stripGivesBack(rest);
       auto U = toUpper(rest);
       auto withPos = U.find(" WITH ");
       std::string name;
@@ -1265,10 +1281,10 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
     auto setPos = U.find(" SET TO ");
     std::string name;
     if (setPos == std::string::npos) {
-      name = rest;
+      name = stripAsType(rest);
       emit(Op::Nil, line);
     } else {
-      name = trim(rest.substr(0, setPos));
+      name = stripAsType(trim(rest.substr(0, setPos)));
       compileExpression(trim(rest.substr(setPos + 8)), line);
     }
     if (inFunction) {

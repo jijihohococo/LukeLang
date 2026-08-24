@@ -1,4 +1,6 @@
 // Contracts, ALWAYS statics, private fields/methods, closures.
+// Conversational surface — CONTRACT / ALWAYS / PRIVATE not fully on the v2
+// Play path yet. Use --syntax=1 until those forms lower cleanly.
 
 CONTRACT Eater DO
   MUST METHOD eat WITH food

@@ -458,8 +458,10 @@ Codegen still consumes lowered v1 text — phrase-prefix deletion is the post-wi
 - LSP lowers v2 buffers before analyze
 - Play VM accepts typed `WITH a AS NUMBER` params; string `+` lowers to flat `AND` chains;
   `*`/`/` lower to prefix `MULTIPLY`/`DIVIDE` (Play-compatible)
-- Play-only gaps still on `--syntax=1` for the deprecation window: native closures,
-  privacy, and `advanced_oop` (nested-fn upvalues break under typed lowered forms)
+- Play-only gap still on `--syntax=1`: native `advanced_oop` (CONTRACT / ALWAYS /
+  PRIVATE not fully on the v2 Play path). Closures + privacy run as v2.
+- Golden `frontend_widgets` uses `raw` layout passthrough (normative for the shipping
+  path); dedicated layout DSL in spec §6 remains provisional.
 
 ### Phase 4 — done
 

@@ -22,7 +22,7 @@ if [[ ! -x "$LUKE" ]]; then
 fi
 
 SERVERS=" backend_api auth_api live_graph_server dashboard_server concurrent_server "
-PROVISIONAL=" frontend_widgets "   # spec §6, non-normative while the frontend track is parked
+PROVISIONAL=""   # layout DSL (§6) still provisional; golden uses raw passthrough
 
 mkdir -p "$WORK"
 pass=0; fail=0; prov=0

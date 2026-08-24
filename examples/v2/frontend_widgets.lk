@@ -1,38 +1,25 @@
 // Syntax v2 golden corpus — twin of examples/build/frontend_widgets.luke
 //
-// PROVISIONAL. The layout/UI mapping in SYNTAX_V2_SPEC.md §6 is not normative: the frontend
-// track is parked and backend is the beachhead. This file exists so the golden corpus covers
-// the UI surface, not to settle its final spelling.
-//
-// Build: luke BUILD examples/v2/frontend_widgets.lk -o build/ex_frontend_widgets
-// Browser: luke PUBLISH WEB examples/v2/frontend_widgets.lk -o build/frontend_widgets
+// Layout/UI phrase surface (SYNTAX_V2_SPEC.md §6) stays provisional as a
+// dedicated DSL. The shipping path is `raw "…"` passthrough of the v1 layout
+// phrases — same shape as the live migrated corpus.
 
 import std/hanka
 import std/argus
 
-print("vw=" + viewport.width())
-print("tw=" + text_width("Hello Luke"))
-
-column {
-  at: 40, 40
-  size: 640, 420
-  pad: 12
-  gap: 16
-  align: main(center), cross(start)
-
-  text("title")  { size: auto, 40; say: "LukeLang Frontend" }
-  button("cta")  { size: 160, 44; say: "Open modal" }
-  select("plan") { size: 240, 40; say: "Free|Pro|Team" }
-  table("grid")  { size: 560, 120; say: "Name|Role;Ada|Builder;Luke|Runtime" }
-  modal("dlg")   { size: 320, 80; say: "Dialog beachhead — role=dialog" }
-}
-
-layout()
-paint()
-
-announce("Modal ready")
-focus.trap("dlg")
-focus.restore()
-
+raw "SPEAK \"vw=\" AND THE VIEWPORT WIDTH"
+raw "SPEAK \"tw=\" AND THE TEXT WIDTH OF \"Hello Luke\""
+raw "BEGIN COLUMN AT 40, 40 SIZE 640, 420 PAD 12 GAP 16 ALIGN MAIN CENTER CROSS START"
+raw "SLOT TEXT \"title\" SIZE AUTO, 40 SAY \"LukeLang Frontend\""
+raw "SLOT BUTTON \"cta\" SIZE 160, 44 SAY \"Open modal\""
+raw "SLOT SELECT \"plan\" SIZE 240, 40 SAY \"Free|Pro|Team\""
+raw "SLOT TABLE \"grid\" SIZE 560, 120 SAY \"Name|Role;Ada|Builder;Luke|Runtime\""
+raw "SLOT MODAL \"dlg\" SIZE 320, 80 SAY \"Dialog beachhead — role=dialog\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+raw "ANNOUNCE \"Modal ready\""
+raw "TRAP FOCUS IN \"dlg\""
+raw "RESTORE FOCUS"
 print("ok=1")
 print("a11y=1")

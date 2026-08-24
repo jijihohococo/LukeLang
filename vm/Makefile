@@ -75,12 +75,12 @@ test-play: build/luke
 	./build/luke SHOW ../examples/native/functions.luke --vm
 	./build/luke SHOW ../examples/native/oop.luke --vm
 	./build/luke --syntax=1 SHOW ../examples/native/advanced_oop.luke --vm
-	./build/luke --syntax=1 SHOW ../examples/native/closures.luke --vm
-	./build/luke --syntax=1 SHOW ../examples/native/privacy.luke --vm
+	./build/luke SHOW ../examples/native/closures.luke --vm
+	./build/luke SHOW ../examples/native/privacy.luke --vm
 	@# Build-first SHOW (no --vm) for a Build program
 	./build/luke SHOW ../examples/build/hello.luke
-	@# Play-only feature falls back to VM (closures still conversational)
-	./build/luke --syntax=1 SHOW ../examples/native/closures.luke
+	@# Play-only feature falls back to VM
+	./build/luke SHOW ../examples/native/closures.luke
 
 test-build: build/luke
 	./build/luke BUILD ../examples/build/hello.luke -o build/ex_hello

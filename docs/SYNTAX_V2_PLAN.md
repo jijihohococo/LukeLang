@@ -445,7 +445,39 @@ needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ## 9. Status
 
-**Phases 0 and 1 are complete.**
+**Phases 0, 1 and 2 are complete.**
+
+### Phase 2 — shipped
+
+The v2 front-end exists and the corpus is verified against it:
+
+| Gate | Result |
+| --- | --- |
+| Golden corpus equivalence | **9 / 9 normative** — 6 byte-identical stdout, 3 servers byte-identical generated C |
+| Errors cite `.lk` positions | **pass** |
+| Debug info cites `.lk` | **pass** — `readelf --debug-dump=line` shows `hello.lk` |
+| `build_c.cpp` modified | **no** — as designed |
+
+New: `vm/include/luke2.hpp`, `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`.
+Touched: `main.cpp` (dispatch `.lk`), `Makefile`. Codegen untouched.
+
+```bash
+cd vm && make && make test-syntax-v2
+```
+
+Three findings from building it, all now in the spec:
+
+1. **`+` genuinely needs types.** v1 spells numeric addition `ADD a AND b` and concatenation
+   `a AND b`, and `ADD` rejects `TEXT` — there is no type-agnostic form. The lowerer carries a
+   small type environment and reads `GIVES BACK` clauses straight out of `vm/stdlib/*.luke`, so
+   stdlib return types cannot drift from a hand-maintained table.
+2. **v1 concatenation is right-associative, arithmetic is left-associative.** The lowerer always
+   parenthesises, which makes `-` and `/` immune; the cost is a differently-shaped (semantically
+   identical) tree for string `+`, which the harness treats as expected.
+3. **`effect` needs its cell.** v1 requires `WHEN REACTIVE c CHANGES DO`, so the v2 form is
+   `effect on c { … }`, not a bare `effect { … }`. The spec previously had this wrong.
+
+### Phases 0 and 1
 
 | Item | State |
 | --- | --- |

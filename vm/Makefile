@@ -19,6 +19,9 @@ SRCS := \
 	src/compiler.cpp \
 	src/luke_expr.cpp \
 	src/luke_parse.cpp \
+	src/luke2_lex.cpp \
+	src/luke2_parse.cpp \
+	src/luke2_lower.cpp \
 	src/build_c.cpp \
 	src/lsp.cpp \
 	src/dap.cpp \
@@ -27,7 +30,7 @@ SRCS := \
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap test-lsp
+.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap test-lsp test-syntax-v2
 
 all: build/luke
 
@@ -58,6 +61,11 @@ test-dap: build/luke
 
 test-lsp: build/luke
 	bash ../scripts/lsp_providers.sh
+
+test-syntax-v2: build/luke
+	python3 ../scripts/syntax_v2_spec_check.py
+	python3 ../scripts/syntax_v2_corpus_check.py
+	bash ../scripts/syntax_v2_equiv.sh
 
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm

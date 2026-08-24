@@ -151,6 +151,27 @@ conjunction; v2 separates `+` from `&&`. A v1→v2 migrator must resolve this by
 Precedence (loosest to tightest): `||` · `&&` · `== != < > <= >=` · `+ -` · `* / %` · unary `! -`
 · call/index/field. Parentheses group.
 
+#### Associativity and parenthesisation
+
+Verified against the v1 compiler rather than assumed:
+
+- v1 arithmetic is **left-associative** (`10 SUBTRACT 3 SUBTRACT 2` = 5, `12 DIVIDED BY 3 DIVIDED BY 2` = 2).
+- v1 concatenation (`AND`) is **right-associative**.
+
+The lowerer therefore **always parenthesises binary operands**. That makes grouping explicit and
+immunises non-associative operators (`-`, `/`) against any v1 associativity assumption. The
+visible consequence is that `a + b + c` on strings produces a differently-shaped — but
+semantically identical — tree than hand-written v1, so the equivalence harness treats a
+generated-C difference on concatenation as expected, not a failure.
+
+#### Not yet lowered
+
+| Form | Status |
+| --- | --- |
+| `%` | no Build-mode equivalent; rejected with an error |
+| `for i in 0..n` | range loops rejected; use `while` |
+| non-empty `[…]` / `{…}` literals | rejected; build containers with `push` / index assignment |
+
 ---
 
 ## 3. Collections
@@ -204,9 +225,9 @@ Spelling changes; kind does not. These stay first-class statements, not library 
 | `SECRET REMEMBER c AS e` | `secret signal c = e` |
 | `THE t IS expr` | `derived t = expr` |
 | `CHANGE c TO e` | `c = e` |
-| `WHEN REACTIVE … END WHEN REACTIVE` | `effect { … }` |
-| `WHEN BACKGROUND REACTIVE …` | `effect background { … }` |
-| `WHEN REACTIVE WEAK …` | `effect weak { … }` |
+| `WHEN REACTIVE c CHANGES DO … END WHEN REACTIVE` | `effect on c { … }` |
+| `WHEN BACKGROUND REACTIVE c CHANGES DO …` | `effect background on c { … }` |
+| `WHEN REACTIVE WEAK c CHANGES DO …` | `effect weak on c { … }` |
 | `BEGIN REACTIVE BATCH … END REACTIVE BATCH` | `batch { … }` |
 | `BIND "id" TO c` | `bind("id", c)` |
 | `BIND LIST "id" TO xs` | `bind.list("id", xs)` |
@@ -428,3 +449,24 @@ backend developer already recognises, and that `ASK … WITH`, `MY NAME IS … S
    stdout against the v1 twin, for every file in [`examples/v2/`](../examples/v2/).
 4. **Reject, never guess.** An unmappable construct is a compile error citing this spec, not a
    silent passthrough.
+
+### Implementation status
+
+Shipped in `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`; `.lk` paths are
+dispatched from `main.cpp`. `build_c.cpp` is unmodified.
+
+| Gate | State |
+| --- | --- |
+| Golden corpus equivalence | **9 / 9 normative pass** — 6 byte-identical stdout, 3 servers byte-identical generated C |
+| Errors report `.lk` positions | **pass** — e.g. `Build error on line 10:` for a type error on line 10 of the `.lk` |
+| Debug info points at `.lk` | **pass** — `#line N "…/hello.lk"`, and `readelf --debug-dump=line` shows `hello.lk` |
+| Layout/UI surface (§6) | **not lowered** — provisional by decision, reported separately |
+
+```bash
+cd vm && make
+bash ../scripts/syntax_v2_equiv.sh
+```
+
+Type information comes from v2 annotations, literals, in-file `fn` signatures, and — for stdlib
+calls — the `GIVES BACK` clauses read straight out of the v1 `vm/stdlib/*.luke` sources. No
+hand-maintained return-type table, so it cannot drift from the stdlib.

@@ -2,6 +2,7 @@
 #include "luke/compiler.hpp"
 #include "luke/heap.hpp"
 #include "luke/vm.hpp"
+#include "luke2.hpp"
 #include "luke_expr.hpp"
 #include "luke_parse.hpp"
 
@@ -108,6 +109,34 @@ std::string findRuntimeInclude() {
   if (std::ifstream("vm/runtime/luke_rt.h")) return "vm/runtime";
   if (std::ifstream("../runtime/luke_rt.h")) return "../runtime";
   return "runtime";
+}
+
+/* Syntax v2: `.lk` files are lowered to conversational v1 source before they reach
+ * the compiler, so codegen never sees v2. Emitted @luke-file markers make errors,
+ * #line maps and gdb report .lk positions. See docs/SYNTAX_V2_PLAN.md §3. */
+std::string findStdlib();
+
+std::string loadLukeSource(const std::string &path, bool *okOut) {
+  if (okOut) *okOut = true;
+  std::string raw = readFile(path);
+  if (raw.empty() && !std::ifstream(path)) {
+    std::cerr << "Error: could not open " << path << "\n";
+    if (okOut) *okOut = false;
+    return {};
+  }
+  if (!luke2::isV2Path(path)) return raw;
+
+  luke2::LowerOptions lo;
+  lo.sourcePath = path;
+  lo.stdlibDir = findStdlib();
+  auto res = luke2::lowerSource(raw, lo);
+  if (!res.ok) {
+    std::cerr << path << ":" << res.line << ": syntax v2 error: " << res.error << "\n";
+    if (okOut) *okOut = false;
+    return {};
+  }
+  if (std::getenv("LUKE_V2_DUMP")) std::cerr << res.v1;
+  return res.v1;
 }
 
 std::string findStdlib() {
@@ -273,11 +302,9 @@ int runViaVm(const std::string &path) {
 }
 
 int runViaBuildTemp(const std::string &path) {
-  std::string source = readFile(path);
-  if (source.empty() && !std::ifstream(path)) {
-    std::cerr << "Error: could not open " << path << "\n";
-    return 1;
-  }
+  bool loaded = false;
+  std::string source = loadLukeSource(path, &loaded);
+  if (!loaded) return 1;
   auto opt = makeBuildOptions(path, "native");
   auto built = luke::compileLukeToC(source, opt);
   if (!built.ok) {
@@ -371,11 +398,9 @@ int emitBrowserGlue(const std::string &stem, const std::string &wasmBasename,
 
 int runBuild(const std::string &path, const std::string &outBin, const std::string &target,
              const std::string &tailwindInput = "") {
-  std::string source = readFile(path);
-  if (source.empty() && !std::ifstream(path)) {
-    std::cerr << "Error: could not open " << path << "\n";
-    return 1;
-  }
+  bool loaded = false;
+  std::string source = loadLukeSource(path, &loaded);
+  if (!loaded) return 1;
 
   auto opt = makeBuildOptions(path, target);
   auto built = luke::compileLukeToC(source, opt);
@@ -696,8 +721,9 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
-      std::cerr << "Error: input must be a .luke file\n";
+    if (!(path.size() >= 5 && path.substr(path.size() - 5) == ".luke") &&
+        !luke2::isV2Path(path)) {
+      std::cerr << "Error: input must be a .luke or .lk file\n";
       return 1;
     }
     return runPlay(path, forceVm);
@@ -727,8 +753,9 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
-      std::cerr << "Error: input must be a .luke file\n";
+    if (!(path.size() >= 5 && path.substr(path.size() - 5) == ".luke") &&
+        !luke2::isV2Path(path)) {
+      std::cerr << "Error: input must be a .luke or .lk file\n";
       return 1;
     }
     return runBuild(path, out, target);
@@ -758,8 +785,9 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
-      std::cerr << "Error: input must be a .luke file\n";
+    if (!(path.size() >= 5 && path.substr(path.size() - 5) == ".luke") &&
+        !luke2::isV2Path(path)) {
+      std::cerr << "Error: input must be a .luke or .lk file\n";
       return 1;
     }
     auto slash = out.find_last_of("/\\");
@@ -782,8 +810,9 @@ int main(int argc, char **argv) {
       return 1;
     }
     std::string path = argv[2];
-    if (path.size() < 5 || path.substr(path.size() - 5) != ".luke") {
-      std::cerr << "Error: input must be a .luke file\n";
+    bool isLuke = path.size() >= 5 && path.substr(path.size() - 5) == ".luke";
+    if (!isLuke && !luke2::isV2Path(path)) {
+      std::cerr << "Error: input must be a .luke or .lk file\n";
       return 1;
     }
     std::cerr << "TEST via Build (MAKE SURE / TEST … END TEST)\n";
@@ -806,11 +835,9 @@ int main(int argc, char **argv) {
       return 1;
     }
     std::string path = argv[2];
-    std::string source = readFile(path);
-    if (source.empty() && !std::ifstream(path)) {
-      std::cerr << "Error: could not open " << path << "\n";
-      return 1;
-    }
+    bool loaded = false;
+    std::string source = loadLukeSource(path, &loaded);
+    if (!loaded) return 1;
     auto opt = makeBuildOptions(path, "native");
     auto ir = luke::analyzeLukeBuild(source, opt);
     if (!ir.ok && ir.irSummary.empty()) {

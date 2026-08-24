@@ -322,7 +322,6 @@ Docs only, no code risk.
    Explicitly **drop the 44 dead ones** rather than porting them; that is a free 20.6%
    reduction in surface area (`--raw-queue` and the census list them).
 2. Resolve [§8](#8-open-decisions-needing-sign-off).
-
 3. Hand-write a **golden corpus** of ~10 representative programs in v2: `hello`, `functions`,
    `oop`, `collections`, `backend_api`, `reactive_core`, `live_graph_server`,
    `frontend_widgets`, `auth_api`, `collections_test`. These are the spec's executable examples

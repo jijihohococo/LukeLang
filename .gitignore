@@ -7,6 +7,8 @@ vm/build/
 node_modules/
 tools/vscode/lukelang/node_modules/
 tools/vscode/lukelang/dist/
+__pycache__/
+*.pyc
 .tools/
 sample/dist/
 examples/deploy/wall/dist/

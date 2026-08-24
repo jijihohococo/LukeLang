@@ -19,7 +19,8 @@ LukeLang uses verbose, human-readable syntax. The language of record is **Build*
 4.  **[Advanced Topics](./advanced_topics.md)**
 5.  **[Backend Publish Plan](./BACKEND_PUBLISH.md)**
 6.  **[Editor Tooling](./EDITOR_TOOLING.md)**
-7.  **Engine track**
+7.  **[Syntax v2 Plan](./SYNTAX_V2_PLAN.md)** — proposed conversational → technical migration (awaiting sign-off)
+8.  **Engine track**
     *   [Build Mode](./BUILD_MODE.md) — AOT / native / browser path
     *   [INTEGER](./INTEGER.md) — exact int64 rules (overflow, mix, division)
     *   [Frontend Roadmap](./FRONTEND_ROADMAP.md) — Hanka / Argus / publish
@@ -31,4 +32,4 @@ LukeLang uses verbose, human-readable syntax. The language of record is **Build*
     *   [Hanka](./HANKA.md) — layout engine (frames → Argus)
     *   [Production Web](./PRODUCTION_WEB.md) — forms, routes, deploy stack
     *   [Legacy (removed)](./LEGACY.md) — former `main.js` / `mimo/` history
-8.  **[Contributor Guide](./contributor_guide.md)**
+9.  **[Contributor Guide](./contributor_guide.md)**

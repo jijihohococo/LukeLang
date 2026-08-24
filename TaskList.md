@@ -57,7 +57,9 @@ See [`docs/STRATEGY.md`](./docs/STRATEGY.md), [`docs/FRONTEND_ROADMAP.md`](./doc
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Replace line-based parser with real lexer/AST | ✅ | `parseLuke` Program/Stmt AST + Pratt exprs; BUILD/IR/FMT/LSP share IR — [`docs/AST.md`](./docs/AST.md) |
+| Replace line-based parser with real lexer/AST | 🟡 | `parseLuke` Program/Stmt AST + Pratt exprs drive IR/FMT/LSP. **BUILD is not yet AST-driven**: `compileLukeToC` flattens the AST back to conversational text and re-parses it in `build_c.cpp` via ~216 phrase prefixes. App-level statements reach a structured node 80% of the time; 20% stay `StmtKind::Raw` — [`docs/AST.md`](./docs/AST.md), [`docs/SYNTAX_V2_PLAN.md`](./docs/SYNTAX_V2_PLAN.md) §2.1 |
+| Codegen consumes the AST directly (retire flatten-to-text) | ⬜ | Correct long-term architecture; deliberately **decoupled** from the syntax change — [`docs/SYNTAX_V2_PLAN.md`](./docs/SYNTAX_V2_PLAN.md) §3 |
+| Syntax v2 — conversational → technical | ⬜ | Plan of record: [`docs/SYNTAX_V2_PLAN.md`](./docs/SYNTAX_V2_PLAN.md). Awaiting Phase 0 sign-off (validate premise + amend `STRATEGY.md`) |
 | Error UX / stack traces at scale | ⬜ | |
 | `standard_library.md` drift (e.g. “File ops not yet implemented”) | ✅ | docs now match Build `std/files` |
 

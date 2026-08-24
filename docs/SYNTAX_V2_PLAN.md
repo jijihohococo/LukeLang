@@ -443,7 +443,7 @@ green; VS Code extension packages and highlights v2 correctly.
 Phase 0 item 2 and Phase 1 item 1 are both pure documentation and can start immediately:
 
 - amend `docs/STRATEGY.md` with the decision record;
-- draft `docs/SYNTAX_V2_SPEC.md` covering the 160 live phrases;
+- draft `docs/SYNTAX_V2_SPEC.md` covering the 170 live phrases;
 - hand-write the 10-file golden corpus.
 
 No compiler code should be written until the spec and golden corpus exist, because Phase 2's

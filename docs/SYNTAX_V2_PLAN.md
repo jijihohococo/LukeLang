@@ -1,6 +1,7 @@
 # Syntax v2 — conversational → technical
 
-> **Status:** proposal awaiting sign-off. No compiler code changes yet.
+> **Status:** Phases 0–3b (golden migrate gate) complete. Phase 3a (Raw structuring) and
+> full-corpus migrate still open. No codegen rewrite.
 > **Scope:** replace the conversational surface syntax with a conventional technical syntax
 > (braces, operators, `fn`, `let`) while keeping the reactive engine and Build guarantees intact.
 
@@ -445,7 +446,31 @@ needs per-binding mutation analysis to choose `let` or `var` — see spec §2.1.
 
 ## 9. Status
 
-**Phases 0, 1 and 2 are complete.**
+**Phases 0–3b (golden gate) are complete.** Phase 3a (structuring the Raw tail) and the
+full-corpus migrate harness remain.
+
+### Phase 3 — shipped for golden twins (3b)
+
+`luke MIGRATE <file.luke> [-o out.lk]` prints technical v2 from the v1 `parseLuke` AST.
+Unrecognised Raw becomes `// TODO(migrate): …` (exit status 3 when TODOs remain).
+
+| Gate | Result |
+| --- | --- |
+| Golden migrate-then-BUILD equivalence | **9 / 9 normative** — same harness shape as Phase 2 |
+| `frontend_widgets` | provisional (spec §6) — TODOs / not lowered |
+| `build_c.cpp` modified | **no** |
+
+New: `vm/src/luke2_migrate.cpp`, `scripts/syntax_v2_migrate_equiv.sh`.
+CLI: `MIGRATE` in `main.cpp`. Mutation analysis chooses `let`/`var` (spec §2.1).
+
+```bash
+cd vm && make && make test-syntax-v2
+# optional full corpus probe (expect failures until 3a lands):
+MIGRATE_CORPUS=all bash ../scripts/syntax_v2_migrate_equiv.sh
+```
+
+**Still open for Phase 3:** grind Raw forms in `luke_parse.cpp` (3a) until
+`MIGRATE_CORPUS=all` is green, then wire that into CI.
 
 ### Phase 2 — shipped
 
@@ -458,8 +483,8 @@ The v2 front-end exists and the corpus is verified against it:
 | Debug info cites `.lk` | **pass** — `readelf --debug-dump=line` shows `hello.lk` |
 | `build_c.cpp` modified | **no** — as designed |
 
-New: `vm/include/luke2.hpp`, `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`.
-Touched: `main.cpp` (dispatch `.lk`), `Makefile`. Codegen untouched.
+New: `vm/include/luke2.hpp`, `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`,
+`luke2_migrate.cpp`. Touched: `main.cpp` (`.lk` + `MIGRATE`), `Makefile`. Codegen untouched.
 
 ```bash
 cd vm && make && make test-syntax-v2
@@ -496,12 +521,7 @@ python3 scripts/syntax_v2_spec_check.py      # every live phrase is mapped or dr
 python3 scripts/syntax_v2_corpus_check.py    # corpus paired with v1 twins, no v1 leakage
 ```
 
-### Next: Phase 2
+### Next: Phase 3a + Phase 4
 
-Build the v2 front-end (`luke2_lex` / `luke2_parse` / `luke2_lower`) against the golden corpus.
-Its two acceptance gates are already defined:
-
-1. every file in `examples/v2/` builds with stdout byte-identical to its v1 twin;
-2. a deliberately broken `.lk` reports errors at **`.lk` positions**, via `// @luke-file` markers.
-
-Nothing in Phase 2 touches `build_c.cpp`.
+1. Structure high-frequency Raw forms until `MIGRATE_CORPUS=all` is green.
+2. Then cut examples/docs/LSP/VS Code over (Phase 4), keeping stdlib last.

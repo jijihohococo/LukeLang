@@ -22,6 +22,7 @@ SRCS := \
 	src/luke2_lex.cpp \
 	src/luke2_parse.cpp \
 	src/luke2_lower.cpp \
+	src/luke2_migrate.cpp \
 	src/build_c.cpp \
 	src/lsp.cpp \
 	src/dap.cpp \
@@ -66,6 +67,7 @@ test-syntax-v2: build/luke
 	python3 ../scripts/syntax_v2_spec_check.py
 	python3 ../scripts/syntax_v2_corpus_check.py
 	bash ../scripts/syntax_v2_equiv.sh
+	bash ../scripts/syntax_v2_migrate_equiv.sh
 
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm

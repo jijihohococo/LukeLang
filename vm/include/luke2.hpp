@@ -98,4 +98,19 @@ Result lowerSource(const std::string &src, const LowerOptions &opt);
 /* True when the path should be treated as Syntax v2. */
 bool isV2Path(const std::string &path);
 
+/* ---------- migration (v1 → v2) ---------- */
+
+struct MigrateResult {
+  bool ok = false;
+  std::string v2;
+  std::string error;
+  size_t line = 0;
+  int todos = 0; /* Raw lines that became TODO(migrate) comments */
+};
+
+/* Migrate conversational v1 source to technical v2.
+ * Structured stmts + high-value Raw patterns become v2.
+ * Unrecognised Raw becomes `// TODO(migrate): …` and increments todos. */
+MigrateResult migrateSource(const std::string &v1Source);
+
 }  // namespace luke2

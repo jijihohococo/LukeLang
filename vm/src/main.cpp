@@ -26,6 +26,7 @@ void printUsage(const char *argv0) {
       << "  " << argv0 << " SHOW  <file.luke> [--vm]     Run (Build-first; VM fallback)\n"
       << "  " << argv0 << " BUILD <file.luke> [options]  Build (native / wasm / browser)\n"
       << "  " << argv0 << " TEST  <file.luke>            Build + run MAKE SURE checks\n"
+      << "  " << argv0 << " MIGRATE <file.luke> [-o out.lk]  Conversational → Syntax v2\n"
       << "  " << argv0 << " PKG init <name>             Create luke_modules/<name> package\n"
       << "  " << argv0 << " PKG install <name>          Install from registry/index.json\n"
       << "  " << argv0 << " PKG publish <name>          Publish luke_modules/<name> to registry\n"
@@ -827,6 +828,53 @@ int main(int argc, char **argv) {
     }
     std::cerr << "TEST: MAKE SURE failed (exit " << built << ")\n";
     return 1;
+  }
+
+  if (cmd == "MIGRATE") {
+    if (argc < 3) {
+      std::cerr << "Usage: " << argv[0] << " MIGRATE <file.luke> [-o out.lk]\n";
+      return 1;
+    }
+    std::string path = argv[2];
+    std::string outPath;
+    for (int i = 3; i < argc; ++i) {
+      std::string a = argv[i];
+      if (a == "-o" && i + 1 < argc) outPath = argv[++i];
+      else {
+        std::cerr << "Unknown MIGRATE option: " << a << "\n";
+        return 1;
+      }
+    }
+    if (!(path.size() >= 5 && path.substr(path.size() - 5) == ".luke")) {
+      std::cerr << "Error: MIGRATE input must be a .luke file\n";
+      return 1;
+    }
+    std::string src = readFile(path);
+    if (src.empty()) {
+      std::cerr << "Error: cannot read " << path << "\n";
+      return 1;
+    }
+    auto res = luke2::migrateSource(src);
+    if (!res.ok) {
+      std::cerr << "MIGRATE error";
+      if (res.line) std::cerr << " at line " << res.line;
+      std::cerr << ": " << res.error << "\n";
+      return 2;
+    }
+    if (outPath.empty()) {
+      std::cout << res.v2;
+    } else {
+      if (!writeFile(outPath, res.v2)) {
+        std::cerr << "Error: cannot write " << outPath << "\n";
+        return 1;
+      }
+      std::cerr << "Wrote " << outPath;
+      if (res.todos > 0) std::cerr << " (" << res.todos << " TODO(migrate))";
+      std::cerr << "\n";
+    }
+    if (outPath.empty() && res.todos > 0)
+      std::cerr << "MIGRATE: " << res.todos << " TODO(migrate) marker(s)\n";
+    return res.todos > 0 ? 3 : 0;
   }
 
   if (cmd == "IR") {

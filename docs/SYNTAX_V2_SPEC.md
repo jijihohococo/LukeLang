@@ -452,19 +452,24 @@ backend developer already recognises, and that `ASK … WITH`, `MY NAME IS … S
 
 ### Implementation status
 
-Shipped in `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`; `.lk` paths are
-dispatched from `main.cpp`. `build_c.cpp` is unmodified.
+Shipped in `vm/src/luke2_lex.cpp`, `luke2_parse.cpp`, `luke2_lower.cpp`, `luke2_migrate.cpp`;
+`.lk` paths and `luke MIGRATE` are dispatched from `main.cpp`. `build_c.cpp` is unmodified.
 
 | Gate | State |
 | --- | --- |
-| Golden corpus equivalence | **9 / 9 normative pass** — 6 byte-identical stdout, 3 servers byte-identical generated C |
-| Errors report `.lk` positions | **pass** — e.g. `Build error on line 10:` for a type error on line 10 of the `.lk` |
-| Debug info points at `.lk` | **pass** — `#line N "…/hello.lk"`, and `readelf --debug-dump=line` shows `hello.lk` |
-| Layout/UI surface (§6) | **not lowered** — provisional by decision, reported separately |
+| Spec ↔ live-phrase coverage | `scripts/syntax_v2_spec_check.py` |
+| Golden corpus pairing | `scripts/syntax_v2_corpus_check.py` |
+| Lower: BUILD(v2) ≡ BUILD(v1) | `scripts/syntax_v2_equiv.sh` — **9 / 9 normative** |
+| Migrate: BUILD(MIGRATE(v1)) ≡ BUILD(v1) | `scripts/syntax_v2_migrate_equiv.sh` — **9 / 9 normative** |
+| Errors report `.lk` positions | **pass** |
+| Debug info points at `.lk` | **pass** |
+| Layout/UI surface (§6) | **not lowered** — provisional |
+
+Phase 3a (structuring the remaining Raw tail) is required before `MIGRATE_CORPUS=all` can be
+the CI gate; today that probe is informational (~38/118 pass on `examples/build`).
 
 ```bash
-cd vm && make
-bash ../scripts/syntax_v2_equiv.sh
+cd vm && make && make test-syntax-v2
 ```
 
 Type information comes from v2 annotations, literals, in-file `fn` signatures, and — for stdlib

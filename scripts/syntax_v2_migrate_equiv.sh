@@ -43,8 +43,10 @@ for stem in "${stems[@]}"; do
     skip=$((skip+1)); continue
   fi
 
-  mig="$WORK/${stem}_migrated.lk"
+  # Write next to the v1 source so relative IMPORT "sibling.luke" still resolves.
+  mig="$ROOT/examples/build/${stem}.migrated.lk"
   e_mig="$WORK/${stem}_mig.err"
+  cleanup_mig() { rm -f "$mig"; }
   if ! "$LUKE" MIGRATE "$v1" -o "$mig" >/dev/null 2>"$e_mig"; then
     rc=$?
     # exit 3 = TODOs present but output written — still try to build
@@ -64,16 +66,17 @@ for stem in "${stems[@]}"; do
 
   if ! (cd "$ROOT/vm" && "$LUKE" BUILD "$v1" -o "$b1" >/dev/null 2>"$e1"); then
     note "$stem" FAIL "v1 build: $(head -1 "$e1")"
-    fail=$((fail+1)); failed+=("$stem"); continue
+    fail=$((fail+1)); failed+=("$stem"); cleanup_mig; continue
   fi
   if ! (cd "$ROOT/vm" && "$LUKE" BUILD "$mig" -o "$b2" >/dev/null 2>"$e2"); then
     if (( is_prov )); then
       note "$stem" prov "migrated build failed (todos=$todos): $(head -1 "$e2")"
-      prov=$((prov+1)); provskip+=("$stem"); continue
+      prov=$((prov+1)); provskip+=("$stem"); cleanup_mig; continue
     fi
     note "$stem" FAIL "migrated build (todos=$todos): $(head -1 "$e2")"
-    fail=$((fail+1)); failed+=("$stem"); continue
+    fail=$((fail+1)); failed+=("$stem"); cleanup_mig; continue
   fi
+  # Keep mig for C/stdout compare; remove after.
 
   csame="C:differs"
   if grep -v '^#line' "$b1.luke.c" > "$WORK/$stem.c1" 2>/dev/null &&
@@ -91,11 +94,13 @@ for stem in "${stems[@]}"; do
       diff "$WORK/$stem.c1" "$WORK/$stem.c2" | head -8 | sed 's/^/        /'
       fail=$((fail+1)); failed+=("$stem")
     fi
+    cleanup_mig
     continue
   fi
 
   o1="$(cd "$ROOT/vm" && timeout 20 "$b1" 2>&1)"; r1=$?
   o2="$(cd "$ROOT/vm" && timeout 20 "$b2" 2>&1)"; r2=$?
+  cleanup_mig
   if [[ "$o1" == "$o2" && "$r1" == "$r2" ]]; then
     note "$stem" ok "[stdout identical, exit $r1] $csame todos=$todos"
     pass=$((pass+1))

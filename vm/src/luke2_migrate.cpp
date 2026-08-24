@@ -446,6 +446,13 @@ std::string emitAst(const Ast &a) {
       o << '"';
       for (char c : a.text) {
         if (c == '\\' || c == '"') o << '\\';
+        else if (c == '\n') {
+          o << "\\n";
+          continue;
+        } else if (c == '\t') {
+          o << "\\t";
+          continue;
+        }
         o << c;
       }
       o << '"';
@@ -578,6 +585,39 @@ struct Mig {
   int indent = 0;
 
   std::string ind() const { return std::string((size_t)indent * 2, ' '); }
+
+  std::set<std::string> knownSignals; /* Remember + FLOW COLLECT cells */
+  std::string currentFlow;
+
+  void dumpV1Stmt(const Stmt &n, int d, std::ostringstream &v1) {
+    if (n.kind == StmtKind::Empty) return;
+    std::string pad((size_t)d * 2, ' ');
+    if (!n.text.empty()) v1 << pad << n.text << "\n";
+    for (auto &c : n.body) dumpV1Stmt(c, d + 1, v1);
+    if (!n.elseBody.empty()) {
+      v1 << pad << "OTHERWISE\n";
+      for (auto &c : n.elseBody) dumpV1Stmt(c, d + 1, v1);
+    }
+    switch (n.kind) {
+      case StmtKind::If:
+        v1 << pad << "END IF\n";
+        break;
+      case StmtKind::While:
+        v1 << pad << "END WHILE\n";
+        break;
+      case StmtKind::When:
+        v1 << pad << "END WHEN\n";
+        break;
+      case StmtKind::WhenReactive:
+        v1 << pad << "END WHEN REACTIVE\n";
+        break;
+      case StmtKind::Function:
+        v1 << pad << "END FUNCTION\n";
+        break;
+      default:
+        break;
+    }
+  }
 
   void line(const std::string &s) { out << ind() << s << "\n"; }
 
@@ -920,14 +960,24 @@ struct Mig {
       auto is = findTopCI(rest, " IS ");
       auto name = trim(rest.substr(0, is));
       auto expr = trim(rest.substr(is + 4));
-      /* Infix ADD/SUBTRACT without typed operands — keep v1 (cycle/bench forms). */
+      /* Keep opaque when v2 cannot express the form yet:
+         dotted entity derived, IF/THEN/OTHERWISE, WEAK VALUE, infix ADD/SUBTRACT. */
       auto eU = upper(expr);
-      if (eU.find(" ADD ") != std::string::npos || eU.find(" SUBTRACT ") != std::string::npos ||
+      if (name.find('.') != std::string::npos ||
+          eU.find(" IF ") != std::string::npos || startsCI(expr, "IF ") ||
+          eU.find(" THEN") != std::string::npos || eU.find("OTHERWISE") != std::string::npos ||
+          eU.find("WEAK VALUE") != std::string::npos ||
+          eU.find(" ADD ") != std::string::npos || eU.find(" SUBTRACT ") != std::string::npos ||
           startsCI(expr, "ADD ") || startsCI(expr, "SUBTRACT ")) {
         emitV1Raw(t);
         return true;
       }
-      line("derived " + name + " = " + rewriteExpr(expr));
+      auto rewritten = rewriteExpr(expr);
+      if (rewritten.find("THE ") != std::string::npos) {
+        emitV1Raw(t);
+        return true;
+      }
+      line("derived " + name + " = " + rewritten);
       return true;
     }
     if (eqCI(t, "BEGIN REACTIVE BATCH") || startsCI(t, "BEGIN REACTIVE BATCH")) {
@@ -944,7 +994,13 @@ struct Mig {
       auto rest = trim(t.substr(9));
       auto by = findTopCI(rest, " BY ");
       if (by != std::string::npos) {
-        line(trim(rest.substr(0, by)) + " += " + rewriteExpr(rest.substr(by + 4)));
+        auto lhs = trim(rest.substr(0, by));
+        /* Dotted entity fields are not valid OpAssign targets in v2 yet. */
+        if (lhs.find('.') != std::string::npos) {
+          emitV1Raw(t);
+          return true;
+        }
+        line(lhs + " += " + rewriteExpr(rest.substr(by + 4)));
         return true;
       }
     }
@@ -952,7 +1008,12 @@ struct Mig {
       auto rest = trim(t.substr(9));
       auto by = findTopCI(rest, " BY ");
       if (by != std::string::npos) {
-        line(trim(rest.substr(0, by)) + " -= " + rewriteExpr(rest.substr(by + 4)));
+        auto lhs = trim(rest.substr(0, by));
+        if (lhs.find('.') != std::string::npos) {
+          emitV1Raw(t);
+          return true;
+        }
+        line(lhs + " -= " + rewriteExpr(rest.substr(by + 4)));
         return true;
       }
     }
@@ -1162,6 +1223,7 @@ struct Mig {
       }
 
       case StmtKind::Remember: {
+        knownSignals.insert(s.name);
         std::ostringstream o;
         if (s.flag) o << "secret ";
         o << "signal " << s.name;
@@ -1189,6 +1251,11 @@ struct Mig {
       }
 
       case StmtKind::Change: {
+        /* FLOW COLLECT cells are not declared as `signal` in v2 — keep CHANGE as v1. */
+        if (!knownSignals.count(s.name)) {
+          emitV1Raw(s.text);
+          return;
+        }
         std::string rhs = emitExpr(s.expr);
         if (rhs.find("THE ") != std::string::npos) {
           emitV1Raw(s.text);
@@ -1211,6 +1278,23 @@ struct Mig {
             auto idx = trim(t.substr(5, of - 5));
             auto xs = trim(t.substr(of + 4, to - (of + 4)));
             line(rewriteExpr(xs) + "[" + rewriteExpr(idx) + "] = " + emitExpr(s.expr));
+            return;
+          }
+        }
+        /* SET THE OPACITY OF "id" TO e — keep opaque */
+        if (startsCI(s.name, "THE ") || startsCI(s.text, "SET THE ")) {
+          emitV1Raw(s.text);
+          return;
+        }
+        /* NEW Type — lowerer only rewrites Call→NEW when the blueprint is in-file. */
+        {
+          auto rhsText = s.text;
+          auto toPos = findTopCI(rhsText, " TO ");
+          std::string rhsProbe = (toPos != std::string::npos) ? trim(rhsText.substr(toPos + 4))
+                                                             : emitExpr(s.expr);
+          if (startsCI(rhsProbe, "NEW ") ||
+              (s.expr.kind != AstKind::Empty && startsCI(s.expr.text, "NEW "))) {
+            emitV1Raw(s.text.empty() ? ("SET " + s.name + " TO " + rhsProbe) : s.text);
             return;
           }
         }
@@ -1345,18 +1429,9 @@ struct Mig {
       }
 
       case StmtKind::When: {
-        /* Flatten WHEN…END WHEN to opaque v1 (click/viewport/route not in v2 surface yet). */
         std::ostringstream v1;
-        v1 << trim(s.text) << "\n";
-        std::vector<const Stmt *> stack;
-        for (auto &c : s.body) {
-          if (!c.text.empty())
-            v1 << "  " << c.text << "\n";
-          for (auto &n : c.body)
-            if (!n.text.empty()) v1 << "    " << n.text << "\n";
-        }
-        v1 << "END WHEN";
-        emitV1Raw(v1.str());
+        dumpV1Stmt(s, 0, v1);
+        emitV1Raw(trim(v1.str()));
         return;
       }
 
@@ -1370,6 +1445,10 @@ struct Mig {
 
       case StmtKind::Bind: {
         auto t = trim(s.text);
+        if (startsCI(t, "BIND OPACITY ") || startsCI(upper(t), "BIND OPACITY ")) {
+          emitV1Raw(t);
+          return;
+        }
         if (startsCI(t, "BIND LIST ")) {
           auto rest = trim(t.substr(10));
           auto u = upper(rest);
@@ -1383,6 +1462,10 @@ struct Mig {
         if (startsCI(t, "BIND ")) {
           auto rest = trim(t.substr(5));
           auto u = upper(rest);
+          if (u.rfind("OPACITY ", 0) == 0) {
+            emitV1Raw(t);
+            return;
+          }
           auto to = u.find(" TO ");
           if (to != std::string::npos) {
             line("bind(" + trim(rest.substr(0, to)) + ", " +

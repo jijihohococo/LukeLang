@@ -452,14 +452,13 @@ struct P {
       ++i;
       s.body = parseBlock();
       skipNewlines();
-      if (!eatKw("catch")) {
-        fail("expected `catch` after try block");
-        return s;
+      if (eatKw("catch")) {
+        expectPunct("(");
+        s.aux = expectIdent();
+        expectPunct(")");
+        s.body2 = parseBlock();
       }
-      expectPunct("(");
-      s.aux = expectIdent();
-      expectPunct(")");
-      s.body2 = parseBlock();
+      /* bare try { … } maps to ATTEMPT without OTHERWISE */
       return s;
     }
     if (isKw("throw")) {

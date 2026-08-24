@@ -440,6 +440,12 @@ struct Lower {
               << " AS " << v1Type(s.type) << "\n";
           break;
         }
+        /* Keep the type word when present so TIMELINE INTO / fractional cells stay NUMBER. */
+        if (!s.type.empty()) {
+          out << ind << (s.secret ? "SECRET REMEMBER " : "REMEMBER ") << s.name << " AS "
+              << v1Type(s.type) << " SET TO " << v << "\n";
+          break;
+        }
         out << ind << (s.secret ? "SECRET REMEMBER " : "REMEMBER ") << s.name << " AS " << v
             << "\n";
         break;
@@ -712,14 +718,16 @@ struct Lower {
         out << ind << "ATTEMPT DO\n";
         emitBlock(s.body, ind + "  ");
         if (!err.empty()) return;
-        out << ind << "OTHERWISE WITH " << s.aux << " DO\n";
-        push();
-        bind(s.aux, Ty::Str);
-        for (const auto &b : s.body2) {
-          stmt(b, ind + "  ");
-          if (!err.empty()) return;
+        if (!s.body2.empty() || !s.aux.empty()) {
+          out << ind << "OTHERWISE WITH " << (s.aux.empty() ? "err" : s.aux) << " DO\n";
+          push();
+          bind(s.aux.empty() ? "err" : s.aux, Ty::Str);
+          for (const auto &b : s.body2) {
+            stmt(b, ind + "  ");
+            if (!err.empty()) return;
+          }
+          pop();
         }
-        pop();
         out << ind << "END ATTEMPT\n";
         break;
       }

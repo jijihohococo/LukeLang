@@ -87,7 +87,7 @@ test-build: build/luke
 	./build/ex_hello
 	@# Source maps: #line N "file.lk" per statement (gdb/lldb → .lk)
 	@grep -qE '#line 3 ".*hello\.lk"' build/ex_hello.luke.c
-	@grep -qE '#line 11 ".*hello\.lk"' build/ex_hello.luke.c
+	@grep -qE '#line 7 ".*hello\.lk"' build/ex_hello.luke.c
 	@test $$(grep -c '^#line ' build/ex_hello.luke.c) -ge 7
 	@readelf --debug-dump=line build/ex_hello 2>/dev/null | grep -q 'hello\.lk'
 	./build/luke BUILD ../examples/build/counter.lk -o build/ex_counter
@@ -106,7 +106,7 @@ test-build: build/luke
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.lk -o build/ex_modules
 	./build/ex_modules
-	@grep -qE '#line 5 ".*modules\.lk"' build/ex_modules.luke.c
+	@grep -qE '#line 4 ".*modules\.lk"' build/ex_modules.luke.c
 	@grep -qE '#line .* ".*critter\.luke"' build/ex_modules.luke.c
 	@grep -qE '#line .* ".*files\.luke"' build/ex_modules.luke.c
 	./build/luke BUILD ../examples/build/packages.lk -o build/ex_packages

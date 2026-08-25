@@ -1,5 +1,7 @@
-// Contracts, ALWAYS statics, private fields/methods, closures.
+// Contracts, ALWAYS statics, private fields/methods.
+// CONTRACT / ALWAYS / PRIVATE are not on the v2 surface yet — pass through as raw v1.
 
+raw """
 CONTRACT Eater DO
   MUST METHOD eat WITH food
 END CONTRACT
@@ -62,3 +64,4 @@ ASK simba TO tire WITH 25
 ASK Creature TO count
 
 SPEAK "simba is " AND simba
+"""

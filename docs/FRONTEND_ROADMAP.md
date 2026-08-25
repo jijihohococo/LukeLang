@@ -59,23 +59,19 @@ a position of strength. Do **not** pull parked tracks into Frontend PRs unless t
 ## Surface cheat sheet
 
 ```luke
-BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640
-  SLOT BUTTON "buy" SIZE AUTO, 40 SAY "Buy" WEAR "px-5 rounded-xl bg-indigo-600 text-white"
-END ROW
-
-BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL
-  SLOT TEXT "status" SIZE AUTO, 24 SAY "Ready" ANNOUNCE
-END GRID
-
-WHEN THE VIEWPORT IS BELOW 640 DO
+raw "BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640"
+raw "SLOT BUTTON \"buy\" SIZE AUTO, 40 SAY \"Buy\" WEAR \"px-5 rounded-xl bg-indigo-600 text-white\""
+raw "END ROW"
+raw "BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL"
+raw "SLOT TEXT \"status\" SIZE AUTO, 24 SAY \"Ready\" ANNOUNCE"
+raw "END GRID"
+raw """WHEN THE VIEWPORT IS BELOW 640 DO
   SPEAK "narrow"
-END WHEN
-
-WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO
+END WHEN"""
+raw """WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO
   SPEAK "desktop"
-END WHEN
-
-luke PUBLISH WEB app.luke -o dist/app --tailwind input.css
+END WHEN"""
+raw "luke PUBLISH WEB app.luke -o dist/app --tailwind input.css"
 ```
 
 **Coexistence:** Hanka owns *layout* (inline flex/grid/size). Tailwind `WEAR` owns *skin*

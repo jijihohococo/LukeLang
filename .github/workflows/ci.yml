@@ -50,6 +50,29 @@ jobs:
         env:
           LUKE_WASI_SDK: ${{ github.workspace }}/.tools/wasi-sdk
 
+  syntax-v2-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Spec covers every live conversational phrase
+        run: python3 scripts/syntax_v2_spec_check.py
+
+      - name: Golden corpus paired with v1 twins, no v1 leakage
+        run: python3 scripts/syntax_v2_corpus_check.py
+
+      - name: Install build deps for the v2 equivalence harness
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make python3 libsqlite3-dev libsodium-dev libpq-dev
+
+      - name: Build toolchain
+        run: make -C vm -j2
+
+      - name: v2 golden corpus is equivalent to its v1 twins
+        run: bash scripts/syntax_v2_equiv.sh
+
   vscode-extension:
     runs-on: ubuntu-latest
     timeout-minutes: 10

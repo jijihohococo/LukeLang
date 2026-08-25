@@ -1,0 +1,33 @@
+// C10K — event-loop keep-alive reuse, chunked streaming, client IP, graceful SIGTERM.
+// Build: luke BUILD examples/build/http_c10k_ok.luke -o build/http_c10k_ok
+// httpServe accept budget = 2 connections (keep-alive can serve multiple reqs on one).
+
+IMPORT std/server
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS ip SET TO ASK httpClientIp WITH req
+
+  IF path EQUALS "/ka" DO
+    ASK httpReply WITH req, 200, "text/plain", "ka=" AND ip
+    SPEAK "served=ka"
+  END IF
+
+  IF path EQUALS "/chunk" DO
+    ASK httpChunkOpen WITH req, 200, "text/plain"
+    ASK httpChunk WITH req, "hello "
+    ASK httpChunk WITH req, "chunked"
+    ASK httpChunkEnd WITH req
+    SPEAK "served=chunk"
+  END IF
+
+  IF path EQUALS "/ok" DO
+    ASK httpReply WITH req, 200, "text/plain", "ok"
+    SPEAK "served=ok"
+  END IF
+END FUNCTION
+
+SPEAK "c10k :8804"
+MY NAME IS server SET TO ASK httpListen WITH 8804
+ASK httpServe WITH server, handle, 1
+SPEAK "c10k_done=1"

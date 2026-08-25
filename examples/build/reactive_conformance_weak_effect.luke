@@ -1,16 +1,12 @@
-// Phase 12 — Weak effect refs: scoped cell watch without leak edges
-
-BEGIN COMPONENT Box
-  REMEMBER x AS 10
-END COMPONENT
-
-WHEN REACTIVE WEAK x CHANGES DO
-  SPEAK "tick"
-END WHEN REACTIVE
-
-INCREASE x BY 1
-UNMOUNT COMPONENT Box
-AUDIT REACTIVE
-SPEAK "leaks=" AND THE LEAK EDGE COUNT
-SPEAK "alive=" AND THE ALIVE NODE COUNT
-SPEAK "weak_reads=" AND THE WEAK READ COUNT
+raw "BEGIN COMPONENT Box"
+signal x = 10
+raw "END COMPONENT"
+effect weak on x {
+  print("tick")
+}
+x += 1
+raw "UNMOUNT COMPONENT Box"
+raw "AUDIT REACTIVE"
+raw "SPEAK \"leaks=\" AND THE LEAK EDGE COUNT"
+raw "SPEAK \"alive=\" AND THE ALIVE NODE COUNT"
+raw "SPEAK \"weak_reads=\" AND THE WEAK READ COUNT"

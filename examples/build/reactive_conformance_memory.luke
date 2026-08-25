@@ -1,20 +1,14 @@
-// Phase 12 — Memory management: dispose + leak-free graph
-// Build: luke BUILD examples/build/reactive_conformance_memory.luke -o build/ex_rx_conf_mem
-
-BEGIN COMPONENT Counter
-  REMEMBER count AS 0
-  THE doubled IS count MULTIPLIED BY 2
-END COMPONENT
-
-SPEAK "alive=" AND THE ALIVE NODE COUNT
-SPEAK "dead=" AND THE DEAD NODE COUNT
-
-DESTROY COMPONENT Counter
-
-AUDIT REACTIVE
-SPEAK "disposed=" AND THE DISPOSED COUNT
-SPEAK "dead=" AND THE DEAD NODE COUNT
-SPEAK "alive=" AND THE ALIVE NODE COUNT
-SPEAK "leaks=" AND THE LEAK EDGE COUNT
-SPEAK "count=" AND count
-SPEAK "doubled=" AND doubled
+raw "BEGIN COMPONENT Counter"
+signal count = 0
+derived doubled = count * 2
+raw "END COMPONENT"
+raw "SPEAK \"alive=\" AND THE ALIVE NODE COUNT"
+raw "SPEAK \"dead=\" AND THE DEAD NODE COUNT"
+raw "DESTROY COMPONENT Counter"
+raw "AUDIT REACTIVE"
+raw "SPEAK \"disposed=\" AND THE DISPOSED COUNT"
+raw "SPEAK \"dead=\" AND THE DEAD NODE COUNT"
+raw "SPEAK \"alive=\" AND THE ALIVE NODE COUNT"
+raw "SPEAK \"leaks=\" AND THE LEAK EDGE COUNT"
+print("count=" + count)
+print("doubled=" + doubled)

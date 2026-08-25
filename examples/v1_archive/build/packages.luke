@@ -1,0 +1,4 @@
+IMPORT luke/greeter
+
+SPEAK ASK packageHello WITH "Build"
+SPEAK "Packages resolve from luke_modules/."

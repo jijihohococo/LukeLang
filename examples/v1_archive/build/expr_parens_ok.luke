@@ -1,0 +1,12 @@
+// Nested parentheses in expressions — Build expr AST beachhead.
+// Build: luke BUILD examples/build/expr_parens_ok.luke -o build/expr_parens_ok
+
+MY NAME IS t0 AS NUMBER SET TO 1
+MY NAME IS t1 AS NUMBER SET TO 5
+MY NAME IS elapsed AS NUMBER SET TO (t1 SUBTRACT t0)
+SPEAK "elapsed=" AND elapsed
+
+MY NAME IS nested AS NUMBER SET TO (2 ADD (3 MULTIPLY 4))
+SPEAK "nested=" AND nested
+
+SPEAK "expr_parens_ok=1"

@@ -1,28 +1,21 @@
-// Frontend stress + layout benchmark beachhead
-// Build: luke BUILD examples/build/frontend_stress.luke -o build/ex_frontend_stress
-
-IMPORT std/hanka
-IMPORT std/argus
-
-MY NAME IS i AS NUMBER SET TO 0
-MY NAME IS col AS NUMBER SET TO 0
-MY NAME IS row AS NUMBER SET TO 0
-MY NAME IS t0 AS NUMBER SET TO THE CLOCK
-
-WHILE i IS LESS THAN 100 DO
-  PLACE "c" AND i AS BOX AT col MULTIPLY 36, row MULTIPLY 36 SIZE 28, 28
-  SET i TO i ADD 1
-  SET col TO col ADD 1
-  WHILE col IS GREATER THAN 9 DO
-    SET col TO 0
-    SET row TO row ADD 1
-  END WHILE
-END WHILE
-
-PAINT THE SCREEN
-
-MY NAME IS t1 AS NUMBER SET TO THE CLOCK
-MY NAME IS elapsed AS NUMBER SET TO t1 SUBTRACT t0
-SPEAK "nodes=100"
-SPEAK "ms=" AND elapsed
-SPEAK "ok=1"
+import std/hanka
+import std/argus
+var i: float = 0
+var col: float = 0
+var row: float = 0
+let t0: float = clock
+while i < 100 {
+  raw "PLACE \"c\" AND i AS BOX AT col MULTIPLY 36, row MULTIPLY 36 SIZE 28, 28"
+  i = i + 1
+  col = col + 1
+  while col > 9 {
+    col = 0
+    row = row + 1
+  }
+}
+raw "PAINT THE SCREEN"
+let t1: float = clock
+let elapsed: float = t1 - t0
+print("nodes=100")
+print("ms=" + elapsed)
+print("ok=1")

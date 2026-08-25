@@ -1,8 +1,7 @@
-IMPORT c:m
-FOREIGN FUNCTION cos WITH x AS NUMBER GIVES BACK NUMBER
-FOREIGN FUNCTION sin WITH x AS NUMBER GIVES BACK NUMBER
-
-SPEAK "=== C FFI (libm) ==="
-SPEAK ASK cos WITH 0
-SPEAK ASK sin WITH 0
-SPEAK "FOREIGN FUNCTION + IMPORT c:m — linked with -lm"
+import c:m
+raw "FOREIGN FUNCTION cos WITH x AS NUMBER GIVES BACK NUMBER"
+raw "FOREIGN FUNCTION sin WITH x AS NUMBER GIVES BACK NUMBER"
+print("=== C FFI (libm) ===")
+print(cos(0))
+print(sin(0))
+print("FOREIGN FUNCTION + IMPORT c:m — linked with -lm")

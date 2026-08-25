@@ -1,0 +1,26 @@
+// Nested functions with upvalue capture (closures).
+
+THIS IS FUNCTION makeCounter WITH start DO
+  MY NAME IS n SET TO start
+  THIS IS FUNCTION tick DO
+    SET n TO ADD n AND 1
+    GIVE BACK n
+  END FUNCTION
+  GIVE BACK tick
+END FUNCTION
+
+THIS IS FUNCTION makeAdder WITH x DO
+  THIS IS FUNCTION add WITH y DO
+    GIVE BACK ADD x AND y
+  END FUNCTION
+  GIVE BACK add
+END FUNCTION
+
+SET counter TO ASK makeCounter WITH 0
+SPEAK "tick: " AND ASK counter
+SPEAK "tick: " AND ASK counter
+SPEAK "tick: " AND ASK counter
+
+SET addTen TO ASK makeAdder WITH 10
+SPEAK "10 + 5 = " AND ASK addTen WITH 5
+SPEAK "10 + 7 = " AND ASK addTen WITH 7

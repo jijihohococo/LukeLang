@@ -1,0 +1,51 @@
+// Native LukeLang OOP — blueprints on the Luke heap (no JavaScript).
+
+BLUEPRINT Animal DO
+  HAS name
+  HAS sound SET TO "..."
+
+  WHEN BORN WITH name DO
+    SET SELF.name TO name
+  END BORN
+
+  METHOD speak DO
+    SPEAK SELF.name AND " says " AND SELF.sound
+  END METHOD
+
+  METHOD eat WITH food DO
+    SPEAK SELF.name AND " eats " AND food
+  END METHOD
+END CLASS
+
+BLUEPRINT Dog FOLLOWS Animal DO
+  HAS sound SET TO "Woof!"
+
+  METHOD speak DO
+    CALL PARENT speak
+    SPEAK SELF.name AND " wags happily."
+  END METHOD
+
+  METHOD fetch WITH toy DO
+    SPEAK SELF.name AND " fetches the " AND toy
+  END METHOD
+END CLASS
+
+BLUEPRINT Cat FOLLOWS Animal DO
+  HAS sound SET TO "Meow!"
+
+  METHOD speak DO
+    SPEAK SELF.name AND " lazily says " AND SELF.sound
+  END METHOD
+END CLASS
+
+SET buddy TO NEW Dog WITH "Rex"
+ASK buddy TO speak
+ASK buddy TO eat WITH "kibble"
+ASK buddy TO fetch WITH "ball"
+
+SET mittens TO NEW Cat WITH "Mittens"
+ASK mittens TO speak
+ASK mittens TO eat WITH "tuna"
+
+SPEAK "buddy is " AND buddy
+SPEAK "Done — instances live on the Luke heap."

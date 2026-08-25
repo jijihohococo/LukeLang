@@ -1,0 +1,27 @@
+// IMPORT std/sqlite — SQLite for Luke Build (links -lsqlite3 on native)
+
+THIS IS FUNCTION dbOpen WITH path AS TEXT GIVES BACK DATABASE DO
+  GIVE BACK __luke_db_open(path)
+END FUNCTION
+
+THIS IS FUNCTION dbExec WITH db AS DATABASE, sql AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_db_exec(db, sql)
+END FUNCTION
+
+// Parameterized exec — LIST of TEXT bound to ? placeholders (prefer over string concat).
+THIS IS FUNCTION dbExecBind WITH db AS DATABASE, sql AS TEXT, params AS LIST GIVES BACK FLAG DO
+  GIVE BACK __luke_db_exec_bind(db, sql, params)
+END FUNCTION
+
+THIS IS FUNCTION dbQuery WITH db AS DATABASE, sql AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_db_query(db, sql)
+END FUNCTION
+
+// Parameterized query — LIST of TEXT bound to ? placeholders.
+THIS IS FUNCTION dbQueryBind WITH db AS DATABASE, sql AS TEXT, params AS LIST GIVES BACK TEXT DO
+  GIVE BACK __luke_db_query_bind(db, sql, params)
+END FUNCTION
+
+THIS IS FUNCTION dbClose WITH db AS DATABASE GIVES BACK FLAG DO
+  GIVE BACK __luke_db_close(db)
+END FUNCTION

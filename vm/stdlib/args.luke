@@ -1,9 +1,6 @@
-// IMPORT std/args
-
-THIS IS FUNCTION argCount GIVES BACK NUMBER DO
-  GIVE BACK __luke_arg_count()
-END FUNCTION
-
-THIS IS FUNCTION getArg WITH index AS NUMBER GIVES BACK TEXT DO
-  GIVE BACK __luke_get_arg(index)
-END FUNCTION
+fn argCount() -> float {
+  return __luke_arg_count()
+}
+fn getArg(index: float) -> str {
+  return __luke_get_arg(index)
+}

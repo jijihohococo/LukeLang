@@ -1,30 +1,23 @@
-// Pressure — mount 2_500 layout nodes and time PAINT.
-// Build: luke BUILD examples/build/frontend_pressure.luke -o build/frontend_pressure
-
-IMPORT std/hanka
-IMPORT std/argus
-
-MY NAME IS n AS NUMBER SET TO 2500
-MY NAME IS i AS NUMBER SET TO 0
-MY NAME IS col AS NUMBER SET TO 0
-MY NAME IS row AS NUMBER SET TO 0
-MY NAME IS t0 AS NUMBER SET TO THE CLOCK
-
-WHILE i IS LESS THAN n DO
-  PLACE "c" AND i AS BOX AT col MULTIPLY 8, row MULTIPLY 8 SIZE 6, 6
-  SET i TO i ADD 1
-  SET col TO col ADD 1
-  WHILE col IS GREATER THAN 49 DO
-    SET col TO 0
-    SET row TO row ADD 1
-  END WHILE
-END WHILE
-
-PAINT THE SCREEN
-
-MY NAME IS t1 AS NUMBER SET TO THE CLOCK
-MY NAME IS elapsed AS NUMBER SET TO t1 SUBTRACT t0
-SPEAK "pressure=frontend"
-SPEAK "nodes=" AND n
-SPEAK "ms=" AND elapsed
-SPEAK "pressure_ok=1"
+import std/hanka
+import std/argus
+let n: float = 2500
+var i: float = 0
+var col: float = 0
+var row: float = 0
+let t0: float = clock
+while i < n {
+  raw "PLACE \"c\" AND i AS BOX AT col MULTIPLY 8, row MULTIPLY 8 SIZE 6, 6"
+  i = i + 1
+  col = col + 1
+  while col > 49 {
+    col = 0
+    row = row + 1
+  }
+}
+raw "PAINT THE SCREEN"
+let t1: float = clock
+let elapsed: float = t1 - t0
+print("pressure=frontend")
+print("nodes=" + n)
+print("ms=" + elapsed)
+print("pressure_ok=1")

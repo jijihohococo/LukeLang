@@ -1,16 +1,11 @@
-IMPORT std/http
-
-SPEAK "=== Build HTTP ==="
-
-MY NAME IS body AS TEXT SET TO ASK httpGet WITH "http://example.com"
-MY NAME IS empty AS FLAG SET TO body EQUALS ""
-
-IF empty DO
-  SPEAK "HTTP GET returned empty (offline?) — try again later"
-END IF
-
-IF NOT empty DO
-  SPEAK "fetched example.com OK"
-END IF
-
-SPEAK "httpGet is Build-native via curl — no GC."
+import std/http
+print("=== Build HTTP ===")
+let body: str = httpGet("http://example.com")
+let empty: bool = body == ""
+if empty {
+  print("HTTP GET returned empty (offline?) — try again later")
+}
+if !empty {
+  print("fetched example.com OK")
+}
+print("httpGet is Build-native via curl — no GC.")

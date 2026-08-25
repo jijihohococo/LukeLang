@@ -1,5 +1,2 @@
-// NEGATIVE: RATE LIMIT before AUTH → compile error
-
-MIDDLEWARE ORDER RATE LIMIT THEN AUTH
-
-SPEAK "should_not_build"
+raw "MIDDLEWARE ORDER RATE LIMIT THEN AUTH"
+print("should_not_build")

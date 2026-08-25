@@ -1,0 +1,44 @@
+// Phase 5 — Reactive list UI (browser)
+// SET ITEM paints only that row — no CLEAR THE SCREEN
+// Build: luke BUILD examples/build/reactive_list_ui.luke -target browser -o build/reactive_list_ui
+
+IMPORT std/js
+IMPORT std/hanka
+IMPORT std/argus
+
+NAME THE PAGE "Luke Reactive Lists"
+
+WEAR STYLE """
+html, body { margin: 0; background: #101820; }
+#brand, #row_0, #row_1, #row_2, #hint { color: #f4fff8; font-family: Georgia, serif; }
+#brand { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; }
+#hint { font-size: 15px; opacity: 0.7; }
+#rename {
+  background: #f4a259; color: #101820; font-family: Georgia, serif;
+  font-weight: 700; font-size: 16px; cursor: pointer;
+}
+"""
+
+REMEMBER players AS LIST
+
+BEGIN COLUMN AT 48, 48 SIZE 720, 360 PAD 0 GAP 12
+  SLOT TEXT "brand" SIZE 640, 56 SAY "LukeLang"
+  SLOT TEXT "row_0" SIZE 640, 36 SAY ""
+  SLOT TEXT "row_1" SIZE 640, 36 SAY ""
+  SLOT TEXT "row_2" SIZE 640, 36 SAY ""
+  SLOT BUTTON "rename" SIZE 220, 48 SAY "Rename Bea"
+  SLOT TEXT "hint" SIZE 640, 32 SAY "Granular list paint — one row."
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+BIND LIST players AS "row"
+
+ADD "Ada" TO players
+ADD "Bea" TO players
+ADD "Cal" TO players
+
+WHEN "rename" IS CLICKED DO
+  SET ITEM 1 OF players TO "Zoe"
+END WHEN

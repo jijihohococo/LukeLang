@@ -1,7 +1,7 @@
 # Luke Build Mode — The Real Language
 
 > **Play** (`luke SHOW`) is a convenience: GC’d bytecode VM for demos and exploration.  
-> **Build** (`luke BUILD`) is the language of record: conversational syntax → **native code**, **no GC**, Rust-class lightness.
+> **Build** (`luke BUILD`) is the language of record: syntax v2 → **native code**, **no GC**, Rust-class lightness.
 
 This is Path A: Python-shaped versatility on the surface, Zig/Rust-shaped cost underneath.
 
@@ -22,7 +22,7 @@ luke LSP                                          # stdio LSP: hover/outline/FMT
 # or open hello_web.html in a browser
 ```
 
-Build emits C with `#line N "file.luke"` per statement, then compiles with the system C compiler
+Build emits C with `#line N "file.lk"` per statement, then compiles with the system C compiler
 (`cc -O2 -g` native, or `-O0 -g -fno-inline` for `-target debug` / `luke DEBUG`). WASI SDK for
 `-target wasm|browser`. Debugger skips `luke_rt.h` / stdlib headers so **next** = step over,
 **step** = step into Luke FUNCTION, **finish** = step out. `luke DEBUG --inspect` dumps reactive
@@ -33,11 +33,11 @@ Browser also writes `*.html` + `luke_browser_loader.js` (copied beside the wasm)
 ## IMPORT + stdlib + packages
 
 ```luke
-IMPORT "./critter.luke"          # relative module
-IMPORT std/files                 # read/write TEXT files
-IMPORT std/json                  # JSON tree helpers
-IMPORT std/http                  # httpGet (native)
-IMPORT luke/greeter              # package from luke_modules/greeter
+import "./critter.luke"          # relative module
+import std/files                 # read/write TEXT files
+import std/json                  # JSON tree helpers
+import std/http                  # httpGet (native)
+import luke/greeter              # package from luke_modules/greeter
 ```
 
 `std/*` resolves from `vm/stdlib/`. Relative paths are next to the entry file.
@@ -77,19 +77,19 @@ Foreign FFI imports (C/JS/Python bridges) are intentionally **not** magic `IMPOR
 ### Browser page ownership (conversational)
 
 ```luke
-NAME THE PAGE "LukeLang"
-BRING FONT "Syne" FROM "./fonts/syne-700.woff2"   # local pack → @font-face + copy
-WEAR STYLE """
+page.title("LukeLang")
+page.font("Syne", "./fonts/syne-700.woff2"   # local pack → @font-face + copy)
+page.style("""
   body { font-family: Syne, sans-serif; }
-"""
-FILL "root" WITH """
+""")
+fill("root", """
   <h1>LukeLang</h1>
   <button id="go">Go</button>
   <p id="out"></p>
-"""
-WHEN "go" IS CLICKED DO
+""")
+raw """WHEN "go" IS CLICKED DO
   FILL "out" WITH "Still LukeLang."
-END WHEN
+END WHEN"""
 ```
 
 `-target browser` emits HTML with Luke title/CSS/body/fonts **baked in**, wasm beside it, and **inlines** `vm/runtime/luke_browser_boot.js` (runtime — not app JS). Dist has no `luke_browser_loader.js`.
@@ -99,28 +99,26 @@ See `sample/landing.luke`.
 ### Collections + problems (conversational)
 
 ```luke
-MY NAME IS nums AS LIST
-ADD "one" TO nums
-SPEAK ITEM 0 OF nums
-SPEAK HOW MANY IN nums
-
-MY NAME IS bag AS MAP
-PUT "name" TO "Luke" IN bag
-SPEAK GET "name" FROM bag
-
-ATTEMPT DO
-  GIVE UP WITH "could not finish"
-OTHERWISE WITH problem DO
-  SPEAK problem
-END ATTEMPT
+var nums: list = []
+nums.push("one")
+print(nums[0])
+print(nums.len())
+var bag: map = {}
+bag["name"] = "Luke"
+print(bag["name"])
+try {
+  throw "could not finish"
+} catch (problem) {
+  print(problem)
+}
 ```
 
 ### TEST
 
 ```luke
-TEST "math" DO
-  MAKE SURE ADD 1 AND 1 EQUALS 2
-END TEST
+test "math" {
+  assert 1 + 1 == 2
+}
 ```
 
 ```bash
@@ -139,10 +137,10 @@ luke PKG lock          # writes luke.lock
 ### Arena scopes
 
 ```luke
-IN ARENA DO
-  MY NAME IS tmp AS TEXT SET TO "ephemeral"
-  SPEAK tmp
-END ARENA
+raw "IN ARENA DO"
+let tmp: str = "ephemeral"
+print(tmp)
+raw "END ARENA"
 ```
 
 Bump pointer is restored at `END ARENA` — request/frame-scoped memory without GC.
@@ -222,15 +220,15 @@ There is **no** mark-sweep collector in Build binaries. Peak memory is predictab
 ## Blueprints
 
 ```luke
-BLUEPRINT Dog FOLLOWS Animal DO
-  HAS sound SET TO "Woof!"
-  WHEN BORN WITH name DO
-    SET SELF.name TO name
-  END BORN
-  METHOD speak DO
-    SPEAK SELF.name AND " says " AND SELF.sound
-  END METHOD
-END CLASS
+struct Dog : Animal {
+  sound = "Woof!"
+  init(name) {
+    self.name = name
+  }
+  fn speak() {
+    print(self.name + " says " + self.sound)
+  }
+}
 ```
 
 Lowers to roughly:
@@ -291,13 +289,13 @@ Play remains for sketching. **Shipping artifacts should `BUILD`.**
 - **Reactive (Phases 1–8):** [`REACTIVE.md`](./REACTIVE.md) — full reactive stack shipped.
 
 ```luke
-IMPORT std/hanka
-IMPORT std/argus
-BEGIN COLUMN AT 48, 420 SIZE 1184, 280 PAD 0 GAP 16
-  SLOT TEXT "brand" SIZE 900, 80 SAY "LukeLang"
-END COLUMN
-LAY OUT THE SCREEN
-PAINT THE SCREEN
+import std/hanka
+import std/argus
+raw "BEGIN COLUMN AT 48, 420 SIZE 1184, 280 PAD 0 GAP 16"
+raw "SLOT TEXT \"brand\" SIZE 900, 80 SAY \"LukeLang\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
 ```
 
 ```bash

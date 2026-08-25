@@ -1,22 +1,16 @@
-// Phase 9 — stale dynamic edge cleanup (REACTIVE_SPEC v0.1 §1.3)
-// Derived rerun must unlink superseded dependency edges.
-
-REMEMBER useA AS 1
-REMEMBER pathA AS 10
-REMEMBER pathB AS 20
-THE pick IS IF useA THEN pathA OTHERWISE pathB
-
-SPEAK "pick=" AND pick
-
-CHANGE useA TO 0
-SPEAK "pick=" AND pick
-SPEAK "stale=" AND THE STALE EDGE COUNT
-SPEAK "total_stale=" AND THE TOTAL STALE EDGE COUNT
-
-REMEMBER a AS 1
-REMEMBER b AS 2
-THE sum IS a ADD b
-SPEAK "sum=" AND sum
-INCREASE a BY 1
-SPEAK "sum_stale=" AND THE STALE EDGE COUNT
-SPEAK "total_stale=" AND THE TOTAL STALE EDGE COUNT
+signal useA = 1
+signal pathA = 10
+signal pathB = 20
+raw "THE pick IS IF useA THEN pathA OTHERWISE pathB"
+print("pick=" + pick)
+useA = 0
+print("pick=" + pick)
+raw "SPEAK \"stale=\" AND THE STALE EDGE COUNT"
+raw "SPEAK \"total_stale=\" AND THE TOTAL STALE EDGE COUNT"
+signal a = 1
+signal b = 2
+raw "THE sum IS a ADD b"
+print("sum=" + sum)
+a += 1
+raw "SPEAK \"sum_stale=\" AND THE STALE EDGE COUNT"
+raw "SPEAK \"total_stale=\" AND THE TOTAL STALE EDGE COUNT"

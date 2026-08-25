@@ -1,4 +1,5 @@
 #include "luke/build.hpp"
+#include "luke2.hpp"
 #include "luke_expr.hpp"
 #include "luke_parse.hpp"
 
@@ -214,17 +215,26 @@ std::string symbolDoc(const Symbol &s) {
     o << ".";
     return o.str();
   }
-  if (s.kind == "cell") return "Reactive cell — changes propagate through THE / WHEN REACTIVE.";
-  if (s.kind == "derived") return "Derived reactive value (`THE … IS …`).";
-  if (s.kind == "variable") return "Local binding (`MY NAME IS`).";
-  if (s.kind == "class") return "Blueprint / class.";
+  if (s.kind == "cell") return "Reactive cell — changes propagate through derived / effect.";
+  if (s.kind == "derived") return "Derived reactive value (`derived x = …`).";
+  if (s.kind == "variable") return "Local binding (`let` / `var`).";
+  if (s.kind == "class") return "Struct / blueprint.";
   if (s.kind == "parameter") return "Function parameter.";
   return {};
 }
 
+/* Phase 5: buffer is usually v2 `.luke` — lower before v1 parseLuke / analyze. */
+std::string lspLowered(const std::string &source, const BuildOptions &opts) {
+  bool ok = true;
+  auto out = luke2::maybeLowerSource("buffer.luke", source, luke2::SyntaxMode::Auto,
+                                     opts.stdlibPath, &ok, nullptr, nullptr);
+  return ok ? out : source;
+}
+
 std::vector<Symbol> scanSymbols(const std::string &source) {
   std::vector<Symbol> out;
-  Program prog = parseLuke(source);
+  BuildOptions bo;
+  Program prog = parseLuke(lspLowered(source, bo));
   std::function<void(const Stmt &)> walk = [&](const Stmt &s) {
     if ((s.kind == StmtKind::Let || s.kind == StmtKind::Remember ||
          s.kind == StmtKind::Function || s.kind == StmtKind::WhenReactive ||
@@ -383,7 +393,7 @@ struct DiagInfo {
 
 std::vector<DiagInfo> collectDiags(const std::string &source, const BuildOptions &opts) {
   std::vector<DiagInfo> out;
-  BuildResult r = analyzeLukeBuild(source, opts);
+  BuildResult r = analyzeLukeBuild(lspLowered(source, opts), opts);
   if (!r.ok && !r.error.empty()) {
     DiagInfo d;
     d.message = r.error;
@@ -417,15 +427,24 @@ void publishDiagnostics(const std::string &uri, const std::string &source,
   writeMessage(note.str());
 }
 
-const char *kStmtKeywords[] = {"MY", "NAME", "IS", "SET", "TO", "AS", "SPEAK", "ASK", "WITH",
-                               "REMEMBER", "WATCH", "PUSH", "WHEN", "IF", "DO", "END", "WHILE",
-                               "FOR", "IMPORT", "GIVE", "BACK", "MAKE", "SURE", "CHANGE",
-                               "INCREASE", "DECREASE", "THE", "THIS", "FUNCTION", "BLUEPRINT",
-                               "SECRET", "BIND", "BEGIN", "COLUMN", "LAY", "OUT", "PAINT",
-                               nullptr};
+/* Dual-syntax window (Phase 4): v2 keywords first, v1 phrases retained until Phase 5. */
+const char *kStmtKeywords[] = {
+    /* v2 */
+    "print", "let", "var", "fn", "return", "if", "else", "while", "for", "in", "break", "try",
+    "catch", "throw", "arena", "import", "struct", "init", "private", "test", "assert", "signal",
+    "secret", "derived", "effect", "batch", "watch", "bind", "from", "where", "as", "on", "fill",
+    "paint", "layout", "page", "raw",
+    /* v1 */
+    "MY", "NAME", "IS", "SET", "TO", "AS", "SPEAK", "ASK", "WITH", "REMEMBER", "WATCH", "PUSH",
+    "WHEN", "IF", "DO", "END", "WHILE", "FOR", "IMPORT", "GIVE", "BACK", "MAKE", "SURE", "CHANGE",
+    "INCREASE", "DECREASE", "THE", "THIS", "FUNCTION", "BLUEPRINT", "SECRET", "BIND", "BEGIN",
+    "COLUMN", "LAY", "OUT", "PAINT",
+    nullptr};
 
-const char *kTypeKeywords[] = {"NUMBER", "INTEGER", "TEXT", "FLAG", "LIST", "MAP", "JSON",
-                               "TRUE", "FALSE", nullptr};
+const char *kTypeKeywords[] = {"int",    "float", "str",  "bool", "json", "list", "map",
+                               "Server", "Request", "Db",  "NUMBER", "INTEGER", "TEXT", "FLAG",
+                               "LIST",   "MAP",   "JSON", "TRUE", "FALSE", "true", "false",
+                               nullptr};
 
 const char *kExprKeywords[] = {"ADD", "SUBTRACT", "MULTIPLY", "DIVIDE", "AND", "EQUALS",
                                "NOT", "MULTIPLIED", "DIVIDED", "BY", nullptr};

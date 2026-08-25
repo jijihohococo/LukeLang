@@ -1,95 +1,81 @@
-// Backend framework beachhead — route match, query map, JSON body, bind SQL, cookie session.
-// Build: luke BUILD examples/build/backend_api.luke -o build/backend_api
-// Each handler opens its own DB connection (httpServe worker-safe).
-
-IMPORT std/server
-IMPORT std/sqlite
-IMPORT std/json
-
-// Seed via a short setup block (single connection).
-MY NAME IS setup SET TO ASK dbOpen WITH "/tmp/luke_backend_api.db"
-ASK dbExec WITH setup, "DROP TABLE IF EXISTS users"
-ASK dbExec WITH setup, "DROP TABLE IF EXISTS sessions"
-ASK dbExec WITH setup, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)"
-ASK dbExec WITH setup, "CREATE TABLE sessions(sid TEXT PRIMARY KEY, user_id TEXT)"
-MY NAME IS seed AS LIST
-ADD "1" TO seed
-ADD "Ada" TO seed
-ASK dbExecBind WITH setup, "INSERT INTO users(id, name) VALUES(?, ?)", seed
-ASK dbClose WITH setup
-
-THIS IS FUNCTION handle WITH req AS REQUEST DO
-  MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_backend_api.db"
-  MY NAME IS method SET TO ASK httpMethod WITH req
-  MY NAME IS path SET TO ASK httpPath WITH req
-  MY NAME IS params AS MAP
-  MY NAME IS answered AS FLAG SET TO FALSE
-
-  IF method EQUALS "GET" DO
-    IF ASK httpMatch WITH path, "/user/:id", params DO
-      MY NAME IS id SET TO GET "id" FROM params
-      MY NAME IS qmap SET TO ASK httpQueryMap WITH req
-      MY NAME IS tag SET TO GET "tag" FROM qmap
-      MY NAME IS binds AS LIST
-      ADD id TO binds
-      MY NAME IS name SET TO ASK dbQueryBind WITH db, "SELECT name FROM users WHERE id = ?", binds
-      ASK httpReply WITH req, 200, "text/plain", name AND "|" AND tag
-      SET answered TO TRUE
-      SPEAK "served=user"
-    END IF
-  END IF
-
-  IF NOT answered DO
-    IF method EQUALS "GET" DO
-      IF ASK httpMatch WITH path, "/me", params DO
-        MY NAME IS meSid SET TO ASK httpCookie WITH req, "luke_sid"
-        MY NAME IS meBinds AS LIST
-        ADD meSid TO meBinds
-        MY NAME IS uid SET TO ASK dbQueryBind WITH db, "SELECT user_id FROM sessions WHERE sid = ?", meBinds
-        ASK httpReply WITH req, 200, "text/plain", "me=" AND uid
-        SET answered TO TRUE
-        SPEAK "served=me"
-      END IF
-    END IF
-  END IF
-
-  IF NOT answered DO
-    IF method EQUALS "POST" DO
-      IF ASK httpMatch WITH path, "/login", params DO
-        MY NAME IS body SET TO ASK httpJson WITH req
-        MY NAME IS userNode SET TO ASK jsonGet WITH body, "user"
-        MY NAME IS user SET TO ASK jsonAsText WITH userNode
-        MY NAME IS loginSid SET TO "s-" AND user
-        MY NAME IS loginBinds AS LIST
-        ADD loginSid TO loginBinds
-        ADD "1" TO loginBinds
-        ASK dbExecBind WITH db, "INSERT OR REPLACE INTO sessions(sid, user_id) VALUES(?, ?)", loginBinds
-        ASK httpSetCookie WITH req, "luke_sid", loginSid
-        ASK httpReply WITH req, 200, "text/plain", "ok"
-        SET answered TO TRUE
-        SPEAK "served=login"
-      END IF
-    END IF
-  END IF
-
-  IF NOT answered DO
-    IF method EQUALS "GET" DO
-      IF ASK httpMatch WITH path, "/ok", params DO
-        ASK httpReply WITH req, 200, "text/plain", "ok"
-        SET answered TO TRUE
-        SPEAK "served=ok"
-      END IF
-    END IF
-  END IF
-
-  IF NOT answered DO
-    ASK httpReply WITH req, 404, "text/plain", "not found"
-  END IF
-
-  ASK dbClose WITH db
-END FUNCTION
-
-SPEAK "backend_api :8799"
-MY NAME IS server SET TO ASK httpListen WITH 8799
-ASK httpServe WITH server, handle, 4
-SPEAK "backend_api_done=1"
+import std/server
+import std/sqlite
+import std/json
+let setup = dbOpen("/tmp/luke_backend_api.db")
+dbExec(setup, "DROP TABLE IF EXISTS users")
+dbExec(setup, "DROP TABLE IF EXISTS sessions")
+dbExec(setup, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(setup, "CREATE TABLE sessions(sid TEXT PRIMARY KEY, user_id TEXT)")
+var seed: list = []
+seed.push("1")
+seed.push("Ada")
+dbExecBind(setup, "INSERT INTO users(id, name) VALUES(?, ?)", seed)
+dbClose(setup)
+fn handle(req: Request) {
+  let db = dbOpen("/tmp/luke_backend_api.db")
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  var params: map = {}
+  var answered: bool = false
+  if method == "GET" {
+    if httpMatch(path, "/user/:id", params) {
+      let id = params["id"]
+      let qmap = httpQueryMap(req)
+      let tag = qmap["tag"]
+      var binds: list = []
+      binds.push(id)
+      let name = dbQueryBind(db, "SELECT name FROM users WHERE id = ?", binds)
+      httpReply(req, 200, "text/plain", name + "|" + tag)
+      answered = true
+      print("served=user")
+    }
+  }
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/me", params) {
+        let meSid = httpCookie(req, "luke_sid")
+        var meBinds: list = []
+        meBinds.push(meSid)
+        let uid = dbQueryBind(db, "SELECT user_id FROM sessions WHERE sid = ?", meBinds)
+        httpReply(req, 200, "text/plain", "me=" + uid)
+        answered = true
+        print("served=me")
+      }
+    }
+  }
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/login", params) {
+        let body = httpJson(req)
+        let userNode = jsonGet(body, "user")
+        let user = jsonAsText(userNode)
+        let loginSid = "s-" + user
+        var loginBinds: list = []
+        loginBinds.push(loginSid)
+        loginBinds.push("1")
+        dbExecBind(db, "INSERT OR REPLACE INTO sessions(sid, user_id) VALUES(?, ?)", loginBinds)
+        httpSetCookie(req, "luke_sid", loginSid)
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+        print("served=login")
+      }
+    }
+  }
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/ok", params) {
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+        print("served=ok")
+      }
+    }
+  }
+  if !answered {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+  dbClose(db)
+}
+print("backend_api :8799")
+let server = httpListen(8799)
+httpServe(server, handle, 4)
+print("backend_api_done=1")

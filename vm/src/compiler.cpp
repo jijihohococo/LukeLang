@@ -87,6 +87,37 @@ std::vector<std::string> splitNameList(const std::string &s) {
   return splitArgs(normalized);
 }
 
+/* Build/lower emit `WITH a AS NUMBER`; Play only needs the name. */
+std::string stripAsType(std::string raw) {
+  raw = trim(raw);
+  auto U = toUpper(raw);
+  auto as = U.find(" AS ");
+  if (as != std::string::npos) return trim(raw.substr(0, as));
+  return raw;
+}
+
+std::vector<std::string> paramNames(const std::string &rawList) {
+  std::vector<std::string> out;
+  for (auto &p : splitArgs(rawList)) {
+    auto n = stripAsType(p);
+    if (!n.empty()) out.push_back(n);
+  }
+  return out;
+}
+
+/* Drop `GIVES BACK T` / `RETURNS T` from a function header (Build/lower emit these). */
+void stripGivesBack(std::string &rest) {
+  auto U = toUpper(rest);
+  auto gb = U.find(" GIVES BACK ");
+  size_t kwLen = 12;
+  if (gb == std::string::npos) {
+    gb = U.find(" RETURNS ");
+    kwLen = 9;
+  }
+  if (gb != std::string::npos) rest = trim(rest.substr(0, gb));
+  (void)kwLen;
+}
+
 bool stripTrailingDo(std::string &s) {
   auto U = toUpper(s);
   auto doPos = U.rfind(" DO");
@@ -922,10 +953,10 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         auto setPos = U.find(" SET TO ");
         std::string field;
         if (setPos == std::string::npos) {
-          field = rest;
+          field = stripAsType(rest);
           emit(Op::Nil, line);
         } else {
-          field = trim(rest.substr(0, setPos));
+          field = stripAsType(trim(rest.substr(0, setPos)));
           compileExpression(trim(rest.substr(setPos + 8)), line);
         }
         emit(Op::StaticField, line);
@@ -943,6 +974,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         else if (startsWithCI(rest, "TRICK ")) methodRest = trim(rest.substr(6));
         else methodRest = trim(rest.substr(8));
         stripTrailingDo(methodRest);
+        stripGivesBack(methodRest);
         auto U = toUpper(methodRest);
         auto withPos = U.find(" WITH ");
         std::string mname;
@@ -951,7 +983,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
           mname = methodRest;
         } else {
           mname = trim(methodRest.substr(0, withPos));
-          params = splitArgs(trim(methodRest.substr(withPos + 6)));
+          params = paramNames(trim(methodRest.substr(withPos + 6)));
         }
         current = startFunctionLike(mname, params, true, mname, flags, line);
         return;
@@ -985,10 +1017,10 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         auto setPos = U.find(" SET TO ");
         std::string field;
         if (setPos == std::string::npos) {
-          field = rest;
+          field = stripAsType(rest);
           emit(Op::Nil, line);
         } else {
-          field = trim(rest.substr(0, setPos));
+          field = stripAsType(trim(rest.substr(0, setPos)));
           compileExpression(trim(rest.substr(setPos + 8)), line);
         }
         emit(Op::Field, line);
@@ -1011,7 +1043,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
       stripTrailingDo(rest);
       std::vector<std::string> params;
       if (startsWithCI(rest, "WITH ")) {
-        params = splitArgs(trim(rest.substr(5)));
+        params = paramNames(trim(rest.substr(5)));
       } else if (!rest.empty()) {
         fail(line, "Expected WHEN BORN WITH args DO");
         return;
@@ -1039,6 +1071,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         else if (startsWithCI(methodLine, "TRICK ")) rest = trim(methodLine.substr(6));
         else rest = trim(methodLine.substr(8));
         stripTrailingDo(rest);
+        stripGivesBack(rest);
         auto U = toUpper(rest);
         auto withPos = U.find(" WITH ");
         std::string mname;
@@ -1047,7 +1080,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
           mname = rest;
         } else {
           mname = trim(rest.substr(0, withPos));
-          params = splitArgs(trim(rest.substr(withPos + 6)));
+          params = paramNames(trim(rest.substr(withPos + 6)));
         }
         current = startFunctionLike(mname, params, true, mname, flags, line);
         return;
@@ -1071,6 +1104,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
     }
     if (isFn) {
       stripTrailingDo(rest);
+      stripGivesBack(rest);
       auto U = toUpper(rest);
       auto withPos = U.find(" WITH ");
       std::string name;
@@ -1079,7 +1113,7 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
         name = rest;
       } else {
         name = trim(rest.substr(0, withPos));
-        params = splitArgs(trim(rest.substr(withPos + 6)));
+        params = paramNames(trim(rest.substr(withPos + 6)));
       }
       current = startFunctionLike(name, params, false, name, 0, line);
       return;
@@ -1247,10 +1281,10 @@ void Compiler::compileLine(const std::string &raw, std::size_t line, Compiler *&
     auto setPos = U.find(" SET TO ");
     std::string name;
     if (setPos == std::string::npos) {
-      name = rest;
+      name = stripAsType(rest);
       emit(Op::Nil, line);
     } else {
-      name = trim(rest.substr(0, setPos));
+      name = stripAsType(trim(rest.substr(0, setPos)));
       compileExpression(trim(rest.substr(setPos + 8)), line);
     }
     if (inFunction) {

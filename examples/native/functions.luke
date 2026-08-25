@@ -1,26 +1,26 @@
 // Native LukeLang functions — own call frames, no JS.
 
-THIS IS FUNCTION add WITH a, b DO
-  GIVE BACK ADD a AND b
-END FUNCTION
+fn add(a: float, b: float) -> float {
+  return a + b
+}
 
-THIS IS FUNCTION greet WITH name DO
-  SPEAK "Hello, " AND name AND "!"
-  GIVE BACK name
-END FUNCTION
+fn greet(name: str) -> str {
+  print("Hello, " + name + "!")
+  return name
+}
 
-THIS IS FUNCTION factorial WITH n DO
-  IF n IS LESS THAN 2 DO
-    GIVE BACK 1
-  END IF
-  MY NAME IS prev SET TO ASK factorial WITH SUBTRACT n AND 1
-  GIVE BACK MULTIPLY n AND prev
-END FUNCTION
+fn factorial(n: float) -> float {
+  if n < 2 {
+    return 1
+  }
+  let prev = factorial(n - 1)
+  return n * prev
+}
 
-SPEAK "2 + 3 ="
-SPEAK ASK add WITH 2, 3
+print("2 + 3 =")
+print(add(2, 3))
 
-ASK greet WITH "Luke"
+greet("Luke")
 
-SPEAK "5! ="
-SPEAK ASK factorial WITH 5
+print("5! =")
+print(factorial(5))

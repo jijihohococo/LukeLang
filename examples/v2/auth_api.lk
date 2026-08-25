@@ -1,0 +1,141 @@
+// Syntax v2 golden corpus — twin of examples/build/auth_api.luke
+// Auth API beachhead — register/login/session/CSRF + Live Graph for current_user.
+// Build: luke BUILD examples/v2/auth_api.lk -o build/auth_api
+// Port :8802 — httpServe budget 6.
+
+import std/server
+import std/sqlite
+import std/json
+import std/auth
+
+let setup = dbOpen("/tmp/luke_auth_api.db")
+dbExec(setup, "DROP TABLE IF EXISTS luke_auth_attempts")
+dbExec(setup, "DROP TABLE IF EXISTS luke_sessions")
+dbExec(setup, "DROP TABLE IF EXISTS luke_users")
+dbExec(setup, "DROP TABLE IF EXISTS notes")
+authInit(setup)
+dbExec(setup, "CREATE TABLE notes(id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, body TEXT NOT NULL)")
+dbClose(setup)
+
+fn handle(req: Request) {
+  let db = dbOpen("/tmp/luke_auth_api.db")
+  authInit(db)
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  var params: map = {}
+  var answered: bool = false
+
+  if method == "POST" {
+    if httpMatch(path, "/register", params) {
+      let body = httpJson(req)
+      let emailNode = jsonGet(body, "email")
+      let passwordNode = jsonGet(body, "password")
+      let email = jsonAsText(emailNode)
+      let password = jsonAsText(passwordNode)
+      let uid = authCreateAccount(db, email, password)
+      if uid == "" {
+        httpReply(req, 400, "text/plain", "register failed")
+        answered = true
+      }
+      if !answered {
+        httpReply(req, 200, "text/plain", "uid=" + uid)
+        answered = true
+        print("served=register")
+      }
+    }
+  }
+
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/login", params) {
+        let body2 = httpJson(req)
+        let emailNode2 = jsonGet(body2, "email")
+        let passwordNode2 = jsonGet(body2, "password")
+        let email2 = jsonAsText(emailNode2)
+        let password2 = jsonAsText(passwordNode2)
+        let uid2 = authLogin(db, req, email2, password2)
+        if uid2 == "" {
+          httpReply(req, 401, "text/plain", "login failed")
+          answered = true
+        }
+        if !answered {
+          let csrf = authCsrf(req)
+          httpReply(req, 200, "text/plain", "uid=" + uid2 + "|csrf=" + csrf)
+          answered = true
+          print("served=login")
+        }
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/me", params) {
+        require login on req with db
+        httpReply(req, 200, "text/plain", "me=" + current_user)
+        answered = true
+        print("served=me")
+      }
+    }
+  }
+
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/notes", params) {
+        require login on req with db
+        if !authCheckCsrf(db, req) {
+          httpReply(req, 403, "text/plain", "csrf")
+          answered = true
+        }
+        if !answered {
+          let body3 = httpJson(req)
+          let noteNode = jsonGet(body3, "body")
+          let note = jsonAsText(noteNode)
+          var binds: list = []
+          binds.push(current_user)
+          binds.push(note)
+          dbExecBind(db, "INSERT INTO notes(user_id, body) VALUES(?, ?)", binds)
+          httpReply(req, 200, "text/plain", "note_ok")
+          answered = true
+          print("served=note")
+        }
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/notes", params) {
+        require login on req with db
+        var nb: list = []
+        nb.push(current_user)
+        let bodies = dbQueryBind(db, "SELECT body FROM notes WHERE user_id = ?", nb)
+        httpReply(req, 200, "text/plain", "notes=" + bodies)
+        answered = true
+        print("served=notes")
+      }
+    }
+  }
+
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/logout", params) {
+        authLogout(db, req)
+        httpReply(req, 200, "text/plain", "bye")
+        answered = true
+        print("served=logout")
+      }
+    }
+  }
+
+  if !answered {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+
+  dbClose(db)
+}
+
+print("auth_api :8802")
+let server = httpListen(8802)
+httpServe(server, handle, 6)
+print("auth_api_done=1")

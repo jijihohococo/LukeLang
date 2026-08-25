@@ -1,21 +1,12 @@
-// Phase 8 — Reactive query cell (SQLite → TEXT cell, REFRESH invalidates)
-// Build: luke BUILD examples/build/reactive_query.luke -o build/ex_rx_query
-
-IMPORT std/sqlite
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_rx_query.db"
-ASK dbExec WITH db, "CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, body TEXT)"
-ASK dbExec WITH db, "DELETE FROM notes"
-ASK dbExec WITH db, "INSERT INTO notes(body) VALUES('alpha')"
-ASK dbExec WITH db, "INSERT INTO notes(body) VALUES('beta')"
-
-REMEMBER rows AS QUERY ON db AS "SELECT body FROM notes ORDER BY id"
-
-SPEAK rows
-
-ASK dbExec WITH db, "INSERT INTO notes(body) VALUES('gamma')"
-REFRESH QUERY rows
-
-SPEAK rows
-
-ASK dbClose WITH db
+import std/sqlite
+let db = dbOpen("/tmp/luke_rx_query.db")
+dbExec(db, "CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, body TEXT)")
+dbExec(db, "DELETE FROM notes")
+dbExec(db, "INSERT INTO notes(body) VALUES('alpha')")
+dbExec(db, "INSERT INTO notes(body) VALUES('beta')")
+raw "REMEMBER rows AS QUERY ON db AS \"SELECT body FROM notes ORDER BY id\""
+print(rows)
+dbExec(db, "INSERT INTO notes(body) VALUES('gamma')")
+rows.refresh()
+print(rows)
+dbClose(db)

@@ -1,13 +1,9 @@
-// Phase 12 — Weak reads do not subscribe to dependency changes
-
-BEGIN COMPONENT Box
-  REMEMBER x AS 10
-END COMPONENT
-
-THE snap IS THE WEAK VALUE OF x
-
-SPEAK "snap0=" AND snap
-INCREASE x BY 5
-SPEAK "snap=" AND snap
-SPEAK "live=" AND x
-SPEAK "weak_reads=" AND THE WEAK READ COUNT
+raw "BEGIN COMPONENT Box"
+signal x = 10
+raw "END COMPONENT"
+raw "THE snap IS THE WEAK VALUE OF x"
+print("snap0=" + snap)
+x += 5
+print("snap=" + snap)
+print("live=" + x)
+raw "SPEAK \"weak_reads=\" AND THE WEAK READ COUNT"

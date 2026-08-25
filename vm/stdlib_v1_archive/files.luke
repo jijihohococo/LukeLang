@@ -1,0 +1,14 @@
+// Luke standard library — files (Build mode)
+// IMPORTed as: IMPORT std/files
+
+THIS IS FUNCTION readFile WITH path AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_read_file(path)
+END FUNCTION
+
+THIS IS FUNCTION writeFile WITH path AS TEXT, data AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_write_file(path, data)
+END FUNCTION
+
+THIS IS FUNCTION fileExists WITH path AS TEXT GIVES BACK FLAG DO
+  GIVE BACK __luke_file_exists(path)
+END FUNCTION

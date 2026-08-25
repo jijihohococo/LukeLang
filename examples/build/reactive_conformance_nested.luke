@@ -1,14 +1,10 @@
-// Phase 10 — deferred nested flush (writes during effect coalesce in one turn)
-
-REMEMBER x AS 0
-REMEMBER y AS 0
-
-WHEN REACTIVE x CHANGES DO
-  INCREASE y BY 1
-END WHEN REACTIVE
-
-CHANGE x TO 1
-SPEAK "y=" AND y
-SPEAK "passes=" AND THE FLUSH PASS COUNT
-SPEAK "turns=" AND THE FLUSH COUNT
-SPEAK "deferred=" AND THE DEFERRED FLUSH COUNT
+signal x = 0
+signal y = 0
+effect on x {
+  y += 1
+}
+x = 1
+print("y=" + y)
+raw "SPEAK \"passes=\" AND THE FLUSH PASS COUNT"
+print("turns=" + flush_count)
+raw "SPEAK \"deferred=\" AND THE DEFERRED FLUSH COUNT"

@@ -1,0 +1,25 @@
+// Syntax v2 golden corpus — twin of examples/build/frontend_widgets.luke
+//
+// Layout/UI phrase surface (SYNTAX_V2_SPEC.md §6) stays provisional as a
+// dedicated DSL. The shipping path is `raw "…"` passthrough of the v1 layout
+// phrases — same shape as the live migrated corpus.
+
+import std/hanka
+import std/argus
+
+raw "SPEAK \"vw=\" AND THE VIEWPORT WIDTH"
+raw "SPEAK \"tw=\" AND THE TEXT WIDTH OF \"Hello Luke\""
+raw "BEGIN COLUMN AT 40, 40 SIZE 640, 420 PAD 12 GAP 16 ALIGN MAIN CENTER CROSS START"
+raw "SLOT TEXT \"title\" SIZE AUTO, 40 SAY \"LukeLang Frontend\""
+raw "SLOT BUTTON \"cta\" SIZE 160, 44 SAY \"Open modal\""
+raw "SLOT SELECT \"plan\" SIZE 240, 40 SAY \"Free|Pro|Team\""
+raw "SLOT TABLE \"grid\" SIZE 560, 120 SAY \"Name|Role;Ada|Builder;Luke|Runtime\""
+raw "SLOT MODAL \"dlg\" SIZE 320, 80 SAY \"Dialog beachhead — role=dialog\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+raw "ANNOUNCE \"Modal ready\""
+raw "TRAP FOCUS IN \"dlg\""
+raw "RESTORE FOCUS"
+print("ok=1")
+print("a11y=1")

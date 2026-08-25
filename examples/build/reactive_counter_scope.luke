@@ -1,21 +1,13 @@
-// Phase 3 — Reactive component scopes
-// Local cells + cleanup on DESTROY COMPONENT
-// Build: luke BUILD examples/build/reactive_counter_scope.luke -o build/ex_rx_scope
-
-BEGIN COMPONENT Counter
-  REMEMBER count AS 0
-  THE doubled IS count MULTIPLIED BY 2
-END COMPONENT
-
-SPEAK "count=" AND count
-SPEAK "doubled=" AND doubled
-
-INCREASE count BY 3
-SPEAK "count=" AND count
-SPEAK "doubled=" AND doubled
-
-DESTROY COMPONENT Counter
-
-SPEAK "count=" AND count
-SPEAK "doubled=" AND doubled
-SPEAK "disposed"
+raw "BEGIN COMPONENT Counter"
+signal count = 0
+derived doubled = count * 2
+raw "END COMPONENT"
+print("count=" + count)
+print("doubled=" + doubled)
+count += 3
+print("count=" + count)
+print("doubled=" + doubled)
+raw "DESTROY COMPONENT Counter"
+print("count=" + count)
+print("doubled=" + doubled)
+print("disposed")

@@ -4,7 +4,7 @@
     {
       "type": "lukelang",
       "request": "launch",
-      "name": "Debug current .luke file",
+      "name": "Debug current Luke file",
       "program": "${file}",
       "stopOnEntry": true
     },

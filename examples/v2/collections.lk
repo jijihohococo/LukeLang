@@ -1,0 +1,27 @@
+// Syntax v2 golden corpus — twin of examples/build/collections.luke
+// lists, maps, and try/catch
+
+var nums: list = []
+nums.push("one")
+nums.push("two")
+nums.push("three")
+print(nums.len())
+print(nums[0])
+print(nums[2])
+
+var bag: map = {}
+bag["name"] = "Luke"
+bag["lang"] = "LukeLang"
+print(bag["name"])
+print(bag["lang"])
+print(bag.len())
+
+try {
+  print("trying something risky")
+  throw "could not finish the job"
+  print("you should not see this")
+} catch (problem) {
+  print("caught: " + problem)
+}
+
+print("still here after ATTEMPT")

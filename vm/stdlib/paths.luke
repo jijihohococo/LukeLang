@@ -1,17 +1,12 @@
-// IMPORT std/paths
-
-THIS IS FUNCTION cwd GIVES BACK TEXT DO
-  GIVE BACK __luke_cwd()
-END FUNCTION
-
-THIS IS FUNCTION pathJoin WITH left AS TEXT, right AS TEXT GIVES BACK TEXT DO
-  GIVE BACK __luke_path_join(left, right)
-END FUNCTION
-
-THIS IS FUNCTION pathBasename WITH path AS TEXT GIVES BACK TEXT DO
-  GIVE BACK __luke_path_basename(path)
-END FUNCTION
-
-THIS IS FUNCTION pathDirname WITH path AS TEXT GIVES BACK TEXT DO
-  GIVE BACK __luke_path_dirname(path)
-END FUNCTION
+fn cwd() -> str {
+  return __luke_cwd()
+}
+fn pathJoin(left: str, right: str) -> str {
+  return __luke_path_join(left, right)
+}
+fn pathBasename(path: str) -> str {
+  return __luke_path_basename(path)
+}
+fn pathDirname(path: str) -> str {
+  return __luke_path_dirname(path)
+}

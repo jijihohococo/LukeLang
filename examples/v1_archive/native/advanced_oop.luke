@@ -1,0 +1,64 @@
+// Contracts, ALWAYS statics, private fields/methods, closures.
+
+CONTRACT Eater DO
+  MUST METHOD eat WITH food
+END CONTRACT
+
+CONTRACT Speaker DO
+  MUST METHOD speak
+END CONTRACT
+
+BLUEPRINT Creature IMPLEMENTS Eater, Speaker DO
+  PRIVATE energy
+  HAS name SET TO "Unknown"
+  ALWAYS HAS totalCount SET TO 0
+
+  WHEN BORN WITH name DO
+    SET SELF.name TO name
+    SET SELF.energy TO 100
+    SET Creature.totalCount TO ADD Creature.totalCount AND 1
+  END BORN
+
+  ALWAYS METHOD count DO
+    SPEAK "Total creatures: " AND SELF.totalCount
+  END METHOD
+
+  SECRET METHOD rest WITH minutes DO
+    SET SELF.energy TO ADD SELF.energy AND minutes
+    GIVE BACK SELF.energy
+  END METHOD
+
+  METHOD speak DO
+    SPEAK SELF.name AND " has energy " AND SELF.energy
+  END METHOD
+
+  METHOD eat WITH food DO
+    SPEAK SELF.name AND " eats " AND food
+    ASK SELF TO rest WITH 10
+  END METHOD
+
+  METHOD tire WITH amount DO
+    SET SELF.energy TO SUBTRACT SELF.energy AND amount
+    SPEAK SELF.name AND " tires, energy now " AND SELF.energy
+  END METHOD
+END CLASS
+
+BLUEPRINT Lion FOLLOWS Creature DO
+  METHOD roar DO
+    SPEAK SELF.name AND " roars!"
+  END METHOD
+
+  METHOD eat WITH food DO
+    CALL PARENT eat WITH food
+    SPEAK SELF.name AND " tears into the meat."
+  END METHOD
+END CLASS
+
+SET simba TO NEW Lion WITH "Simba"
+ASK simba TO speak
+ASK simba TO eat WITH "steak"
+ASK simba TO roar
+ASK simba TO tire WITH 25
+ASK Creature TO count
+
+SPEAK "simba is " AND simba

@@ -1,0 +1,13 @@
+// Phase 10 — dirty queue dedup (re-mark same node in one batch)
+
+REMEMBER x AS 1
+THE t IS x ADD 1
+
+BEGIN REACTIVE BATCH
+  CHANGE x TO 2
+  CHANGE x TO 3
+  CHANGE x TO 4
+END REACTIVE BATCH
+
+SPEAK "dedup=" AND THE DIRTY DEDUP COUNT
+SPEAK "t=" AND t

@@ -1,31 +1,23 @@
-// ROUTES table → executable dispatch (SERVE ROUTES codegen).
-// Build: luke BUILD examples/build/backend_routes_serve.luke -o build/backend_routes_serve
-
-IMPORT std/server
-
-THIS IS FUNCTION health WITH req AS REQUEST DO
-  ASK httpReply WITH req, 200, "text/plain", "ok"
-  SPEAK "served=ok"
-END FUNCTION
-
-THIS IS FUNCTION show_user WITH req AS REQUEST DO
-  MY NAME IS path SET TO ASK httpPath WITH req
-  MY NAME IS params AS MAP
-  ASK httpMatch WITH path, "/user/:id", params
-  MY NAME IS id SET TO GET "id" FROM params
-  ASK httpReply WITH req, 200, "text/plain", "user=" AND id
-  SPEAK "served=user"
-END FUNCTION
-
-ROUTES DO
-  GET "/ok" HANDLE health
-  GET "/user/:id" AS INTEGER HANDLE show_user
-END ROUTES
-
-LINK TO "/ok"
-LINK TO "/user/7"
-
-SPEAK "routes_serve :8803"
-MY NAME IS server SET TO ASK httpListen WITH 8803
-SERVE ROUTES ON server WITH 3
-SPEAK "routes_serve_done=1"
+import std/server
+fn health(req: Request) {
+  httpReply(req, 200, "text/plain", "ok")
+  print("served=ok")
+}
+fn show_user(req: Request) {
+  let path = httpPath(req)
+  var params: map = {}
+  httpMatch(path, "/user/:id", params)
+  let id = params["id"]
+  httpReply(req, 200, "text/plain", "user=" + id)
+  print("served=user")
+}
+raw "ROUTES DO"
+raw "GET \"/ok\" HANDLE health"
+raw "GET \"/user/:id\" AS INTEGER HANDLE show_user"
+raw "END ROUTES"
+raw "LINK TO \"/ok\""
+raw "LINK TO \"/user/7\""
+print("routes_serve :8803")
+let server = httpListen(8803)
+raw "SERVE ROUTES ON server WITH 3"
+print("routes_serve_done=1")

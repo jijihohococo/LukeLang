@@ -1,29 +1,21 @@
-// Phase 14 — Error system: isolation, async failure, retry
-// Build: luke BUILD examples/build/reactive_conformance_error.luke -o build/ex_rx_conf_error
-
-REMEMBER x AS 1
-REMEMBER ok AS 0
-REMEMBER status AS 200
-
-WHEN REACTIVE x CHANGES DO
-  ATTEMPT DO
-    GIVE UP WITH "boom"
-  END ATTEMPT
-END WHEN REACTIVE
-
-WHEN REACTIVE x CHANGES DO
-  CHANGE ok TO 1
-END WHEN REACTIVE
-
-INCREASE x BY 1
-SPEAK "errors=" AND THE REACTIVE ERROR COUNT
-SPEAK "iso=" AND THE ERROR ISOLATION COUNT
-SPEAK "ok=" AND ok
-SPEAK "last=" AND THE LAST ERROR NODE
-
-REPORT REACTIVE FAILURE FOR status WITH "bad fetch"
-SPEAK "async=" AND THE ASYNC FAILURE COUNT
-SPEAK "errors2=" AND THE REACTIVE ERROR COUNT
-
-RETRY REACTIVE ERROR
-SPEAK "retries=" AND THE REACTIVE RETRY COUNT
+signal x = 1
+signal ok = 0
+signal status = 200
+effect on x {
+  try {
+    throw "boom"
+  }
+}
+effect on x {
+  ok = 1
+}
+x += 1
+print("errors=" + reactive_error_count)
+print("iso=" + error_isolation_count)
+print("ok=" + ok)
+print("last=" + last_error_node)
+raw "REPORT REACTIVE FAILURE FOR status WITH \"bad fetch\""
+print("async=" + async_failure_count)
+print("errors2=" + reactive_error_count)
+raw "RETRY REACTIVE ERROR"
+raw "SPEAK \"retries=\" AND THE REACTIVE RETRY COUNT"

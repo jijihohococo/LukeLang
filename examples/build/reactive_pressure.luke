@@ -1,77 +1,64 @@
-// Pressure — 100K Argus nodes: granular UPDATE stays O(1); region Δ == samples.
-// Lighter sample counts than the CI benchmark so the suite stays runnable.
-// Build: luke BUILD examples/build/reactive_pressure.luke -o build/reactive_pressure
-
-IMPORT std/hanka
-IMPORT std/argus
-
-MY NAME IS n AS NUMBER SET TO 100000
-
-CLEAR THE SCREEN
-
-MY NAME IS i AS NUMBER SET TO 0
-MY NAME IS t_build0 AS NUMBER SET TO THE CLOCK
-WHILE i IS LESS THAN n DO
-  PLACE "n" AND i AS TEXT AT 0, 0 SIZE 40, 12 SAY "row"
-  SET i TO i ADD 1
-END WHILE
-PAINT THE SCREEN
-MY NAME IS t_build1 AS NUMBER SET TO THE CLOCK
-MY NAME IS build_ms AS NUMBER SET TO t_build1 SUBTRACT t_build0
-
-MY NAME IS w AS NUMBER SET TO 0
-WHILE w IS LESS THAN 5 DO
-  UPDATE "n0" WITH "warm" AND w
-  SET w TO w ADD 1
-END WHILE
-
-RESET THE BENCH
-MY NAME IS paints_before AS NUMBER SET TO THE REGION PAINT COUNT
-MY NAME IS r AS NUMBER SET TO 0
-WHILE r IS LESS THAN 50 DO
-  MY NAME IS t_g0 AS NUMBER SET TO THE CLOCK
-  UPDATE "n0" WITH "hit" AND r
-  MY NAME IS t_g1 AS NUMBER SET TO THE CLOCK
-  RECORD BENCH SAMPLE t_g1 SUBTRACT t_g0
-  SET r TO r ADD 1
-END WHILE
-MY NAME IS granular_med AS NUMBER SET TO THE BENCH MEDIAN
-MY NAME IS granular_min AS NUMBER SET TO THE BENCH MIN
-MY NAME IS region AS NUMBER SET TO THE REGION PAINT COUNT SUBTRACT paints_before
-MY NAME IS g_samples AS NUMBER SET TO THE BENCH SAMPLE COUNT
-
-RESET THE BENCH
-MY NAME IS f AS NUMBER SET TO 0
-WHILE f IS LESS THAN 5 DO
-  MY NAME IS t_f0 AS NUMBER SET TO THE CLOCK
-  CLEAR THE SCREEN
-  SET i TO 0
-  WHILE i IS LESS THAN n DO
-    PLACE "n" AND i AS TEXT AT 0, 0 SIZE 40, 12 SAY "row"
-    SET i TO i ADD 1
-  END WHILE
-  PAINT THE SCREEN
-  MY NAME IS t_f1 AS NUMBER SET TO THE CLOCK
-  RECORD BENCH SAMPLE t_f1 SUBTRACT t_f0
-  SET f TO f ADD 1
-END WHILE
-MY NAME IS full_med AS NUMBER SET TO THE BENCH MEDIAN
-MY NAME IS full_min AS NUMBER SET TO THE BENCH MIN
-MY NAME IS f_samples AS NUMBER SET TO THE BENCH SAMPLE COUNT
-
-SPEAK "pressure=reactive"
-SPEAK "nodes=" AND n
-SPEAK "build_ms=" AND build_ms
-SPEAK "granular_median_ms=" AND granular_med
-SPEAK "granular_min_ms=" AND granular_min
-SPEAK "granular_samples=" AND g_samples
-SPEAK "full_median_ms=" AND full_med
-SPEAK "full_min_ms=" AND full_min
-SPEAK "full_samples=" AND f_samples
-SPEAK "region=" AND region
-
-MAKE SURE region EQUALS 50
-MAKE SURE g_samples EQUALS 50
-MAKE SURE f_samples EQUALS 5
-
-SPEAK "pressure_ok=1"
+import std/hanka
+import std/argus
+let n: float = 100000
+raw "CLEAR THE SCREEN"
+var i: float = 0
+let t_build0: float = clock
+while i < n {
+  raw "PLACE \"n\" AND i AS TEXT AT 0, 0 SIZE 40, 12 SAY \"row\""
+  i = i + 1
+}
+raw "PAINT THE SCREEN"
+let t_build1: float = clock
+let build_ms: float = t_build1 - t_build0
+var w: float = 0
+while w < 5 {
+  raw "UPDATE \"n0\" WITH \"warm\" AND w"
+  w = w + 1
+}
+raw "RESET THE BENCH"
+let paints_before: float = region_paint_count
+var r: float = 0
+while r < 50 {
+  let t_g0: float = clock
+  raw "UPDATE \"n0\" WITH \"hit\" AND r"
+  let t_g1: float = clock
+  raw "RECORD BENCH SAMPLE t_g1 SUBTRACT t_g0"
+  r = r + 1
+}
+let granular_med: float = bench_median
+let granular_min: float = bench_min
+let region: float = region_paint_count - paints_before
+let g_samples: float = bench_sample_count
+raw "RESET THE BENCH"
+var f: float = 0
+while f < 5 {
+  let t_f0: float = clock
+  raw "CLEAR THE SCREEN"
+  i = 0
+  while i < n {
+    raw "PLACE \"n\" AND i AS TEXT AT 0, 0 SIZE 40, 12 SAY \"row\""
+    i = i + 1
+  }
+  raw "PAINT THE SCREEN"
+  let t_f1: float = clock
+  raw "RECORD BENCH SAMPLE t_f1 SUBTRACT t_f0"
+  f = f + 1
+}
+let full_med: float = bench_median
+let full_min: float = bench_min
+let f_samples: float = bench_sample_count
+print("pressure=reactive")
+print("nodes=" + n)
+print("build_ms=" + build_ms)
+print("granular_median_ms=" + granular_med)
+print("granular_min_ms=" + granular_min)
+print("granular_samples=" + g_samples)
+print("full_median_ms=" + full_med)
+print("full_min_ms=" + full_min)
+print("full_samples=" + f_samples)
+print("region=" + region)
+assert region == 50
+assert g_samples == 50
+assert f_samples == 5
+print("pressure_ok=1")

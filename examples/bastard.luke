@@ -1,54 +1,45 @@
-SPEAK "=== LukeLang Zoo Simulation ==="
-
-CONTRACT Eater DO
-  MUST METHOD eat WITH food
-END CONTRACT
-
-CONTRACT Sleeper DO
-  MUST METHOD sleep WITH hours
-END CONTRACT
-
-BLUEPRINT Animal IMPLEMENTS Eater, Sleeper DO
-  HAS name
-  WHEN BORN WITH name DO
-    SET SELF.name TO name
-  END BORN
-  METHOD eat WITH food DO
-    SPEAK SELF.name AND " eats " AND food
-  END METHOD
-  METHOD sleep WITH hours DO
-    SPEAK SELF.name AND " sleeps for " AND hours AND " hours"
-  END METHOD
-END CLASS
-
-BLUEPRINT Lion FOLLOWS Animal DO
-  METHOD roar DO
-    SPEAK SELF.name AND " roars loudly!"
-  END METHOD
-  METHOD eat WITH food DO
-    CALL PARENT eat WITH food
-    SPEAK SELF.name AND " tears into the meat fiercely."
-  END METHOD
-END CLASS
-
-BLUEPRINT Elephant FOLLOWS Animal DO
-  METHOD eat WITH food DO
-    SPEAK SELF.name AND " gently munches on " AND food
-  END METHOD
-  METHOD trumpet DO
-    SPEAK SELF.name AND " trumpets proudly!"
-  END METHOD
-END CLASS
-
-SET simba TO NEW Lion WITH "Simba"
-SET dumbo TO NEW Elephant WITH "Dumbo"
-
-ASK simba TO roar
-ASK simba TO eat WITH "antelope"
-ASK simba TO sleep WITH 5
-
-ASK dumbo TO trumpet
-ASK dumbo TO eat WITH "bananas"
-ASK dumbo TO sleep WITH 8
-
-SPEAK "=== End of Zoo Simulation ==="
+print("=== LukeLang Zoo Simulation ===")
+raw "CONTRACT Eater DO"
+raw "MUST METHOD eat WITH food"
+raw "END CONTRACT"
+raw "CONTRACT Sleeper DO"
+raw "MUST METHOD sleep WITH hours"
+raw "END CONTRACT"
+struct Animal IMPLEMENTS Eater, Sleeper {
+  raw "HAS name"
+  init(name) {
+    self.name = name
+  }
+  fn eat(food) {
+    print(self.name + " eats " + food)
+  }
+  fn sleep(hours) {
+    print(self.name + " sleeps for " + hours + " hours")
+  }
+}
+struct Lion : Animal {
+  fn roar() {
+    print(self.name + " roars loudly!")
+  }
+  fn eat(food) {
+    super.eat(food)
+    print(self.name + " tears into the meat fiercely.")
+  }
+}
+struct Elephant : Animal {
+  fn eat(food) {
+    print(self.name + " gently munches on " + food)
+  }
+  fn trumpet() {
+    print(self.name + " trumpets proudly!")
+  }
+}
+raw "SET simba TO NEW Lion WITH \"Simba\""
+raw "SET dumbo TO NEW Elephant WITH \"Dumbo\""
+simba.roar()
+simba.eat("antelope")
+simba.sleep(5)
+dumbo.trumpet()
+dumbo.eat("bananas")
+dumbo.sleep(8)
+print("=== End of Zoo Simulation ===")

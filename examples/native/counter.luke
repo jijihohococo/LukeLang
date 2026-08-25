@@ -1,12 +1,8 @@
-// Count with the native VM control flow + GC-managed strings.
-
-MY NAME IS count SET TO 0
-
-WHILE count IS LESS THAN 5 DO
-  SPEAK "count = " AND count
-  SET count TO ADD count AND 1
-END WHILE
-
-IF count EQUALS 5 DO
-  SPEAK "Done counting on the Luke runtime."
-END IF
+var count = 0
+while count < 5 {
+  print("count = " + count)
+  count = count + 1
+}
+if count == 5 {
+  print("Done counting on the Luke runtime.")
+}

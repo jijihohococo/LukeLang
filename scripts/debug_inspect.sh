@@ -15,8 +15,8 @@ fi
 SRC="$ROOT/examples/build/reactive_core.luke"
 OUT="$ROOT/vm/build/ex_debug_inspect"
 
-# Break on first SPEAK (line 10); DEBUG --inspect steps once so THE total has deps.
-"$LUKE" DEBUG "$SRC" -o "$OUT" --break "$SRC:10" --inspect | tee /tmp/luke_debug_inspect.txt
+# Break on first print (line 5); DEBUG --inspect steps once so derived total has deps.
+"$LUKE" DEBUG "$SRC" -o "$OUT" --break "$SRC:5" --inspect | tee /tmp/luke_debug_inspect.txt
 grep -q "debug_inspect_ok=1" /tmp/luke_debug_inspect.txt
 grep -q '"name":"price"' /tmp/luke_debug_inspect.txt
 grep -q '"name":"quantity"' /tmp/luke_debug_inspect.txt

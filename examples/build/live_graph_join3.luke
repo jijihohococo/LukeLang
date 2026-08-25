@@ -1,45 +1,33 @@
-// 3-table equi-JOIN differential IVM — WHERE u.id = 1 propagates through ON keys.
-// Triggers on users, profiles, and roles use WHEN NEW.<bound> = 1 + NEW-pinned SELECT.
-// Build: luke BUILD examples/build/live_graph_join3.luke -o build/live_graph_join3
-
-IMPORT std/sqlite
-
-SPEAK "join3 start"
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph_join3.db"
-ASK dbExec WITH db, "PRAGMA journal_mode=WAL"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS roles"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS profiles"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS users"
-ASK dbExec WITH db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)"
-ASK dbExec WITH db, "CREATE TABLE profiles(user_id INTEGER PRIMARY KEY, title TEXT)"
-ASK dbExec WITH db, "CREATE TABLE roles(user_id INTEGER PRIMARY KEY, role TEXT)"
-ASK dbExec WITH db, "INSERT INTO users(id, name) VALUES(1, 'Ada')"
-ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(1, 'Engineer')"
-ASK dbExec WITH db, "INSERT INTO roles(user_id, role) VALUES(1, 'Admin')"
-
-WATCH card FROM db AS "SELECT u.name || ' · ' || p.title || ' · ' || r.role FROM users u JOIN profiles p ON u.id = p.user_id JOIN roles r ON u.id = r.user_id WHERE u.id = 1"
-
-MY NAME IS v0 AS TEXT SET TO card
-SPEAK "v0=" AND v0
-MAKE SURE v0 EQUALS "Ada · Engineer · Admin"
-
-// Unrelated user/profile/role must not change the cell.
-ASK dbExec WITH db, "INSERT INTO users(id, name) VALUES(2, 'Bob')"
-ASK dbExec WITH db, "INSERT INTO profiles(user_id, title) VALUES(2, 'Other')"
-ASK dbExec WITH db, "INSERT INTO roles(user_id, role) VALUES(2, 'Guest')"
-REFRESH QUERY card
-MY NAME IS vUn AS TEXT SET TO card
-SPEAK "vUn=" AND vUn
-MAKE SURE vUn EQUALS "Ada · Engineer · Admin"
-
-ASK dbExec WITH db, "UPDATE profiles SET title = 'Founder' WHERE user_id = 1"
-ASK dbExec WITH db, "UPDATE roles SET role = 'Owner' WHERE user_id = 1"
-ASK dbExec WITH db, "UPDATE users SET name = 'Ada Lovelace' WHERE id = 1"
-REFRESH QUERY card
-MY NAME IS v1 AS TEXT SET TO card
-SPEAK "v1=" AND v1
-MAKE SURE v1 EQUALS "Ada Lovelace · Founder · Owner"
-
-ASK dbClose WITH db
-SPEAK "join3_ok=1"
+import std/sqlite
+print("join3 start")
+let db = dbOpen("/tmp/luke_live_graph_join3.db")
+dbExec(db, "PRAGMA journal_mode=WAL")
+dbExec(db, "DROP TABLE IF EXISTS roles")
+dbExec(db, "DROP TABLE IF EXISTS profiles")
+dbExec(db, "DROP TABLE IF EXISTS users")
+dbExec(db, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(db, "CREATE TABLE profiles(user_id INTEGER PRIMARY KEY, title TEXT)")
+dbExec(db, "CREATE TABLE roles(user_id INTEGER PRIMARY KEY, role TEXT)")
+dbExec(db, "INSERT INTO users(id, name) VALUES(1, 'Ada')")
+dbExec(db, "INSERT INTO profiles(user_id, title) VALUES(1, 'Engineer')")
+dbExec(db, "INSERT INTO roles(user_id, role) VALUES(1, 'Admin')")
+watch card from db as "SELECT u.name || ' · ' || p.title || ' · ' || r.role FROM users u JOIN profiles p ON u.id = p.user_id JOIN roles r ON u.id = r.user_id WHERE u.id = 1"
+let v0: str = card
+print("v0=" + v0)
+assert v0 == "Ada · Engineer · Admin"
+dbExec(db, "INSERT INTO users(id, name) VALUES(2, 'Bob')")
+dbExec(db, "INSERT INTO profiles(user_id, title) VALUES(2, 'Other')")
+dbExec(db, "INSERT INTO roles(user_id, role) VALUES(2, 'Guest')")
+card.refresh()
+let vUn: str = card
+print("vUn=" + vUn)
+assert vUn == "Ada · Engineer · Admin"
+dbExec(db, "UPDATE profiles SET title = 'Founder' WHERE user_id = 1")
+dbExec(db, "UPDATE roles SET role = 'Owner' WHERE user_id = 1")
+dbExec(db, "UPDATE users SET name = 'Ada Lovelace' WHERE id = 1")
+card.refresh()
+let v1: str = card
+print("v1=" + v1)
+assert v1 == "Ada Lovelace · Founder · Owner"
+dbClose(db)
+print("join3_ok=1")

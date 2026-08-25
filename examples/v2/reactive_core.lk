@@ -1,0 +1,22 @@
+// Syntax v2 golden corpus — twin of examples/build/reactive_core.luke
+// Reactive keywords stay declarative: signal / derived / batch
+
+signal price = 100
+signal quantity = 3
+signal unused = 42
+
+derived total = price * quantity
+
+print("total=" + total)
+print("unused=" + unused)
+
+batch {
+  quantity = 4
+  price = 100
+}
+
+print("total=" + total)
+print("unused=" + unused)
+
+quantity += 1
+print("total=" + total)

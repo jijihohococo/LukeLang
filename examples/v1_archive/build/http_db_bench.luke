@@ -1,0 +1,58 @@
+// DB pool correctness under concurrent HTTP — /user/:id must return the right row.
+// Build: luke BUILD examples/build/http_db_bench.luke -o build/http_db_bench
+// Probe: scripts/luke_db_bench_probe.py
+// Handler open/close is pool-aware: one sqlite3 per worker thread, not per request.
+
+IMPORT std/server
+IMPORT std/sqlite
+
+MY NAME IS setup SET TO ASK dbOpen WITH "/tmp/luke_http_db_bench.db"
+ASK dbExec WITH setup, "DROP TABLE IF EXISTS users"
+ASK dbExec WITH setup, "CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)"
+MY NAME IS s1 AS LIST
+ADD "1" TO s1
+ADD "Ada" TO s1
+ASK dbExecBind WITH setup, "INSERT INTO users(id, name) VALUES(?, ?)", s1
+MY NAME IS s2 AS LIST
+ADD "2" TO s2
+ADD "Bo" TO s2
+ASK dbExecBind WITH setup, "INSERT INTO users(id, name) VALUES(?, ?)", s2
+MY NAME IS s3 AS LIST
+ADD "3" TO s3
+ADD "Cy" TO s3
+ASK dbExecBind WITH setup, "INSERT INTO users(id, name) VALUES(?, ?)", s3
+ASK dbClose WITH setup
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_http_db_bench.db"
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS params AS MAP
+  MY NAME IS answered AS FLAG SET TO FALSE
+
+  IF ASK httpMatch WITH path, "/user/:id", params DO
+    MY NAME IS id SET TO GET "id" FROM params
+    MY NAME IS binds AS LIST
+    ADD id TO binds
+    MY NAME IS name SET TO ASK dbQueryBind WITH db, "SELECT name FROM users WHERE id = ?", binds
+    ASK httpReply WITH req, 200, "text/plain", name
+    SET answered TO TRUE
+  END IF
+
+  IF NOT answered DO
+    IF path EQUALS "/ok" DO
+      ASK httpReply WITH req, 200, "text/plain", "ok"
+      SET answered TO TRUE
+    END IF
+  END IF
+
+  IF NOT answered DO
+    ASK httpReply WITH req, 404, "text/plain", "missing"
+  END IF
+
+  ASK dbClose WITH db
+END FUNCTION
+
+SPEAK "http_db_bench :8810"
+MY NAME IS server SET TO ASK httpListen WITH 8810
+ASK httpServe WITH server, handle, 0
+SPEAK "http_db_bench_done=1"

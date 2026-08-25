@@ -1,21 +1,18 @@
-IMPORT std/args
-IMPORT std/env
-IMPORT std/paths
-
-SPEAK "=== Luke tooling ==="
-SPEAK "args ="
-SPEAK ASK argCount
-SPEAK "cwd = " AND ASK cwd
-SPEAK "joined = " AND ASK pathJoin WITH "/tmp", "luke.txt"
-SPEAK "base = " AND ASK pathBasename WITH "/tmp/luke.txt"
-
-MY NAME IS home AS TEXT SET TO ASK getEnv WITH "HOME"
-MY NAME IS missing AS FLAG SET TO home EQUALS ""
-IF missing DO
-  SPEAK "HOME not set"
-END IF
-IF NOT missing DO
-  SPEAK "HOME is set"
-END IF
-
-SPEAK "tooling beachhead ready"
+import std/args
+import std/env
+import std/paths
+print("=== Luke tooling ===")
+print("args =")
+print(argCount())
+print("cwd = " + cwd())
+print("joined = " + pathJoin("/tmp", "luke.txt"))
+print("base = " + pathBasename("/tmp/luke.txt"))
+let home: str = getEnv("HOME")
+let missing: bool = home == ""
+if missing {
+  print("HOME not set")
+}
+if !missing {
+  print("HOME is set")
+}
+print("tooling beachhead ready")

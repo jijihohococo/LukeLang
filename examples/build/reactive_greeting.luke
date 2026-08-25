@@ -1,14 +1,8 @@
-// Phase 2 — Reactive UI bridge
-// Input/event → cell → Argus dirty paint (no CLEAR THE SCREEN)
-// Build: luke BUILD examples/build/reactive_greeting.luke -target browser -o build/reactive_greeting
-
-IMPORT std/js
-IMPORT std/hanka
-IMPORT std/argus
-
-NAME THE PAGE "Luke Reactive"
-
-WEAR STYLE """
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Reactive")
+page.style("""
 html, body { margin: 0; background: #0e1512; }
 #brand, #greeting, #hint { color: #f4fff8; font-family: Georgia, serif; }
 #brand { font-size: 48px; font-weight: 700; letter-spacing: -0.03em; }
@@ -22,28 +16,22 @@ html, body { margin: 0; background: #0e1512; }
   background: #f4a259; color: #101820; font-family: Georgia, serif;
   font-weight: 700; font-size: 16px; cursor: pointer;
 }
-"""
-
-REMEMBER username AS ""
-
-BEGIN COLUMN AT 48, 48 SIZE 720, 320 PAD 0 GAP 16
-  SLOT TEXT "brand" SIZE 640, 64 SAY "LukeLang"
-  SLOT INPUT "name" SIZE 420, 48 SAY "Your name"
-  SLOT BUTTON "go" SIZE 180, 48 SAY "Greet"
-  SLOT TEXT "greeting" SIZE 640, 40 SAY "Welcome, "
-  SLOT TEXT "hint" SIZE 640, 32 SAY "Reactive paint — no full clear."
-END COLUMN
-
-LAY OUT THE SCREEN
-PAINT THE SCREEN
-
-BIND "greeting" TO "Welcome, " AND username
-
-WHEN "name" IS CHANGED DO
+""")
+signal username = ""
+raw "BEGIN COLUMN AT 48, 48 SIZE 720, 320 PAD 0 GAP 16"
+raw "SLOT TEXT \"brand\" SIZE 640, 64 SAY \"LukeLang\""
+raw "SLOT INPUT \"name\" SIZE 420, 48 SAY \"Your name\""
+raw "SLOT BUTTON \"go\" SIZE 180, 48 SAY \"Greet\""
+raw "SLOT TEXT \"greeting\" SIZE 640, 40 SAY \"Welcome, \""
+raw "SLOT TEXT \"hint\" SIZE 640, 32 SAY \"Reactive paint — no full clear.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("greeting", "Welcome, " + username)
+raw """WHEN "name" IS CHANGED DO
   CHANGE username TO THE VALUE OF "name"
-END WHEN
-
-WHEN "go" IS CLICKED DO
+END WHEN"""
+raw """WHEN "go" IS CLICKED DO
   CHANGE username TO "Alex"
   SPEAK "region=" AND THE REGION PAINT COUNT
-END WHEN
+END WHEN"""

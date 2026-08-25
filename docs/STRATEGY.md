@@ -1,17 +1,27 @@
 # LukeLang Strategy — Identity, Focus, and the Plan
 
-> **Status:** v1 — decision record  
+> **Status:** v2 — decision record (syntax amended)  
 > **Purpose:** Lock down *what LukeLang is*, *what it wins first*, and *the order we build it in*.  
 > When a roadmap or PR conflicts with this document, this document wins until it is explicitly revised.
+
+> **Amendment (Syntax v2).** The conversational surface syntax is being replaced by a
+> conventional technical syntax. See [`SYNTAX_V2_PLAN.md`](./SYNTAX_V2_PLAN.md) and
+> [`SYNTAX_V2_SPEC.md`](./SYNTAX_V2_SPEC.md). This revises the identity sentence below and
+> supersedes "What we keep, unconditionally → Conversational syntax". The reactive engine,
+> the wedge, and the renderer decision are unchanged.
 
 ---
 
 ## The identity (one sentence)
 
-> **LukeLang is the conversational, reactive-native, full-stack language.**
-> The **reactive engine is the moat**, the **conversational syntax is the face**, and the **browser is the renderer**.
+> **LukeLang is the reactive-native, full-stack language.**
+> The **reactive engine is the moat**, the **syntax is the face**, and the **browser is the renderer**.
 
 Everything below follows from that sentence.
+
+The face is replaceable; the moat is not. That distinction — written into this document from the
+start — is precisely what licenses the Syntax v2 change: swapping a conversational surface for a
+technical one does not touch the reactive engine, the Live Graph, or the Build guarantees.
 
 ---
 
@@ -21,7 +31,7 @@ LukeLang exists to be different from JS and Python. But there are two kinds of d
 
 | Kind | Examples | Verdict |
 | --- | --- | --- |
-| **Difference the user feels and wants** | Conversational syntax; reactive-native model; (later) full-stack reactivity | **Our gold.** Users experience it and choose us for it. |
+| **Difference the user feels and wants** | Reactive-native model; declarative reactive keywords; full-stack reactivity | **Our gold.** Users experience it and choose us for it. |
 | **Difference under the floorboards that only costs us** | Hand-rolling layout math and paint the browser already does | **A tax.** Invisible to users, expensive for us, and always behind the browser. |
 
 The mistake to avoid is putting our differentiation in the plumbing (invisible, expensive) instead of in the syntax and the reactive model (visible, loved). **Be different where the user stands, not under the floorboards.**
@@ -32,7 +42,7 @@ The mistake to avoid is putting our differentiation in the plumbing (invisible, 
 
 General-purpose across web + scripting + backend + mobile + game means we are no one's first choice for anything. Every language that won did it by taking **one beachhead** and expanding from strength (JS→browser, Ruby→Rails, Go→servers, Rust→systems).
 
-**Our beachhead is reactive full-stack web.** The thing almost nobody has cleanly is a **reactive cell that spans client and server**: backend data changes → the dependency graph knows exactly what depends on it → the precise frontend region repaints. No manual invalidation, no refetch plumbing. That is "LukeLang understands change" as something React-plus-a-REST-API cannot do — and it is the combination (conversational + reactive-native + full-stack) that no incumbent framework holds.
+**Our beachhead is reactive full-stack web.** The thing almost nobody has cleanly is a **reactive cell that spans client and server**: backend data changes → the dependency graph knows exactly what depends on it → the precise frontend region repaints. No manual invalidation, no refetch plumbing. That is "LukeLang understands change" as something React-plus-a-REST-API cannot do — and it is the combination (reactive-native + full-stack + one dependency graph) that no incumbent framework holds.
 
 **Game dev and mobile are parked**, not cancelled — see [Parked tracks](#parked-tracks-earn-them-later).
 
@@ -53,8 +63,17 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 
 ## What we keep, unconditionally
 
-- **Conversational syntax.** It is core identity and a felt differentiator. Keep it. The only action is to *stress-test its ceiling* (see Phase 3), not to soften it.
+- ~~**Conversational syntax.** It is core identity and a felt differentiator. Keep it.~~
+  **Superseded by Syntax v2.** Reversed on the evidence that the conversational surface is the
+  most common objection from the backend audience we are publishing to, and that two of its
+  properties are outright defects rather than taste: `AND` means both text concatenation and
+  logical conjunction, and word-arithmetic (`ADD a AND b`) is strictly harder to read than
+  `a + b`. What survives is the *declarative* vocabulary, not the English prose: reactive
+  keywords stay first-class (`signal`, `derived`, `effect`, `watch`, `push watch`) because that
+  is the moat. See [`SYNTAX_V2_PLAN.md`](./SYNTAX_V2_PLAN.md).
 - **The reactive engine.** Our deepest, most defensible asset. Continue investing — but only *after* it has a public proof point (see Phase 2).
+- **Reactive keywords stay declarative.** Under Syntax v2 they change spelling, not kind. They
+  must not degrade into ordinary function calls; the declarative surface *is* the differentiator.
 
 ---
 
@@ -63,7 +82,7 @@ There are exactly two coherent frontend strategies. The failure mode is doing ne
 | # | Issue | Decision |
 | --- | --- | --- |
 | 1 | Positioning (5 domains) | Narrow to **one wedge: reactive full-stack web**. Game + mobile parked. |
-| 2 | Conversational syntax | **Keep.** Stress-test at ~5k lines to learn its ceiling. |
+| 2 | Conversational syntax | **Reversed — replaced by technical syntax (Syntax v2).** The stress test happened at ~5.4k lines of corpus; the ceiling it exposed was adoption, not scale. [`SYNTAX_V2_PLAN.md`](./SYNTAX_V2_PLAN.md) |
 | 3 | Argus / Hanka renderer | **Path A: compile to DOM + CSS.** Argus = reactive patcher; Hanka emits flex/grid. |
 | 4 | "Own the pixels" dream | **Parked (Track 5, Flutter-style canvas).** Earned later, in full form only. |
 | 5 | Frontend↔backend order | Stay frontend-first, but **spike a client↔server reactive cell now** to validate the true signature. |

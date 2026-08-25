@@ -1,0 +1,17 @@
+// Phase 12 — Auto scope GC after unmount/dispose
+// Closed scope frames are compacted when a component is destroyed.
+
+BEGIN COMPONENT A
+  REMEMBER a AS 1
+END COMPONENT
+UNMOUNT COMPONENT A
+
+BEGIN COMPONENT B
+  REMEMBER b AS 2
+END COMPONENT
+UNMOUNT COMPONENT B
+
+SPEAK "scopes=" AND THE SCOPE FRAME COUNT
+SPEAK "gc=" AND THE SCOPE GC COUNT
+SPEAK "alive=" AND THE ALIVE NODE COUNT
+SPEAK "dead=" AND THE DEAD NODE COUNT

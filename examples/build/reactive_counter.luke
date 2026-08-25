@@ -1,13 +1,8 @@
-// Phase 3 — Counter component (UI + scope)
-// Build: luke BUILD examples/build/reactive_counter.luke -target browser -o build/reactive_counter
-
-IMPORT std/js
-IMPORT std/hanka
-IMPORT std/argus
-
-NAME THE PAGE "Luke Counter"
-
-WEAR STYLE """
+import std/js
+import std/hanka
+import std/argus
+page.title("Luke Counter")
+page.style("""
 html, body { margin: 0; background: #0e1512; }
 #brand, #counter-label, #hint { color: #f4fff8; font-family: Georgia, serif; }
 #brand { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; }
@@ -18,30 +13,24 @@ html, body { margin: 0; background: #0e1512; }
   font-weight: 700; font-size: 16px; cursor: pointer;
 }
 #counter-destroy { background: #8b5e4b; }
-"""
-
-BEGIN COMPONENT Counter
-  REMEMBER count AS 0
-
-  BEGIN COLUMN AT 48, 48 SIZE 640, 280 PAD 0 GAP 16
-    SLOT TEXT "brand" SIZE 560, 56 SAY "LukeLang"
-    SLOT BUTTON "counter-inc" SIZE 180, 48 SAY "Increase"
-    SLOT TEXT "counter-label" SIZE 400, 40 SAY "Count: 0"
-    SLOT BUTTON "counter-destroy" SIZE 220, 48 SAY "Destroy scope"
-    SLOT TEXT "hint" SIZE 560, 32 SAY "Component scope cleans subscriptions."
-  END COLUMN
-
-  LAY OUT THE SCREEN
-  PAINT THE SCREEN
-
-  BIND "counter-label" TO "Count: " AND count
-END COMPONENT
-
-WHEN "counter-inc" IS CLICKED DO
+""")
+raw "BEGIN COMPONENT Counter"
+signal count = 0
+raw "BEGIN COLUMN AT 48, 48 SIZE 640, 280 PAD 0 GAP 16"
+raw "SLOT TEXT \"brand\" SIZE 560, 56 SAY \"LukeLang\""
+raw "SLOT BUTTON \"counter-inc\" SIZE 180, 48 SAY \"Increase\""
+raw "SLOT TEXT \"counter-label\" SIZE 400, 40 SAY \"Count: 0\""
+raw "SLOT BUTTON \"counter-destroy\" SIZE 220, 48 SAY \"Destroy scope\""
+raw "SLOT TEXT \"hint\" SIZE 560, 32 SAY \"Component scope cleans subscriptions.\""
+raw "END COLUMN"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
+bind("counter-label", "Count: " + count)
+raw "END COMPONENT"
+raw """WHEN "counter-inc" IS CLICKED DO
   INCREASE count BY 1
-END WHEN
-
-WHEN "counter-destroy" IS CLICKED DO
+END WHEN"""
+raw """WHEN "counter-destroy" IS CLICKED DO
   DESTROY COMPONENT Counter
   UPDATE "hint" WITH "Counter scope destroyed — clicks no longer update."
-END WHEN
+END WHEN"""

@@ -1,0 +1,47 @@
+// Phase 2 — reference reactive dashboard (server)
+// Live metrics on :8792. CI-friendly accept budget.
+// Build: luke BUILD examples/build/dashboard_server.luke -o build/dashboard_server
+
+IMPORT std/server
+
+SPEAK "dashboard server :8792 /reqs /cpu /mem"
+
+MY NAME IS server SET TO ASK httpListen WITH 8792
+MY NAME IS reqs AS NUMBER SET TO 0
+MY NAME IS cpu AS NUMBER SET TO 37
+MY NAME IS mem AS NUMBER SET TO 54
+MY NAME IS left AS NUMBER SET TO 48
+
+WHILE left IS GREATER THAN 0 DO
+  MY NAME IS req SET TO ASK httpAccept WITH server
+  MY NAME IS path SET TO ASK httpPath WITH req
+  MY NAME IS hit AS FLAG SET TO FALSE
+  IF path EQUALS "/reqs" DO
+    SET hit TO TRUE
+    SET reqs TO reqs ADD 1
+    ASK httpReply WITH req, 200, "text/plain", "" AND reqs
+    SPEAK "reqs=" AND reqs
+  END IF
+  IF path EQUALS "/cpu" DO
+    SET hit TO TRUE
+    SET cpu TO cpu ADD 1
+    IF cpu IS GREATER THAN 99 DO
+      SET cpu TO 31
+    END IF
+    ASK httpReply WITH req, 200, "text/plain", "" AND cpu
+  END IF
+  IF path EQUALS "/mem" DO
+    SET hit TO TRUE
+    SET mem TO mem ADD 1
+    IF mem IS GREATER THAN 91 DO
+      SET mem TO 48
+    END IF
+    ASK httpReply WITH req, 200, "text/plain", "" AND mem
+  END IF
+  IF NOT hit DO
+    ASK httpReply WITH req, 404, "text/plain", "not found"
+  END IF
+  SET left TO left SUBTRACT 1
+END WHILE
+
+SPEAK "server done"

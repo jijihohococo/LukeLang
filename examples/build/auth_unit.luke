@@ -1,31 +1,20 @@
-// Auth unit — Argon2id create-account; never stores plaintext.
-// Build: luke BUILD examples/build/auth_unit.luke -o build/auth_unit
-
-IMPORT std/sqlite
-IMPORT std/auth
-
-SPEAK "auth_unit start"
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_auth_unit.db"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_auth_attempts"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_sessions"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS luke_users"
-MAKE SURE ASK authInit WITH db EQUALS TRUE
-
-MY NAME IS uid SET TO ASK authCreateAccount WITH db, "Ada@Example.com", "correct horse battery"
-MAKE SURE uid EQUALS uid
-SPEAK "uid=" AND uid
-
-MY NAME IS phash SET TO ASK dbQuery WITH db, "SELECT phash FROM luke_users LIMIT 1"
-SPEAK "phash_prefix=" AND phash
-// libsodium Argon2id encoded hash starts with $argon2id$
-MAKE SURE phash EQUALS phash
-
-MY NAME IS tooShort SET TO ASK authCreateAccount WITH db, "tom@example.com", "short"
-MAKE SURE tooShort EQUALS ""
-
-MY NAME IS dup SET TO ASK authCreateAccount WITH db, "ada@example.com", "another long password"
-MAKE SURE dup EQUALS ""
-
-ASK dbClose WITH db
-SPEAK "auth_unit_ok=1"
+import std/sqlite
+import std/auth
+print("auth_unit start")
+let db = dbOpen("/tmp/luke_auth_unit.db")
+dbExec(db, "DROP TABLE IF EXISTS luke_auth_attempts")
+dbExec(db, "DROP TABLE IF EXISTS luke_sessions")
+dbExec(db, "DROP TABLE IF EXISTS luke_users")
+assert authInit(db) == true
+let uid = authCreateAccount(db, "Ada@Example.com", "correct horse battery")
+assert uid == uid
+print("uid=" + uid)
+let phash = dbQuery(db, "SELECT phash FROM luke_users LIMIT 1")
+print("phash_prefix=" + phash)
+assert phash == phash
+let tooShort = authCreateAccount(db, "tom@example.com", "short")
+assert tooShort == ""
+let dup = authCreateAccount(db, "ada@example.com", "another long password")
+assert dup == ""
+dbClose(db)
+print("auth_unit_ok=1")

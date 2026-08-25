@@ -1,24 +1,16 @@
-// Live Graph auth scope — WATCH … FOR CURRENT USER (bind user_id; no shared IVM).
-// Build: luke BUILD examples/build/auth_scoped.luke -o build/auth_scoped
-
-IMPORT std/sqlite
-IMPORT std/auth
-
-SPEAK "auth_scoped start"
-
-MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_auth_scoped.db"
-ASK dbExec WITH db, "DROP TABLE IF EXISTS notes"
-ASK dbExec WITH db, "CREATE TABLE notes(id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, body TEXT NOT NULL)"
-ASK authInit WITH db
-
-MY NAME IS uidA SET TO ASK authCreateAccount WITH db, "a@example.com", "password aaa long"
-MY NAME IS ba AS LIST
-ADD uidA TO ba
-ADD "note-a" TO ba
-ASK dbExecBind WITH db, "INSERT INTO notes(user_id, body) VALUES(?, ?)", ba
-
-WATCH note FROM db AS "SELECT body FROM notes WHERE user_id = ?" FOR CURRENT USER
-
-ASK dbClose WITH db
-SPEAK "auth_scoped_ok=1"
-SPEAK "uidA=" AND uidA
+import std/sqlite
+import std/auth
+print("auth_scoped start")
+let db = dbOpen("/tmp/luke_auth_scoped.db")
+dbExec(db, "DROP TABLE IF EXISTS notes")
+dbExec(db, "CREATE TABLE notes(id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, body TEXT NOT NULL)")
+authInit(db)
+let uidA = authCreateAccount(db, "a@example.com", "password aaa long")
+var ba: list = []
+ba.push(uidA)
+ba.push("note-a")
+dbExecBind(db, "INSERT INTO notes(user_id, body) VALUES(?, ?)", ba)
+watch note from db as "SELECT body FROM notes WHERE user_id = ?" for current_user
+dbClose(db)
+print("auth_scoped_ok=1")
+print("uidA=" + uidA)

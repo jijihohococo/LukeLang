@@ -1,0 +1,27 @@
+// Frontend beachhead — ALIGN, AUTO measure, SELECT/TABLE/MODAL, a11y focus + announce
+// Build: luke BUILD examples/build/frontend_widgets.luke -o build/ex_frontend_widgets
+// Browser: luke PUBLISH WEB examples/build/frontend_widgets.luke -o build/frontend_widgets
+
+IMPORT std/hanka
+IMPORT std/argus
+
+SPEAK "vw=" AND THE VIEWPORT WIDTH
+SPEAK "tw=" AND THE TEXT WIDTH OF "Hello Luke"
+
+BEGIN COLUMN AT 40, 40 SIZE 640, 420 PAD 12 GAP 16 ALIGN MAIN CENTER CROSS START
+  SLOT TEXT "title" SIZE AUTO, 40 SAY "LukeLang Frontend"
+  SLOT BUTTON "cta" SIZE 160, 44 SAY "Open modal"
+  SLOT SELECT "plan" SIZE 240, 40 SAY "Free|Pro|Team"
+  SLOT TABLE "grid" SIZE 560, 120 SAY "Name|Role;Ada|Builder;Luke|Runtime"
+  SLOT MODAL "dlg" SIZE 320, 80 SAY "Dialog beachhead — role=dialog"
+END COLUMN
+
+LAY OUT THE SCREEN
+PAINT THE SCREEN
+
+ANNOUNCE "Modal ready"
+TRAP FOCUS IN "dlg"
+RESTORE FOCUS
+
+SPEAK "ok=1"
+SPEAK "a11y=1"

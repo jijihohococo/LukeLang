@@ -1,9 +1,9 @@
 # LukeLang VS Code Extension (Official)
 
-Official editor support for `.luke` files:
+Official editor support for `.lk` (syntax v2) and `.luke` (v1, dual-syntax window):
 
-- syntax highlighting
-- snippets
+- syntax highlighting (v2 operators/braces; v1 phrases still recognized)
+- snippets (v2 templates)
 - keyword completions
 - LSP (`luke LSP`) — hover, diagnostics, rename, format, semantic tokens
 - DAP debug (`luke DAP`) — gdb-backed breakpoints + Reactive scope
@@ -43,7 +43,7 @@ Or from this folder:
 npm run package
 ```
 
-## Debug a `.luke` file
+## Debug a `.lk` / `.luke` file
 
 Use launch type `lukelang`:
 

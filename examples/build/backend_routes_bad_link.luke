@@ -1,9 +1,5 @@
-// NEGATIVE: LINK TO unknown path → compile error
-
-ROUTES DO
-  GET "/health"
-END ROUTES
-
-LINK TO "/missing"
-
-SPEAK "should_not_build"
+raw "ROUTES DO"
+raw "GET \"/health\""
+raw "END ROUTES"
+raw "LINK TO \"/missing\""
+print("should_not_build")

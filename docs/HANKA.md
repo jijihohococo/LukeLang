@@ -18,16 +18,14 @@ Luke UI terms → Hanka (layout) → frames / flex / grid → Argus (paint) → 
 ## Luke surface
 
 ```luke
-BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640
-  SLOT BUTTON "a" SIZE 80, 40 SAY "A" WEAR "px-5 bg-indigo-600"
-END ROW
-
-BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL
-  SLOT TEXT "status" SIZE AUTO, 24 SAY "Ready" ANNOUNCE
-END GRID
-
-LAY OUT THE SCREEN
-PAINT THE SCREEN
+raw "BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640"
+raw "SLOT BUTTON \"a\" SIZE 80, 40 SAY \"A\" WEAR \"px-5 bg-indigo-600\""
+raw "END ROW"
+raw "BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL"
+raw "SLOT TEXT \"status\" SIZE AUTO, 24 SAY \"Ready\" ANNOUNCE"
+raw "END GRID"
+raw "LAY OUT THE SCREEN"
+raw "PAINT THE SCREEN"
 ```
 
 | Term | Meaning |

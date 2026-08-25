@@ -1,5 +1,4 @@
-IMPORT luke/echo
-
-SPEAK "=== registry package echo ==="
-SPEAK ASK shout WITH "registry"
-SPEAK ASK echoText WITH "installed via luke PKG install"
+import luke/echo
+print("=== registry package echo ===")
+print(shout("registry"))
+print(echoText("installed via luke PKG install"))

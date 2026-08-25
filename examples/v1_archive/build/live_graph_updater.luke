@@ -1,0 +1,10 @@
+// Live Graph spike 1 — external writer (any other process)
+// UPDATE users SET name=… WHERE id=1 — no shared runtime with the UI.
+// Build: luke BUILD examples/build/live_graph_updater.luke -o build/live_graph_updater
+
+IMPORT std/sqlite
+
+MY NAME IS db SET TO ASK dbOpen WITH "/tmp/luke_live_graph.db"
+ASK dbExec WITH db, "UPDATE users SET name='Ada' WHERE id = 1"
+ASK dbClose WITH db
+SPEAK "updated=Ada"

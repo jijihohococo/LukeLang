@@ -19,6 +19,10 @@ SRCS := \
 	src/compiler.cpp \
 	src/luke_expr.cpp \
 	src/luke_parse.cpp \
+	src/luke2_lex.cpp \
+	src/luke2_parse.cpp \
+	src/luke2_lower.cpp \
+	src/luke2_migrate.cpp \
 	src/build_c.cpp \
 	src/lsp.cpp \
 	src/dap.cpp \
@@ -27,7 +31,7 @@ SRCS := \
 OBJS := $(SRCS:src/%.cpp=build/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap test-lsp
+.PHONY: all clean test test-play test-build test-wall pressure test-fmt-roundtrip test-debug test-inspect test-dap test-lsp test-syntax-v2
 
 all: build/luke
 
@@ -59,6 +63,12 @@ test-dap: build/luke
 test-lsp: build/luke
 	bash ../scripts/lsp_providers.sh
 
+test-syntax-v2: build/luke
+	python3 ../scripts/syntax_v2_spec_check.py
+	python3 ../scripts/syntax_v2_corpus_check.py
+	bash ../scripts/syntax_v2_equiv.sh
+	bash ../scripts/syntax_v2_migrate_equiv.sh
+
 test-play: build/luke
 	./build/luke SHOW ../examples/native/hello.luke --vm
 	./build/luke SHOW ../examples/native/counter.luke --vm
@@ -75,16 +85,16 @@ test-play: build/luke
 test-build: build/luke
 	./build/luke BUILD ../examples/build/hello.luke -o build/ex_hello
 	./build/ex_hello
-	@# Source maps: #line N "file.luke" per statement (gdb/lldb → .luke)
+	@# Source maps: #line N "file.lk" per statement (gdb/lldb → .lk)
 	@grep -qE '#line 3 ".*hello\.luke"' build/ex_hello.luke.c
-	@grep -qE '#line 11 ".*hello\.luke"' build/ex_hello.luke.c
+	@grep -qE '#line 7 ".*hello\.luke"' build/ex_hello.luke.c
 	@test $$(grep -c '^#line ' build/ex_hello.luke.c) -ge 7
 	@readelf --debug-dump=line build/ex_hello 2>/dev/null | grep -q 'hello\.luke'
 	./build/luke BUILD ../examples/build/counter.luke -o build/ex_counter
 	./build/ex_counter
 	./build/luke BUILD ../examples/build/functions.luke -o build/ex_functions
 	./build/ex_functions
-	@# Debugger: breakpoints by .luke:line + step over/into/out (gdb)
+	@# Debugger: breakpoints by .lk:line + step over/into/out (gdb)
 	@bash ../scripts/debug_break_step.sh | tee /tmp/luke_debug_break_step_make.txt | grep -q "debug_break_step_ok=1"
 	@# Debugger: inspect reactive cells + dependency edges
 	@bash ../scripts/debug_inspect.sh | tee /tmp/luke_debug_inspect_make.txt | grep -q "debug_inspect_ok=1"
@@ -96,7 +106,7 @@ test-build: build/luke
 	./build/ex_oop
 	./build/luke BUILD ../examples/build/modules.luke -o build/ex_modules
 	./build/ex_modules
-	@grep -qE '#line 5 ".*modules\.luke"' build/ex_modules.luke.c
+	@grep -qE '#line 4 ".*modules\.luke"' build/ex_modules.luke.c
 	@grep -qE '#line .* ".*critter\.luke"' build/ex_modules.luke.c
 	@grep -qE '#line .* ".*files\.luke"' build/ex_modules.luke.c
 	./build/luke BUILD ../examples/build/packages.luke -o build/ex_packages
@@ -386,7 +396,7 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/subscribe_cell_server.luke -o build/subscribe_cell_server
 	./build/luke BUILD ../examples/build/subscribe_cell_client.luke -target browser -o build/subscribe_cell_client
 	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/subscribe_cell_client.luke.c
-	@! grep -qE 'START FETCH|START TIMELINE' ../examples/build/subscribe_cell_client.luke
+	@! grep -qE 'start fetch|start timeline|START FETCH|START TIMELINE' ../examples/build/subscribe_cell_client.luke
 	@rm -f /tmp/luke_sub_server.pid /tmp/luke_sub.txt
 	@./build/subscribe_cell_server > /tmp/luke_sub_server.log 2>&1 & echo $$! > /tmp/luke_sub_server.pid
 	@sleep 0.15
@@ -401,7 +411,7 @@ test-build: build/luke
 	./build/luke BUILD ../examples/build/dashboard_push_client.luke -target browser -o build/dashboard_push_client
 	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/dashboard_push_client.luke.c
 	@grep -q 'hanka_begin_column\|hanka_begin_row' build/dashboard_push_client.luke.c
-	@! grep -qE 'START FETCH|START TIMELINE' ../examples/build/dashboard_push_client.luke
+	@! grep -qE 'start fetch|start timeline|START FETCH|START TIMELINE' ../examples/build/dashboard_push_client.luke
 	@rm -f /tmp/luke_dash_push_server.pid /tmp/luke_dash_push.txt
 	@./build/dashboard_push_server > /tmp/luke_dash_push_server.log 2>&1 & echo $$! > /tmp/luke_dash_push_server.pid
 	@sleep 0.15
@@ -471,13 +481,13 @@ test-build: build/luke
 	  rm -f /tmp/luke_c10k_grace.pid /tmp/luke_c10k_grace.log; \
 	  printf '%s\n' \
 	    '// graceful shutdown probe' \
-	    'IMPORT std/server' \
-	    'THIS IS FUNCTION handle WITH req AS REQUEST DO' \
-	    '  ASK httpReply WITH req, 200, "text/plain", "ok"' \
-	    'END FUNCTION' \
-	    'MY NAME IS server SET TO ASK httpListen WITH 8805' \
-	    'ASK httpServe WITH server, handle, 0' \
-	    'SPEAK "graceful=1"' > /tmp/luke_c10k_grace.luke; \
+	    'import std/server' \
+	    'fn handle(req: Request) {' \
+	    '  httpReply(req, 200, "text/plain", "ok")' \
+	    '}' \
+	    'let server = httpListen(8805)' \
+	    'httpServe(server, handle, 0)' \
+	    'print("graceful=1")' > /tmp/luke_c10k_grace.luke; \
 	  ./build/luke BUILD /tmp/luke_c10k_grace.luke -o build/http_c10k_grace; \
 	  ./build/http_c10k_grace > /tmp/luke_c10k_grace.log 2>&1 & echo $$! > /tmp/luke_c10k_grace.pid; \
 	  sleep 0.35; \
@@ -554,12 +564,12 @@ test-build: build/luke
 	@grep -q 'group_concat(name\|NEW.name' build/live_graph_server.luke.c
 	@grep -q 'luke_ivm_log_' build/live_graph_server.luke.c
 	@grep -q 'luke_db_log_append\|luke_http_last_event_id' build/live_graph_server.luke.c
-	@grep -qE 'WATCH user FROM db' ../examples/build/live_graph_server.luke
-	@grep -qE 'PUSH WATCH' ../examples/build/live_graph_server.luke
+	@grep -qE 'watch user from db' ../examples/build/live_graph_server.luke
+	@grep -qE 'push watch' ../examples/build/live_graph_server.luke
 	@! grep -qE 'dbQuery|httpSseData|httpSseOpen|REFRESH QUERY' ../examples/build/live_graph_server.luke
 	@grep -q 'luke_js_subscribe_start\|luke_js_subscribe_body' build/live_graph_client.luke.c
-	@! grep -qE 'START FETCH|START TIMELINE|START SUBSCRIBE|WHILE |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
-	@grep -qE 'WATCH user' ../examples/build/live_graph_client.luke
+	@! grep -qE 'start fetch|start timeline|start fetch|start timeline|start subscribe|START FETCH|START TIMELINE|START SUBSCRIBE|while |dbQuery|REFRESH QUERY' ../examples/build/live_graph_client.luke
+	@grep -qE 'watch user' ../examples/build/live_graph_client.luke
 	@grep -q 'poll(\|O_NONBLOCK' runtime/luke_net.h
 	@bash ../scripts/wall_smoke.sh
 	./build/luke BUILD ../examples/build/live_graph_join.luke -o build/live_graph_join
@@ -622,19 +632,19 @@ test-build: build/luke
 	@grep -q 'Let name=' /tmp/luke_ast_ir.txt
 	@./build/luke IR ../examples/build/functions.luke 2>/dev/null | tee /tmp/luke_ast_fn.txt | grep -q "Function name=add"
 	@grep -q 'parseLuke\|flattenProgram' src/luke_parse.cpp
-	@./build/luke FMT ../examples/build/expr_pratt.luke 2>/dev/null | grep -q "expr_pratt_ok"
+	@./build/luke FMT ../examples/v1_archive/build/expr_pratt.luke 2>/dev/null | grep -q "expr_pratt_ok"
 	@./build/luke FMT -e "a ADD ( b SUBTRACT c )" | grep -q "ADD"
 	@# FMT must be semantics-preserving: BUILD(FMT(x)) ≡ BUILD(x)
-	@./build/luke FMT ../examples/build/fmt_roundtrip.luke > build/fmt_roundtrip.luke
+	@./build/luke FMT ../examples/v1_archive/build/fmt_roundtrip.luke > build/fmt_roundtrip.luke
 	@grep -q 'ASK add WITH 2, 3' build/fmt_roundtrip.luke
 	@grep -q 'ASK mul WITH 4, 5' build/fmt_roundtrip.luke
 	@! grep -q 'ASK ADD WITH' build/fmt_roundtrip.luke
 	@! grep -q 'ASK MUL WITH' build/fmt_roundtrip.luke
 	@! grep -qE '[0-9] ,|[0-9],  ,' build/fmt_roundtrip.luke
-	./build/luke BUILD build/fmt_roundtrip.luke -o build/fmt_roundtrip
+	./build/luke --syntax=1 BUILD build/fmt_roundtrip.luke -o build/fmt_roundtrip
 	@./build/fmt_roundtrip | tee /tmp/luke_fmt_rt.txt | grep -q "fmt_roundtrip_ok=1"
-	@./build/luke FMT ../examples/build/functions.luke > build/fmt_functions.luke
-	./build/luke BUILD build/fmt_functions.luke -o build/fmt_functions
+	@./build/luke FMT ../examples/v1_archive/build/functions.luke > build/fmt_functions.luke
+	./build/luke --syntax=1 BUILD build/fmt_functions.luke -o build/fmt_functions
 	@./build/fmt_functions | tee /tmp/luke_fmt_fn.txt | grep -q "Build functions"
 	@grep -q 'ASK add WITH' build/fmt_functions.luke
 	@! grep -q 'ASK ADD WITH' build/fmt_functions.luke
@@ -646,7 +656,7 @@ test-build: build/luke
 	@grep -q '◀ Back\|Forward ▶\|Live' build/live_graph_scrub.html
 	@node ../scripts/luke_browser_loader.cjs build/live_graph_scrub.wasm 2>&1 | tee /tmp/luke_live_graph_scrub.txt | grep -q "scrub_ok=1"
 	@grep -q 'luke_rx_list_add\|luke_list_get' build/live_graph_scrub.luke.c
-	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"MY NAME IS n AS NUMBER SET TO 1\nSPEAK n\n"}}}),req({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":0,"character":12}}}),req({"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":0}}}),req({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":6}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"hoverProvider\":true" in out and b"completionProvider" in out and b"definitionProvider\":true" in out and b"documentSymbolProvider\":true" in out and b"documentFormattingProvider\":true" in out and b"publishDiagnostics" in out and b"lukelang" in out'
+	@python3 -c 'import json,subprocess; req=lambda o:(lambda b:f"Content-Length: {len(b)}\r\n\r\n".encode()+b)(json.dumps(o).encode()); msgs=b"".join([req({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),req({"jsonrpc":"2.0","method":"initialized","params":{}}),req({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///tmp/bad.luke","languageId":"luke","version":1,"text":"let n: float = 1\nprint(n)\n"}}}),req({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":0,"character":12}}}),req({"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":0}}}),req({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///tmp/bad.luke"},"position":{"line":1,"character":6}}}),req({"jsonrpc":"2.0","id":2,"method":"shutdown","params":None}),req({"jsonrpc":"2.0","method":"exit"})]); out=subprocess.check_output(["./build/luke","LSP"],input=msgs,timeout=5); assert b"hoverProvider\":true" in out and b"completionProvider" in out and b"definitionProvider\":true" in out and b"documentSymbolProvider\":true" in out and b"documentFormattingProvider\":true" in out and b"publishDiagnostics" in out and b"lukelang" in out'
 	@bash ../scripts/lsp_providers.sh | tee /tmp/luke_lsp_providers_build.txt | grep -q "lsp_providers_ok=1"
 	./build/luke BUILD ../examples/build/json_integer.luke -o build/json_integer
 	@./build/json_integer | tee /tmp/luke_json_integer.txt | grep -q "json_integer_ok=1"

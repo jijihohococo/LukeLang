@@ -14,9 +14,9 @@ Build `-target browser` ships WASM + a thin DOM boot (`scripts/luke_browser_load
 ## Modules
 
 ```luke
-IMPORT "./critter.luke"
-IMPORT std/json
-IMPORT luke/greeter
+import "./critter.luke"
+import std/json
+import luke/greeter
 ```
 
 See BUILD_MODE for packages (`luke PKG …`).

@@ -29,46 +29,40 @@ Password hashing is table-stakes. This is the differentiator.
 ## Surface
 
 ```luke
-IMPORT std/auth
-IMPORT std/sqlite
-IMPORT std/server
-
-ASK authInit WITH db
-ASK authCreateAccount WITH db, email, password
-ASK authLogin WITH db, req, email, password
-REQUIRE LOGIN ON req WITH db
-SPEAK THE CURRENT USER
-ASK authCheckCsrf WITH db, req
-ASK authLogout WITH db, req
-
-WATCH note FROM db AS "SELECT body FROM notes WHERE user_id = ?" FOR CURRENT USER
-
-# Auth-as-types
-SECRET REMEMBER ssn AS TEXT
-WATCH ssn FROM db AS "SELECT ssn FROM profiles WHERE user_id = ?" FOR CURRENT USER
-BIND "ssn" TO ssn
-WHO SAW ssn
-WHO SAW ssn SINCE "last week"
-SCRUB TO access OF ssn
-REVOKE ACCESS
-
-# Declarative FLOW — VERIFY before DONE or compile error
-FLOW signup DO
-  COLLECT email, password
-  VERIFY email BY CODE
-  DONE → CREATE ACCOUNT
-END FLOW
-ADVANCE FLOW signup
-CREATE ACCOUNT FROM FLOW signup WITH db
-
-# Rate-limit as language policy + reactive remaining cell
-LIMIT login TO 5 PER MINUTE PER ip
-REFRESH LIMIT login WITH db, email
-BIND "attempts_left" TO login.remaining
-
-# Sole declassification escape
-REVEAL last 4 OF ssn AS masked
-BIND "masked" TO masked
+import std/auth
+import std/sqlite
+import std/server
+authInit(db)
+authCreateAccount(db, email, password)
+authLogin(db, req, email, password)
+require login on req with db
+print(current_user)
+authCheckCsrf(db, req)
+authLogout(db, req)
+watch note from db as "SELECT body FROM notes WHERE user_id = ?" for current_user
+raw "# Auth-as-types"
+secret signal ssn: str
+watch ssn from db as "SELECT ssn FROM profiles WHERE user_id = ?" for current_user
+bind("ssn", ssn)
+raw "WHO SAW ssn"
+raw "WHO SAW ssn SINCE \"last week\""
+raw "SCRUB TO access OF ssn"
+raw "REVOKE ACCESS"
+raw "# Declarative FLOW — VERIFY before DONE or compile error"
+raw "FLOW signup DO"
+raw "COLLECT email, password"
+raw "VERIFY email BY CODE"
+raw "DONE → CREATE ACCOUNT"
+raw "END FLOW"
+raw "ADVANCE FLOW signup"
+raw "CREATE ACCOUNT FROM FLOW signup WITH db"
+raw "# Rate-limit as language policy + reactive remaining cell"
+raw "LIMIT login TO 5 PER MINUTE PER ip"
+raw "REFRESH LIMIT login WITH db, email"
+bind("attempts_left", login.remaining)
+raw "# Sole declassification escape"
+raw "REVEAL last 4 OF ssn AS masked"
+bind("masked", masked)
 ```
 
 Production HTTPS: set `LUKE_AUTH_SECURE=1` so session cookies also get `Secure`.

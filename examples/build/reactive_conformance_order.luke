@@ -1,14 +1,9 @@
-// Phase 9 — deterministic derived order (REACTIVE_SPEC v0.1 §2.1)
-// Chained derived nodes recompute in ascending id order each flush.
-
-REMEMBER base AS 1
-THE d1 IS base ADD 1
-THE d2 IS d1 ADD 1
-THE d3 IS d2 ADD 1
-
-SPEAK "chain=" AND d3
-
-INCREASE base BY 10
-SPEAK "chain=" AND d3
-SPEAK "derived_runs=" AND THE DERIVED RUN COUNT
-SPEAK "epoch=" AND THE EPOCH
+signal base = 1
+raw "THE d1 IS base ADD 1"
+raw "THE d2 IS d1 ADD 1"
+raw "THE d3 IS d2 ADD 1"
+print("chain=" + d3)
+base += 10
+print("chain=" + d3)
+raw "SPEAK \"derived_runs=\" AND THE DERIVED RUN COUNT"
+raw "SPEAK \"epoch=\" AND THE EPOCH"

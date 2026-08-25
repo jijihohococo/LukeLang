@@ -1,4 +1,2 @@
-// Should fail Build typecheck: INTEGER assigned where TEXT expected.
-
-MY NAME IS name AS TEXT SET TO 42
-SPEAK name
+let name: str = 42
+print(name)

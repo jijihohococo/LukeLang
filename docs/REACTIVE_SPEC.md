@@ -114,12 +114,12 @@ Derived/effect nodes **never** write their dependents without going through a ce
 Build surface (introspection):
 
 ```luke
-THE EPOCH
-THE FLUSH COUNT
-THE DERIVED RUN COUNT
-THE EFFECT RUN COUNT
-THE STALE EDGE COUNT
-THE GRANULAR PAINT COUNT
+raw "THE EPOCH"
+raw "THE FLUSH COUNT"
+raw "THE DERIVED RUN COUNT"
+raw "THE EFFECT RUN COUNT"
+raw "THE STALE EDGE COUNT"
+raw "THE GRANULAR PAINT COUNT"
 ```
 
 ---

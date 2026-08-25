@@ -1,0 +1,9 @@
+// IMPORT std/process
+
+THIS IS FUNCTION shell WITH command AS TEXT GIVES BACK TEXT DO
+  GIVE BACK __luke_shell(command)
+END FUNCTION
+
+THIS IS FUNCTION exitWith WITH code AS NUMBER GIVES BACK NUMBER DO
+  GIVE BACK __luke_exit(code)
+END FUNCTION

@@ -1,11 +1,7 @@
-// Native Build-mode examples (no GC — luke BUILD)
-
-SPEAK "Hello from Luke Build"
-SPEAK "Native code. Arena memory. No garbage collector."
-
-MY NAME IS name SET TO "Luke"
-SPEAK "My name is " AND name
-
-MY NAME IS a SET TO 21
-MY NAME IS b SET TO 21
-SPEAK ADD a AND b
+print("Hello from Luke Build")
+print("Native code. Arena memory. No garbage collector.")
+let name = "Luke"
+print("My name is " + name)
+let a = 21
+let b = 21
+print(a + b)

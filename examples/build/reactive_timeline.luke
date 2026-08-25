@@ -1,8 +1,3 @@
-// Phase 6 — Reactive animation (native stepped timeline)
-// Build: luke BUILD examples/build/reactive_timeline.luke -o build/ex_rx_timeline
-
-REMEMBER progress AS NUMBER SET TO 0
-
-RUN TIMELINE "fade" FOR 100 MILLISECONDS FROM 0 TO 1 INTO progress
-
-SPEAK "progress=" AND progress
+signal progress: float = 0
+raw "RUN TIMELINE \"fade\" FOR 100 MILLISECONDS FROM 0 TO 1 INTO progress"
+print("progress=" + progress)

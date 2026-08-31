@@ -93,7 +93,9 @@
 
 .sidebar { position: sticky; top: 6.5rem; min-width: 0; }
 @media (max-width: 940px) {
-  .sidebar { position: static; padding-bottom: 1.5rem; border-bottom: 1px solid var(--faint); }
+  /* Stacked: the first prose heading already draws a rule, so the sidebar
+     stops drawing its own to avoid a double line. */
+  .sidebar { position: static; padding-bottom: 0.5rem; }
 }
 .sidebar h2 {
   margin: 0 0 0.9rem;

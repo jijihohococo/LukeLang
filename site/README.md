@@ -11,6 +11,7 @@ site/
   community/        who builds it, how to contribute, the bar for a change
   news/             what shipped and when
   docs/             GENERATED — every document in the repository, hosted
+  status/           standalone page for status.lukelang.org
   styles.css        palette, landing layout, shared nav/footer, motion
   pages.css         interior page system: masthead, sidebar, prose, rows
   main.js           scroll-driven motion only
@@ -59,7 +60,28 @@ python3 -m http.server 8080 --directory site
 split so the mark can sit on dark sections and the wordmark keeps its black-and-yellow identity;
 `luke-wordmark-light.webp` is the dark-background variant.
 
+## Status page
+
+`site/status/` is deployed on its own subdomain at `status.lukelang.org`, so it is deliberately
+self-contained: inline styles, its own favicon, and absolute links back to the main site. It
+carries no shared CSS, which means an outage on the main host cannot take the status page's
+styling with it.
+
+Component state is data-driven: each row in the components list carries
+`data-state="up|degraded|down|maintenance"`, and the uptime strip is built in a few lines of
+JavaScript from an array. Point a checker at it — rewriting those attributes, or regenerating
+the file — when real monitoring exists. The values committed here are placeholders.
+
 ## Deploy
 
 Ship `site/` as the document root. Behind Caddy, serve it at `/` and the Live Graph demo
 (`examples/deploy/wall/dist`) at `/wall/` — see `examples/deploy/wall/Caddyfile`.
+
+Serve `site/status/` as the root of a second host:
+
+```
+status.lukelang.org {
+    root * /srv/lukelang/site/status
+    file_server
+}
+```

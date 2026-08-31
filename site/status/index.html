@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LukeLang Status</title>
+<meta name="description" content="Live availability for lukelang.org, the documentation, the package registry, the Live Graph demo and continuous integration." />
+<meta name="theme-color" content="#050806" />
+<meta name="robots" content="noindex" />
+<link rel="icon" href="favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<!--
+  Deployed standalone at https://status.lukelang.org, so this page is
+  self-contained: inline styles, one local favicon, no shared assets.
+
+  Component state is driven by data-state on each row ("up", "degraded",
+  "down", "maintenance"). Point a checker at status.json and have it rewrite
+  those attributes, or replace this file with a generated one.
+-->
+<style>
+:root {
+  --black: #050806;
+  --white: #f4faf6;
+  --mute: #8fa89a;
+  --faint: rgba(244, 250, 246, 0.10);
+  --hair: rgba(244, 250, 246, 0.14);
+  --green: #19b96f;
+  --gold: #d8a32b;
+  --yellow: #f7d24b;
+  --red: #e2685b;
+  --shell: clamp(1.5rem, 5vw, 7rem);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+* , *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--black);
+  color: var(--white);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  font-size: clamp(1rem, 0.95rem + 0.28vw, 1.1rem);
+  line-height: 1.55;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+::selection { background: var(--green); color: var(--black); }
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.15rem var(--shell);
+  border-bottom: 1px solid transparent;
+}
+.top__brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 800; font-size: 0.9rem; letter-spacing: -0.02em; }
+.top__brand img { width: 32px; height: auto; display: block; }
+.top__links { display: flex; gap: clamp(1rem, 2.4vw, 2rem); font-size: 0.9rem; font-weight: 500; color: var(--mute); }
+.top__links a { position: relative; padding-bottom: 0.2rem; transition: color 260ms var(--ease); }
+.top__links a::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 1px; width: 100%;
+  background: var(--green); transform: scaleX(0); transform-origin: right;
+  transition: transform 420ms var(--ease);
+}
+.top__links a:hover { color: var(--white); }
+.top__links a:hover::after { transform: scaleX(1); transform-origin: left; }
+
+.head {
+  position: relative;
+  padding: clamp(5rem, 14vh, 9rem) var(--shell) clamp(3rem, 8vh, 4.5rem);
+  border-bottom: 1px solid var(--faint);
+  overflow: hidden;
+  isolation: isolate;
+}
+.head::before {
+  content: ""; position: absolute; z-index: -1;
+  width: 58vw; height: 58vw; left: -16vw; top: -28vw; border-radius: 50%;
+  background: radial-gradient(circle, rgba(25, 185, 111, 0.40), transparent 66%);
+  filter: blur(80px); animation: drift 24s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(4vw, -3vw, 0) scale(1.14); }
+}
+.head__kicker {
+  display: flex; align-items: center; gap: 0.9rem; margin: 0 0 1.2rem;
+  font-size: 0.85rem; font-weight: 600; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--yellow);
+}
+.head__kicker::before {
+  content: ""; width: clamp(2rem, 5vw, 4rem); height: 1px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+.head h1 {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin: 0; font-size: clamp(2rem, 1.2rem + 3.6vw, 4rem);
+  font-weight: 800; letter-spacing: -0.05em; line-height: 1;
+}
+.beacon {
+  width: 0.6em; height: 0.6em; border-radius: 50%; flex: none;
+  background: var(--green); box-shadow: 0 0 0 0 rgba(25, 185, 111, 0.6);
+  animation: beacon 2.6s ease-out infinite;
+}
+@keyframes beacon {
+  0% { box-shadow: 0 0 0 0 rgba(25, 185, 111, 0.55); }
+  70% { box-shadow: 0 0 0 1.1em rgba(25, 185, 111, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(25, 185, 111, 0); }
+}
+.head p { margin: 1.4rem 0 0; max-width: 52ch; color: var(--mute); font-weight: 300; }
+
+main { padding: clamp(3rem, 9vh, 5rem) var(--shell) clamp(4rem, 10vh, 6rem); }
+h2 {
+  margin: 0 0 1.6rem;
+  font-size: clamp(1.3rem, 1rem + 1.2vw, 1.9rem);
+  font-weight: 300; letter-spacing: -0.03em;
+}
+h2 em {
+  font-style: normal; font-weight: 700;
+  background: linear-gradient(92deg, var(--green), var(--yellow));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+section + section { margin-top: clamp(3rem, 8vh, 5rem); }
+
+.components { list-style: none; margin: 0; padding: 0; }
+.components li {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) auto;
+  gap: clamp(0.5rem, 3vw, 2.5rem);
+  align-items: baseline;
+  padding: 1.15rem 0;
+  border-top: 1px solid var(--hair);
+}
+.components li:last-child { border-bottom: 1px solid var(--hair); }
+.components b { font-weight: 600; letter-spacing: -0.015em; }
+.components span { color: var(--mute); font-weight: 300; font-size: 0.9rem; }
+.state {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+[data-state="up"] .state { color: var(--green); }
+[data-state="degraded"] .state { color: var(--yellow); }
+[data-state="maintenance"] .state { color: var(--gold); }
+[data-state="down"] .state { color: var(--red); }
+@media (max-width: 720px) {
+  .components li { grid-template-columns: minmax(0, 1fr) auto; }
+  .components span { grid-column: 1 / -1; }
+}
+
+.bars { display: flex; gap: 3px; margin-top: 0.7rem; grid-column: 1 / -1; }
+.bars i {
+  flex: 1; height: 26px; border-radius: 2px; background: var(--green); opacity: 0.75;
+  transform-origin: bottom; animation: rise 700ms var(--ease) both;
+}
+.bars i[data-day="degraded"] { background: var(--yellow); }
+.bars i[data-day="down"] { background: var(--red); }
+.bars i[data-day="none"] { background: var(--faint); }
+@keyframes rise { from { transform: scaleY(0.2); opacity: 0; } to { transform: scaleY(1); opacity: 0.75; } }
+.bars__legend {
+  display: flex; justify-content: space-between; grid-column: 1 / -1;
+  margin-top: 0.5rem; font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--mute);
+}
+
+.empty { color: var(--mute); font-weight: 300; padding-left: 1.2rem; border-left: 2px solid var(--gold); max-width: 60ch; }
+.empty b { color: var(--yellow); font-weight: 600; }
+
+footer {
+  padding: 2rem var(--shell) 3rem;
+  border-top: 1px solid var(--faint);
+  display: flex; flex-wrap: wrap; gap: 1rem 2.5rem;
+  justify-content: space-between;
+  color: var(--mute); font-size: 0.85rem;
+}
+footer a { transition: color 300ms var(--ease); }
+footer a:hover { color: var(--yellow); }
+footer nav { display: flex; gap: 1.5rem; font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="top__brand" href="https://lukelang.org">
+    <img src="favicon.png" alt="" width="32" height="32" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="top__links" aria-label="Primary">
+    <a href="https://lukelang.org">Home</a>
+    <a href="https://lukelang.org/docs/">Docs</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<section class="head">
+  <p class="head__kicker">System status</p>
+  <h1><span class="beacon" aria-hidden="true"></span> All systems operational</h1>
+  <p>
+    Availability for lukelang.org, the hosted documentation, the package registry, the Live
+    Graph demo and continuous integration. Times are UTC.
+  </p>
+</section>
+
+<main>
+  <section>
+    <h2>Components</h2>
+    <ul class="components">
+      <li data-state="up">
+        <b>Website</b>
+        <span>lukelang.org — landing, learn, download, examples, community, news</span>
+        <em class="state">Operational</em>
+      </li>
+      <li data-state="up">
+        <b>Documentation</b>
+        <span>lukelang.org/docs — the hosted document set</span>
+        <em class="state">Operational</em>
+      </li>
+      <li data-state="up">
+        <b>Package registry</b>
+        <span>Package index and tarballs for <code>luke PKG install</code></span>
+        <em class="state">Operational</em>
+      </li>
+      <li data-state="up">
+        <b>Live Graph demo</b>
+        <span>The wall app — database row to painted pixel over the wire</span>
+        <em class="state">Operational</em>
+      </li>
+      <li data-state="up">
+        <b>Continuous integration</b>
+        <span>GitHub Actions — build, test suite, syntax gates, extension packaging</span>
+        <em class="state">Operational</em>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Last <em>90 days</em></h2>
+    <ul class="components">
+      <li data-state="up">
+        <b>Website</b>
+        <span>No recorded downtime</span>
+        <em class="state">100%</em>
+        <div class="bars" data-bars aria-hidden="true"></div>
+        <div class="bars__legend"><span>90 days ago</span><span>Today</span></div>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Incident <em>history</em></h2>
+    <p class="empty">
+      <b>No incidents recorded.</b> When something breaks, it gets written here with what
+      happened, how long it lasted, and what changed so it does not happen again.
+    </p>
+  </section>
+</main>
+
+<footer>
+  <p>LukeLang · Myanmar's first official programming language · Kaung Myat San</p>
+  <nav>
+    <a href="https://lukelang.org">lukelang.org</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang/issues">Report a problem</a>
+  </nav>
+</footer>
+
+<script>
+// The uptime strip is drawn from data rather than 90 hand-written elements.
+// Replace `days` with real history when a checker is wired up.
+(function () {
+  var strip = document.querySelector('[data-bars]');
+  if (!strip) return;
+  var days = new Array(90).fill('up');
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  days.forEach(function (state, i) {
+    var bar = document.createElement('i');
+    bar.dataset.day = state;
+    if (!reduced) bar.style.animationDelay = (i * 8) + 'ms';
+    strip.appendChild(bar);
+  });
+})();
+</script>
+
+</body>
+</html>

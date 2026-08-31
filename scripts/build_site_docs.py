@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - developer convenience
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "docs")
 REPO = "https://github.com/lucasdmarshall/LukeLang"
+STATUS = "https://status.lukelang.org"
 
 # ── Which documents go where in the sidebar ─────────────────────────────
 
@@ -274,6 +275,7 @@ def footer(depth: int) -> str:
       <a href="{up}examples/">Examples</a>
       <a href="{up}community/">Community</a>
       <a href="{up}news/">News</a>
+      <a href="{STATUS}">Status</a>
       <a href="{REPO}">GitHub</a>
     </nav>
     <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>

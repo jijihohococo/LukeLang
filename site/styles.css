@@ -239,10 +239,10 @@ em { font-style: normal; }
 .display__word { display: inline-flex; flex-wrap: wrap; }
 .display .ch {
   display: inline-block;
-  /* Descenders sit outside a 0.9 line box, and background-clip:text only paints
-     inside it — pad the box so the "g" keeps its tail. */
-  padding-bottom: 0.2em;
-  margin-bottom: -0.2em;
+  /* background-clip:text paints inside the padding box only, and a 0.9 line box
+     is shorter than the glyphs — pad it so the "g" keeps its tail. */
+  padding-bottom: 0.42em;
+  margin-bottom: -0.42em;
   transform: translateY(110%) rotate(6deg);
   opacity: 0;
   animation: charRise 1.05s var(--ease) forwards;
@@ -379,6 +379,64 @@ em { font-style: normal; }
   animation: cue 2.4s ease-in-out infinite;
 }
 @keyframes cue { 0%, 100% { opacity: 0.35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(4px); } }
+
+/* ── Route rail ─────────────────────────────────────────────────── */
+
+.routes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+  padding: clamp(1.4rem, 4vh, 2.2rem) var(--shell);
+  border-bottom: 1px solid var(--faint);
+}
+.routes__label {
+  margin-right: 0.6rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--green);
+  font-weight: 700;
+}
+.route {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.15rem;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--mute);
+  overflow: hidden;
+  transition: color 320ms var(--ease), border-color 320ms var(--ease);
+}
+.route::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--green);
+  transform: translateY(101%);
+  transition: transform 420ms var(--ease);
+}
+.route span { position: relative; }
+.route i {
+  position: relative;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  transition: background 320ms var(--ease);
+}
+.route:hover { color: #04150d; border-color: var(--green); }
+.route:hover::before { transform: translateY(0); }
+.route:hover i { background: #04150d; }
+.route--status i { background: var(--green); animation: pulseDot 2.4s ease-in-out infinite; }
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.45); }
+}
 
 /* ── Ticker ─────────────────────────────────────────────────────── */
 

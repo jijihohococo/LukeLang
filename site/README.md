@@ -74,14 +74,28 @@ the file — when real monitoring exists. The values committed here are placehol
 
 ## Deploy
 
-Ship `site/` as the document root. Behind Caddy, serve it at `/` and the Live Graph demo
-(`examples/deploy/wall/dist`) at `/wall/` — see `examples/deploy/wall/Caddyfile`.
-
-Serve `site/status/` as the root of a second host:
-
+```bash
+scripts/deploy_site.sh                 # regenerate docs, upload, swap, verify
+HOST=root@1.2.3.4 scripts/deploy_site.sh
 ```
-status.lukelang.org {
-    root * /srv/lukelang/site/status
-    file_server
-}
+
+The script uploads into a staging directory and swaps it in, so a failed transfer never leaves
+a half-written document root. The previous release stays at `/var/www/lukelang.prev`:
+
+```bash
+ssh $HOST 'rm -rf /var/www/lukelang && mv /var/www/lukelang.prev /var/www/lukelang && systemctl reload nginx'
 ```
+
+### Live host
+
+`site/` is served from `/var/www/lukelang` by nginx (`/etc/nginx/sites-available/lukelang.conf`)
+on the LukeLang VPS. Two hosts share one document root:
+
+| Host | Root |
+| --- | --- |
+| `lukelang.org` | `/var/www/lukelang` |
+| `www.lukelang.org` | 301 to the apex |
+| `status.lukelang.org` | `/var/www/lukelang/status` |
+
+TLS is issued by `/root/lukelang-tls.sh` on the server, which refuses to run until every name
+resolves to that host and then calls certbot for all three at once.

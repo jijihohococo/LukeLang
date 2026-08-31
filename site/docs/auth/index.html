@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Auth — LukeLang</title>
+<meta name="description" content="Status: secure-path beachhead + auth-as-types + FLOW / LIMIT / REVEAL / rewind-audit spikes Track: BACKEND_ROADMAP.md · TaskList.md" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/auth/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/auth/" />
+<meta property="og:title" content="Auth — LukeLang" />
+<meta property="og:description" content="Status: secure-path beachhead + auth-as-types + FLOW / LIMIT / REVEAL / rewind-audit spikes Track: BACKEND_ROADMAP.md · TaskList.md" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Auth — LukeLang" />
+<meta name="twitter:description" content="Status: secure-path beachhead + auth-as-types + FLOW / LIMIT / REVEAL / rewind-audit spikes Track: BACKEND_ROADMAP.md · TaskList.md" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Auth","description":"Status: secure-path beachhead + auth-as-types + FLOW / LIMIT / REVEAL / rewind-audit spikes Track: BACKEND_ROADMAP.md \u00b7 TaskList.md","url":"https://lukelang.org/docs/auth/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Auth","item":"https://lukelang.org/docs/auth/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Auth</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/" aria-current="page">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#thesis-auth-as-a-language-property">Thesis — auth as a language property</a></li>
+        <li><a href="#rules">Rules</a></li>
+        <li><a href="#surface">Surface</a></li>
+        <li><a href="#research-grade-vs-spike">Research-grade vs spike</a></li>
+        <li><a href="#still-open">Still open</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> secure-path beachhead + <strong>auth-as-types</strong> + FLOW / LIMIT / REVEAL / rewind-audit spikes<br />
+<strong>Track:</strong> <a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a> · <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/TaskList.md"><code>TaskList.md</code></a></p>
+</blockquote>
+<h2 id="thesis-auth-as-a-language-property">Thesis — auth as a language property</h2>
+<p>Auth is not a library bolt-on. The compiler knows the DB→pixel graph; the Live Graph is reactive; causal history already exists for time-travel. Exploit those three:</p>
+<table>
+<thead>
+<tr>
+<th>Pillar</th>
+<th>Killer capability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compiler-known graph</td>
+<td><strong>Auth-as-types</strong> + <strong>FLOW totality</strong> + <strong>REVEAL</strong> — unauthorized / impossible states = <strong>compile error</strong></td>
+</tr>
+<tr>
+<td>Reactive engine</td>
+<td><strong>Live revoke</strong> + <strong>LIMIT.remaining</strong> push + resumable FLOW cells</td>
+</tr>
+<tr>
+<td>Time-travel / causal log</td>
+<td><strong>WHO SAW</strong> / <strong>SCRUB TO access</strong> — rewind toward the breach; hash-chained audit ring</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>In LukeLang: unauthorized access is a compile error; auth flow impossible states are compile errors; rate-limit remaining is reactive; breach access can be scrubbed; secret egress is <code>REVEAL</code> only — <strong>secure by compiler</strong>.</p>
+</blockquote>
+<p>Password hashing is table-stakes. This is the differentiator.</p>
+<h2 id="rules">Rules</h2>
+<ol>
+<li><strong>No homegrown crypto.</strong> Passwords: libsodium <strong>Argon2id</strong> (<code>crypto_pwhash_str</code> / <code>crypto_pwhash_str_verify</code>). Random: <code>randombytes_buf</code>. CSRF compare: <code>sodium_memcmp</code>. Audit chain: <code>crypto_generichash</code>.</li>
+<li><strong>Password hashing ≠ encryption.</strong> We store hashes only. Field-level / at-rest encryption is a separate, explicit decision (key management).</li>
+<li><strong>Ship the whole path together:</strong> hash + verify + HttpOnly/SameSite session cookie + CSRF. Hash-only is worse than nothing (false confidence).</li>
+<li><strong>Live Graph must be permission-scoped.</strong> Unscoped <code>WATCH</code> + push = data leak. Use <code>WATCH … FOR CURRENT USER</code> (binds <code>user_id = ?</code>; no shared IVM across tenants).</li>
+<li><strong>SECRET is information-flow, not OOP <code>PRIVATE</code>.</strong> Binding or watching SECRET data without a CURRENT-USER scope is a <strong>compile error</strong>.</li>
+<li><strong>Declassify only via <code>REVEAL</code>.</strong> Masked / partial egress is an auditable statement — greppable, logged.</li>
+</ol>
+<h2 id="surface">Surface</h2>
+<pre><code><span class="ln"><b class="kw">import</b> std/auth</span><span class="ln"><b class="kw">import</b> std/sqlite</span><span class="ln"><b class="kw">import</b> std/server</span><span class="ln"><b class="fn">authInit</b>(db)</span><span class="ln"><b class="fn">authCreateAccount</b>(db, email, password)</span><span class="ln"><b class="fn">authLogin</b>(db, req, email, password)</span><span class="ln">require login <b class="kw">on</b> req with db</span><span class="ln"><b class="fn">print</b>(current_user)</span><span class="ln"><b class="fn">authCheckCsrf</b>(db, req)</span><span class="ln"><b class="fn">authLogout</b>(db, req)</span><span class="ln"><b class="kw">watch</b> note <b class="kw">from</b> db as <b class="str">&quot;SELECT body FROM notes WHERE user_id = ?&quot;</b> <b class="kw">for</b> current_user</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;# Auth-as-types&quot;</b></span><span class="ln">secret <b class="kw">signal</b> ssn: <b class="ty">str</b></span><span class="ln"><b class="kw">watch</b> ssn <b class="kw">from</b> db as <b class="str">&quot;SELECT ssn FROM profiles WHERE user_id = ?&quot;</b> <b class="kw">for</b> current_user</span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;ssn&quot;</b>, ssn)</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;WHO SAW ssn&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;WHO SAW ssn SINCE \&quot;</b>last week\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SCRUB TO access OF ssn&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;REVOKE ACCESS&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;# Declarative FLOW — VERIFY before DONE or compile error&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;FLOW signup DO&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;COLLECT email, password&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;VERIFY email BY CODE&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;DONE → CREATE ACCOUNT&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END FLOW&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;ADVANCE FLOW signup&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;CREATE ACCOUNT FROM FLOW signup WITH db&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;# Rate-limit as language policy + reactive remaining cell&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;LIMIT login TO 5 PER MINUTE PER ip&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;REFRESH LIMIT login WITH db, email&quot;</b></span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;attempts_left&quot;</b>, login.remaining)</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;# Sole declassification escape&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;REVEAL last 4 OF ssn AS masked&quot;</b></span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;masked&quot;</b>, masked)</span></code></pre>
+<p>Production HTTPS: set <code>LUKE_AUTH_SECURE=1</code> so session cookies also get <code>Secure</code>.</p>
+<p><code>ASK authAssume WITH uid</code> sets <code>THE CURRENT USER</code> without HTTP — <strong>CLI/tests only</strong>.</p>
+<p><code>ASK authSawVerify</code> checks the in-memory audit hash chain (tamper-evident beachhead).</p>
+<h3 id="compile-error-examples">Compile-error examples</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Rejects</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auth_secret_bad_watch.luke</code></td>
+<td>SECRET + unscoped <code>WATCH</code></td>
+</tr>
+<tr>
+<td><code>auth_secret_bad_bind.luke</code></td>
+<td>SECRET + <code>BIND</code> without <code>FOR CURRENT USER</code></td>
+</tr>
+<tr>
+<td><code>auth_flow_bad.luke</code></td>
+<td><code>FLOW</code> <code>DONE</code> without <code>VERIFY</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="happy-path-examples">Happy-path examples</h3>
+<p><code>auth_unit.luke</code>, <code>auth_api.luke</code>, <code>auth_scoped.luke</code>, <code>auth_secret_ok.luke</code>, <code>auth_flow_ok.luke</code>, <code>auth_lang_ok.luke</code> (LIMIT + REVEAL + SINCE + SCRUB).</p>
+<h2 id="research-grade-vs-spike">Research-grade vs spike</h2>
+<table>
+<thead>
+<tr>
+<th>Vision</th>
+<th>Spike now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Full IFC lattices + indirect flows</td>
+<td><code>SECRET</code> + scoped <code>WATCH</code>/<code>BIND</code>; <code>REVEAL last N</code></td>
+</tr>
+<tr>
+<td>FLOW proves every path through VERIFY</td>
+<td>Declaration totality (<code>DONE</code> without <code>VERIFY</code> → compile error) + <code>ADVANCE</code> / <code>CREATE ACCOUNT FROM FLOW</code></td>
+</tr>
+<tr>
+<td>Distributed LIMIT via Live Graph</td>
+<td><code>LIMIT</code> + <code>login.remaining</code> cell + <code>REFRESH LIMIT</code> (email key; <code>PER ip</code> accepted, shared counter later)</td>
+</tr>
+<tr>
+<td>Rewind causal DB→pixel chain</td>
+<td><code>WHO SAW SINCE</code> + <code>SCRUB TO access</code> on hash-chained saw ring; IVM scrub still separate</td>
+</tr>
+<tr>
+<td>Tamper-evident compliance log</td>
+<td><code>crypto_generichash</code> chain + <code>authSawVerify</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="still-open">Still open</h2>
+<p>Password reset, real 2FA/OAuth code verify, <code>PER ip</code> enforcement, persist audit into IVM causal log, full label lattices, DevTools↔server scrub.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/AUTH.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

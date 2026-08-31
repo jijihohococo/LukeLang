@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Frontend roadmap — LukeLang</title>
+<meta name="description" content="Wedge: reactive full-stack web — see STRATEGY.md (the decision record this roadmap serves). Current track: Frontend (this document) + Backend beachhead opening Next track: Backend " />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/frontend-roadmap/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/frontend-roadmap/" />
+<meta property="og:title" content="Frontend roadmap — LukeLang" />
+<meta property="og:description" content="Wedge: reactive full-stack web — see STRATEGY.md (the decision record this roadmap serves). Current track: Frontend (this document) + Backend beachhead opening Next track: Backend" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Frontend roadmap — LukeLang" />
+<meta name="twitter:description" content="Wedge: reactive full-stack web — see STRATEGY.md (the decision record this roadmap serves). Current track: Frontend (this document) + Backend beachhead opening Next track: Backend" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Frontend roadmap","description":"Wedge: reactive full-stack web \u2014 see STRATEGY.md (the decision record this roadmap serves). Current track: Frontend (this document) + Backend beachhead opening Next track: Backend","url":"https://lukelang.org/docs/frontend-roadmap/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Frontend roadmap","item":"https://lukelang.org/docs/frontend-roadmap/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Frontend roadmap</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/" aria-current="page">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#big-picture-product-tracks">Big picture (product tracks)</a></li>
+        <li><a href="#frontend-gap-status">Frontend gap status</a></li>
+        <li><a href="#surface-cheat-sheet">Surface cheat sheet</a></li>
+        <li><a href="#definition-of-done-frontend-track-met">Definition of done (Frontend track) — met</a></li>
+        <li><a href="#signature-line">Signature line</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Wedge:</strong> reactive full-stack web — see <a href="../strategy/"><code>STRATEGY.md</code></a> (the decision record this roadmap serves).<br />
+<strong>Current track:</strong> Frontend (this document) + Backend beachhead opening<br />
+<strong>Next track:</strong> Backend deepen (<a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a>) — unlocks full-stack reactivity<br />
+<strong>Master checklist:</strong> <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/TaskList.md"><code>TaskList.md</code></a><br />
+<strong>Parked:</strong> Scripting → Mobile → Game, plus the own-the-pixels renderer (earned post-beachhead)</p>
+</blockquote>
+<p>Reactive change model: <a href="../reactive/"><code>REACTIVE.md</code></a><br />
+Ship path: <a href="../production-web/"><code>PRODUCTION_WEB.md</code></a></p>
+<blockquote>
+<p><strong>Renderer direction (Path A):</strong> compile to <strong>DOM + CSS</strong> — the browser lays out and paints;
+Argus is a thin <strong>reactive patcher</strong> (dirty node → surgical DOM update) and Hanka emits
+flex/grid rather than computing absolute frames. Rationale in <a href="../strategy/"><code>STRATEGY.md</code></a>.</p>
+</blockquote>
+<hr />
+<h2 id="big-picture-product-tracks">Big picture (product tracks)</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Order</th>
+<th>Track</th>
+<th>Goal</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><strong>Frontend</strong> <em>(now)</em></td>
+<td>Layout, widgets, a11y, publish, production proof</td>
+<td><strong>done</strong></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>Backend</td>
+<td>HTTP/server, DB, auth, full-stack <strong>reactive</strong> apps</td>
+<td><strong>active beachhead</strong> — <a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Scripting</td>
+<td>Tooling DX, packages, automation</td>
+<td>parked</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>Mobile</td>
+<td>Native shells / shared Luke UI</td>
+<td>parked</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>Game</td>
+<td>Entities, loops, rendering beyond DOM</td>
+<td>parked</td>
+</tr>
+<tr>
+<td style="text-align: right;">—</td>
+<td>Own-the-pixels renderer (canvas/WebGL)</td>
+<td>Flutter-style; only in <em>full</em> form</td>
+<td>parked</td>
+</tr>
+</tbody>
+</table>
+<p>Parked ≠ cancelled: these are sequenced <strong>after</strong> the frontend proof point, picked up from
+a position of strength. Do <strong>not</strong> pull parked tracks into Frontend PRs unless they unblock ship.</p>
+<hr />
+<h2 id="frontend-gap-status">Frontend gap status</h2>
+<table>
+<thead>
+<tr>
+<th>Gap</th>
+<th>Status</th>
+<th>Beachhead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Layout ALIGN START/CENTER/END</td>
+<td>✅</td>
+<td><code>BEGIN ROW … ALIGN CENTER</code></td>
+</tr>
+<tr>
+<td>Per-axis ALIGN (main + cross)</td>
+<td>✅</td>
+<td><code>ALIGN MAIN CENTER CROSS START</code> · <code>ALIGN CENTER, START</code></td>
+</tr>
+<tr>
+<td>Text measure / SIZE AUTO</td>
+<td>✅</td>
+<td><code>SIZE AUTO,h</code> · <code>THE TEXT WIDTH OF</code></td>
+</tr>
+<tr>
+<td>Scroll container</td>
+<td>✅</td>
+<td><code>BEGIN … SCROLL</code></td>
+</tr>
+<tr>
+<td>GRID opt-in</td>
+<td>✅</td>
+<td><code>BEGIN GRID … COLUMNS n</code> (never mandatory)</td>
+</tr>
+<tr>
+<td>Breakpoints / viewport</td>
+<td>✅</td>
+<td><code>STACK BELOW</code> / <code>WRAP BELOW</code> · <code>WHEN … BELOW/ABOVE</code> · matchMedia <code>AT LEAST/UNDER/BETWEEN</code> · resize <code>CHANGES</code></td>
+</tr>
+<tr>
+<td>Widget: SELECT/dropdown</td>
+<td>✅</td>
+<td><code>SLOT SELECT</code> · options <code>a\|b\|c</code></td>
+</tr>
+<tr>
+<td>Widget: TABLE</td>
+<td>✅</td>
+<td><code>SLOT TABLE</code> · cells <code>h\|h;r\|r</code></td>
+</tr>
+<tr>
+<td>Widget: MODAL</td>
+<td>✅</td>
+<td><code>SLOT MODAL</code> · focus trap on mount</td>
+</tr>
+<tr>
+<td>Rich form controls</td>
+<td>✅</td>
+<td>email/password + select + checkbox/radio</td>
+</tr>
+<tr>
+<td>a11y roles / labels</td>
+<td>✅</td>
+<td><code>argus_a11y</code> defaults + aria-label</td>
+</tr>
+<tr>
+<td>a11y focus / live regions</td>
+<td>✅</td>
+<td>modal open/close trap · <code>SLOT … ANNOUNCE</code> · <code>TRAP FOCUS</code> / <code>ANNOUNCE</code></td>
+</tr>
+<tr>
+<td>Tailwind class hatch</td>
+<td>✅</td>
+<td><code>WEAR "…"</code> · <code>PUBLISH WEB --tailwind</code></td>
+</tr>
+<tr>
+<td>Motion polish</td>
+<td>✅</td>
+<td><code>SET THE OPACITY OF</code> · <code>FADE … OVER ms</code> (rAF + ease-out)</td>
+</tr>
+<tr>
+<td><code>luke PUBLISH WEB</code></td>
+<td>✅</td>
+<td>alias of browser BUILD + ship checklist</td>
+</tr>
+<tr>
+<td>Production stress app</td>
+<td>✅</td>
+<td><code>frontend_stress.luke</code> (100) · <code>frontend_pressure.luke</code> (2500)</td>
+</tr>
+<tr>
+<td>Benchmarks / CI matrix</td>
+<td>🟡</td>
+<td>native <code>ms=</code> in stress; CI matrix next</td>
+</tr>
+<tr>
+<td>Live DevTools UI / time-travel</td>
+<td>✅ beachhead</td>
+<td>client scrub (<code>live_graph_scrub.luke</code>); server-seq scrub still open</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="surface-cheat-sheet">Surface cheat sheet</h2>
+<pre><code><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT BUTTON \&quot;</b>buy\<b class="str">&quot; SIZE AUTO, 40 SAY \&quot;</b>Buy\<b class="str">&quot; WEAR \&quot;</b>px-<b class="num">5</b> rounded-xl bg-indigo-<b class="num">600</b> text-white\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END ROW&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT TEXT \&quot;</b>status\<b class="str">&quot; SIZE AUTO, 24 SAY \&quot;</b>Ready\<b class="str">&quot; ANNOUNCE&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END GRID&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;&quot;</b><b class="str">&quot;WHEN THE VIEWPORT IS BELOW 640 DO</span><span class="ln">  SPEAK &quot;</b>narrow<b class="str">&quot;</span><span class="ln">END WHEN&quot;</b><b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;&quot;</b><b class="str">&quot;WHEN THE VIEWPORT IS AT LEAST 800 WIDE DO</span><span class="ln">  SPEAK &quot;</b>desktop<b class="str">&quot;</span><span class="ln">END WHEN&quot;</b><b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;luke PUBLISH WEB app.luke -o dist/app --tailwind input.css&quot;</b></span></code></pre>
+<p><strong>Coexistence:</strong> Hanka owns <em>layout</em> (inline flex/grid/size). Tailwind <code>WEAR</code> owns <em>skin</em>
+(color, type, border, shadow). Tailwind layout utilities (<code>flex</code>, <code>w-*</code>) lose to inline styles on purpose.</p>
+<hr />
+<h2 id="definition-of-done-frontend-track-met">Definition of done (Frontend track) — <strong>met</strong></h2>
+<ol>
+<li>Per-axis align ✅  </li>
+<li>Scroll ✅  </li>
+<li>Grid opt-in ✅  </li>
+<li>Declarative breakpoints ✅  </li>
+<li>a11y focus-trap + live regions ✅  </li>
+<li>TaskList/roadmap drift fixed ✅  </li>
+<li>Tailwind class hatch ✅  </li>
+</ol>
+<hr />
+<h2 id="signature-line">Signature line</h2>
+<blockquote>
+<p><strong>Lukelang owns the page.</strong></p>
+</blockquote>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/FRONTEND_ROADMAP.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

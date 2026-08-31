@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hanka — LukeLang</title>
+<meta name="description" content="Status: v1.4 — flex/grid + per-axis ALIGN + STACK/WRAP BELOW + SCROLL + WEAR Name: Hanka Role: Own layout numbers → feed Argus frames / CSS flex/grid Not: browser flex/grid as sour" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/hanka/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/hanka/" />
+<meta property="og:title" content="Hanka — LukeLang" />
+<meta property="og:description" content="Status: v1.4 — flex/grid + per-axis ALIGN + STACK/WRAP BELOW + SCROLL + WEAR Name: Hanka Role: Own layout numbers → feed Argus frames / CSS flex/grid Not: browser flex/grid as sour" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Hanka — LukeLang" />
+<meta name="twitter:description" content="Status: v1.4 — flex/grid + per-axis ALIGN + STACK/WRAP BELOW + SCROLL + WEAR Name: Hanka Role: Own layout numbers → feed Argus frames / CSS flex/grid Not: browser flex/grid as sour" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Hanka","description":"Status: v1.4 \u2014 flex/grid + per-axis ALIGN + STACK/WRAP BELOW + SCROLL + WEAR Name: Hanka Role: Own layout numbers \u2192 feed Argus frames / CSS flex/grid Not: browser flex/grid as sour","url":"https://lukelang.org/docs/hanka/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Hanka","item":"https://lukelang.org/docs/hanka/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Hanka</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/" aria-current="page">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#luke-surface">Luke surface</a></li>
+        <li><a href="#runtime">Runtime</a></li>
+        <li><a href="#still-open">Still open</a></li>
+        <li><a href="#related">Related</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> v1.4 — flex/grid + per-axis ALIGN + STACK/WRAP BELOW + SCROLL + WEAR<br />
+<strong>Name:</strong> Hanka<br />
+<strong>Role:</strong> Own layout numbers → feed Argus frames / CSS flex/grid<br />
+<strong>Not:</strong> browser flex/grid as source of truth for structure<br />
+<strong>Frontend track:</strong> <a href="../frontend-roadmap/"><code>FRONTEND_ROADMAP.md</code></a> — <strong>done</strong></p>
+<p><strong>Direction (Path A):</strong> ROW/COLUMN emit CSS <strong>flex</strong>; <code>BEGIN GRID</code> is an <strong>opt-in</strong> CSS grid
+container. STACK and explicit <code>PLACE</code> still use absolute frames.</p>
+</blockquote>
+<h2 id="pipeline">Pipeline</h2>
+<pre><code><span class="ln">Luke UI terms → Hanka (layout) → frames / flex / grid → Argus (paint) → DOM</span></code></pre>
+<h2 id="luke-surface">Luke surface</h2>
+<pre><code><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN ROW AT 0, 0 SIZE 600, 80 GAP 8 STACK BELOW 640&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT BUTTON \&quot;</b>a\<b class="str">&quot; SIZE 80, 40 SAY \&quot;</b>A\<b class="str">&quot; WEAR \&quot;</b>px-<b class="num">5</b> bg-indigo-<b class="num">600</b>\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END ROW&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN GRID AT 0, 100 SIZE 400, 200 COLUMNS 2 GAP 8 SCROLL&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT TEXT \&quot;</b>status\<b class="str">&quot; SIZE AUTO, 24 SAY \&quot;</b>Ready\<b class="str">&quot; ANNOUNCE&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END GRID&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;LAY OUT THE SCREEN&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;PAINT THE SCREEN&quot;</b></span></code></pre>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BEGIN COLUMN\|ROW\|STACK\|GRID AT x, y SIZE w, h …</code></td>
+<td>Open a layout box</td>
+</tr>
+<tr>
+<td><code>ALIGN START\|CENTER\|END</code></td>
+<td>Same value on main and cross</td>
+</tr>
+<tr>
+<td><code>ALIGN MAIN … CROSS …</code> / <code>ALIGN main, cross</code></td>
+<td>Independent axes</td>
+</tr>
+<tr>
+<td><code>WRAP</code> / <code>WRAP BELOW n</code></td>
+<td>Wrap now, or when viewport &lt; n</td>
+</tr>
+<tr>
+<td><code>STACK BELOW n</code></td>
+<td>ROW becomes column when viewport &lt; n</td>
+</tr>
+<tr>
+<td><code>SCROLL</code></td>
+<td><code>overflow:auto</code> scroll container</td>
+</tr>
+<tr>
+<td><code>COLUMNS n</code> / <code>COLS n</code></td>
+<td>GRID column count</td>
+</tr>
+<tr>
+<td><code>WEAR "classes"</code></td>
+<td>Tailwind (or any) class hatch — skin only</td>
+</tr>
+<tr>
+<td><code>SLOT … ANNOUNCE</code> / <code>ANNOUNCE URGENT</code></td>
+<td>aria-live polite / assertive</td>
+</tr>
+</tbody>
+</table>
+<h2 id="runtime">Runtime</h2>
+<ul>
+<li><code>vm/runtime/hanka.h</code>  </li>
+<li>Demos: <code>hanka_align.luke</code>, <code>frontend_done.luke</code>, <code>frontend_wrap_forms.luke</code></li>
+</ul>
+<h2 id="still-open">Still open</h2>
+<ul>
+<li>Flex-grow / shrink polish  </li>
+<li>Container queries / height breakpoints</li>
+</ul>
+<h2 id="related">Related</h2>
+<ul>
+<li>Paint: <a href="../argus/"><code>ARGUS.md</code></a>  </li>
+<li>Production: <a href="../production-web/"><code>PRODUCTION_WEB.md</code></a></li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/HANKA.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

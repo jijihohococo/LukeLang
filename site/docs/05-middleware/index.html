@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities — LukeLang</title>
+<meta name="description" content="A technical paper on routing and middleware as language properties rather than ordered runtime lists." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/05-middleware/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/05-middleware/" />
+<meta property="og:title" content="The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities — LukeLang" />
+<meta property="og:description" content="A technical paper on routing and middleware as language properties rather than ordered runtime lists." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities — LukeLang" />
+<meta name="twitter:description" content="A technical paper on routing and middleware as language properties rather than ordered runtime lists." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities","description":"A technical paper on routing and middleware as language properties rather than ordered runtime lists.","url":"https://lukelang.org/docs/05-middleware/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities","item":"https://lukelang.org/docs/05-middleware/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/" aria-current="page">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#abstract">Abstract</a></li>
+        <li><a href="#1-motivation">1. Motivation</a></li>
+        <li><a href="#2-routes-as-a-declared-table">2. Routes as a Declared Table</a></li>
+        <li><a href="#3-middleware-as-capabilities">3. Middleware as Capabilities</a></li>
+        <li><a href="#4-form-bodies-and-schema">4. Form Bodies and Schema</a></li>
+        <li><a href="#5-guarantees">5. Guarantees</a></li>
+        <li><a href="#6-implementation">6. Implementation</a></li>
+        <li><a href="#7-status-and-limitations">7. Status and Limitations</a></li>
+        <li><a href="#8-related-work">8. Related Work</a></li>
+        <li><a href="#9-conclusion">9. Conclusion</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>A technical paper on routing and middleware as language properties rather than ordered runtime lists.</p>
+<h2 id="abstract">Abstract</h2>
+<p>The request pipeline of a web backend decides how an incoming request reaches a handler and what cross cutting work runs along the way. In most frameworks this pipeline is an ordered list of middleware functions assembled by hand. That model has two recurring failure modes: a required piece of middleware is forgotten on a route, and the middleware is placed in the wrong order. Both are silent at build time and dangerous at runtime, because the missing or misordered piece is often the one that enforces security. LukeLang treats the request pipeline as a structure the compiler understands. Routes are a declared table rather than a set of imperative branches. Middleware is expressed as capabilities that a handler requires rather than as a list the author must remember to attach. Because the compiler knows the route table, the capability requirements, and the data a handler touches, an entire class of pipeline mistakes becomes a compile error. This paper describes the model, the guarantees it provides, and its honest status. The compile time rejections described here are implemented and exercised by tests in continuous integration.</p>
+<h2 id="1-motivation">1. Motivation</h2>
+<p>Consider the ordinary way a backend pipeline goes wrong. A developer adds a new route that returns account data but forgets to attach the authentication middleware, so the route is public. Or the developer attaches a rate limiting middleware before the authentication middleware, so unauthenticated traffic is rate limited by a key that only exists after authentication, and the protection is effectively disabled. Or a template contains a link to a route that was renamed, so the link is a broken path that returns a not found error only when a user clicks it.</p>
+<p>Each of these is a small mistake with a large consequence, and each is invisible until the program runs. The reason is that the pipeline is expressed as imperative code and an ordered list. The compiler sees a sequence of function calls, not a structure it can reason about. LukeLang changes what the compiler sees. When the route table, the capability requirements, and the data flow are declarations, the compiler can check them, and the mistakes above become build failures rather than runtime incidents.</p>
+<h2 id="2-routes-as-a-declared-table">2. Routes as a Declared Table</h2>
+<h3 id="2-1-the-table">2.1 The table</h3>
+<p>Routes in LukeLang are a declared table. Each entry names a method and a path, binds any path parameters with their types, states the capabilities the route requires, and names the handler. Because the routes are data rather than control flow, the compiler can analyze the whole surface of the application at once.</p>
+<h3 id="2-2-typed-path-parameters">2.2 Typed path parameters</h3>
+<p>A path parameter carries a type. A route whose path contains an identifier declared as an integer requires that the handler treat that parameter as an integer, and any navigation to that route must supply an integer. The type of a route parameter is checked on both ends because the compiler sees both the route declaration and the code that links to it. This removes a common source of runtime errors, the mismatch between the shape of a link and the shape of the route it targets.</p>
+<h3 id="2-3-link-integrity">2.3 Link integrity</h3>
+<p>Because the route table is known, every link to a route can be checked against it. A link whose target has no matching entry in the table does not compile. The compiler rejects it and reports that the link points at a route that does not exist. The class of bug where an internal link silently becomes a not found error is closed at build time. The application cannot ship a broken internal link, because a broken internal link is a compile error.</p>
+<h3 id="2-4-routes-and-protected-data">2.4 Routes and protected data</h3>
+<p>The route table intersects the authorization model described in the authentication paper. A route that reads protected data must declare that it requires authentication. If a route touches protected data without that declaration, the program does not compile, and the compiler reports that the route reads protected data without requiring authentication. This is the route level expression of the principle that unauthorized access to protected data is a compile error. A public route cannot accidentally expose protected data, because the compiler refuses to build a route that would.</p>
+<h2 id="3-middleware-as-capabilities">3. Middleware as Capabilities</h2>
+<h3 id="3-1-from-a-list-to-a-requirement">3.1 From a list to a requirement</h3>
+<p>The central idea of the pipeline model is that middleware is not an ordered list the author attaches. It is a set of capabilities a handler requires in its context. A handler that performs a sensitive operation requires an authentication capability and a request forgery protection capability. The handler cannot be built without those capabilities present in its context. The compiler enforces the presence of the required capabilities, so forgetting to protect a handler is not possible in the same way that forgetting to attach middleware is possible in a list based model. A handler that needs authentication and does not have it does not typecheck.</p>
+<h3 id="3-2-ordering-constraints">3.2 Ordering constraints</h3>
+<p>Some cross cutting concerns have ordering requirements. Authentication must run before rate limiting keyed on the authenticated user, because the key does not exist until authentication has run. In a list based model the author is responsible for placing the middleware in the correct order, and a wrong order is a silent misconfiguration. In LukeLang the ordering requirement is declared, and the compiler enforces it. A pipeline that places rate limiting before authentication does not compile. The compiler rejects it and reports that authentication must run first. The ordering of the pipeline becomes a checked property rather than a matter of author discipline.</p>
+<h3 id="3-3-cross-cutting-concerns-for-free">3.3 Cross cutting concerns for free</h3>
+<p>Some cross cutting concerns do not need to be attached at all, because the runtime already provides them. Every request is a node in the causal history described in the Live Graph and authentication papers. Audit and access logging are therefore properties of the history rather than middleware that must be inserted into the pipeline. The concern that is hardest to remember to add, a complete and tamper evident record of access, is the one that requires no addition.</p>
+<h2 id="4-form-bodies-and-schema">4. Form Bodies and Schema</h2>
+<p>The shipped backend work includes two further pieces that belong to the same principle, that a declaration the compiler understands is safer than imperative code the compiler cannot check.</p>
+<p>A form body is declared as a shape with typed fields. The declaration is a single source of truth. It describes the fields the handler receives and their types, so a handler receives typed and validated data rather than an untyped bag of strings that it must parse and check by hand. Because the declaration is one artifact, the client side and the server side cannot drift apart.</p>
+<p>A schema is declared as well. The declaration of a table and its fields is the source of truth for the shape of the data, and the compiler can relate the declared schema to the queries and bindings that depend on it. This is the foundation on which safe migrations are built, a direction discussed as future work, where a change to the schema that would break a downstream consumer becomes a compile error because the compiler sees the whole path from the schema to the consumer.</p>
+<h2 id="5-guarantees">5. Guarantees</h2>
+<p>The pipeline model provides a set of guarantees that hold at compile time. A link to a route that does not exist is a compile error. A route that reads protected data without requiring authentication is a compile error. A handler that requires a capability it does not have does not typecheck. A pipeline whose middleware ordering violates a declared constraint, such as rate limiting before authentication, is a compile error. These guarantees share a single cause. The pipeline is expressed as declarations that the compiler understands, so the compiler can reject a pipeline that is unsafe rather than allowing it to fail at runtime.</p>
+<h2 id="6-implementation">6. Implementation</h2>
+<p>The route table, the capability requirements, and the ordering constraints are analyzed during compilation to native code. The bad cases described above are present in the repository as example programs that are expected to fail to compile, and the continuous integration configuration asserts that each of them does fail with the appropriate message. The good cases are example programs that compile and run, and continuous integration asserts their successful output. This means the guarantees are not aspirational. They are checked on every change by building programs that must be rejected and confirming that they are.</p>
+<h2 id="7-status-and-limitations">7. Status and Limitations</h2>
+<p>The following are implemented and exercised by tests. Routes as a declared table with typed path parameters. Link integrity, where a link to a route with no matching entry fails to compile. Route level protected data checks, where a route that touches protected data without requiring authentication fails to compile. Middleware as required capabilities. Middleware ordering constraints, where an invalid order fails to compile. Form bodies as typed declarations. Schema as a declaration.</p>
+<p>The boundaries are as follows. The capability model covers the core cross cutting concerns of authentication, request forgery protection, and rate limiting. A general capability system that lets an application define arbitrary cross cutting requirements and their ordering is a natural extension and is not yet complete. The form and schema declarations are beachheads that establish the single source of truth principle, and the full surface, including rich validation vocabularies and the automatic derivation of migrations from schema changes, is future work. As with the rest of the backend, these are proven language spikes rather than a finished framework, and the correct way to describe them is that the principle is running and tested and the surface around it is being completed.</p>
+<h2 id="8-related-work">8. Related Work</h2>
+<p>The onion model of layered middleware is standard in web frameworks and is the model this paper reacts against. Capability based security informs the treatment of middleware as a requirement in a handler's context rather than as an attached list. Typed routing has appeared in several typed web frameworks, where the type of a route parameter is checked against its use. The contribution here is to place routing, middleware, form bodies, and schema under a single principle, that the pipeline is a declaration the compiler checks, and to enforce the security relevant properties of the pipeline, capability presence and ordering and protected data exposure, as compile errors in a language whose compiler already sees the whole path from the request to the data.</p>
+<h2 id="9-conclusion">9. Conclusion</h2>
+<p>The LukeLang request pipeline replaces an ordered list of middleware with a structure the compiler understands. Routes are a declared table with typed parameters and checked links. Middleware is a set of capabilities a handler requires, with ordering constraints the compiler enforces. Form bodies and schema are declarations that serve as a single source of truth. The result is that the pipeline mistakes that are most dangerous and most easily missed, a forgotten protection, a wrong order, a broken link, an unprotected route over protected data, become build failures. The principle is the same one that runs through the rest of the language. What the compiler can see, the compiler can guarantee.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/documentations/papers/05-middleware.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LukeLang Architecture: One Front End, Many Backends — LukeLang</title>
+<meta name="description" content="A technical paper on the structural spine of the compiler: the shared program tree that every tool reads, and the layering that carries a value from a database row to a screen pixe" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/08-architecture/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/08-architecture/" />
+<meta property="og:title" content="LukeLang Architecture: One Front End, Many Backends — LukeLang" />
+<meta property="og:description" content="A technical paper on the structural spine of the compiler: the shared program tree that every tool reads, and the layering that carries a value from a database row to a screen pixe" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="LukeLang Architecture: One Front End, Many Backends — LukeLang" />
+<meta name="twitter:description" content="A technical paper on the structural spine of the compiler: the shared program tree that every tool reads, and the layering that carries a value from a database row to a screen pixe" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"LukeLang Architecture: One Front End, Many Backends","description":"A technical paper on the structural spine of the compiler: the shared program tree that every tool reads, and the layering that carries a value from a database row to a screen pixe","url":"https://lukelang.org/docs/08-architecture/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"LukeLang Architecture: One Front End, Many Backends","item":"https://lukelang.org/docs/08-architecture/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>LukeLang Architecture: One Front End, Many Backends</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/" aria-current="page">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#abstract">Abstract</a></li>
+        <li><a href="#1-the-central-decision">1. The Central Decision</a></li>
+        <li><a href="#2-the-front-end">2. The Front End</a></li>
+        <li><a href="#3-the-tools-that-read-the-tree">3. The Tools That Read the Tree</a></li>
+        <li><a href="#4-type-discipline-at-compile-time">4. Type Discipline at Compile Time</a></li>
+        <li><a href="#5-modules-and-packages">5. Modules and Packages</a></li>
+        <li><a href="#6-the-end-to-end-layering">6. The End to End Layering</a></li>
+        <li><a href="#7-why-the-structure-holds">7. Why the Structure Holds</a></li>
+        <li><a href="#8-status-and-limitations">8. Status and Limitations</a></li>
+        <li><a href="#9-related-work">9. Related Work</a></li>
+        <li><a href="#10-conclusion">10. Conclusion</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>A technical paper on the structural spine of the compiler: the shared program tree that every tool reads, and the layering that carries a value from a database row to a screen pixel.</p>
+<h2 id="abstract">Abstract</h2>
+<p>The architecture of LukeLang rests on a single decision: there is one front end, and everything that consumes a program consumes the same tree it produces. A parser turns source into a program tree of statements and expressions. Build, the intermediate representation dump, the formatter, the language server, and the debug adapter all read that one tree. This paper describes the front end and the shared tree, the tools that read it, the compile time type discipline, the module and package structure, and the end to end layering that connects the database to the screen. It states honestly where the tree is fully specialized and where parts of the surface are still carried as opaque statements pending specialization.</p>
+<h2 id="1-the-central-decision">1. The Central Decision</h2>
+<p>A language accumulates tools. It needs a compiler, and then it needs a formatter, and then an editor integration, and then a debugger. The tempting way to build these is one at a time, each with its own understanding of the syntax. The result is drift: the formatter parses a construct the compiler accepts and reformats it wrongly, or the editor highlights a shape the compiler has since changed. The way LukeLang avoids this is to have a single front end and to make every tool a reader of its output. There is one place that understands what a program is, and every other tool asks that place rather than re deriving the answer.</p>
+<h2 id="2-the-front-end">2. The Front End</h2>
+<h3 id="2-1-parsing-to-a-program-tree">2.1 Parsing to a program tree</h3>
+<p>The parser turns source into a program tree. The tree is a sequence of statements, and statements nest: a conditional contains statements, a loop contains statements, a function contains statements, and a reactive handler contains statements. Statements that carry expressions hold them as expression nodes rather than as text. The tree is the authoritative representation of the program's structure.</p>
+<h3 id="2-2-expressions-by-precedence">2.2 Expressions by precedence</h3>
+<p>Expressions are parsed by a precedence climbing parser, so that operator precedence and associativity are decided in one place and are the same for every tool that evaluates or renders an expression. An expression is a node with typed structure, not a string that each back end re parses.</p>
+<h3 id="2-3-flattening-for-emission">2.3 Flattening for emission</h3>
+<p>Before emission the nested tree is flattened into an ordered statement stream with the nesting preserved as structure, so that a single pass can walk it and emit. This flattening is the join between the structured front end and the linear back ends: the tree is convenient to analyze, and the flattened stream is convenient to emit from.</p>
+<h2 id="3-the-tools-that-read-the-tree">3. The Tools That Read the Tree</h2>
+<p>Because the tree is shared, the tools are thin. Build walks the flattened stream and emits C. The intermediate representation dump prints the same stream so that the compiler's understanding of a program is inspectable. The formatter renders the tree back to canonical source, which is why formatting is a structural operation and not a text transformation: the formatter cannot reformat a construct wrongly because it renders from the same tree the compiler compiled. The language server answers editor queries — an outline, a definition, references, a rename, a signature, a hover, semantic tokens, and code actions — from the tree, so its answers agree with the compiler by construction. The debug adapter maps a running binary back to program lines through the line directives the compiler emitted. Every one of these is a reader; none of them owns a second understanding of the language.</p>
+<h2 id="4-type-discipline-at-compile-time">4. Type Discipline at Compile Time</h2>
+<p>Types are resolved during emission rather than carried as runtime tags in Build mode. Arithmetic distinguishes exact integers from other numbers, text is a first class kind, and a mismatch is a compile error rather than a runtime surprise. This is what lets the arena model work without a collector: values have known kinds and known scopes, so the compiler knows where they live and when their region is released. The type discipline and the memory model are two views of the same property, that a Build mode program is fully understood at compile time.</p>
+<h2 id="5-modules-and-packages">5. Modules and Packages</h2>
+<p>A program imports standard modules and third party packages by name. The standard library is a set of modules that the front end resolves and includes. Packages are resolved through a lock file that pins versions and verifies content by hash on install, so that a build is reproducible and an installed package is the one that was intended. The package surface is deliberately small at this stage; the mechanism is present and the ecosystem is future work, and the architecture paper does not pretend otherwise.</p>
+<h2 id="6-the-end-to-end-layering">6. The End to End Layering</h2>
+<p>The architecture that matters most to a user is not internal to the compiler; it is the path a value takes from storage to the screen. LukeLang arranges this as a layered substrate.</p>
+<pre><code><span class="ln">database row  -&gt;  server cell  -&gt;  wire  -&gt;  client cell  -&gt;  pixel</span></code></pre>
+<p>A database row is the source of truth. A server cell is a value maintained over that row by the differential ledger described in the execution paper. The wire carries changes to the client as they happen, over a resumable channel. A client cell is the reactive value the interface binds to, maintained by the reactive engine. A pixel is the surgical paint that the frontend engines apply when the client cell changes. Each arrow is a described system with its own paper. The architectural claim is that these are one continuous dataflow rather than four subsystems bolted together: a change to a row propagates through the layers to a single repainted node without any layer polling the one before it.</p>
+<h2 id="7-why-the-structure-holds">7. Why the Structure Holds</h2>
+<p>The structure holds because every layer is generated from, or reads, the same front end. The server cell's maintenance is emitted from the query in the program tree. The client binding is emitted from the same tree. The wire subscription is declared in the program and compiled alongside. There is no configuration format that can disagree with the code and no second schema that can drift. What the compiler can see, the compiler generates consistently, and the layers are consistent because they came from one source.</p>
+<h2 id="8-status-and-limitations">8. Status and Limitations</h2>
+<p>The front end produces a program tree with nested control flow, functions, and reactive handlers, and precedence parsed expressions, and every tool named above reads it. The honest limitation is specialization coverage. Parts of the surface — some of the backend declaration forms among them — are still carried in the tree as opaque statements that Build understands but that are not yet fully specialized nodes. This does not compromise correctness, because those statements compile correctly; it means the tree is not yet uniformly specialized, and the remaining work is to convert opaque statements into typed nodes without introducing a second intermediate representation. The discipline the project holds to here is explicit: specialize within the one tree, never grow a parallel one.</p>
+<h2 id="9-related-work">9. Related Work</h2>
+<p>Compilers have long shared a single intermediate representation across passes; language servers built on the compiler's own front end are the modern best practice precisely because they avoid the drift of a second parser. LukeLang applies this uniformly, extending the shared front end past the compiler and the server to the formatter and the debugger, and extending the same principle of a single source of truth outward from the compiler to the full stack layering, so that the runtime layers of the application are as consistent with each other as the compiler's passes are.</p>
+<h2 id="10-conclusion">10. Conclusion</h2>
+<p>LukeLang has one front end. A parser produces a program tree, and Build, the representation dump, the formatter, the language server, and the debug adapter all read it, so they cannot disagree about what a program is. The same principle carries outward into the running system: the database row, the server cell, the wire, the client cell, and the pixel form one dataflow, each layer generated from the same tree. The remaining architectural work is to specialize the last opaque statements into typed nodes, and the rule that governs it is to keep one tree, not two.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/documentations/papers/08-architecture.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

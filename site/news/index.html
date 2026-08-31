@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>News — LukeLang</title>
+<meta name="description" content="What shipped in LukeLang and when: the syntax v2 flip, official tooling, the Postgres executor, C10K HTTP, incremental Live Graph views and the reactive engine." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/news/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/news/" />
+<meta property="og:title" content="News — LukeLang" />
+<meta property="og:description" content="What shipped in LukeLang and when: the syntax v2 flip, official tooling, the Postgres executor, C10K HTTP, incremental Live Graph views and the reactive engine." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="News — LukeLang" />
+<meta name="twitter:description" content="What shipped in LukeLang and when: the syntax v2 flip, official tooling, the Postgres executor, C10K HTTP, incremental Live Graph views and the reactive engine." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"WebPage","name":"News","description":"What shipped in LukeLang and when: the syntax v2 flip, official tooling, the Postgres executor, C10K HTTP, incremental Live Graph views and the reactive engine.","url":"https://lukelang.org/news/","isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../">
+    <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../learn/">Learn</a>
+    <a href="../docs/">Docs</a>
+    <a href="../download/">Download</a>
+    <a href="../examples/">Examples</a>
+    <a href="../community/">Community</a>
+    <a href="./" aria-current="page">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead">
+    <p class="masthead__kicker">News</p>
+    <h1>What shipped, and <em>when</em>.</h1>
+    <p>
+      There are no version numbers yet — the language ships from <code>main</code>, gated by the
+      test suite. This is the record of the changes big enough to change how you write LukeLang.
+    </p>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">On this page</label>
+      <div class="sidebar__panel">
+      <h2>Releases</h2>
+      <ul>
+        <li><a href="#syntax-v2">Syntax v2 · Aug 2026</a></li>
+        <li><a href="#tooling">Official tooling · Aug 2026</a></li>
+        <li><a href="#postgres">Postgres Slipstream · Aug 2026</a></li>
+        <li><a href="#c10k">C10K HTTP · Aug 2026</a></li>
+        <li><a href="#frontend">Frontend complete · Aug 2026</a></li>
+        <li><a href="#ivm">Live Graph IVM · Aug 2026</a></li>
+        <li><a href="#lsp">LSP, DAP, FMT · Aug 2026</a></li>
+      </ul>
+      <h2>Elsewhere</h2>
+      <ul>
+        <li><a href="https://github.com/lucasdmarshall/LukeLang/commits/main">Full history</a></li>
+        <li><a href="../docs/scorecard/">Scorecard</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <div class="prose">
+
+      <section id="syntax-v2">
+        <h2>Syntax v2 is the <em>default</em></h2>
+        <p><strong>25 August 2026</strong> · <a href="https://github.com/lucasdmarshall/LukeLang/pull/38">#38</a></p>
+        <p>
+          The biggest change in the language's life. <code>.luke</code> and <code>.lk</code> files
+          now use the technical surface — <code>fn</code>, <code>let</code>, <code>struct</code>,
+          braces and operators — instead of the conversational one.
+        </p>
+<pre><code><span class="ln"><b class="cm">// before</b></span>
+<span class="ln">THIS IS FUNCTION add WITH a AS NUMBER, b AS NUMBER GIVES BACK NUMBER DO</span>
+<span class="ln">  GIVE BACK ADD a AND b</span>
+<span class="ln">END FUNCTION</span>
+<span class="ln"></span>
+<span class="ln"><b class="cm">// after</b></span>
+<span class="ln"><b class="kw">fn</b> <b class="fn">add</b>(a: <b class="ty">float</b>, b: <b class="ty">float</b>) -&gt; <b class="ty">float</b> {</span>
+<span class="ln">  <b class="kw">return</b> a + b</span>
+<span class="ln">}</span></code></pre>
+        <ul>
+          <li>The whole corpus moved: 118 examples, the standard library, packages and the deployed demo</li>
+          <li><code>luke MIGRATE file.luke</code> rewrites v1 source, marking anything it cannot translate</li>
+          <li>Conversational v1 stays available behind <code>--syntax=1</code> for the deprecation window</li>
+          <li>The specification is machine-checked against code generation, so it cannot drift</li>
+          <li>Equivalence gates compare v1 and v2 output byte for byte — 10 of 10 normative programs pass</li>
+        </ul>
+        <p>
+          Read the <a href="../docs/syntax-v2-spec/">specification</a>
+          or the <a href="../docs/syntax-v2-plan/">phased plan</a>
+          behind the cutover.
+        </p>
+      </section>
+
+      <section id="tooling">
+        <h2>Official editor tooling</h2>
+        <p><strong>19 August 2026</strong> · <a href="https://github.com/lucasdmarshall/LukeLang/pull/37">#37</a></p>
+        <ul>
+          <li>A VS Code extension with syntax highlighting, snippets and brace-aware indentation</li>
+          <li>Backend publishing documentation for getting a built server onto a real machine</li>
+          <li><code>AGENTS.md</code>, describing how the repository expects automated contributors to behave</li>
+        </ul>
+      </section>
+
+      <section id="postgres">
+        <h2>Postgres, with <em>Slipstream</em></h2>
+        <p><strong>13 August 2026</strong></p>
+        <p>
+          A libpq driver landed with an asynchronous pipelined executor, and then Slipstream — an
+          adaptive sharded executor — became the default after benchmarks showed it winning.
+        </p>
+        <ul>
+          <li><code>import std/pg</code> with TLS, pooling and prepared statement caching</li>
+          <li>Pipelined dispatch that keeps the socket busy instead of round-tripping per query</li>
+          <li>SQLite gained a thread-local pool, a statement cache and WAL pragmas by default</li>
+        </ul>
+        <p>
+          Numbers and methodology in
+          <a href="../docs/backend-benchmarks/">backend benchmarks</a>.
+        </p>
+      </section>
+
+      <section id="c10k">
+        <h2>HTTP at ten thousand connections</h2>
+        <p><strong>13 August 2026</strong></p>
+        <ul>
+          <li>An epoll and kqueue event loop with a handler pool</li>
+          <li>Keep-alive, <code>SO_REUSEPORT</code> multi-loop accept, <code>TCP_NODELAY</code> and <code>writev</code></li>
+          <li>Chunked responses, client IP through proxy headers, and graceful shutdown on <code>SIGTERM</code></li>
+        </ul>
+        <p>
+          <code>httpServe(server, handler, maxConn)</code> is still one line in your source; the
+          tiers are chosen by the compiler.
+        </p>
+      </section>
+
+      <section id="frontend">
+        <h2>The frontend track finished</h2>
+        <p><strong>12 August 2026</strong></p>
+        <ul>
+          <li>Per-axis alignment, declarative breakpoints, grids, scroll containers and wrapping</li>
+          <li>Accessibility as language surface: announcements, focus traps and restore, live regions</li>
+          <li>Modal semantics, viewport reflow on resize, and Tailwind class pass-through</li>
+          <li>Region-minimal painting — a changed cell repaints its region, not the page</li>
+        </ul>
+      </section>
+
+      <section id="ivm">
+        <h2>Live Graph gets incremental views</h2>
+        <p><strong>12 August 2026</strong></p>
+        <p>
+          Watched queries stopped re-running in full. Joins, filters and aggregates are now
+          maintained by delta against a change log, which is also what makes time travel
+          possible.
+        </p>
+        <ul>
+          <li>Keyed join maintenance, including filtered and multi-way joins</li>
+          <li>Incremental aggregates, with ranged and function variants</li>
+          <li>Resume-from-log so a reconnecting client does not miss events</li>
+          <li>Scrubbing backwards and forwards over the log in the browser</li>
+        </ul>
+      </section>
+
+      <section id="lsp">
+        <h2>Language server, debugger and formatter</h2>
+        <p><strong>12 August 2026</strong></p>
+        <ul>
+          <li><code>luke LSP</code> — hover, completion, definition, document symbols, formatting, diagnostics</li>
+          <li><code>luke DAP</code> for editor debugging, and <code>luke DEBUG --break file:line</code> driving gdb on your source lines</li>
+          <li><code>luke DEBUG --inspect</code> dumps reactive cells with their dependency edges</li>
+          <li><code>luke FMT</code>, with a CI gate proving the round trip is byte-stable across every example</li>
+        </ul>
+      </section>
+
+      <div class="next">
+        <a href="../learn/">← Learn the language</a>
+        <a href="../docs/">Documentation →</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/commits/main">Full commit history →</a>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../learn/">Learn</a>
+      <a href="../docs/">Docs</a>
+      <a href="../download/">Download</a>
+      <a href="../examples/">Examples</a>
+      <a href="../community/">Community</a>
+      <a href="./">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../main.js"></script>
+</body>
+</html>

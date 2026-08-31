@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reactive roadmap — LukeLang</title>
+<meta name="description" content="Phases 1–8 shipped (feature foundation). This roadmap covers production-grade + signature-grade work. Priority: Correctness → Scheduler → Granularity → Memory → DevTools → Compiler" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/reactive-roadmap/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/reactive-roadmap/" />
+<meta property="og:title" content="Reactive roadmap — LukeLang" />
+<meta property="og:description" content="Phases 1–8 shipped (feature foundation). This roadmap covers production-grade + signature-grade work. Priority: Correctness → Scheduler → Granularity → Memory → DevTools → Compiler" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Reactive roadmap — LukeLang" />
+<meta name="twitter:description" content="Phases 1–8 shipped (feature foundation). This roadmap covers production-grade + signature-grade work. Priority: Correctness → Scheduler → Granularity → Memory → DevTools → Compiler" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Reactive roadmap","description":"Phases 1\u20138 shipped (feature foundation). This roadmap covers production-grade + signature-grade work. Priority: Correctness \u2192 Scheduler \u2192 Granularity \u2192 Memory \u2192 DevTools \u2192 Compiler","url":"https://lukelang.org/docs/reactive-roadmap/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Reactive roadmap","item":"https://lukelang.org/docs/reactive-roadmap/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Reactive roadmap</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/" aria-current="page">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#track-status">Track status</a></li>
+        <li><a href="#milestone-a-correctness-foundation">Milestone A — Correctness foundation</a></li>
+        <li><a href="#milestone-b-scheduler-2-0">Milestone B — Scheduler 2.0</a></li>
+        <li><a href="#milestone-c-granularity">Milestone C — Granularity</a></li>
+        <li><a href="#milestone-e-memory-management-shipped-v0-4">Milestone E — Memory management (shipped v0.4)</a></li>
+        <li><a href="#milestone-f-devtools-shipped-v0-5">Milestone F — DevTools (shipped v0.5)</a></li>
+        <li><a href="#milestone-g-error-system-shipped-v0-6">Milestone G — Error system (shipped v0.6)</a></li>
+        <li><a href="#definition-of-done-fundamental-execution-model">Definition of done: “fundamental execution model”</a></li>
+        <li><a href="#signature-line">Signature line</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p>Phases <strong>1–8</strong> shipped (feature foundation).<br />
+This roadmap covers <strong>production-grade + signature-grade</strong> work.<br />
+<strong>Priority:</strong> Correctness → Scheduler → Granularity → Memory → DevTools → Compiler → Concurrency → Benchmarks → Spec polish.</p>
+</blockquote>
+<p>Normative semantics: <a href="../reactive-spec/"><code>REACTIVE_SPEC.md</code></a></p>
+<hr />
+<h2 id="track-status">Track status</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Area</th>
+<th>Phase 9+ focus</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Reactive correctness</strong></td>
+<td>Stale dep cleanup, deterministic order, cycle spec, nested rules</td>
+<td>🟡 v0.1</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Scheduler 2.0</strong></td>
+<td>Priority, dedup, micro/macrotask queues, starvation</td>
+<td>🟡 v0.2</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Granularity</strong></td>
+<td>Field-level, Hanka regions, Argus paint regions</td>
+<td>🟡 v0.3</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Memory management</strong></td>
+<td>Auto cleanup, dead nodes, weak refs, leak detect</td>
+<td>✅ v0.4</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Error system</strong></td>
+<td>Isolation, async failure, boundaries, retry</td>
+<td>✅ v0.6</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>DevTools</strong></td>
+<td>Live graph, why changed/repaint, timelines</td>
+<td>🟡 v0.5 started</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Time-travel</strong></td>
+<td>Snapshots, replay, deterministic replay</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Compiler optimization</strong></td>
+<td>Static graph, dead reaction elimination</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Concurrency</strong></td>
+<td>Parallel reactions, workers, race-safe cells</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>Persistence</strong></td>
+<td>Persistent cells, cache invalidation, offline sync</td>
+<td>🟡 QUERY beachhead</td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong>Cross-runtime consistency</strong></td>
+<td>Native/WASM/backend/game same semantics tests</td>
+<td>🟡 conformance harness</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>Benchmark suite</strong></td>
+<td>1K/10K/100K nodes, workloads</td>
+<td>🟡 1K/10K baseline</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>Reactive specification</strong></td>
+<td>Official semantics doc</td>
+<td>🟡 v0.1</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>Signature API polish</strong></td>
+<td>Conversational idioms, keyword trim</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>15</td>
+<td><strong>Real-world stress apps</strong></td>
+<td>Todo, dashboard, chat, game, full-stack</td>
+<td>🟡 dashboard</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="milestone-a-correctness-foundation">Milestone A — Correctness foundation</h2>
+<p><strong>Done when:</strong></p>
+<ul>
+<li>[x] <code>REACTIVE_SPEC.md</code> v0.1</li>
+<li>[x] Stale dependency cleanup (<code>luke_rx_clear_deps</code>)</li>
+<li>[x] Scheduler counters + Build introspection</li>
+<li>[x] <code>reactive_conformance_*.luke</code> + <code>make test-build</code></li>
+<li>[ ] Nested/recursive reaction rules documented + tested</li>
+<li>[x] Error propagation policy (v0.6 — isolation + retry)</li>
+</ul>
+<hr />
+<h2 id="milestone-b-scheduler-2-0">Milestone B — Scheduler 2.0</h2>
+<ul>
+<li>[x] Priority lanes (UI effect before BACKGROUND)</li>
+<li>[x] Dirty dedup counter + queue size instrumentation</li>
+<li>[x] Deferred nested flush (one turn, multiple passes)</li>
+<li>[x] Scheduler timeline / step counters</li>
+<li>[x] <code>WHEN REACTIVE</code> / <code>WHEN BACKGROUND REACTIVE</code> side-effect effects</li>
+<li>[x] <code>BIND BACKGROUND</code> low-priority binds</li>
+<li>[ ] Starvation guard (wait_epochs boost) — runtime hook present, conformance pending</li>
+<li>[ ] Macrotask queue / <code>scheduleReactive</code> API</li>
+</ul>
+<hr />
+<h2 id="milestone-c-granularity">Milestone C — Granularity</h2>
+<ul>
+<li>[x] Argus region paint (<code>argus_paint_one</code>, <code>THE REGION PAINT COUNT</code>)</li>
+<li>[x] Hanka partial relayout (<code>hanka_layout_dirty</code>, <code>hanka_mark_region</code>)</li>
+<li>[x] Component subtree invalidation on scope dispose</li>
+<li>[x] <code>reactive_conformance_subtree.luke</code></li>
+<li>[ ] Field-level object tracking</li>
+<li>[ ] Paint/layout dirty rects (spatial index)</li>
+</ul>
+<hr />
+<h2 id="milestone-e-memory-management-shipped-v0-4">Milestone E — Memory management <em>(shipped v0.4)</em></h2>
+<ul>
+<li>[x] Dead node disposal + <code>THE DISPOSED COUNT</code></li>
+<li>[x] Graph audit + leak edge repair (<code>luke_rx_audit_graph</code>, <code>THE LEAK EDGE COUNT</code>)</li>
+<li>[x] Alive/dead counters (<code>THE ALIVE NODE COUNT</code>, <code>THE DEAD NODE COUNT</code>)</li>
+<li>[x] Weak reads (<code>THE WEAK VALUE OF</code>, <code>THE WEAK READ COUNT</code>)</li>
+<li>[x] <code>AUDIT REACTIVE</code> statement</li>
+<li>[x] Conformance: <code>reactive_conformance_{memory,weak}.luke</code></li>
+<li>[x] Weak effect refs (<code>WHEN REACTIVE WEAK</code>, <code>luke_rx_effect_weak</code>)</li>
+<li>[x] Auto scope GC (<code>luke_rx_scope_gc</code>, <code>UNMOUNT COMPONENT</code>, <code>THE SCOPE GC COUNT</code>)</li>
+<li>[x] Conformance: <code>reactive_conformance_{scope_gc,weak_effect}.luke</code></li>
+</ul>
+<hr />
+<h2 id="milestone-f-devtools-shipped-v0-5">Milestone F — DevTools <em>(shipped v0.5)</em></h2>
+<ul>
+<li>[x] Graph stats (<code>THE GRAPH CELL COUNT</code>, <code>THE GRAPH EDGE COUNT</code>)</li>
+<li>[x] Why-changed trace (<code>THE WHY ROOT OF</code>, <code>THE WHY DEPTH OF</code>, <code>TRACE WHY</code>)</li>
+<li>[x] Last write id + dep/sub counts per node</li>
+<li>[x] Timeline step export (<code>THE TIMELINE STEP ID AT n</code>)</li>
+<li>[x] <code>DUMP REACTIVE GRAPH</code> live snapshot (stderr)</li>
+<li>[x] Conformance: <code>reactive_conformance_devtools.luke</code></li>
+</ul>
+<hr />
+<h2 id="milestone-g-error-system-shipped-v0-6">Milestone G — Error system <em>(shipped v0.6)</em></h2>
+<ul>
+<li>[x] Effect/derived error isolation (<code>luke_rx_isolate_error</code>, <code>errored</code> flag)</li>
+<li>[x] Flush continues after isolated failure (sibling effects still run)</li>
+<li>[x] Async failure reporting (<code>REPORT REACTIVE FAILURE FOR … WITH …</code>)</li>
+<li>[x] Retry + clear (<code>RETRY REACTIVE ERROR</code>, <code>CLEAR REACTIVE ERROR</code>)</li>
+<li>[x] Error boundaries (<code>BEGIN ERROR BOUNDARY</code>, <code>RESET ERROR BOUNDARY</code>)</li>
+<li>[x] Introspection: error/boundary counters</li>
+<li>[x] Conformance: <code>reactive_conformance_{error,boundary}.luke</code></li>
+</ul>
+<hr />
+<ul>
+<li>Benchmark suite vs full rerender baseline — <strong>1K/10K shipped</strong> (<a href="../benchmarks/"><code>BENCHMARKS.md</code></a>); <strong>100K pressure</strong> via <code>make pressure</code></li>
+<li>One <strong>signature reference app</strong> — <strong>dashboard</strong> (<code>examples/build/dashboard_*.luke</code>)</li>
+<li>WASM/native conformance CI matrix</li>
+<li>100K node workload — <strong>green</strong> (<code>examples/build/reactive_pressure.luke</code>)</li>
+</ul>
+<hr />
+<h2 id="definition-of-done-fundamental-execution-model">Definition of done: “fundamental execution model”</h2>
+<p>Reactive is not a “feature” when all of:</p>
+<ol>
+<li>Normative spec with guarantees  </li>
+<li>Conformance tests (native + WASM)  </li>
+<li>Correctness + disposal + async failure suite  </li>
+<li>Reference stress app with measurable granular updates  </li>
+<li>Benchmark baselines published  </li>
+<li>Signature idioms documented (“Lukelang way”)</li>
+</ol>
+<hr />
+<h2 id="signature-line">Signature line</h2>
+<blockquote>
+<p><strong>Lukelang understands change.</strong></p>
+</blockquote>
+<p>The runtime knows <strong>what depends on what</strong> — and only that work runs.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE_ROADMAP.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

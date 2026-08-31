@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Community — LukeLang</title>
+<meta name="description" content="Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/community/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/community/" />
+<meta property="og:title" content="Community — LukeLang" />
+<meta property="og:description" content="Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Community — LukeLang" />
+<meta name="twitter:description" content="Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"WebPage","name":"Community","description":"Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands.","url":"https://lukelang.org/community/","isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../">
+    <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../learn/">Learn</a>
+    <a href="../docs/">Docs</a>
+    <a href="../download/">Download</a>
+    <a href="../examples/">Examples</a>
+    <a href="./" aria-current="page">Community</a>
+    <a href="../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead">
+    <p class="masthead__kicker">Community</p>
+    <h1>Built in the open, from <em>Myanmar</em>.</h1>
+    <p>
+      LukeLang is a small project with a long argument behind it. Everything — the strategy, the
+      scorecard, the things that are still parked — is written down in the repository, so you can
+      disagree with a decision by reading the reasoning first.
+    </p>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">On this page</label>
+      <div class="sidebar__panel">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#who">Who builds it</a></li>
+        <li><a href="#contributors">Contributors</a></li>
+        <li><a href="#ask">Where to ask</a></li>
+        <li><a href="#contribute">How to contribute</a></li>
+        <li><a href="#bar">The bar for a change</a></li>
+        <li><a href="#help">Where help is wanted</a></li>
+      </ul>
+      <h2>Elsewhere</h2>
+      <ul>
+        <li><a href="https://github.com/lucasdmarshall/LukeLang">Repository</a></li>
+        <li><a href="https://github.com/lucasdmarshall/LukeLang/issues">Issues</a></li>
+        <li><a href="../docs/">Documentation</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <div class="prose">
+
+      <section id="who">
+        <h2>Who <em>builds it</em></h2>
+        <p>
+          LukeLang is designed and developed by <strong>Kaung Myat San</strong>. It is Myanmar's
+          first official programming language: a compiler, a reactive runtime, a standard
+          library, editor tooling and a test suite, developed in public from the first commit.
+        </p>
+        <p>
+          The project has one beachhead — reactive full-stack web — and says so plainly. Mobile,
+          game and canvas tracks are parked until the first one is won. That decision, and the
+          eight others like it, are recorded in
+          <a href="../docs/strategy/">strategy</a>.
+        </p>
+      </section>
+
+      <section id="contributors">
+        <h2>Contributors</h2>
+        <p>
+          People who have helped, credited by name in
+          <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/CONTRIBUTORS.md">CONTRIBUTORS.md</a>.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall">Kaung Myat San</a></p>
+            <p class="rows__val">Creator — language design, compiler, reactive engine, Live Graph, standard library.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/jijihohococo">Lin Aung</a></p>
+            <p class="rows__val">
+              Installed <code>gdb</code> in GitHub Actions so the debugger checks
+              (<code>debug_break_step</code>, <code>debug_inspect</code>) can run in CI.
+              <a href="https://github.com/lucasdmarshall/LukeLang/pull/35">#35</a>
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="ask">
+        <h2>Where to <em>ask</em></h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/issues">GitHub issues</a></p>
+            <p class="rows__val">Bugs, compiler errors that look wrong, and anything reproducible. A failing <code>.luke</code> file is the best possible report.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/discussions">Discussions</a></p>
+            <p class="rows__val">Design questions, "should the language do X", and ideas that are not yet a bug.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/pulls">Pull requests</a></p>
+            <p class="rows__val">Fixes and features. Small and reviewable beats large and heroic.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="contribute">
+        <h2>How to <em>contribute</em></h2>
+        <p>Get a green baseline first, so you know any failure afterwards is yours:</p>
+<pre><code><span class="ln"><b class="sh">git</b> clone https://github.com/lucasdmarshall/LukeLang.git</span>
+<span class="ln"><b class="sh">cd</b> LukeLang/vm &amp;&amp; <b class="sh">make</b></span>
+<span class="ln"><b class="sh">make</b> test</span></code></pre>
+        <p>
+          Then read the
+          <a href="../docs/contributor-guide/">contributor guide</a>
+          for the repository layout and where each subsystem lives. In short:
+        </p>
+        <ul>
+          <li><code>vm/src/</code> — lexer, parser, lowering, C code generation, LSP and DAP</li>
+          <li><code>vm/stdlib/</code> — the standard library, written in LukeLang</li>
+          <li><code>vm/runtime/</code> — the C runtime headers the generated code links against</li>
+          <li><code>examples/</code> — the acceptance suite; new behaviour arrives with an example</li>
+          <li><code>docs/</code> — the canonical documents, checked by scripts where possible</li>
+        </ul>
+      </section>
+
+      <section id="bar">
+        <h2>The bar for a <em>change</em></h2>
+        <p>
+          There is no second reviewer on most days, so the automated gates <em>are</em> the
+          review. That is deliberate, and it is why they are strict.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key">It runs</p>
+            <p class="rows__val"><code>make test</code> is green, including the Play VM and Build paths.</p>
+          </li>
+          <li>
+            <p class="rows__key">It is pinned</p>
+            <p class="rows__val">New behaviour arrives with an example under <code>examples/</code> that CI compiles and asserts on.</p>
+          </li>
+          <li>
+            <p class="rows__key">It is written down</p>
+            <p class="rows__val">If it changes the language surface, the specification changes in the same commit — the spec is machine-checked against codegen.</p>
+          </li>
+          <li>
+            <p class="rows__key">It is honest</p>
+            <p class="rows__val">Anything provisional is labelled provisional, in the document and in the <a href="../docs/scorecard/">scorecard</a>.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="help">
+        <h2>Where help is <em>wanted</em></h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key">Platform coverage</p>
+            <p class="rows__val">Building and running the suite on macOS, BSD and less common Linux toolchains.</p>
+          </li>
+          <li>
+            <p class="rows__key">Editor integrations</p>
+            <p class="rows__val">The language server already speaks LSP — clients for editors beyond VS Code are wide open.</p>
+          </li>
+          <li>
+            <p class="rows__key">Migration grind</p>
+            <p class="rows__val">Conversational forms the v2 migrator still marks <code>TODO(migrate)</code> instead of translating.</p>
+          </li>
+          <li>
+            <p class="rows__key">Documentation</p>
+            <p class="rows__val">Worked examples for the standard library, and prose for anything you had to read the source to understand.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="next">
+        <a href="../docs/">← Documentation</a>
+        <a href="../news/">What shipped recently →</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/issues">Open an issue →</a>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../learn/">Learn</a>
+      <a href="../docs/">Docs</a>
+      <a href="../download/">Download</a>
+      <a href="../examples/">Examples</a>
+      <a href="./">Community</a>
+      <a href="../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../main.js"></script>
+</body>
+</html>

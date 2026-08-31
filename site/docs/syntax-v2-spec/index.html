@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Syntax v2 specification — LukeLang</title>
+<meta name="description" content="Status: normative for core / reactive / backend. Layout-UI section is provisional. Plan: SYNTAX_V2_PLAN.md · Golden corpus: examples/v2/ Decisions: all nine open items in the plan&#x27;" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/syntax-v2-spec/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/syntax-v2-spec/" />
+<meta property="og:title" content="Syntax v2 specification — LukeLang" />
+<meta property="og:description" content="Status: normative for core / reactive / backend. Layout-UI section is provisional. Plan: SYNTAX_V2_PLAN.md · Golden corpus: examples/v2/ Decisions: all nine open items in the plan&amp;#x27;" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Syntax v2 specification — LukeLang" />
+<meta name="twitter:description" content="Status: normative for core / reactive / backend. Layout-UI section is provisional. Plan: SYNTAX_V2_PLAN.md · Golden corpus: examples/v2/ Decisions: all nine open items in the plan&amp;#x27;" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Syntax v2 specification","description":"Status: normative for core / reactive / backend. Layout-UI section is provisional. Plan: SYNTAX_V2_PLAN.md \u00b7 Golden corpus: examples/v2/ Decisions: all nine open items in the plan&#x27;","url":"https://lukelang.org/docs/syntax-v2-spec/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Syntax v2 specification","item":"https://lukelang.org/docs/syntax-v2-spec/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Syntax v2 specification</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/" aria-current="page">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#1-resolved-decisions">1. Resolved decisions</a></li>
+        <li><a href="#2-core-statements">2. Core statements</a></li>
+        <li><a href="#3-collections">3. Collections</a></li>
+        <li><a href="#4-structs-was-blueprint">4. Structs (was BLUEPRINT)</a></li>
+        <li><a href="#5-reactive-declarative-by-decision">5. Reactive — declarative, by decision</a></li>
+        <li><a href="#6-layout-and-ui-provisional">6. Layout and UI — provisional</a></li>
+        <li><a href="#7-modules">7. Modules</a></li>
+        <li><a href="#8-backend-declarative-forms-retained">8. Backend — declarative forms retained</a></li>
+        <li><a href="#9-dropped-in-v2">9. Dropped in v2</a></li>
+        <li><a href="#10-worked-example">10. Worked example</a></li>
+        <li><a href="#11-what-the-front-end-must-guarantee">11. What the front-end must guarantee</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> normative for core / reactive / backend. Layout-UI section is <strong>provisional</strong>.
+<strong>Plan:</strong> <a href="../syntax-v2-plan/"><code>SYNTAX_V2_PLAN.md</code></a> · <strong>Golden corpus:</strong> <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/examples/v2"><code>examples/v2/</code></a>
+<strong>Decisions:</strong> all nine open items in the plan's §8 are resolved as recommended — recorded in <a href="#1-resolved-decisions">§1</a>.</p>
+</blockquote>
+<p>This spec is the mapping contract for the v2 front-end. Phase 2 is complete when every form
+below lowers to the v1 form in the same row and the golden corpus produces byte-identical
+stdout to its v1 twins.</p>
+<p>Coverage is verified mechanically, not by eye:</p>
+<pre><code><span class="ln"><b class="sh">python3</b> scripts/syntax_v2_spec_check.py</span></code></pre>
+<p>That script fails if any live conversational phrase is missing from this document. Because this
+is a solo project with no second reviewer, <strong>the gates are the review</strong> — every claim in this
+spec is either machine-checked or explicitly marked provisional.</p>
+<hr />
+<h2 id="1-resolved-decisions">1. Resolved decisions</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decision</th>
+<th>Resolution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Scope</td>
+<td>Technical imperative core; <strong>reactive keywords stay declarative</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Blocks</td>
+<td>Braces <code>{ }</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Mutability</td>
+<td><code>let</code> (immutable) / <code>var</code> (mutable)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Type syntax</td>
+<td><code>x: int</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Numeric names</td>
+<td><code>int</code> (int64) / <code>float</code> (double)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>String concat</td>
+<td><code>+</code> now; <code>"${x}"</code> interpolation deferred</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Instantiation</td>
+<td><code>Ticket(10)</code> — no <code>new</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>Type keyword</td>
+<td><code>struct</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>Extension at flip</td>
+<td><code>.luke</code> becomes v2; <code>.lk</code> is transition-only and is deleted at flip</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lexical-rules">Lexical rules</h3>
+<ul>
+<li><strong>Case sensitive.</strong> v1 accepted any casing (<code>startsCI</code>); v2 keywords are lowercase.
+  Identifiers keep their v1 spelling, so <code>httpReply</code> stays <code>httpReply</code>.</li>
+<li><strong>Statement terminator:</strong> newline. No semicolons required; <code>;</code> permitted as a separator.</li>
+<li><strong>Comments:</strong> <code>//</code> line, <code>/* */</code> block.</li>
+<li><strong>Strings:</strong> <code>"..."</code> with <code>\n \t \" \\</code> escapes. Triple-quoted <code>"""..."""</code> blocks are retained
+  verbatim for embedded CSS/HTML (see <a href="#8-embedded-foreign-content">§8</a>).</li>
+<li><strong>Reserved words</strong> are the lowercase keywords in this document. <code>signal</code>, <code>derived</code>, <code>effect</code>,
+  <code>watch</code>, <code>bind</code> are reserved.</li>
+</ul>
+<hr />
+<h2 id="2-core-statements">2. Core statements</h2>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SPEAK x</code> / <code>SAY x</code> / <code>SHOUT x</code></td>
+<td><code>print(x)</code></td>
+<td><code>SAY</code>/<code>SHOUT</code> collapse into <code>print</code></td>
+</tr>
+<tr>
+<td><code>MY NAME IS n SET TO e</code></td>
+<td><code>let n = e</code> <strong>or</strong> <code>var n = e</code></td>
+<td>see <a href="#21-let-vs-var-requires-mutation-analysis">§2.1</a></td>
+</tr>
+<tr>
+<td><code>MY NAME IS n AS T SET TO e</code></td>
+<td><code>let n: T = e</code> <strong>or</strong> <code>var n: T = e</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td><code>MY NAME IS n AS T</code></td>
+<td><code>var n: T</code></td>
+<td>declaration without initialiser is mutable</td>
+</tr>
+<tr>
+<td><code>SET n TO e</code></td>
+<td><code>n = e</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>SET SELF.f TO e</code></td>
+<td><code>self.f = e</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>INCREASE n BY e</code></td>
+<td><code>n += e</code></td>
+<td><code>DECREASE</code> → <code>-=</code></td>
+</tr>
+<tr>
+<td><code>THIS IS FUNCTION f WITH a AS T GIVES BACK R DO … END FUNCTION</code></td>
+<td><code>fn f(a: T) -&gt; R { … }</code></td>
+<td><code>GIVES BACK</code> optional in both</td>
+</tr>
+<tr>
+<td><code>GIVE BACK e</code></td>
+<td><code>return e</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ASK f WITH a, b</code></td>
+<td><code>f(a, b)</code></td>
+<td>statement and expression form</td>
+</tr>
+<tr>
+<td><code>ASK obj TO m</code></td>
+<td><code>obj.m()</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ASK obj TO m WITH a</code></td>
+<td><code>obj.m(a)</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>IF c DO … END IF</code></td>
+<td><code>if c { … }</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ELSE</code></td>
+<td><code>} else {</code></td>
+<td><code>ELSE IF</code> → <code>} else if c {</code></td>
+</tr>
+<tr>
+<td><code>WHILE c DO … END WHILE</code></td>
+<td><code>while c { … }</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>FOR EACH x IN xs DO …</code></td>
+<td><code>for x in xs { … }</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>IMPORT spec</code></td>
+<td><code>import spec</code></td>
+<td>see <a href="#7-modules">§7</a></td>
+</tr>
+<tr>
+<td><code>IN ARENA DO … END ARENA</code></td>
+<td><code>arena { … }</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ATTEMPT DO … OTHERWISE WITH e DO … END ATTEMPT</code></td>
+<td><code>try { … } catch (e) { … }</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>GIVE UP WITH e</code></td>
+<td><code>throw e</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>GET OUTTA HERE</code></td>
+<td><code>break</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>LET'S START</code> / <code>DONE</code></td>
+<td><em>(removed)</em></td>
+<td>v1 program bookends; no v2 equivalent</td>
+</tr>
+<tr>
+<td><code>TEST "n" DO … END TEST</code></td>
+<td><code>test "n" { … }</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>MAKE SURE c</code></td>
+<td><code>assert c</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>RECORD BENCH SAMPLE e</code></td>
+<td><code>bench.sample(e)</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-1-let-vs-var-requires-mutation-analysis">2.1 <code>let</code> vs <code>var</code> requires mutation analysis</h3>
+<p>v1 has <strong>no immutability distinction</strong> — <code>MY NAME IS</code> declares everything, and any binding can
+later be reassigned with <code>SET</code>. v2 splits this into <code>let</code> and <code>var</code>, so the mapping is <strong>not
+mechanical</strong>. A one-to-one <code>MY NAME IS</code> → <code>let</code> rule produces code that will not compile.</p>
+<p>The rule the migrator must implement, per binding, within its scope:</p>
+<blockquote>
+<p>Emit <code>var</code> if the name is ever the target of <code>SET</code>, <code>CHANGE</code>, <code>INCREASE</code>, or <code>DECREASE</code>.
+Otherwise emit <code>let</code>.</p>
+</blockquote>
+<p>Concretely, from <code>examples/build/backend_api.luke</code>:</p>
+<pre><code><span class="ln">MY NAME IS answered AS FLAG SET TO FALSE   <b class="cm">// later: SET answered TO TRUE</b></span><span class="ln">MY NAME IS path SET TO ASK httpPath WITH req   <b class="cm">// never reassigned</b></span></code></pre>
+<pre><code><span class="ln">var answered: bool = false   // mutated -&gt; var</span><span class="ln">let path = httpPath(req)     // never mutated -&gt; let</span></code></pre>
+<p>This is the first place a naive migrator breaks, and it is not detectable by the stdout
+equivalence harness alone — bad output here fails to <em>compile</em>, which is the good case. The
+dangerous case is the reverse: emitting <code>var</code> everywhere would compile fine and silently discard
+the immutability guarantee that motivated decision 3. <strong>Prefer <code>let</code> and let the compiler
+complain.</strong></p>
+<h3 id="types">Types</h3>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NUMBER</code></td>
+<td><code>float</code></td>
+</tr>
+<tr>
+<td><code>INTEGER</code></td>
+<td><code>int</code></td>
+</tr>
+<tr>
+<td><code>TEXT</code></td>
+<td><code>str</code></td>
+</tr>
+<tr>
+<td><code>FLAG</code></td>
+<td><code>bool</code></td>
+</tr>
+<tr>
+<td><code>JSON</code></td>
+<td><code>json</code></td>
+</tr>
+<tr>
+<td><code>LIST</code></td>
+<td><code>list</code></td>
+</tr>
+<tr>
+<td><code>MAP</code></td>
+<td><code>map</code></td>
+</tr>
+<tr>
+<td><code>SERVER</code></td>
+<td><code>Server</code></td>
+</tr>
+<tr>
+<td><code>REQUEST</code></td>
+<td><code>Request</code></td>
+</tr>
+<tr>
+<td><code>DATABASE</code></td>
+<td><code>Db</code></td>
+</tr>
+<tr>
+<td><code>BLUEPRINT Foo</code> (as a type)</td>
+<td><code>Foo</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>AS</code> as a type-annotation particle becomes <code>:</code>. <code>AS</code> in <code>SLOT INPUT AS CHECKBOX</code> becomes a named
+argument (see <a href="#6-layout-and-ui--provisional">§6</a>).</p>
+<h3 id="operators">Operators</h3>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ADD a AND b</code></td>
+<td><code>a + b</code></td>
+</tr>
+<tr>
+<td><code>SUBTRACT b FROM a</code> / <code>a SUBTRACT b</code></td>
+<td><code>a - b</code></td>
+</tr>
+<tr>
+<td><code>a MULTIPLIED BY b</code> / <code>MULTIPLY</code></td>
+<td><code>a * b</code></td>
+</tr>
+<tr>
+<td><code>a DIVIDED BY b</code> / <code>DIVIDE</code></td>
+<td><code>a / b</code></td>
+</tr>
+<tr>
+<td><code>a MOD b</code></td>
+<td><code>a % b</code></td>
+</tr>
+<tr>
+<td><code>a EQUALS b</code></td>
+<td><code>a == b</code></td>
+</tr>
+<tr>
+<td><code>a IS NOT b</code></td>
+<td><code>a != b</code></td>
+</tr>
+<tr>
+<td><code>a IS GREATER THAN b</code></td>
+<td><code>a &gt; b</code></td>
+</tr>
+<tr>
+<td><code>a IS LESS THAN b</code></td>
+<td><code>a &lt; b</code></td>
+</tr>
+<tr>
+<td><code>NOT a</code></td>
+<td><code>!a</code></td>
+</tr>
+<tr>
+<td><code>a AND b</code> <em>(logical)</em></td>
+<td><code>a &amp;&amp; b</code></td>
+</tr>
+<tr>
+<td><code>a OR b</code></td>
+<td><code>a \|\| b</code></td>
+</tr>
+<tr>
+<td><code>"x=" AND y</code> <em>(text concat)</em></td>
+<td><code>"x=" + y</code></td>
+</tr>
+<tr>
+<td><code>TRUE</code> / <code>FALSE</code></td>
+<td><code>true</code> / <code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The <code>AND</code> split is the headline fix.</strong> v1 overloads one token for concatenation and
+conjunction; v2 separates <code>+</code> from <code>&amp;&amp;</code>. A v1→v2 migrator must resolve this by operand type:
+<code>str</code> operands lower to <code>+</code>, <code>bool</code> operands to <code>&amp;&amp;</code>.</p>
+<p>Precedence (loosest to tightest): <code>||</code> · <code>&amp;&amp;</code> · <code>== != &lt; &gt; &lt;= &gt;=</code> · <code>+ -</code> · <code>* / %</code> · unary <code>! -</code>
+· call/index/field. Parentheses group.</p>
+<h4>Associativity and parenthesisation</h4>
+<p>Verified against the v1 compiler rather than assumed:</p>
+<ul>
+<li>v1 arithmetic is <strong>left-associative</strong> (<code>10 SUBTRACT 3 SUBTRACT 2</code> = 5, <code>12 DIVIDED BY 3 DIVIDED BY 2</code> = 2).</li>
+<li>v1 concatenation (<code>AND</code>) is <strong>right-associative</strong>.</li>
+</ul>
+<p>The lowerer therefore <strong>always parenthesises binary operands</strong>. That makes grouping explicit and
+immunises non-associative operators (<code>-</code>, <code>/</code>) against any v1 associativity assumption. The
+visible consequence is that <code>a + b + c</code> on strings produces a differently-shaped — but
+semantically identical — tree than hand-written v1, so the equivalence harness treats a
+generated-C difference on concatenation as expected, not a failure.</p>
+<h4>Not yet lowered</h4>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%</code></td>
+<td>no Build-mode equivalent; rejected with an error</td>
+</tr>
+<tr>
+<td><code>for i in 0..n</code></td>
+<td>range loops rejected; use <code>while</code></td>
+</tr>
+<tr>
+<td>non-empty <code>[…]</code> / <code>{…}</code> literals</td>
+<td>rejected; build containers with <code>push</code> / index assignment</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-collections">3. Collections</h2>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MY NAME IS xs AS LIST</code></td>
+<td><code>var xs: list = []</code></td>
+</tr>
+<tr>
+<td><code>ADD e TO xs</code></td>
+<td><code>xs.push(e)</code></td>
+</tr>
+<tr>
+<td><code>ITEM i OF xs</code></td>
+<td><code>xs[i]</code></td>
+</tr>
+<tr>
+<td><code>LAST OF xs</code></td>
+<td><code>xs.last()</code></td>
+</tr>
+<tr>
+<td><code>HOW MANY IN xs</code></td>
+<td><code>xs.len()</code></td>
+</tr>
+<tr>
+<td><code>DELETE i FROM xs</code></td>
+<td><code>xs.remove(i)</code></td>
+</tr>
+<tr>
+<td><code>MY NAME IS m AS MAP</code></td>
+<td><code>var m: map = {}</code></td>
+</tr>
+<tr>
+<td><code>PUT k TO v IN m</code></td>
+<td><code>m[k] = v</code></td>
+</tr>
+<tr>
+<td><code>GET k FROM m</code></td>
+<td><code>m[k]</code></td>
+</tr>
+<tr>
+<td><code>HAS KEY k IN m</code></td>
+<td><code>m.has(k)</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-structs-was-blueprint">4. Structs (was <code>BLUEPRINT</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BLUEPRINT Foo DO … END CLASS</code> / <code>END BLUEPRINT</code></td>
+<td><code>struct Foo { … }</code></td>
+</tr>
+<tr>
+<td><code>CLASS Foo</code></td>
+<td><code>struct Foo</code></td>
+</tr>
+<tr>
+<td><code>BLUEPRINT Foo FOLLOWS Bar</code> / <code>EXTENDS</code></td>
+<td><code>struct Foo : Bar { … }</code></td>
+</tr>
+<tr>
+<td><code>HAS f AS T</code></td>
+<td><code>f: T</code></td>
+</tr>
+<tr>
+<td><code>HAS f SET TO e</code></td>
+<td><code>f = e</code></td>
+</tr>
+<tr>
+<td><code>WHEN BORN WITH a AS T DO … END BORN</code></td>
+<td><code>init(a: T) { … }</code></td>
+</tr>
+<tr>
+<td><code>METHOD m WITH a AS T DO … END METHOD</code></td>
+<td><code>fn m(a: T) { … }</code></td>
+</tr>
+<tr>
+<td><code>PRIVATE METHOD m</code> / <code>SECRET METHOD m</code></td>
+<td><code>private fn m</code></td>
+</tr>
+<tr>
+<td><code>PRIVATE f</code></td>
+<td><code>private f: T</code></td>
+</tr>
+<tr>
+<td><code>SELF.f</code></td>
+<td><code>self.f</code></td>
+</tr>
+<tr>
+<td><code>CALL PARENT m</code></td>
+<td><code>super.m()</code></td>
+</tr>
+<tr>
+<td><code>CALL PARENT m OF Anc WITH a</code></td>
+<td><code>super&lt;Anc&gt;.m(a)</code></td>
+</tr>
+<tr>
+<td><code>NEW Foo WITH a</code></td>
+<td><code>Foo(a)</code></td>
+</tr>
+<tr>
+<td><code>DESTROY x</code></td>
+<td><code>drop(x)</code></td>
+</tr>
+<tr>
+<td><code>CONTRACT</code> (Play-only interface)</td>
+<td><code>trait</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>BORN</code> / <code>BORNED</code> are v1 <code>WHEN BORN</code> block enders; v2 uses <code>}</code>.</p>
+<hr />
+<h2 id="5-reactive-declarative-by-decision">5. Reactive — declarative, by decision</h2>
+<p>Spelling changes; kind does not. These stay first-class statements, not library calls.</p>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REMEMBER c AS e</code></td>
+<td><code>signal c = e</code></td>
+</tr>
+<tr>
+<td><code>SECRET REMEMBER c AS e</code></td>
+<td><code>secret signal c = e</code></td>
+</tr>
+<tr>
+<td><code>THE t IS expr</code></td>
+<td><code>derived t = expr</code></td>
+</tr>
+<tr>
+<td><code>CHANGE c TO e</code></td>
+<td><code>c = e</code></td>
+</tr>
+<tr>
+<td><code>WHEN REACTIVE c CHANGES DO … END WHEN REACTIVE</code></td>
+<td><code>effect on c { … }</code></td>
+</tr>
+<tr>
+<td><code>WHEN BACKGROUND REACTIVE c CHANGES DO …</code></td>
+<td><code>effect background on c { … }</code></td>
+</tr>
+<tr>
+<td><code>WHEN REACTIVE WEAK c CHANGES DO …</code></td>
+<td><code>effect weak on c { … }</code></td>
+</tr>
+<tr>
+<td><code>BEGIN REACTIVE BATCH … END REACTIVE BATCH</code></td>
+<td><code>batch { … }</code></td>
+</tr>
+<tr>
+<td><code>BIND "id" TO c</code></td>
+<td><code>bind("id", c)</code></td>
+</tr>
+<tr>
+<td><code>BIND LIST "id" TO xs</code></td>
+<td><code>bind.list("id", xs)</code></td>
+</tr>
+<tr>
+<td><code>BIND OPACITY "id" TO c</code></td>
+<td><code>bind.opacity("id", c)</code></td>
+</tr>
+<tr>
+<td><code>WATCH c FROM db WHERE "…"</code></td>
+<td><code>watch c from db where "…"</code></td>
+</tr>
+<tr>
+<td><code>WATCH c FROM "url"</code></td>
+<td><code>watch c from "url"</code></td>
+</tr>
+<tr>
+<td><code>PUSH WATCH c ON req</code></td>
+<td><code>push watch c on req</code></td>
+</tr>
+<tr>
+<td><code>PUSH WATCH c ON req FOR n BEATS EVERY m MILLISECONDS</code></td>
+<td><code>push watch c on req for n beats every m ms</code></td>
+</tr>
+<tr>
+<td><code>THE VALUE OF c</code></td>
+<td><code>c.value()</code></td>
+</tr>
+<tr>
+<td><code>THE WEAK VALUE OF c</code></td>
+<td><code>c.weak()</code></td>
+</tr>
+<tr>
+<td><code>THE DEP COUNT OF c</code></td>
+<td><code>c.deps()</code></td>
+</tr>
+<tr>
+<td><code>THE SUB COUNT OF c</code></td>
+<td><code>c.subs()</code></td>
+</tr>
+<tr>
+<td><code>THE NODE ID OF c</code></td>
+<td><code>c.id()</code></td>
+</tr>
+<tr>
+<td><code>TRACE WHY c</code></td>
+<td><code>why(c)</code></td>
+</tr>
+<tr>
+<td><code>THE WHY ROOT OF c</code></td>
+<td><code>why(c).root()</code></td>
+</tr>
+<tr>
+<td><code>THE WHY DEPTH OF c</code></td>
+<td><code>why(c).depth()</code></td>
+</tr>
+<tr>
+<td><code>REPORT REACTIVE FAILURE FOR c</code></td>
+<td><code>reactive.fail(c)</code></td>
+</tr>
+<tr>
+<td><code>REFRESH QUERY q</code></td>
+<td><code>q.refresh()</code></td>
+</tr>
+<tr>
+<td><code>QUERY ON …</code></td>
+<td><code>query on …</code></td>
+</tr>
+<tr>
+<td><code>SUBSCRIBE …</code> / <code>START SUBSCRIBE</code></td>
+<td><code>subscribe …</code> / <code>subscribe.start()</code></td>
+</tr>
+<tr>
+<td><code>FETCH …</code> / <code>START FETCH</code></td>
+<td><code>fetch …</code> / <code>fetch.start()</code></td>
+</tr>
+<tr>
+<td><code>THE STATUS OF FETCH f</code></td>
+<td><code>f.status()</code></td>
+</tr>
+<tr>
+<td><code>THE BODY OF FETCH f</code></td>
+<td><code>f.body()</code></td>
+</tr>
+<tr>
+<td><code>TIMELINE</code> / <code>START TIMELINE</code> / <code>RUN TIMELINE</code></td>
+<td><code>timeline</code> / <code>timeline.start()</code> / <code>timeline.run()</code></td>
+</tr>
+<tr>
+<td><code>THE TIMELINE STEP ID AT i</code></td>
+<td><code>timeline.step(i).id()</code></td>
+</tr>
+<tr>
+<td><code>THE TIMELINE STEP WAVE AT i</code></td>
+<td><code>timeline.step(i).wave()</code></td>
+</tr>
+<tr>
+<td><code>SCRUB TO ACCESS OF c</code></td>
+<td><code>timeline.scrub(c)</code></td>
+</tr>
+<tr>
+<td><code>WHO SAW c</code></td>
+<td><code>who_saw(c)</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-layout-and-ui-provisional">6. Layout and UI — provisional</h2>
+<p><strong>Not normative.</strong> The frontend track is parked (<code>TaskList.md</code> §7) and backend is the beachhead.
+These mappings are a placeholder so <code>frontend_widgets</code> can exist in the golden corpus; settling
+them must not block backend publish. Phase 4 revisits.</p>
+<p>The shape: declarative blocks with braces and named arguments.</p>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2 (provisional)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BEGIN COLUMN AT x, y SIZE w, h PAD p GAP g</code></td>
+<td><code>column { at: x, y; size: w, h; pad: p; gap: g }</code></td>
+</tr>
+<tr>
+<td><code>BEGIN ROW</code> / <code>BEGIN STACK</code> / <code>BEGIN GRID</code></td>
+<td><code>row { }</code> / <code>stack { }</code> / <code>grid { }</code></td>
+</tr>
+<tr>
+<td><code>END COLUMN</code></td>
+<td><code>}</code></td>
+</tr>
+<tr>
+<td><code>ALIGN MAIN CENTER CROSS START</code></td>
+<td><code>align: main(center), cross(start)</code></td>
+</tr>
+<tr>
+<td><code>SLOT TEXT "id" SIZE w, h SAY "s"</code></td>
+<td><code>text("id") { size: w, h; say: "s" }</code></td>
+</tr>
+<tr>
+<td><code>SLOT BUTTON</code> / <code>SELECT</code> / <code>TABLE</code> / <code>MODAL</code> / <code>INPUT</code></td>
+<td><code>button(…)</code> / <code>select(…)</code> / <code>table(…)</code> / <code>modal(…)</code> / <code>input(…)</code></td>
+</tr>
+<tr>
+<td><code>SLOT INPUT AS CHECKBOX "id"</code></td>
+<td><code>input("id") { kind: checkbox }</code></td>
+</tr>
+<tr>
+<td><code>SIZE AUTO, 40</code></td>
+<td><code>size: auto, 40</code></td>
+</tr>
+<tr>
+<td><code>PLACE "id" AT x, y</code></td>
+<td><code>place("id") { at: x, y }</code></td>
+</tr>
+<tr>
+<td><code>LAY OUT THE SCREEN</code></td>
+<td><code>layout()</code></td>
+</tr>
+<tr>
+<td><code>PAINT THE SCREEN</code></td>
+<td><code>paint()</code></td>
+</tr>
+<tr>
+<td><code>NAME THE PAGE "t"</code></td>
+<td><code>page.title("t")</code></td>
+</tr>
+<tr>
+<td><code>WEAR STYLE """…"""</code></td>
+<td><code>page.style("""…""")</code></td>
+</tr>
+<tr>
+<td><code>FILL "id" WITH """…"""</code></td>
+<td><code>fill("id", """…""")</code></td>
+</tr>
+<tr>
+<td><code>BRING FONT "n" FROM "p"</code></td>
+<td><code>page.font("n", "p")</code></td>
+</tr>
+<tr>
+<td><code>BEGIN COMPONENT C</code> / <code>END COMPONENT</code></td>
+<td><code>component C { … }</code></td>
+</tr>
+<tr>
+<td><code>UNMOUNT COMPONENT c</code> / <code>DESTROY COMPONENT c</code></td>
+<td><code>c.unmount()</code> / <code>c.destroy()</code></td>
+</tr>
+<tr>
+<td><code>BEGIN ENTITY E</code> / <code>END ENTITY</code> / <code>ENTITY</code></td>
+<td><code>entity E { … }</code></td>
+</tr>
+<tr>
+<td><code>BEGIN ERROR BOUNDARY b</code> / <code>END ERROR BOUNDARY</code></td>
+<td><code>boundary b { … }</code></td>
+</tr>
+<tr>
+<td><code>ERROR BOUNDARY</code> / <code>RESET ERROR BOUNDARY b</code></td>
+<td><code>boundary</code> / <code>b.reset()</code></td>
+</tr>
+<tr>
+<td><code>THE BOUNDARY TRIPPED FOR b</code></td>
+<td><code>b.tripped()</code></td>
+</tr>
+<tr>
+<td><code>ANNOUNCE "m"</code></td>
+<td><code>announce("m")</code></td>
+</tr>
+<tr>
+<td><code>TRAP FOCUS IN "id"</code> / <code>RESTORE FOCUS</code></td>
+<td><code>focus.trap("id")</code> / <code>focus.restore()</code></td>
+</tr>
+<tr>
+<td><code>OPEN THE MODAL "id"</code> / <code>OPEN MODAL</code></td>
+<td><code>modal.open("id")</code></td>
+</tr>
+<tr>
+<td><code>FADE "id" TO v</code></td>
+<td><code>fade("id", v)</code></td>
+</tr>
+<tr>
+<td><code>SET THE OPACITY OF "id" TO v</code></td>
+<td><code>opacity("id", v)</code></td>
+</tr>
+<tr>
+<td><code>THE TEXT WIDTH OF "s"</code></td>
+<td><code>text_width("s")</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT WIDTH</code></td>
+<td><code>viewport.width()</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT CHANGES</code></td>
+<td><code>viewport.changes()</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT IS AT LEAST n</code></td>
+<td><code>viewport.at_least(n)</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT IS UNDER n</code></td>
+<td><code>viewport.under(n)</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT IS ABOVE n</code></td>
+<td><code>viewport.above(n)</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT IS BELOW n</code></td>
+<td><code>viewport.below(n)</code></td>
+</tr>
+<tr>
+<td><code>THE VIEWPORT IS BETWEEN a AND b</code></td>
+<td><code>viewport.between(a, b)</code></td>
+</tr>
+<tr>
+<td><code>WHEN "id" IS CLICKED DO … END WHEN</code></td>
+<td><code>on click("id") { … }</code></td>
+</tr>
+<tr>
+<td><code>ACTION a</code></td>
+<td><code>action a</code></td>
+</tr>
+<tr>
+<td><code>GO TO "/path"</code></td>
+<td><code>route.go("/path")</code></td>
+</tr>
+<tr>
+<td><code>LINK TO "/path"</code></td>
+<td><code>link("/path")</code></td>
+</tr>
+<tr>
+<td><code>THE ROUTE IS "/p"</code></td>
+<td><code>route.is("/p")</code></td>
+</tr>
+<tr>
+<td><code>AT</code>, <code>ON</code>, <code>UP</code>, <code>OF</code>, <code>WITH</code></td>
+<td>argument particles — become named args, <code>.</code>, or <code>()</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-modules">7. Modules</h2>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IMPORT std/files</code></td>
+<td><code>import std/files</code></td>
+</tr>
+<tr>
+<td><code>IMPORT "./critter.luke"</code></td>
+<td><code>import "./critter.lk"</code></td>
+</tr>
+<tr>
+<td><code>IMPORT luke/greeter</code></td>
+<td><code>import luke/greeter</code></td>
+</tr>
+<tr>
+<td><code>IMPORT package:greeter</code></td>
+<td><code>import luke/greeter</code> — <code>package:</code> alias dropped</td>
+</tr>
+<tr>
+<td><code>FOREIGN FUNCTION</code> / <code>FOREIGN</code></td>
+<td><code>extern fn</code></td>
+</tr>
+<tr>
+<td><code>c:</code> / <code>C:</code> FFI prefix</td>
+<td><code>extern "c"</code></td>
+</tr>
+<tr>
+<td><code>VERSION</code> / <code>entry=</code> (in <code>luke.pkg</code>)</td>
+<td>unchanged — manifest, not source syntax</td>
+</tr>
+</tbody>
+</table>
+<p><code>std/</code> and <code>luke/</code> remain import namespace prefixes, unchanged.</p>
+<hr />
+<h2 id="8-backend-declarative-forms-retained">8. Backend — declarative forms retained</h2>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ROUTES DO … END ROUTES</code></td>
+<td><code>routes { … }</code></td>
+</tr>
+<tr>
+<td><code>GET "/p" HANDLE h</code></td>
+<td><code>get "/p" -&gt; h</code></td>
+</tr>
+<tr>
+<td><code>POST "/p" HANDLE h</code></td>
+<td><code>post "/p" -&gt; h</code></td>
+</tr>
+<tr>
+<td><code>SERVE ROUTES ON port</code></td>
+<td><code>serve routes on port</code></td>
+</tr>
+<tr>
+<td><code>MIDDLEWARE ORDER a, b</code></td>
+<td><code>middleware a, b</code></td>
+</tr>
+<tr>
+<td><code>FORM f DO … END FORM</code></td>
+<td><code>form f { … }</code></td>
+</tr>
+<tr>
+<td><code>COLLECT a, b</code></td>
+<td><code>collect a, b</code></td>
+</tr>
+<tr>
+<td><code>VALIDATE FORM f</code></td>
+<td><code>f.validate()</code></td>
+</tr>
+<tr>
+<td><code>VERIFY …</code></td>
+<td><code>verify …</code></td>
+</tr>
+<tr>
+<td><code>SCHEMA s DO … END SCHEMA</code></td>
+<td><code>schema s { … }</code></td>
+</tr>
+<tr>
+<td><code>ENSURE SCHEMA s</code></td>
+<td><code>ensure schema s</code></td>
+</tr>
+<tr>
+<td><code>MIGRATION m DO … END MIGRATION</code></td>
+<td><code>migration m { … }</code></td>
+</tr>
+<tr>
+<td><code>MIGRATE</code> / <code>REWIND</code></td>
+<td><code>migrate</code> / <code>rewind</code></td>
+</tr>
+<tr>
+<td><code>UPDATE …</code></td>
+<td><code>update …</code></td>
+</tr>
+<tr>
+<td><code>REQUIRE LOGIN ON req WITH db</code></td>
+<td><code>require login on req with db</code></td>
+</tr>
+<tr>
+<td><code>THE CURRENT USER</code></td>
+<td><code>current_user</code></td>
+</tr>
+<tr>
+<td><code>CREATE ACCOUNT FROM FLOW f</code></td>
+<td><code>create account from f</code></td>
+</tr>
+<tr>
+<td><code>FLOW f DO … END FLOW</code></td>
+<td><code>flow f { … }</code></td>
+</tr>
+<tr>
+<td><code>ADVANCE FLOW f</code></td>
+<td><code>f.advance()</code></td>
+</tr>
+<tr>
+<td><code>SECRET x</code></td>
+<td><code>secret x</code></td>
+</tr>
+<tr>
+<td><code>REVEAL x</code></td>
+<td><code>reveal x</code></td>
+</tr>
+<tr>
+<td><code>LIMIT n PER MINUTE PER IP</code></td>
+<td><code>limit n per minute per ip</code></td>
+</tr>
+<tr>
+<td><code>REFRESH LIMIT</code></td>
+<td><code>limit.refresh()</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="embedded-foreign-content">Embedded foreign content</h3>
+<p>Triple-quoted blocks (<code>WEAR STYLE """…"""</code>, <code>FILL … WITH """…"""</code>) contain CSS/HTML, not Luke.
+The lexer treats them as opaque and the migrator copies them <strong>byte for byte</strong>. This is why part
+of the plan's <code>Raw</code> tail needs no structuring — see <code>SYNTAX_V2_PLAN.md</code> §2.2.</p>
+<hr />
+<h2 id="9-dropped-in-v2">9. Dropped in v2</h2>
+<p>The 44 dead phrases (present in codegen, unused in the corpus) are <strong>not ported</strong>. Notable
+deliberate removals beyond those:</p>
+<table>
+<thead>
+<tr>
+<th>Dropped</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LET'S START</code> / <code>DONE</code></td>
+<td>program bookends with no semantics</td>
+</tr>
+<tr>
+<td><code>SAY</code> / <code>SHOUT</code> / <code>YELL</code></td>
+<td>aliases of <code>SPEAK</code>; v2 has one <code>print</code></td>
+</tr>
+<tr>
+<td><code>SEND BACK</code> / <code>HAND BACK</code></td>
+<td>aliases of <code>GIVE BACK</code></td>
+</tr>
+<tr>
+<td><code>MAKE FUNCTION</code></td>
+<td>alias of <code>THIS IS FUNCTION</code></td>
+</tr>
+<tr>
+<td><code>package:</code></td>
+<td>alias of <code>luke/</code></td>
+</tr>
+<tr>
+<td><code>BORNED</code></td>
+<td>alias of <code>BORN</code></td>
+</tr>
+<tr>
+<td><code>CLOSE THE MODAL</code> / <code>HIDE MODAL</code> / <code>SHOW MODAL</code></td>
+<td>dead; <code>modal.open/close</code> covers it</td>
+</tr>
+</tbody>
+</table>
+<p>Collapsing aliases is a real simplification: v1's 216 phrases include many synonyms that exist
+only because the surface was English.</p>
+<hr />
+<h2 id="10-worked-example">10. Worked example</h2>
+<p>v1 — <code>examples/build/backend_api.luke</code> (excerpt):</p>
+<pre><code><span class="ln"><b class="kw">import</b> std/server</span><span class="ln"><b class="kw">import</b> std/sqlite</span><span class="ln"><b class="kw">fn</b> <b class="fn">handle</b>(req: <b class="ty">Request</b>) {</span><span class="ln">  <b class="kw">let</b> db = <b class="fn">dbOpen</b>(<b class="str">&quot;/tmp/luke_backend_api.db&quot;</b>)</span><span class="ln">  <b class="kw">let</b> method = <b class="fn">httpMethod</b>(req)</span><span class="ln">  <b class="kw">let</b> path = <b class="fn">httpPath</b>(req)</span><span class="ln">  <b class="kw">var</b> params: <b class="ty">map</b> = {}</span><span class="ln">  <b class="kw">if</b> method == <b class="str">&quot;GET&quot;</b> {</span><span class="ln">    <b class="kw">if</b> <b class="fn">httpMatch</b>(path, <b class="str">&quot;/user/:id&quot;</b>, params) {</span><span class="ln">      <b class="kw">let</b> id = params[<b class="str">&quot;id&quot;</b>]</span><span class="ln">      <b class="kw">var</b> binds: <b class="ty">list</b> = []</span><span class="ln">      binds.<b class="fn">push</b>(id)</span><span class="ln">      <b class="kw">let</b> name = <b class="fn">dbQueryBind</b>(db, <b class="str">&quot;SELECT name FROM users WHERE id = ?&quot;</b>, binds)</span><span class="ln">      <b class="fn">httpReply</b>(req, <b class="num">200</b>, <b class="str">&quot;text/plain&quot;</b>, name)</span><span class="ln">    }</span><span class="ln">  }</span><span class="ln">  <b class="fn">dbClose</b>(db)</span><span class="ln">}</span></code></pre>
+<p>v2 — <code>examples/v2/backend_api.lk</code>:</p>
+<pre><code><span class="ln">import std/server</span><span class="ln">import std/sqlite</span><span class="ln"></span><span class="ln">fn handle(req: Request) {</span><span class="ln">  let db = dbOpen(&quot;/tmp/luke_backend_api.db&quot;)</span><span class="ln">  let method = httpMethod(req)</span><span class="ln">  let path = httpPath(req)</span><span class="ln">  var params: map = {}</span><span class="ln">  if method == &quot;GET&quot; {</span><span class="ln">    if httpMatch(path, &quot;/user/:id&quot;, params) {</span><span class="ln">      let id = params[&quot;id&quot;]</span><span class="ln">      var binds: list = []</span><span class="ln">      binds.push(id)</span><span class="ln">      let name = dbQueryBind(db, &quot;SELECT name FROM users WHERE id = ?&quot;, binds)</span><span class="ln">      httpReply(req, 200, &quot;text/plain&quot;, name)</span><span class="ln">    }</span><span class="ln">  }</span><span class="ln">  dbClose(db)</span><span class="ln">}</span></code></pre>
+<p>Same program, same line count. The win is not brevity — it is that every construct is one a
+backend developer already recognises, and that <code>ASK … WITH</code>, <code>MY NAME IS … SET TO</code>, and
+<code>GET … FROM</code> stop being things you have to learn before writing a route handler.</p>
+<hr />
+<h2 id="11-what-the-front-end-must-guarantee">11. What the front-end must guarantee</h2>
+<ol>
+<li><strong>Lower to v1 text</strong>, not to C. Codegen is untouched (plan §3).</li>
+<li><strong>Emit <code>// @luke-file "app.lk" N</code> markers</strong> so diagnostics, <code>#line</code> maps, gdb, and LSP all
+   report <code>.lk</code> positions. This is a Phase 2 gate, not a follow-up.</li>
+<li><strong>Preserve evaluation order and stdout exactly.</strong> The acceptance test is byte-identical
+   stdout against the v1 twin, for every file in <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/examples/v2"><code>examples/v2/</code></a>.</li>
+<li><strong>Reject, never guess.</strong> An unmappable construct is a compile error citing this spec, not a
+   silent passthrough.</li>
+</ol>
+<h3 id="implementation-status">Implementation status</h3>
+<p>Shipped in <code>vm/src/luke2_lex.cpp</code>, <code>luke2_parse.cpp</code>, <code>luke2_lower.cpp</code>, <code>luke2_migrate.cpp</code>;
+<code>.lk</code> paths and <code>luke MIGRATE</code> are dispatched from <code>main.cpp</code>. <code>build_c.cpp</code> is unmodified.</p>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spec ↔ live-phrase coverage</td>
+<td><code>scripts/syntax_v2_spec_check.py</code></td>
+</tr>
+<tr>
+<td>Golden corpus pairing</td>
+<td><code>scripts/syntax_v2_corpus_check.py</code></td>
+</tr>
+<tr>
+<td>Lower: BUILD(v2) ≡ BUILD(v1)</td>
+<td><code>scripts/syntax_v2_equiv.sh</code> — <strong>9 / 9 normative</strong></td>
+</tr>
+<tr>
+<td>Migrate: BUILD(MIGRATE(v1)) ≡ BUILD(v1)</td>
+<td><code>scripts/syntax_v2_migrate_equiv.sh</code> — <strong>10 / 10 goldens</strong></td>
+</tr>
+<tr>
+<td>Full corpus BUILD-after-migrate</td>
+<td>~<strong>93 / 118</strong> (Phase 3a in progress; 9 intentional negatives)</td>
+</tr>
+<tr>
+<td>Errors report <code>.lk</code> positions</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>Debug info points at <code>.lk</code></td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>Layout/UI surface (§6)</td>
+<td><strong>not lowered</strong> — provisional</td>
+</tr>
+</tbody>
+</table>
+<p>Phase 3a (structuring the remaining Raw tail) is required before <code>MIGRATE_CORPUS=all</code> can be
+the CI gate; today that probe is informational (~38/118 pass on <code>examples/build</code>).</p>
+<pre><code><span class="ln"><b class="sh">cd</b> vm &amp;&amp; make &amp;&amp; make test-syntax-v2</span></code></pre>
+<p>Type information comes from v2 annotations, literals, in-file <code>fn</code> signatures, and — for stdlib
+calls — the <code>GIVES BACK</code> clauses read straight out of the v1 <code>vm/stdlib/*.luke</code> sources. No
+hand-maintained return-type table, so it cannot drift from the stdlib.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SYNTAX_V2_SPEC.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

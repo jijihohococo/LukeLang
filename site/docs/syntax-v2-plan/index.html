@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Syntax v2 plan — LukeLang</title>
+<meta name="description" content="Status: Phases 0–5 flip complete (.luke is v2; --syntax=1 deprecation window). Phrase-prefix deletion in build_c.cpp is the post-window cleanup. No codegen AST rewrite yet. Scope: " />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/syntax-v2-plan/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/syntax-v2-plan/" />
+<meta property="og:title" content="Syntax v2 plan — LukeLang" />
+<meta property="og:description" content="Status: Phases 0–5 flip complete (.luke is v2; --syntax=1 deprecation window). Phrase-prefix deletion in build_c.cpp is the post-window cleanup. No codegen AST rewrite yet. Scope:" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Syntax v2 plan — LukeLang" />
+<meta name="twitter:description" content="Status: Phases 0–5 flip complete (.luke is v2; --syntax=1 deprecation window). Phrase-prefix deletion in build_c.cpp is the post-window cleanup. No codegen AST rewrite yet. Scope:" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Syntax v2 plan","description":"Status: Phases 0\u20135 flip complete (.luke is v2; --syntax=1 deprecation window). Phrase-prefix deletion in build_c.cpp is the post-window cleanup. No codegen AST rewrite yet. Scope:","url":"https://lukelang.org/docs/syntax-v2-plan/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Syntax v2 plan","item":"https://lukelang.org/docs/syntax-v2-plan/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Syntax v2 plan</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/" aria-current="page">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#1-the-premise-stated-honestly">1. The premise, stated honestly</a></li>
+        <li><a href="#2-what-the-code-actually-looks-like-today">2. What the code actually looks like today</a></li>
+        <li><a href="#3-strategy-dual-front-end-one-backend">3. Strategy: dual front-end, one backend</a></li>
+        <li><a href="#4-proposed-technical-syntax">4. Proposed technical syntax</a></li>
+        <li><a href="#5-what-does-not-change">5. What does not change</a></li>
+        <li><a href="#6-phases">6. Phases</a></li>
+        <li><a href="#7-risks">7. Risks</a></li>
+        <li><a href="#8-open-decisions-needing-sign-off">8. Open decisions needing sign-off</a></li>
+        <li><a href="#9-status">9. Status</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> Phases 0–5 flip complete (<code>.luke</code> is v2; <code>--syntax=1</code> deprecation window).
+Phrase-prefix deletion in <code>build_c.cpp</code> is the post-window cleanup. No codegen AST rewrite yet.
+<strong>Scope:</strong> replace the conversational surface syntax with a conventional technical syntax
+(braces, operators, <code>fn</code>, <code>let</code>) while keeping the reactive engine and Build guarantees intact.</p>
+</blockquote>
+<p>This document is the plan of record for the syntax change. It is written against measurements
+of the current tree, not assumptions. Every number below is reproducible with the commands in
+<a href="#2-what-the-code-actually-looks-like-today">§2</a>.</p>
+<hr />
+<h2 id="1-the-premise-stated-honestly">1. The premise, stated honestly</h2>
+<p>The trigger for this work is user feedback that the syntax is bad. That feedback is worth
+acting on — conversational syntax is the single most common objection to LukeLang, and it is
+the first thing a backend developer sees.</p>
+<p>One caveat to record before spending compiler effort: the feedback captured so far is a small
+number of public comments, not a measured signal. A syntax migration is the most expensive
+change a language can make, and it is close to irreversible once the corpus is converted.
+<strong>Phase 0 exists to make the premise cheap to verify</strong> — it costs no compiler work and can run
+while Phase 1 design proceeds.</p>
+<p>This is not an argument against the change. It is an argument for spending one cheap step on
+evidence, so the decision record says "we measured" rather than "we reacted".</p>
+<h3 id="what-the-project-s-own-strategy-says">What the project's own strategy says</h3>
+<p><code>docs/STRATEGY.md</code> is explicit on two points that matter here:</p>
+<ul>
+<li><em>"the </em><em>reactive engine is the moat</em><em>, the </em><em>conversational syntax is the face</em><em>"</em> (line 12)</li>
+<li><em>"</em><em>Conversational syntax.</em><em> It is core identity and a felt differentiator. Keep it."</em> (line 56)</li>
+</ul>
+<p>The first line is the one that makes this change defensible on the project's own terms: <strong>the
+moat is the reactive engine, not the syntax.</strong> Changing the face does not breach the moat. The
+second line directly contradicts this proposal and must be formally amended, not quietly
+ignored — see <a href="#phase-0--validate-and-record-the-decision">Phase 0</a>.</p>
+<hr />
+<h2 id="2-what-the-code-actually-looks-like-today">2. What the code actually looks like today</h2>
+<p>Measured on this tree:</p>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.luke</code> files</td>
+<td>155 (5,429 lines)</td>
+</tr>
+<tr>
+<td>— <code>examples/build/</code></td>
+<td>118</td>
+</tr>
+<tr>
+<td>— <code>vm/stdlib/</code></td>
+<td>16</td>
+</tr>
+<tr>
+<td>Compiler total</td>
+<td>14,985 lines</td>
+</tr>
+<tr>
+<td>— <code>vm/src/build_c.cpp</code> (codegen)</td>
+<td><strong>7,944 lines (53%)</strong></td>
+</tr>
+<tr>
+<td>— <code>vm/src/luke_parse.cpp</code> (statement AST)</td>
+<td>858 lines</td>
+</tr>
+<tr>
+<td>Distinct conversational phrases hard-coded in codegen</td>
+<td><strong>216</strong> — <strong>170 live</strong>, 44 dead (20.6%)</td>
+</tr>
+<tr>
+<td>Distinct phrases in the statement parser</td>
+<td>41</td>
+</tr>
+<tr>
+<td>App-level statements that reach a structured AST node</td>
+<td><strong>80%</strong></td>
+</tr>
+<tr>
+<td>App-level statements that stay <code>StmtKind::Raw</code> (text passthrough)</td>
+<td><strong>20%</strong> (453 nodes)</td>
+</tr>
+<tr>
+<td>Distinct leading forms in that <code>Raw</code> tail</td>
+<td><strong>203</strong></td>
+</tr>
+<tr>
+<td><code>luke</code> code fences in docs</td>
+<td>46</td>
+</tr>
+<tr>
+<td>Test scripts with conversational source embedded</td>
+<td>4 + <code>vm/Makefile</code></td>
+</tr>
+</tbody>
+</table>
+<p>Reproduce every number above:</p>
+<pre><code><span class="ln"><b class="sh">cd</b> vm &amp;&amp; make</span><span class="ln"><b class="sh">python3</b> ../scripts/syntax_surface_census.py              <b class="cm"># the table</b></span><span class="ln"><b class="sh">python3</b> ../scripts/syntax_surface_census.py --raw-queue   <b class="cm"># Phase 3a work queue</b></span></code></pre>
+<h3 id="2-1-the-architectural-finding-that-decides-the-strategy">2.1 The architectural finding that decides the strategy</h3>
+<p>The pipeline is <strong>not</strong> <code>source → AST → C</code>. It is:</p>
+<pre><code><span class="ln">source</span><span class="ln">  → expandImports</span><span class="ln">  → parseLuke        (luke_parse.cpp)  → Program AST      ← used by IR / FMT / LSP</span><span class="ln">  → flattenProgram   (luke_parse.cpp)  → conversational TEXT</span><span class="ln">  → parse(bc, text)  (build_c.cpp)     → BC lowering</span><span class="ln">  → emit             (build_c.cpp)     → C</span></code></pre>
+<p>From <code>vm/src/build_c.cpp:7854</code>:</p>
+<pre><code><span class="ln">Program prog = parseLuke(expanded);</span><span class="ln">r.astSummary = dumpProgram(prog);</span><span class="ln">std::string viaAst = flattenProgram(prog);</span><span class="ln">return compileExpanded(viaAst.empty() ? expanded : viaAst, options, std::move(r));</span></code></pre>
+<p>So there are effectively <strong>two parsers</strong>. The <code>Program</code> AST is real and shared by tooling, but
+<strong>codegen does not consume it</strong> — it re-parses flattened <em>conversational text</em> using ~216
+hard-coded English phrase prefixes (<code>startsWithCI(e, "THE TEXT WIDTH OF ")</code> and friends),
+spread through 7,944 lines.</p>
+<p>Two consequences, one bad and one very good:</p>
+<ul>
+<li><strong>Bad:</strong> the conversational syntax is not a thin front-end. It is welded into the largest file
+  in the compiler. A "just swap the parser" change does not exist.</li>
+<li><strong>Good:</strong> because codegen's input is <em>text</em>, a technical front-end can <strong>lower to
+  conversational text</strong> and reuse the entire existing backend unchanged. That is the cheap,
+  low-risk path, and it is what this plan recommends.</li>
+</ul>
+<h3 id="2-2-the-raw-tail-is-the-real-cost-centre">2.2 The <code>Raw</code> tail is the real cost centre</h3>
+<p>20% of app statements never become structured nodes; they pass through as text. That tail is
+<strong>203 distinct leading forms for 453 statements</strong> — the most common is 5.9%. There is no 80/20
+win available. It spreads across reactive/live-graph (37%), core (22%), frontend/UI (21%), and
+declarative backend (20%).</p>
+<p>This matters because <strong>a fully automatic v1 → v2 migrator can only translate what is
+structured.</strong> The <code>Raw</code> tail is exactly the set of statements a migrator must either
+(a) get structured first, or (b) hand to a human. See <a href="#phase-3--mechanical-migrator">Phase 3</a>.</p>
+<p>One mitigating detail the census surfaces: a slice of the tail is not Luke at all. Entries like
+<code>font-weight: 700; …</code>, <code>background: #f4a259; …</code> and bare <code>}</code> are <strong>embedded CSS inside
+<code>WEAR STYLE """…"""</code> blocks</strong>. Embedded foreign content never needs structuring — it only needs
+to survive the migration verbatim. Triage the queue on that basis before estimating 3a; the real
+form count is meaningfully below 203.</p>
+<hr />
+<h2 id="3-strategy-dual-front-end-one-backend">3. Strategy: dual front-end, one backend</h2>
+<p><strong>Add a v2 front-end that lowers to v1 conversational text.</strong> Do not rewrite codegen.</p>
+<pre><code><span class="ln">app.lk  → lex2 → parse2 → v2 AST → lower2 (emit v1 text + line markers) ─┐</span><span class="ln">                                                                          ├→ existing compileLukeToC → C</span><span class="ln">app.luke ─────────────────────────────────────────────────────────────────┘</span></code></pre>
+<p>Why this shape:</p>
+<ul>
+<li><strong>Zero changes to the 7,944-line codegen.</strong> No-GC guarantees, typechecks, Live Graph, arena
+  scopes, C10K server, auth — all keep working because their input is unchanged.</li>
+<li><strong>Risk is contained to one new module.</strong> If v2 lowering is wrong, v1 still builds.</li>
+<li><strong>Diagnostics and source maps survive.</strong> This is the one hard problem with a desugaring
+  front-end: errors would point at generated v1 text instead of the user's file. The tree
+  <strong>already solves this</strong> — <code>luke_ast.hpp</code> defines <code>// @luke-file "path" N</code> markers, consumed at
+  <code>build_c.cpp:5952</code>, used today to remap lines across <code>IMPORT</code> expansion. The v2 lowerer emits
+  the same markers, so <code>#line</code> maps, gdb, <code>luke DEBUG</code>, and LSP diagnostics point at <code>.lk</code>
+  source for free.</li>
+<li><strong>Both syntaxes coexist in one tree</strong>, which the equivalence harness in Phase 3 <em>requires</em>.</li>
+</ul>
+<h3 id="rejected-alternative-rewrite-codegen-to-consume-the-ast-directly">Rejected alternative: rewrite codegen to consume the AST directly</h3>
+<p>This is the correct long-term architecture, and it should happen eventually. It must <strong>not</strong> be
+coupled to the syntax change: it means rewriting 7,944 lines of working, CI-covered codegen and
+structuring the 203-form <code>Raw</code> tail at the same time as changing the user-facing language. Two
+high-risk projects at once, with no intermediate state that ships. Keep it as a separate track.</p>
+<h3 id="file-extension-during-transition">File extension during transition</h3>
+<p><code>.lk</code> = v2, <code>.luke</code> = v1. Not a pragma. The equivalence harness needs v1/v2 twins of the same
+program side by side in one tree, which a single extension cannot express. At flip time
+(Phase 5), <code>.luke</code> becomes v2 and <code>.lk</code> remains an alias.</p>
+<hr />
+<h2 id="4-proposed-technical-syntax">4. Proposed technical syntax</h2>
+<p>Opinionated recommendation, TypeScript/Rust-family, chosen because the audience is backend
+developers. Open questions are isolated in <a href="#8-open-decisions-needing-sign-off">§8</a>.</p>
+<h3 id="core">Core</h3>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>v1 (conversational)</th>
+<th>v2 (technical)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Output</td>
+<td><code>SPEAK "hi"</code></td>
+<td><code>print("hi")</code></td>
+</tr>
+<tr>
+<td>Immutable binding</td>
+<td><code>MY NAME IS n SET TO 1</code></td>
+<td><code>let n = 1</code></td>
+</tr>
+<tr>
+<td>Typed binding</td>
+<td><code>MY NAME IS n AS NUMBER SET TO 1</code></td>
+<td><code>let n: float = 1</code></td>
+</tr>
+<tr>
+<td>Mutable binding</td>
+<td><em>(implicit)</em></td>
+<td><code>var n = 1</code></td>
+</tr>
+<tr>
+<td>Assignment</td>
+<td><code>SET n TO 4</code></td>
+<td><code>n = 4</code></td>
+</tr>
+<tr>
+<td>Increment</td>
+<td><code>INCREASE n BY 1</code></td>
+<td><code>n += 1</code></td>
+</tr>
+<tr>
+<td>Function</td>
+<td><code>THIS IS FUNCTION f WITH a AS NUMBER GIVES BACK NUMBER DO … END FUNCTION</code></td>
+<td><code>fn f(a: float) -&gt; float { … }</code></td>
+</tr>
+<tr>
+<td>Return</td>
+<td><code>GIVE BACK x</code></td>
+<td><code>return x</code></td>
+</tr>
+<tr>
+<td>Call</td>
+<td><code>ASK f WITH a, b</code></td>
+<td><code>f(a, b)</code></td>
+</tr>
+<tr>
+<td>Method call</td>
+<td><code>ASK obj TO m</code></td>
+<td><code>obj.m()</code></td>
+</tr>
+<tr>
+<td>Conditional</td>
+<td><code>IF c DO … END IF</code></td>
+<td><code>if c { … }</code></td>
+</tr>
+<tr>
+<td>Loop</td>
+<td><code>WHILE c … END WHILE</code></td>
+<td><code>while c { … }</code></td>
+</tr>
+<tr>
+<td>Range loop</td>
+<td><code>FOR i FROM 0 TO 10</code></td>
+<td><code>for i in 0..10 { … }</code></td>
+</tr>
+<tr>
+<td>Import</td>
+<td><code>IMPORT std/server</code></td>
+<td><code>import std/server</code></td>
+</tr>
+<tr>
+<td>Arena scope</td>
+<td><code>IN ARENA DO … END ARENA</code></td>
+<td><code>arena { … }</code></td>
+</tr>
+<tr>
+<td>Test</td>
+<td><code>TEST "m" DO MAKE SURE a EQUALS b END TEST</code></td>
+<td><code>test "m" { assert a == b }</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="operators">Operators</h3>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ADD a AND b</code></td>
+<td><code>a + b</code></td>
+</tr>
+<tr>
+<td><code>SUBTRACT b FROM a</code></td>
+<td><code>a - b</code></td>
+</tr>
+<tr>
+<td><code>a MULTIPLIED BY b</code></td>
+<td><code>a * b</code></td>
+</tr>
+<tr>
+<td><code>a DIVIDED BY b</code></td>
+<td><code>a / b</code></td>
+</tr>
+<tr>
+<td><code>a EQUALS b</code></td>
+<td><code>a == b</code></td>
+</tr>
+<tr>
+<td><code>a IS LESS THAN b</code></td>
+<td><code>a &lt; b</code></td>
+</tr>
+<tr>
+<td><code>NOT a</code></td>
+<td><code>!a</code></td>
+</tr>
+<tr>
+<td><code>"x=" AND x</code> <em>(text concat)</em></td>
+<td><code>"x=" + x</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>This fixes a real ambiguity.</strong> In v1, <code>AND</code> is both text concatenation and logical
+conjunction. v2 separates them: <code>+</code> concatenates, <code>&amp;&amp;</code> conjoins. That is a language
+improvement, not just a cosmetic change.</p>
+<h3 id="types">Types</h3>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NUMBER</code> (double)</td>
+<td><code>float</code></td>
+</tr>
+<tr>
+<td><code>INTEGER</code> (int64)</td>
+<td><code>int</code></td>
+</tr>
+<tr>
+<td><code>TEXT</code></td>
+<td><code>str</code></td>
+</tr>
+<tr>
+<td><code>FLAG</code></td>
+<td><code>bool</code></td>
+</tr>
+<tr>
+<td><code>JSON</code> / <code>LIST</code> / <code>MAP</code></td>
+<td><code>json</code> / <code>list</code> / <code>map</code></td>
+</tr>
+<tr>
+<td><code>SERVER</code> / <code>REQUEST</code> / <code>DATABASE</code></td>
+<td><code>Server</code> / <code>Request</code> / <code>Db</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="collections-and-errors">Collections and errors</h3>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ADD x TO nums</code></td>
+<td><code>nums.push(x)</code></td>
+</tr>
+<tr>
+<td><code>ITEM 0 OF nums</code></td>
+<td><code>nums[0]</code></td>
+</tr>
+<tr>
+<td><code>HOW MANY IN nums</code></td>
+<td><code>nums.len()</code></td>
+</tr>
+<tr>
+<td><code>PUT k TO v IN bag</code></td>
+<td><code>bag[k] = v</code></td>
+</tr>
+<tr>
+<td><code>GET k FROM bag</code></td>
+<td><code>bag[k]</code></td>
+</tr>
+<tr>
+<td><code>ATTEMPT DO … OTHERWISE WITH e DO … END ATTEMPT</code></td>
+<td><code>try { … } catch (e) { … }</code></td>
+</tr>
+<tr>
+<td><code>GIVE UP WITH "m"</code></td>
+<td><code>throw "m"</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="blueprints">Blueprints</h3>
+<pre><code><span class="ln">struct Ticket {</span><span class="ln">  price: int</span><span class="ln"></span><span class="ln">  init(p: int) { self.price = p }</span><span class="ln"></span><span class="ln">  fn book(n: int) -&gt; bool { … }</span><span class="ln">}</span><span class="ln"></span><span class="ln">let t = Ticket(10)</span><span class="ln">t.book(2)</span></code></pre>
+<h3 id="reactive-deliberately-still-declarative">Reactive — deliberately still declarative</h3>
+<p><strong>This is the moat. It does not become generic function calls.</strong> Keeping these as first-class
+declarative keywords is what preserves the differentiator; the v2 spellings match Solid/Svelte
+vocabulary, so they read as <em>more</em> familiar to modern developers, not less distinctive.</p>
+<table>
+<thead>
+<tr>
+<th>v1</th>
+<th>v2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REMEMBER price AS 100</code></td>
+<td><code>signal price = 100</code></td>
+</tr>
+<tr>
+<td><code>SECRET REMEMBER t AS "…"</code></td>
+<td><code>secret signal t = "…"</code></td>
+</tr>
+<tr>
+<td><code>THE total IS price MULTIPLIED BY quantity</code></td>
+<td><code>derived total = price * quantity</code></td>
+</tr>
+<tr>
+<td><code>CHANGE quantity TO 4</code></td>
+<td><code>quantity = 4</code></td>
+</tr>
+<tr>
+<td><code>WHEN REACTIVE … END WHEN REACTIVE</code></td>
+<td><code>effect { … }</code></td>
+</tr>
+<tr>
+<td><code>BEGIN REACTIVE BATCH … END REACTIVE BATCH</code></td>
+<td><code>batch { … }</code></td>
+</tr>
+<tr>
+<td><code>BIND "label" TO count</code></td>
+<td><code>bind("label", count)</code></td>
+</tr>
+<tr>
+<td><code>WATCH user FROM db WHERE "id = 1"</code></td>
+<td><code>watch user from db where "id = 1"</code></td>
+</tr>
+<tr>
+<td><code>PUSH WATCH user ON req</code></td>
+<td><code>push watch user on req</code></td>
+</tr>
+<tr>
+<td><code>WHEN "go" IS CLICKED DO … END WHEN</code></td>
+<td><code>on click("go") { … }</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="illustrative-before-after">Illustrative before/after</h3>
+<pre><code><span class="ln"><b class="kw">import</b> std/server</span><span class="ln"><b class="kw">fn</b> <b class="fn">handle</b>(req: <b class="ty">Request</b>) {</span><span class="ln">  <b class="kw">let</b> path = <b class="fn">httpPath</b>(req)</span><span class="ln">  <b class="kw">if</b> path == <b class="str">&quot;/ok&quot;</b> {</span><span class="ln">    <b class="fn">httpReply</b>(req, <b class="num">200</b>, <b class="str">&quot;text/plain&quot;</b>, <b class="str">&quot;ok&quot;</b>)</span><span class="ln">  }</span><span class="ln">}</span></code></pre>
+<pre><code><span class="ln">// v2</span><span class="ln">import std/server</span><span class="ln"></span><span class="ln">fn handle(req: Request) {</span><span class="ln">  let path = httpPath(req)</span><span class="ln">  if path == &quot;/ok&quot; {</span><span class="ln">    httpReply(req, 200, &quot;text/plain&quot;, &quot;ok&quot;)</span><span class="ln">  }</span><span class="ln">}</span></code></pre>
+<hr />
+<h2 id="5-what-does-not-change">5. What does not change</h2>
+<ul>
+<li>The reactive engine, Live Graph, IVM, scheduler semantics.</li>
+<li>Build guarantees: no GC, arena memory, fixed layouts, AOT native/WASM.</li>
+<li><code>std/*</code> behaviour and function names (<code>httpReply</code>, <code>dbQueryBind</code>, <code>pgExecBind</code>, …).</li>
+<li><code>luke LSP</code> / <code>DAP</code> / <code>FMT</code> / <code>IR</code> command surface.</li>
+<li>Codegen (<code>build_c.cpp</code>) — untouched for the whole migration.</li>
+</ul>
+<hr />
+<h2 id="6-phases">6. Phases</h2>
+<p>Each phase has an exit gate. Do not start the next phase until the gate is green.</p>
+<h3 id="phase-0-validate-and-record-the-decision">Phase 0 — Validate and record the decision</h3>
+<p>No compiler work. Runs in parallel with Phase 1.</p>
+<ol>
+<li>Publish the <a href="#4-proposed-technical-syntax">§4</a> before/after side by side and collect
+   preference data from more than a handful of respondents. The goal is a number, not a vibe.</li>
+<li>Amend <code>docs/STRATEGY.md</code> — line 12 identity sentence and line 56 ("Keep it"). Record <em>why</em>
+   the face is changing and that the moat is not.</li>
+<li>Choose scope: <strong>full technical</strong> vs <strong>technical imperative core, declarative reactive
+   keywords retained</strong> (this plan recommends the latter — see <a href="#4-proposed-technical-syntax">§4</a>).</li>
+<li>Freeze: no new conversational-only surface lands while the migration is in flight.</li>
+</ol>
+<p><strong>Gate:</strong> written decision record merged; scope chosen.</p>
+<h3 id="phase-1-specify-the-surface">Phase 1 — Specify the surface</h3>
+<p>Docs only, no code risk.</p>
+<ol>
+<li><code>docs/SYNTAX_V2_SPEC.md</code> — normative mapping for the <strong>170 live</strong> codegen phrases.
+   Explicitly <strong>drop the 44 dead ones</strong> rather than porting them; that is a free 20.6%
+   reduction in surface area (<code>--raw-queue</code> and the census list them).</li>
+<li>Resolve <a href="#8-open-decisions-needing-sign-off">§8</a>.</li>
+<li>Hand-write a <strong>golden corpus</strong> of ~10 representative programs in v2: <code>hello</code>, <code>functions</code>,
+   <code>oop</code>, <code>collections</code>, <code>backend_api</code>, <code>reactive_core</code>, <code>live_graph_server</code>,
+   <code>frontend_widgets</code>, <code>auth_api</code>, <code>collections_test</code>. These are the spec's executable examples
+   and Phase 2's acceptance tests.</li>
+</ol>
+<p><strong>Gate:</strong> spec covers every live phrase or explicitly drops it; golden corpus written.</p>
+<h3 id="phase-2-v2-front-end">Phase 2 — v2 front-end</h3>
+<p>New files, additive. Touches existing code only at CLI dispatch.</p>
+<ul>
+<li><code>vm/src/luke2_lex.cpp</code> — real tokenizer (v1's statement layer is prefix-matched strings; v2
+  needs actual tokens).</li>
+<li><code>vm/src/luke2_parse.cpp</code> — recursive-descent statements + brace blocks; reuse the existing
+  Pratt expression parser from <code>luke_expr.cpp</code> with a retargeted operator table.</li>
+<li><code>vm/src/luke2_lower.cpp</code> — v2 AST → v1 conversational text <strong>plus <code>// @luke-file</code> markers</strong>.</li>
+<li><code>vm/src/main.cpp</code> — dispatch <code>.lk</code> through the v2 front-end.</li>
+</ul>
+<p><strong>Gate:</strong> every golden-corpus file builds, and its stdout is byte-identical to its v1 twin.
+Diagnostics on a deliberately broken <code>.lk</code> report the <strong><code>.lk</code> file and line</strong>, not generated text.</p>
+<h3 id="phase-3-mechanical-migrator">Phase 3 — Mechanical migrator</h3>
+<p><code>luke MIGRATE in.luke -o out.lk</code> — v1 AST → v2 printer.</p>
+<p>The 20% <code>Raw</code> tail is the constraint. Two sub-tracks:</p>
+<ul>
+<li><strong>3a:</strong> extend <code>luke_parse.cpp</code> to structure the <code>Raw</code> forms, reducing 20% → near zero. This
+  is a 203-form long-tail grind with no shortcut. Prioritise by measured frequency; the census
+  command is in <a href="#2-what-the-code-actually-looks-like-today">§2</a>.</li>
+<li><strong>3b:</strong> for anything still <code>Raw</code>, the migrator emits a <code>TODO(migrate)</code> marker and a
+  <code>file:line</code> report for manual conversion. Ships value before 3a is complete.</li>
+</ul>
+<p><strong>Equivalence harness</strong> — the rigorous gate, and the reason this plan is safe. Model it directly
+on <code>scripts/fmt_roundtrip_all.sh</code>, which already proves <code>BUILD(FMT(x)) ≡ BUILD(x)</code> for every
+example:</p>
+<pre><code><span class="ln">for every f in examples/build/*.luke:</span><span class="ln">    BUILD(f)            → stdout_v1</span><span class="ln">    MIGRATE(f) → f.lk</span><span class="ln">    BUILD(f.lk)         → stdout_v2</span><span class="ln">    assert stdout_v1 == stdout_v2</span></code></pre>
+<p><strong>Gate:</strong> harness green across all 118 examples, wired into <code>make test</code>.</p>
+<h3 id="phase-4-corpus-and-tooling-cutover">Phase 4 — Corpus and tooling cutover</h3>
+<ul>
+<li>Migrate 118 examples. Migrate <code>vm/stdlib/</code> <strong>last and separately</strong> — it is the public API
+  surface, and changing it at the same time as the syntax conflates two breaking changes.</li>
+<li>Rewrite <code>tools/vscode/lukelang/syntaxes/lukelang.tmLanguage.json</code> (operators/braces, not
+  phrase prefixes), <code>language-configuration.json</code> (brace pairs, indent rules), snippets, and the
+  <code>KEYWORDS</code> list in <code>src/extension.js</code>.</li>
+<li>Update the LSP keyword/completion tables in <code>vm/src/lsp.cpp</code>.</li>
+<li>Update 46 doc code fences and the 4 test scripts + <code>vm/Makefile</code> with embedded conversational
+  source.</li>
+</ul>
+<p><strong>Gate:</strong> <code>make test</code> green; <code>lsp_providers.sh</code>, <code>dap_handshake.sh</code>, <code>fmt_roundtrip_all.sh</code>
+green; VS Code extension packages and highlights v2 correctly.</p>
+<h3 id="phase-5-flip-the-default-and-deprecate">Phase 5 — Flip the default and deprecate</h3>
+<ol>
+<li><code>.luke</code> means v2. v1 available behind <code>--syntax=1</code> for a deprecation window.</li>
+<li>After the window: delete the v1 statement parser and <strong>strip the 216 conversational phrase
+   prefixes from <code>build_c.cpp</code></strong>, replacing them with the operator/token surface. This is where
+   the codebase actually gets smaller, and it is the natural moment to start the separate
+   "codegen consumes the AST directly" track from <a href="#rejected-alternative-rewrite-codegen-to-consume-the-ast-directly">§3</a>.</li>
+</ol>
+<p><strong>Gate:</strong> one syntax in the tree; docs, examples, tooling consistent.</p>
+<hr />
+<h2 id="7-risks">7. Risks</h2>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Severity</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Diagnostics point at generated v1 text, not user <code>.lk</code></td>
+<td>High</td>
+<td><code>// @luke-file</code> markers already exist and already do this for <code>IMPORT</code>. Make it a Phase 2 gate.</td>
+</tr>
+<tr>
+<td><code>Raw</code> 20% blocks automatic migration</td>
+<td>High</td>
+<td>Phase 3b ships with <code>TODO(migrate)</code> markers; 3a grinds the tail by measured frequency.</td>
+</tr>
+<tr>
+<td>Two syntaxes double doc/test/tooling burden</td>
+<td>Medium</td>
+<td>Time-box the window; Phase 5 has a hard delete step.</td>
+</tr>
+<tr>
+<td>stdlib migration = simultaneous API break</td>
+<td>Medium</td>
+<td>Sequence stdlib last, separately (Phase 4).</td>
+</tr>
+<tr>
+<td>Reactive keywords flattened into plain calls, moat diluted</td>
+<td>Medium</td>
+<td><a href="#4-proposed-technical-syntax">§4</a> keeps them declarative by design. Non-negotiable.</td>
+</tr>
+<tr>
+<td>Strategy doc contradiction unresolved</td>
+<td>Low</td>
+<td>Phase 0 amendment.</td>
+</tr>
+<tr>
+<td>Existing users' code breaks</td>
+<td>Low today, rising</td>
+<td>Corpus is 155 files and mostly first-party. Migrating now is far cheaper than later.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="effort-shape-not-calendar">Effort shape (not calendar)</h3>
+<ul>
+<li><strong>Phase 0–1:</strong> docs only. No compiler risk.</li>
+<li><strong>Phase 2:</strong> one new subsystem (~3 files), additive; existing code touched only at CLI
+  dispatch. Contained and revertable.</li>
+<li><strong>Phase 3a:</strong> the genuine unknown — 203 distinct forms across <code>luke_parse.cpp</code>. This is the
+  phase that determines whether migration is fully automatic or partly manual.</li>
+<li><strong>Phase 4:</strong> broad but mechanical once the harness is green; touches examples, docs, LSP
+  tables, VS Code assets, test scripts.</li>
+<li><strong>Phase 5:</strong> largest deletion; removes 216 phrase prefixes from the biggest file in the tree.</li>
+</ul>
+<hr />
+<h2 id="8-open-decisions-needing-sign-off">8. Open decisions needing sign-off</h2>
+<p><strong>All nine are resolved</strong> — signed off as recommended. Normative record:
+<a href="../syntax-v2-spec/"><code>SYNTAX_V2_SPEC.md</code></a> §1.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decision</th>
+<th>Resolution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Scope</td>
+<td>Technical imperative core; <strong>reactive keywords stay declarative</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Blocks</td>
+<td>Braces <code>{ }</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Mutability</td>
+<td><code>let</code> / <code>var</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Type syntax</td>
+<td><code>x: int</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Numeric names</td>
+<td><code>int</code> (int64) / <code>float</code> (double)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>String concat</td>
+<td><code>+</code> now; <code>"${x}"</code> deferred</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Instantiation</td>
+<td><code>Ticket(10)</code> — no <code>new</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>Type keyword</td>
+<td><code>struct</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>Extension at flip</td>
+<td><code>.luke</code> = v2; <code>.lk</code> transition-only, deleted at flip</td>
+</tr>
+</tbody>
+</table>
+<p>One consequence surfaced while writing the golden corpus and is now spec'd: <strong>decision 3 makes
+the <code>MY NAME IS</code> mapping non-mechanical.</strong> v1 has no immutability distinction, so the migrator
+needs per-binding mutation analysis to choose <code>let</code> or <code>var</code> — see spec §2.1.</p>
+<hr />
+<h2 id="9-status">9. Status</h2>
+<p><strong>Phases 0–5 flip complete.</strong> <code>.luke</code> is syntax v2 by default; conversational v1 is
+<code>--syntax=1</code> (sources archived under <code>examples/v1_archive/</code> + <code>vm/stdlib_v1_archive/</code>).
+Codegen still consumes lowered v1 text — phrase-prefix deletion is the post-window step.</p>
+<h3 id="phase-5-flip-shipped">Phase 5 — flip (shipped)</h3>
+<ul>
+<li><code>.luke</code> means v2 (<code>isV2Path</code>); <code>--syntax=1</code> / <code>--syntax=2</code> on the CLI</li>
+<li>Live <code>examples/build/</code> + <code>vm/stdlib/</code> rewritten to v2; transition <code>.lk</code> removed there</li>
+<li>IMPORT lowers v2 modules (stdlib/siblings); <code>__*</code> intrinsics keep C-call spelling</li>
+<li>Twin / FMT / migrate gates read <code>examples/v1_archive/</code></li>
+<li>LSP lowers v2 buffers before analyze</li>
+<li>Play VM accepts typed <code>WITH a AS NUMBER</code> params; string <code>+</code> lowers to flat <code>AND</code> chains;
+  <code>*</code>/<code>/</code> lower to prefix <code>MULTIPLY</code>/<code>DIVIDE</code> (Play-compatible)</li>
+<li>Live native examples all SHOW as v2 (advanced_oop via <code>raw</code> passthrough for
+  CONTRACT / ALWAYS / PRIVATE until those land on the v2 surface)</li>
+<li>Golden <code>frontend_widgets</code> uses <code>raw</code> layout passthrough (normative for the shipping
+  path); dedicated layout DSL in spec §6 remains provisional as a future surface</li>
+<li><code>--syntax=1</code> remains for the deprecation window (archive / FMT / twin gates)</li>
+</ul>
+<h3 id="phase-4-done">Phase 4 — done</h3>
+<ul>
+<li>Doc fences converted; VS Code 0.3.0; examples + stdlib cutover; LSP keywords/providers</li>
+<li>Deploy wall + Makefile inline probes (c10k grace, LSP fixture) on v2</li>
+<li><code>make test</code> green after the flip</li>
+</ul>
+<h3 id="phase-3a-done-corpus-migrate-build">Phase 3a — done (corpus migrate BUILD)</h3>
+<p>Goal was drive <code>MIGRATE</code> → BUILD for all positive <code>examples/build</code> programs, then tighten
+equivalence. Achieved:</p>
+<ul>
+<li><code>raw "…"</code> / <code>raw """…"""</code> passthrough; bare <code>try</code>; typed <code>signal … AS NUMBER SET TO</code></li>
+<li>Migrator keeps opaque v1 for forms the v2 surface cannot express yet (IF/THEN derived,
+  WEAK VALUE, dotted entity derived/INCREASE, NEW blueprints without in-file BLUEPRINT,
+  FLOW COLLECT CHANGE cells, BIND OPACITY, WHEN with nested END IF, …)</li>
+<li>Harness writes migrated <code>.lk</code> next to the source so relative <code>IMPORT "sibling.luke"</code> works</li>
+<li>Golden migrate gate: <strong>10 / 10</strong></li>
+<li>Full positive corpus BUILD-after-migrate: <strong>109 / 109</strong> (9 intentional negatives skipped)</li>
+<li><code>MIGRATE_CORPUS=all</code> equivalence: positives pass (C-identical accepted when stdout is
+  nondeterministic — auth salts, bench timings)</li>
+</ul>
+<p>Remaining Raw <code>TODO(migrate)</code> markers are expected grind work; they do not block Phase 4.</p>
+<h3 id="phase-2-shipped">Phase 2 — shipped</h3>
+<p>The v2 front-end exists and the corpus is verified against it:</p>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Golden corpus equivalence</td>
+<td><strong>9 / 9 normative</strong> — 6 byte-identical stdout, 3 servers byte-identical generated C</td>
+</tr>
+<tr>
+<td>Errors cite <code>.lk</code> positions</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>Debug info cites <code>.lk</code></td>
+<td><strong>pass</strong> — <code>readelf --debug-dump=line</code> shows <code>hello.lk</code></td>
+</tr>
+<tr>
+<td><code>build_c.cpp</code> modified</td>
+<td><strong>no</strong> — as designed</td>
+</tr>
+</tbody>
+</table>
+<p>New: <code>vm/include/luke2.hpp</code>, <code>vm/src/luke2_lex.cpp</code>, <code>luke2_parse.cpp</code>, <code>luke2_lower.cpp</code>,
+<code>luke2_migrate.cpp</code>. Touched: <code>main.cpp</code> (<code>.lk</code> + <code>MIGRATE</code>), <code>Makefile</code>. Codegen untouched.</p>
+<pre><code><span class="ln"><b class="sh">cd</b> vm &amp;&amp; make &amp;&amp; make test-syntax-v2</span></code></pre>
+<p>Three findings from building it, all now in the spec:</p>
+<ol>
+<li><strong><code>+</code> genuinely needs types.</strong> v1 spells numeric addition <code>ADD a AND b</code> and concatenation
+   <code>a AND b</code>, and <code>ADD</code> rejects <code>TEXT</code> — there is no type-agnostic form. The lowerer carries a
+   small type environment and reads <code>GIVES BACK</code> clauses straight out of <code>vm/stdlib/*.luke</code>, so
+   stdlib return types cannot drift from a hand-maintained table.</li>
+<li><strong>v1 concatenation is right-associative, arithmetic is left-associative.</strong> The lowerer always
+   parenthesises, which makes <code>-</code> and <code>/</code> immune; the cost is a differently-shaped (semantically
+   identical) tree for string <code>+</code>, which the harness treats as expected.</li>
+<li><strong><code>effect</code> needs its cell.</strong> v1 requires <code>WHEN REACTIVE c CHANGES DO</code>, so the v2 form is
+   <code>effect on c { … }</code>, not a bare <code>effect { … }</code>. The spec previously had this wrong.</li>
+</ol>
+<h3 id="phases-0-and-1">Phases 0 and 1</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nine decisions signed off</td>
+<td>done — <a href="#8-open-decisions-needing-sign-off">§8</a></td>
+</tr>
+<tr>
+<td><code>STRATEGY.md</code> amended (identity, "what we keep", decision table)</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>SYNTAX_V2_SPEC.md</code> covering every live phrase</td>
+<td>done — gate: <code>scripts/syntax_v2_spec_check.py</code></td>
+</tr>
+<tr>
+<td>10-file golden corpus</td>
+<td>done — <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/examples/v2"><code>examples/v2/</code></a>, gate: <code>scripts/syntax_v2_corpus_check.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>Both gates run in CI. Because this is a solo project with no second reviewer, the automated gates
+<em>are</em> the review — that is deliberate, and it is why the spec is machine-checked against codegen
+rather than maintained by hand.</p>
+<pre><code><span class="ln"><b class="sh">python3</b> scripts/syntax_surface_census.py     <b class="cm"># the measurements</b></span><span class="ln"><b class="sh">python3</b> scripts/syntax_v2_spec_check.py      <b class="cm"># every live phrase is mapped or dropped</b></span><span class="ln"><b class="sh">python3</b> scripts/syntax_v2_corpus_check.py    <b class="cm"># corpus paired with v1 twins, no v1 leakage</b></span></code></pre>
+<h3 id="next-post-window-cleanup">Next: post-window cleanup</h3>
+<ol>
+<li>After the deprecation window: delete the v1 statement parser and strip conversational
+   phrase prefixes from <code>build_c.cpp</code> (plan Phase 5 step 2).</li>
+<li>Optional later: codegen consumes the AST directly (rejected-as-blocker for the flip).</li>
+</ol>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SYNTAX_V2_PLAN.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

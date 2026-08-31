@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Learn LukeLang</title>
+<meta name="description" content="A guided path through LukeLang: install the compiler, write your first program, then follow one change from a database row all the way to a painted pixel." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/learn/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/learn/" />
+<meta property="og:title" content="Learn LukeLang" />
+<meta property="og:description" content="A guided path through LukeLang: install the compiler, write your first program, then follow one change from a database row all the way to a painted pixel." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Learn LukeLang" />
+<meta name="twitter:description" content="A guided path through LukeLang: install the compiler, write your first program, then follow one change from a database row all the way to a painted pixel." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"WebPage","name":"Learn LukeLang","description":"A guided path through LukeLang: install the compiler, write your first program, then follow one change from a database row all the way to a painted pixel.","url":"https://lukelang.org/learn/","isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../">
+    <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="./" aria-current="page">Learn</a>
+    <a href="../docs/">Docs</a>
+    <a href="../download/">Download</a>
+    <a href="../examples/">Examples</a>
+    <a href="../community/">Community</a>
+    <a href="../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead">
+    <p class="masthead__kicker">Learn</p>
+    <h1>From nothing to a <em>live graph</em>.</h1>
+    <p>
+      Seven steps. By the end you will have a native binary, a reactive counter, and a page
+      that repaints itself when a row changes in the database — with no fetch call anywhere in
+      your source.
+    </p>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">On this page</label>
+      <div class="sidebar__panel">
+      <h2>Steps</h2>
+      <ul>
+        <li><a href="#install">01 — Install</a></li>
+        <li><a href="#hello">02 — Hello</a></li>
+        <li><a href="#values">03 — Values &amp; functions</a></li>
+        <li><a href="#structs">04 — Structs</a></li>
+        <li><a href="#reactive">05 — Reactive cells</a></li>
+        <li><a href="#live">06 — Live Graph</a></li>
+        <li><a href="#ship">07 — Ship it</a></li>
+      </ul>
+      <h2>Then</h2>
+      <ul>
+        <li><a href="../docs/">Documentation</a></li>
+        <li><a href="../examples/">Examples</a></li>
+        <li><a href="../community/">Get help</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <div class="prose">
+      <ol class="steps">
+
+        <li id="install">
+          <h3>Install the compiler</h3>
+          <p>
+            LukeLang builds from source with a C++17 compiler and <code>make</code>. There is
+            nothing else to fetch for the core language.
+          </p>
+<pre><code><span class="ln"><b class="sh">git</b> clone https://github.com/lucasdmarshall/LukeLang.git</span>
+<span class="ln"><b class="sh">cd</b> LukeLang/vm &amp;&amp; <b class="sh">make</b></span></code></pre>
+          <p>
+            That produces <code>vm/build/luke</code>. Full platform notes and the optional
+            dependencies live on the <a href="../download/">download page</a>.
+          </p>
+        </li>
+
+        <li id="hello">
+          <h3>Write your first program</h3>
+          <p>
+            Save this as <code>hello.luke</code>. Files ending in <code>.luke</code> or
+            <code>.lk</code> use syntax v2.
+          </p>
+<pre><code><span class="ln"><b class="fn">print</b>(<b class="str">"Hello from Luke Build"</b>)</span>
+<span class="ln"><b class="kw">let</b> name = <b class="str">"Luke"</b></span>
+<span class="ln"><b class="fn">print</b>(<b class="str">"My name is "</b> + name)</span></code></pre>
+          <p>Then build it into a native binary and run it:</p>
+<pre><code><span class="ln"><b class="sh">./build/luke</b> BUILD hello.luke -o hello</span>
+<span class="ln"><b class="sh">./hello</b></span></code></pre>
+          <p class="note">
+            <b>Three ways to run.</b> <code>BUILD</code> compiles to native C or WebAssembly with
+            no garbage collector. <code>SHOW</code> builds when it can and falls back to the
+            bytecode VM. <code>SHOW … --vm</code> forces the VM, which is the compatibility layer.
+          </p>
+        </li>
+
+        <li id="values">
+          <h3>Values and functions</h3>
+          <p>
+            <code>let</code> binds a value you will not reassign; <code>var</code> binds one you
+            will. Types are optional where the compiler can infer them and required where it
+            cannot — most often around <code>+</code>, which is both arithmetic and
+            concatenation.
+          </p>
+<pre><code><span class="ln"><b class="kw">let</b> a = <b class="num">21</b></span>
+<span class="ln"><b class="kw">var</b> total: <b class="ty">float</b> = <b class="num">0</b></span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">fn</b> <b class="fn">add</b>(x: <b class="ty">float</b>, y: <b class="ty">float</b>) -&gt; <b class="ty">float</b> {</span>
+<span class="ln">  <b class="kw">return</b> x + y</span>
+<span class="ln">}</span>
+<span class="ln"></span>
+<span class="ln">total = <b class="fn">add</b>(a, <b class="num">21</b>)</span>
+<span class="ln"><b class="fn">print</b>(total)          <b class="cm">// 42</b></span></code></pre>
+          <p>
+            Control flow uses braces: <code>if</code>, <code>while</code>, and
+            <code>return</code>. Comparisons and boolean operators are the ones you expect
+            (<code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&amp;&amp;</code>,
+            <code>||</code>, <code>!</code>).
+          </p>
+        </li>
+
+        <li id="structs">
+          <h3>Structs, methods and inheritance</h3>
+          <p>
+            A <code>struct</code> is a blueprint: fields with types or initialisers, an
+            <code>init</code> constructor, and methods. <code>self</code> is the instance;
+            <code>super</code> reaches the parent.
+          </p>
+<pre><code><span class="ln"><b class="kw">struct</b> <b class="ty">Animal</b> {</span>
+<span class="ln">  name: <b class="ty">str</b></span>
+<span class="ln">  sound = <b class="str">"…"</b></span>
+<span class="ln">  <b class="fn">init</b>(name: <b class="ty">str</b>) {</span>
+<span class="ln">    self.name = name</span>
+<span class="ln">  }</span>
+<span class="ln">  <b class="kw">fn</b> <b class="fn">speak</b>() {</span>
+<span class="ln">    <b class="fn">print</b>(self.name + <b class="str">" says "</b> + self.sound)</span>
+<span class="ln">  }</span>
+<span class="ln">}</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">struct</b> <b class="ty">Dog</b> : <b class="ty">Animal</b> {</span>
+<span class="ln">  sound = <b class="str">"Woof!"</b></span>
+<span class="ln">  <b class="kw">fn</b> <b class="fn">speak</b>() {</span>
+<span class="ln">    <b class="kw">super</b>.<b class="fn">speak</b>()</span>
+<span class="ln">    <b class="fn">print</b>(self.name + <b class="str">" wags happily."</b>)</span>
+<span class="ln">  }</span>
+<span class="ln">}</span></code></pre>
+          <p>
+            Instances live in an arena that is released at scope exit — there is no garbage
+            collector on the Build path.
+          </p>
+        </li>
+
+        <li id="reactive">
+          <h3>Reactive cells</h3>
+          <p>
+            This is where LukeLang stops looking like other languages. A <code>signal</code> is a
+            cell. A <code>derived</code> value recomputes when its inputs change. An
+            <code>effect</code> runs when the cell it names changes. You never subscribe and
+            never unsubscribe.
+          </p>
+<pre><code><span class="ln"><b class="kw">signal</b> price = <b class="num">100</b></span>
+<span class="ln"><b class="kw">signal</b> quantity = <b class="num">3</b></span>
+<span class="ln"><b class="kw">derived</b> total = price * quantity</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">effect on</b> total {</span>
+<span class="ln">  <b class="fn">print</b>(<b class="str">"total="</b> + total)</span>
+<span class="ln">}</span>
+<span class="ln"></span>
+<span class="ln">price = <b class="num">200</b>              <b class="cm">// total=600</b></span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">batch</b> {</span>
+<span class="ln">  price = <b class="num">120</b></span>
+<span class="ln">  quantity = <b class="num">5</b>           <b class="cm">// still a single flush</b></span>
+<span class="ln">}</span></code></pre>
+          <p>
+            The engine deduplicates work, keeps flush order stable, isolates a failing effect
+            from its neighbours, and disposes cells with their scope. Those guarantees are
+            written down in the <a href="../docs/reactive-spec/">reactive specification</a>
+            and enforced by fourteen conformance programs in the test suite.
+          </p>
+        </li>
+
+        <li id="live">
+          <h3>Follow a row to a pixel</h3>
+          <p>
+            The same cell model spans the network. On the server, a cell can be backed by a
+            database row and pushed to a client. On the client, a cell can be backed by that
+            stream and bound to an element.
+          </p>
+          <p><strong>Server</strong></p>
+<pre><code><span class="ln"><b class="kw">import</b> std/server</span>
+<span class="ln"><b class="kw">import</b> std/sqlite</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">let</b> db = <b class="fn">dbOpen</b>(<b class="str">"/tmp/luke_live_graph.db"</b>)</span>
+<span class="ln"><b class="kw">watch</b> user <b class="kw">from</b> db <b class="kw">where</b> <b class="str">"id = 1"</b></span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">let</b> server = <b class="fn">httpListen</b>(<b class="num">8798</b>)</span>
+<span class="ln"><b class="kw">let</b> req = <b class="fn">httpAccept</b>(server)</span>
+<span class="ln"><b class="kw">push watch</b> user <b class="kw">on</b> req <b class="kw">for</b> <b class="num">50</b> beats <b class="kw">every</b> <b class="num">50</b> ms</span></code></pre>
+          <p><strong>Client</strong></p>
+<pre><code><span class="ln"><b class="kw">import</b> std/js</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">signal</b> user = <b class="str">""</b></span>
+<span class="ln"><b class="fn">bind</b>(<b class="str">"name"</b>, user)</span>
+<span class="ln"><b class="kw">watch</b> user <b class="kw">from</b> <b class="str">"http://127.0.0.1:8798/watch"</b></span></code></pre>
+          <p>
+            Run an <code>UPDATE</code> against that row from any other process and the browser
+            repaints one region. There is no fetch, no cache key, no subscription bookkeeping and
+            no virtual DOM diff in that path — read
+            <a href="../docs/live-graph/">Live Graph</a>
+            for how the wire and the incremental view maintenance work.
+          </p>
+        </li>
+
+        <li id="ship">
+          <h3>Ship it</h3>
+          <p>One source, three targets:</p>
+<pre><code><span class="ln"><b class="cm"># native binary</b></span>
+<span class="ln"><b class="sh">./build/luke</b> BUILD app.luke -o app</span>
+<span class="ln"></span>
+<span class="ln"><b class="cm"># WebAssembly (WASI)</b></span>
+<span class="ln"><b class="sh">./build/luke</b> BUILD app.luke -target wasm -o app</span>
+<span class="ln"></span>
+<span class="ln"><b class="cm"># browser page — html + wasm + runtime glue</b></span>
+<span class="ln"><b class="sh">./build/luke</b> BUILD app.luke -target browser -o app</span></code></pre>
+          <p>
+            Browser and WASI targets need the WASI SDK; see
+            <a href="../download/">download</a>. When you are ready to put a server behind TLS,
+            <a href="../docs/deploy/">deploy</a>
+            covers the reverse proxy and the connection knobs.
+          </p>
+        </li>
+
+      </ol>
+
+      <div class="next">
+        <a href="../download/">← Download &amp; requirements</a>
+        <a href="../docs/">Full documentation →</a>
+        <a href="../examples/">Examples →</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="./">Learn</a>
+      <a href="../docs/">Docs</a>
+      <a href="../download/">Download</a>
+      <a href="../examples/">Examples</a>
+      <a href="../community/">Community</a>
+      <a href="../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../main.js"></script>
+</body>
+</html>

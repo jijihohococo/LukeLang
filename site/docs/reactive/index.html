@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reactive — LukeLang</title>
+<meta name="description" content="Status: Phases 1–8 shipped; Phases 9–11 production roadmap (correctness, scheduler, granularity) Normative spec: REACTIVE_SPEC.md · Roadmap: REACTIVE_ROADMAP.md Identity: Lukelang " />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/reactive/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/reactive/" />
+<meta property="og:title" content="Reactive — LukeLang" />
+<meta property="og:description" content="Status: Phases 1–8 shipped; Phases 9–11 production roadmap (correctness, scheduler, granularity) Normative spec: REACTIVE_SPEC.md · Roadmap: REACTIVE_ROADMAP.md Identity: Lukelang" />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Reactive — LukeLang" />
+<meta name="twitter:description" content="Status: Phases 1–8 shipped; Phases 9–11 production roadmap (correctness, scheduler, granularity) Normative spec: REACTIVE_SPEC.md · Roadmap: REACTIVE_ROADMAP.md Identity: Lukelang" />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Reactive","description":"Status: Phases 1\u20138 shipped; Phases 9\u201311 production roadmap (correctness, scheduler, granularity) Normative spec: REACTIVE_SPEC.md \u00b7 Roadmap: REACTIVE_ROADMAP.md Identity: Lukelang","url":"https://lukelang.org/docs/reactive/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Reactive","item":"https://lukelang.org/docs/reactive/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Reactive</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/" aria-current="page">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#thesis">Thesis</a></li>
+        <li><a href="#placement-in-the-stack">Placement in the stack</a></li>
+        <li><a href="#core-primitives">Core primitives</a></li>
+        <li><a href="#runtime-data-model-phase-1-target">Runtime data model (Phase 1 target)</a></li>
+        <li><a href="#scheduler-the-heart">Scheduler (the heart)</a></li>
+        <li><a href="#compiler-static-dynamic-hybrid">Compiler: static + dynamic hybrid</a></li>
+        <li><a href="#ui-pipeline-argus-hanka">UI pipeline (Argus + Hanka)</a></li>
+        <li><a href="#cross-domain-same-graph">Cross-domain same graph</a></li>
+        <li><a href="#philosophy-surface">Philosophy surface</a></li>
+        <li><a href="#non-goals-near-term">Non-goals (near term)</a></li>
+        <li><a href="#implementation-roadmap">Implementation roadmap</a></li>
+        <li><a href="#relation-to-current-engines">Relation to current engines</a></li>
+        <li><a href="#signature-line">Signature line</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> Phases 1–8 shipped; Phases 9–11 production roadmap (correctness, scheduler, granularity)<br />
+<strong>Normative spec:</strong> <a href="../reactive-spec/"><code>REACTIVE_SPEC.md</code></a> · <strong>Roadmap:</strong> <a href="../reactive-roadmap/"><code>REACTIVE_ROADMAP.md</code></a>
+<strong>Identity:</strong> <em>Lukelang understands change.</em><br />
+<strong>Not:</strong> a React/Vue-style framework bolted onto the language<br />
+<strong>Is:</strong> language + runtime primitive — one dependency graph for UI, backend, game, animation</p>
+</blockquote>
+<h2 id="thesis">Thesis</h2>
+<p>A state change in Luke is <strong>not</strong> an app-level “event you handle.”<br />
+It is a <strong>dependency change the runtime already understands.</strong></p>
+<pre><code><span class="ln">change → invalidate dependents → recompute → layout (Hanka) → paint (Argus)</span></code></pre>
+<p>Frontend UI updates, backend derived caches, game entity/animation triggers, and timelines all share <strong>one</strong> reactive mechanism.</p>
+<p>Argus does <strong>not</strong> become a reactive framework.<br />
+Hanka does <strong>not</strong> own semantic state.<br />
+They <strong>consume</strong> invalidation/update signals from the Reactive Runtime.</p>
+<hr />
+<h2 id="placement-in-the-stack">Placement in the stack</h2>
+<pre><code><span class="ln">                    LUKE LANG (syntax v2 surface)</span><span class="ln">                            │</span><span class="ln">                      Compiler / AST</span><span class="ln">                            │</span><span class="ln">                   Reactive Analyzer (static deps)</span><span class="ln">                            │</span><span class="ln">                     Reactive Runtime  ←── center</span><span class="ln">                            │</span><span class="ln">              ┌─────────────┼──────────────┐</span><span class="ln">              │             │              │</span><span class="ln">             UI          Backend          Game</span><span class="ln">              │             │              │</span><span class="ln">            Hanka        Network         Physics</span><span class="ln">              │          Database        Entities</span><span class="ln">            Argus          Files          Audio</span><span class="ln">              │             │              │</span><span class="ln">              └─────────────┴──────────────┘</span><span class="ln">                            │</span><span class="ln">                       Scheduler</span><span class="ln">                            │</span><span class="ln">                     Native / WASM (Build AOT, arena)</span></code></pre>
+<p>Build mode remains <strong>AOT truth</strong> (Luke → C → native/WASI/browser, bump arena, no GC).<br />
+Reactive cells live in the arena; the graph is explicit, not tracing-GC magic.</p>
+<hr />
+<h2 id="core-primitives">Core primitives</h2>
+<h3 id="1-cell-remembered-value">1. Cell (remembered value)</h3>
+<p>Surface (syntax v2):</p>
+<pre><code><span class="ln"><b class="kw">signal</b> userName = <b class="str">&quot;Lucas&quot;</b></span><span class="ln"><b class="fn">print</b>(<b class="str">&quot;Hello, &quot;</b> + userName)</span><span class="ln">userName = <b class="str">&quot;Alex&quot;</b></span></code></pre>
+<p>Internally:</p>
+<pre><code><span class="ln">name  →  Reactive Cell  →  Dependency Graph edges</span></code></pre>
+<p>Writers mark the cell dirty. Scheduler walks dependents. <strong>No full app rerender.</strong></p>
+<h3 id="2-derived-computed-cell">2. Derived (computed cell)</h3>
+<pre><code><span class="ln"><b class="kw">signal</b> price = <b class="num">100</b></span><span class="ln"><b class="kw">signal</b> quantity = <b class="num">3</b></span><span class="ln"><b class="kw">derived</b> total = price * quantity</span></code></pre>
+<pre><code><span class="ln">price ─────┐</span><span class="ln">           ├──► total (derived)</span><span class="ln">quantity ──┘</span></code></pre>
+<p>Library-level <code>useMemo</code> / Vue <code>computed</code> become a <strong>runtime primitive</strong>, not a framework API.</p>
+<h3 id="3-effect-side-effect-subscription">3. Effect (side-effect subscription)</h3>
+<pre><code><span class="ln"><b class="kw">effect on</b> userName {</span><span class="ln">  <b class="fn">save</b>(userName)</span><span class="ln">}</span></code></pre>
+<p>Effects must be scheduled separately from pure derived recomputation.<br />
+<strong>Cycle detection</strong> is mandatory (save must not mutate <code>userName</code> in a loop).</p>
+<h3 id="4-reactive-events-first-class-continuations">4. Reactive events (first-class continuations)</h3>
+<p>Today’s <code>WHEN "id" IS CLICKED</code> / <code>WHEN FETCH … IS READY</code> become graph entry points:</p>
+<pre><code><span class="ln">CLICK(login) → set loading → START FETCH</span><span class="ln">FETCH READY  → set loading false → GO TO dashboard | show error</span></code></pre>
+<p>Async work is <strong>not</strong> Promise-shaped in user code; it is event → work → result cell → dependents.</p>
+<h3 id="5-reactive-collections">5. Reactive collections</h3>
+<p>Structural change (add) vs item/slot change (set/put) — dependents and Argus consumers
+can paint <strong>per index</strong>, not the whole list by default.</p>
+<pre><code><span class="ln"><b class="kw">signal</b> players: <b class="ty">list</b> = []</span><span class="ln">bind.<b class="ty">list</b>(players, <b class="str">&quot;row&quot;</b>)  <b class="cm">// paints row_0, row_1, …</b></span><span class="ln">players.<b class="fn">push</b>(<b class="str">&quot;Ada&quot;</b>)</span><span class="ln">players[<b class="num">1</b>] = <b class="str">&quot;Zoe&quot;</b>  <b class="cm">// only that row dirty-paints</b></span></code></pre>
+<p><code>change_kind</code> / <code>last_index</code> on the collection node drive <code>luke_rx_ui_paint_list</code>.
+Maps use the same touch model via index assign / lookup.</p>
+<h3 id="6-reactive-scopes-components">6. Reactive scopes / components</h3>
+<p>A component is a <strong>scope</strong>: state + deps + handlers + UI tree + effects.<br />
+Destroy → unsubscribe (owned cells/effects disposed; aligns with arena doctrine).</p>
+<pre><code><span class="ln"><b class="cm">// Component scopes are still opaque v1 in the migrator (BEGIN/END COMPONENT).</b></span><span class="ln"><b class="kw">signal</b> count = <b class="num">0</b></span><span class="ln"><b class="cm">// … UI bind / handlers …</b></span></code></pre>
+<hr />
+<h2 id="runtime-data-model-phase-1-target">Runtime data model (Phase 1 target)</h2>
+<pre><code><span class="ln">typedef uint32_t LukeRxId;</span><span class="ln"></span><span class="ln">typedef enum LukeRxKind {</span><span class="ln">  LUKE_RX_CELL = 1,</span><span class="ln">  LUKE_RX_DERIVED = 2,</span><span class="ln">  LUKE_RX_EFFECT = 3</span><span class="ln">} LukeRxKind;</span><span class="ln"></span><span class="ln">typedef struct LukeRxNode {</span><span class="ln">  LukeRxId id;</span><span class="ln">  LukeRxKind kind;</span><span class="ln">  int dirty;</span><span class="ln">  /* edges: deps[] / subs[] stored densely in arena tables */</span><span class="ln">} LukeRxNode;</span></code></pre>
+<p>Sketch lives in <code>vm/runtime/luke_reactive.h</code> (Phase 1 API implemented).</p>
+<p><strong>Invariants</strong></p>
+<ol>
+<li>Writes go through <code>luke_rx_write</code> / conversational <code>CHANGE</code> / <code>INCREASE</code> on remembered cells  </li>
+<li>Derived reads register the reader as a dependent (dynamic tracking) <strong>or</strong> use compile-time edges  </li>
+<li>Effects never run mid-propagation; they run in the effect wave after pure recompute  </li>
+<li>Cycles: compile-time where possible; runtime tripwire otherwise  </li>
+</ol>
+<h3 id="phase-1-build-surface">Phase 1 Build surface</h3>
+<pre><code><span class="ln"><b class="kw">signal</b> price = <b class="num">100</b></span><span class="ln"><b class="kw">signal</b> quantity = <b class="num">3</b></span><span class="ln"><b class="kw">derived</b> total = price * quantity</span><span class="ln">quantity = <b class="num">4</b></span><span class="ln">quantity += <b class="num">1</b></span><span class="ln"><b class="kw">batch</b> {</span><span class="ln">  price = <b class="num">200</b></span><span class="ln">  quantity = <b class="num">5</b></span><span class="ln">}</span><span class="ln"><b class="fn">print</b>(total)</span></code></pre>
+<p>Smoke: <code>examples/build/reactive_core.lk</code> · cycle tripwire: <code>examples/build/reactive_cycle.lk</code></p>
+<h3 id="phase-2-ui-surface">Phase 2 UI surface</h3>
+<pre><code><span class="ln"><b class="kw">signal</b> username = <b class="str">&quot;&quot;</b></span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;greeting&quot;</b>, <b class="str">&quot;Welcome, &quot;</b> + username)</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;&quot;</b><b class="str">&quot;WHEN &quot;</b>name<b class="str">&quot; IS CHANGED DO</span><span class="ln">  CHANGE username TO THE VALUE OF &quot;</b>name<b class="str">&quot;</span><span class="ln">END WHEN&quot;</b><b class="str">&quot;&quot;</b></span></code></pre>
+<p>Pipeline: event → cell write → effect (<code>bind</code>) → <code>argus_set_text</code> → dirty paint.<br />
+<strong>No</strong> full-screen clear. Text-only updates skip Hanka relayout.</p>
+<p>Demo: <code>examples/build/reactive_greeting.lk</code></p>
+<h3 id="phase-3-component-surface">Phase 3 component surface</h3>
+<pre><code><span class="ln"><b class="kw">signal</b> count = <b class="num">0</b></span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;counter-label&quot;</b>, <b class="str">&quot;Count: &quot;</b> + count)</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;&quot;</b><b class="str">&quot;WHEN &quot;</b>counter-inc<b class="str">&quot; IS CLICKED DO</span><span class="ln">  INCREASE count BY 1</span><span class="ln">END WHEN&quot;</b><b class="str">&quot;&quot;</b></span></code></pre>
+<p><code>BEGIN COMPONENT</code> / <code>DESTROY COMPONENT</code> (still opaque v1 via <code>raw</code>) open and dispose a reactive scope.</p>
+<p>Demos: <code>reactive_counter_scope.lk</code> · <code>reactive_counter.lk</code></p>
+<h3 id="phase-4-async-surface">Phase 4 async surface</h3>
+<pre><code><span class="ln"><b class="kw">signal</b> body = <b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">signal</b> status = <b class="num">0</b></span><span class="ln"><b class="kw">signal</b> ready = <b class="num">0</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;START FETCH \&quot;</b>demo\<b class="str">&quot; GET \&quot;</b>luke:<b class="cm">//stub/profile\&quot; INTO body STATUS status READY ready&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;&quot;</b><b class="str">&quot;WHEN FETCH &quot;</b>demo<b class="str">&quot; IS READY DO</span><span class="ln">  CHANGE loading TO 0</span><span class="ln">END WHEN&quot;</b><b class="str">&quot;&quot;</b></span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;body-label&quot;</b>, <b class="str">&quot;body: &quot;</b> + body)</span></code></pre>
+<p>On fetch ready: runtime writes result cells (batched) <strong>then</strong> runs the WHEN body — a continuation edge into the reactive graph. No Promise API in user code.</p>
+<p><code>luke://…</code> URLs finish locally (deterministic tests). Demo: <code>reactive_fetch.lk</code></p>
+<hr />
+<h2 id="scheduler-the-heart">Scheduler (the heart)</h2>
+<p>One batch, ordered waves — never “random immediate fire” for every write:</p>
+<pre><code><span class="ln">Events / writes</span><span class="ln">      ↓</span><span class="ln">   Batch</span><span class="ln">      ↓</span><span class="ln"> Invalidate (mark dirty)</span><span class="ln">      ↓</span><span class="ln"> Propagate (topo / depth)</span><span class="ln">      ↓</span><span class="ln"> Recompute (derived, pure)</span><span class="ln">      ↓</span><span class="ln"> Effects (I/O, save, network kick)</span><span class="ln">      ↓</span><span class="ln"> Layout  (Hanka — affected regions)</span><span class="ln">      ↓</span><span class="ln"> Paint   (Argus — dirty nodes only)</span></code></pre>
+<p>Multiple sources in one turn (price + quantity + resize + fetch + animation tick) coalesce into <strong>one</strong> layout/paint pass when possible.</p>
+<hr />
+<h2 id="compiler-static-dynamic-hybrid">Compiler: static + dynamic hybrid</h2>
+<p>Preferred:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>How edges appear</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Static</td>
+<td>Analyzer sees <code>THE total IS price * quantity</code> → edge metadata in Build IR</td>
+</tr>
+<tr>
+<td>Dynamic</td>
+<td>Branches / collections / late binding → runtime tracking on read</td>
+</tr>
+</tbody>
+</table>
+<p>Build IR should grow a <code>rx</code> section (ids, kinds, static edges) so WASM/native bootstraps the graph without rediscovering every edge at runtime.</p>
+<hr />
+<h2 id="ui-pipeline-argus-hanka">UI pipeline (Argus + Hanka)</h2>
+<pre><code><span class="ln">User Input</span><span class="ln">   ↓</span><span class="ln">Argus event (CLICKED / CHANGED / SUBMITTED)</span><span class="ln">   ↓</span><span class="ln">Reactive cell write</span><span class="ln">   ↓</span><span class="ln">Dependency graph</span><span class="ln">   ↓</span><span class="ln">Invalidate text/layout consumers</span><span class="ln">   ↓</span><span class="ln">Hanka relayouts affected frames only</span><span class="ln">   ↓</span><span class="ln">Argus paints dirty nodes only</span></code></pre>
+<p><strong>No virtual DOM diff as the source of truth.</strong><br />
+Semantic deps (Luke) → layout deps (Hanka) → paint deps (Argus).</p>
+<p>Existing beachhead wiring that Reactive will absorb:</p>
+<ul>
+<li><code>THE VALUE OF</code> / <code>SET</code> / <code>WHEN … IS CLICKED|CHANGED|SUBMITTED</code></li>
+<li><code>START FETCH</code> / <code>WHEN FETCH … IS READY</code></li>
+<li>Hanka nested boxes → Argus dirty paint</li>
+</ul>
+<hr />
+<h2 id="cross-domain-same-graph">Cross-domain same graph</h2>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Source</th>
+<th>Dependent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web UI</td>
+<td>input cell</td>
+<td>greeting text → Hanka → Argus</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td>DB row / list</td>
+<td>derived “active users”, dashboard stats</td>
+</tr>
+<tr>
+<td>Game</td>
+<td><code>player.health</code></td>
+<td>health bar, death, injured animation</td>
+</tr>
+<tr>
+<td>Animation</td>
+<td><code>menu.open</code> / <code>progress</code></td>
+<td>timeline → frames → Argus</td>
+</tr>
+</tbody>
+</table>
+<p>Animation progress is itself a cell (<code>0.0 → 1.0</code>) that drives layout/paint dependents.</p>
+<hr />
+<h2 id="philosophy-surface">Philosophy surface</h2>
+<p>Avoid “setState culture.” Prefer verbs that mutate cells:</p>
+<pre><code><span class="ln">count += <b class="num">1</b></span><span class="ln">userName = <b class="str">&quot;Alex&quot;</b></span></code></pre>
+<p>Developer describes <strong>what changed</strong>. Runtime decides <strong>what must react</strong>.</p>
+<p>Debugging target (later DevTools):</p>
+<pre><code><span class="ln">WHY DID THIS CHANGE?</span><span class="ln">username ← LoginForm.input</span><span class="ln">greeting ← username</span><span class="ln">Hanka relayout ← greeting</span><span class="ln">Argus paint ← TextNode#greeting</span></code></pre>
+<hr />
+<h2 id="non-goals-near-term">Non-goals (near term)</h2>
+<ul>
+<li>Replacing Build AOT / arena with a GC reactive heap  </li>
+<li>Making Argus/Hanka frameworks that own app state  </li>
+<li>Shipping Phase 6–8 before Phase 1 scheduler works  </li>
+<li>Full static analysis of every dynamic edge on day one  </li>
+</ul>
+<hr />
+<h2 id="implementation-roadmap">Implementation roadmap</h2>
+<h3 id="phase-1-reactive-core-shipped">Phase 1 — Reactive Core <em>(shipped)</em></h3>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li>Cells + derived + invalidation + single-threaded scheduler  </li>
+<li>Arena-friendly graph tables in <code>luke_reactive.h</code>  </li>
+<li>Build surface: <code>REMEMBER</code> / <code>THE x IS …</code> / <code>CHANGE</code> / <code>INCREASE</code> / batch + flush  </li>
+<li>Smoke: change quantity → total recomputes; unaffected cells untouched  </li>
+</ul>
+<p><strong>Acceptance</strong></p>
+<ol>
+<li>Derived updates without manual <code>PAINT</code> for non-UI tests  </li>
+<li>Two writes in one turn batch to one recompute pass  </li>
+<li>Cycle on derived graph fails loudly  </li>
+</ol>
+<h3 id="phase-2-ui-bridge-shipped">Phase 2 — UI bridge <em>(shipped)</em></h3>
+<p>Input/event → cell → Hanka region invalidate (text-only skips) → Argus dirty paint.<br />
+Greeting demo without full <code>CLEAR THE SCREEN</code>.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li>TEXT cells (<code>luke_rx_cell_text</code> / <code>luke_rx_write_text</code>)  </li>
+<li><code>BIND "id" TO expr</code> effect → Argus text + <code>need_paint</code>  </li>
+<li><code>UPDATE</code> / <code>PAINT DIRTY</code> · flush after-wave via <code>luke_rx_ui_after_flush</code>  </li>
+<li>Demo: <code>examples/build/reactive_greeting.luke</code></li>
+</ul>
+<h3 id="phase-3-component-scopes-shipped">Phase 3 — Component scopes <em>(shipped)</em></h3>
+<p>Counter component: local cells, handlers, auto cleanup on scope end.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>luke_rx_scope_begin</code> / <code>luke_rx_scope_end</code> — owned node tracking + dispose/unlink  </li>
+<li>Build: <code>BEGIN COMPONENT Name</code> … <code>END COMPONENT</code> · <code>DESTROY COMPONENT Name</code>  </li>
+<li>Demos: <code>reactive_counter_scope.luke</code>, <code>reactive_counter.luke</code></li>
+</ul>
+<h3 id="phase-4-async-in-the-graph-shipped">Phase 4 — Async in the graph <em>(shipped)</em></h3>
+<p><code>START FETCH</code> results write cells; <code>WHEN FETCH READY</code> is a continuation edge.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>START FETCH … INTO body STATUS status READY ready</code>  </li>
+<li>Auto prelude on FETCH READY: batch-write cells → flush → user WHEN body  </li>
+<li>Synthesize FETCH READY handler when INTO is used without an explicit WHEN  </li>
+<li><code>luke://</code> stub fetch for offline/deterministic tests  </li>
+<li>Demo: <code>examples/build/reactive_fetch.luke</code></li>
+</ul>
+<h3 id="phase-5-collections-shipped">Phase 5 — Collections <em>(shipped)</em></h3>
+<p>Granular list/map invalidation; <code>BIND LIST</code> paints <code>{prefix}_{index}</code> using <code>change_kind</code>.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>REMEMBER name AS LIST|MAP</code></li>
+<li><code>ADD</code> / <code>SET ITEM n OF list TO v</code> / <code>PUT</code> → <code>luke_rx_list_*</code> / <code>luke_rx_map_*</code></li>
+<li><code>BIND LIST name AS "prefix"</code> — item updates paint one Argus row</li>
+<li><code>THE GRANULAR PAINT COUNT</code> for tests</li>
+<li>Demos: <code>examples/build/reactive_list.luke</code>, <code>reactive_list_ui.luke</code></li>
+</ul>
+<h3 id="phase-6-animation-shipped">Phase 6 — Animation <em>(shipped)</em></h3>
+<p>Timeline progress as NUMBER cells → <code>BIND OPACITY</code> / layout consumers.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>START TIMELINE "id" FOR ms MILLISECONDS FROM a TO b INTO cell</code> (native: stepped sync)</li>
+<li><code>WHEN TIMELINE "id" IS FINISHED DO</code> · browser rAF ticks via <code>timeline_start</code></li>
+<li><code>BIND OPACITY "element" TO expr</code></li>
+<li>Demos: <code>reactive_timeline.luke</code>, <code>reactive_timeline_ui.luke</code></li>
+</ul>
+<h3 id="phase-7-game-shipped">Phase 7 — Game <em>(shipped)</em></h3>
+<p>Entity scopes with dotted field cells (<code>Player.health</code>).</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>BEGIN ENTITY Name</code> … <code>END ENTITY</code> · <code>DESTROY ENTITY Name</code></li>
+<li>Field cells as <code>Entity.field</code> in the dependency graph</li>
+<li>Demo: <code>reactive_entity.luke</code></li>
+</ul>
+<h3 id="phase-8-backend-shipped">Phase 8 — Backend <em>(shipped)</em></h3>
+<p>Query result TEXT cells; <code>REFRESH QUERY</code> re-runs SQL and invalidates dependents.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>REMEMBER x AS QUERY ON db AS "sql"</code> · <code>REFRESH QUERY x</code></li>
+<li><code>luke_rx_query_refresh</code> over <code>luke_db_query_text</code></li>
+<li>Demo: <code>reactive_query.luke</code></li>
+</ul>
+<h3 id="phase-9-correctness-shipped-v0-1">Phase 9 — Correctness <em>(shipped v0.1)</em></h3>
+<p>Production-grade scheduler guarantees before new features.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li>Normative <a href="../reactive-spec/"><code>REACTIVE_SPEC.md</code></a> v0.1 (flush waves, stale-edge cleanup, batch coalescing)</li>
+<li>Scheduler instrumentation: <code>THE FLUSH COUNT</code>, <code>THE STALE EDGE COUNT</code>, <code>THE DERIVED RUN COUNT</code>, …</li>
+<li><code>luke_rx_clear_deps</code> — unlink superseded dynamic edges before derived/effect rerun</li>
+<li>Conformance programs: <code>examples/build/reactive_conformance_{batch,stale,order}.luke</code></li>
+<li>Roadmap: <a href="../reactive-roadmap/"><code>REACTIVE_ROADMAP.md</code></a></li>
+</ul>
+<h3 id="phase-10-scheduler-2-0-shipped-v0-2">Phase 10 — Scheduler 2.0 <em>(shipped v0.2)</em></h3>
+<p>Priority lanes, dirty dedup, nested flush coalescing, timeline export.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li>Effect priority: UI (<code>BIND</code>, <code>WHEN REACTIVE</code>) before <code>BACKGROUND</code> (<code>BIND BACKGROUND</code>, <code>WHEN BACKGROUND REACTIVE</code>)</li>
+<li>Deferred flush during active flush (<code>THE DEFERRED FLUSH COUNT</code>, <code>THE FLUSH PASS COUNT</code>)</li>
+<li>Dirty dedup + queue instrumentation (<code>THE DIRTY DEDUP COUNT</code>)</li>
+<li>Scheduler timeline counters (<code>THE SCHEDULER STEP COUNT</code>, <code>THE SCHEDULER UI BEFORE BACKGROUND</code>)</li>
+<li>Conformance: <code>reactive_conformance_{priority,nested,dedup}.luke</code></li>
+</ul>
+<h3 id="phase-11-granularity-shipped-v0-3">Phase 11 — Granularity <em>(shipped v0.3)</em></h3>
+<p>Partial layout/paint and component subtree invalidation.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>argus_paint_one</code> — region-targeted Argus paint</li>
+<li><code>hanka_layout_dirty</code> / <code>hanka_mark_region</code> — partial Hanka relayout</li>
+<li>Component subtree invalidation (<code>THE SUBTREE INVALID COUNT</code>)</li>
+<li>Introspection: <code>THE REGION PAINT COUNT</code>, <code>THE REGION LAYOUT COUNT</code></li>
+<li>Conformance: <code>reactive_conformance_subtree.luke</code></li>
+</ul>
+<h3 id="phase-12-memory-shipped-v0-4">Phase 12 — Memory <em>(shipped v0.4)</em></h3>
+<p>Dead nodes, weak reads, leak audit, weak effects, scope GC.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>luke_rx_audit_graph</code> + leak edge repair</li>
+<li>Weak reads: <code>THE WEAK VALUE OF x</code> (no dependency edge)</li>
+<li>Weak effects: <code>WHEN REACTIVE WEAK x CHANGES DO</code> (effect reads don't subscribe)</li>
+<li>Auto scope GC on <code>DESTROY</code> / <code>UNMOUNT COMPONENT</code> (<code>THE SCOPE GC COUNT</code>)</li>
+<li>Introspection: <code>THE ALIVE NODE COUNT</code>, <code>THE DEAD NODE COUNT</code>, <code>THE DISPOSED COUNT</code>, <code>THE LEAK EDGE COUNT</code>, <code>THE SCOPE FRAME COUNT</code></li>
+<li><code>AUDIT REACTIVE</code> statement · <code>UNMOUNT COMPONENT</code> (UI dispose alias)</li>
+<li>Conformance: <code>reactive_conformance_{memory,weak,scope_gc,weak_effect}.luke</code></li>
+</ul>
+<h3 id="phase-13-devtools-shipped-v0-5">Phase 13 — DevTools <em>(shipped v0.5)</em></h3>
+<p>Graph introspection, why-changed tracing, timeline export.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>luke_rx_why_root</code> / <code>luke_rx_why_depth</code> — dependency chain to source cells</li>
+<li><code>luke_rx_dump_graph</code> + <code>DUMP REACTIVE GRAPH</code></li>
+<li><code>TRACE WHY cell</code> / <code>WHY DID cell CHANGE</code></li>
+<li>Introspection: <code>THE DEP COUNT OF</code>, <code>THE WHY ROOT OF</code>, <code>THE GRAPH EDGE COUNT</code>, <code>THE TIMELINE STEP ID AT n</code></li>
+<li>Conformance: <code>reactive_conformance_devtools.luke</code></li>
+</ul>
+<h3 id="phase-14-error-system-shipped-v0-6">Phase 14 — Error system <em>(shipped v0.6)</em></h3>
+<p>Isolated failures, async reporting, retry.</p>
+<p><strong>Deliverables</strong></p>
+<ul>
+<li><code>luke_rx_isolate_error</code> — mark node errored, skip on flush, graph continues</li>
+<li><code>luke_rx_report_async_failure</code> + <code>REPORT REACTIVE FAILURE FOR cell WITH msg</code></li>
+<li><code>RETRY REACTIVE ERROR</code> / <code>CLEAR REACTIVE ERROR</code></li>
+<li>Introspection: <code>THE REACTIVE ERROR COUNT</code>, <code>THE LAST ERROR NODE</code>, <code>THE ASYNC FAILURE COUNT</code></li>
+<li>Conformance: <code>reactive_conformance_error.luke</code></li>
+</ul>
+<p><strong>Error boundaries</strong></p>
+<ul>
+<li><code>BEGIN ERROR BOUNDARY Name</code> … <code>END ERROR BOUNDARY Name</code> — contain failures to scoped nodes</li>
+<li><code>RESET ERROR BOUNDARY Name</code> — clear tripped state + re-schedule errored nodes</li>
+<li>Introspection: <code>THE BOUNDARY TRIP COUNT</code>, <code>THE BOUNDARY TRIPPED FOR Name</code></li>
+<li>Conformance: <code>reactive_conformance_boundary.luke</code></li>
+</ul>
+<hr />
+<h2 id="relation-to-current-engines">Relation to current engines</h2>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Role vs Reactive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../build-mode/"><code>BUILD_MODE.md</code></a></td>
+<td>AOT host; IR will carry <code>rx</code> metadata</td>
+</tr>
+<tr>
+<td><a href="../argus/"><code>ARGUS.md</code></a></td>
+<td>Paint consumer of dirty regions</td>
+</tr>
+<tr>
+<td><a href="../hanka/"><code>HANKA.md</code></a></td>
+<td>Layout consumer of frame invalidation</td>
+</tr>
+<tr>
+<td><a href="../production-web/"><code>PRODUCTION_WEB.md</code></a></td>
+<td>Ship path; Reactive makes partial updates production-grade</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="signature-line">Signature line</h2>
+<blockquote>
+<p><strong>Lukelang understands change.</strong></p>
+</blockquote>
+<p>Not “Luke has state management.”<br />
+The compiler and runtime know <strong>what depends on what</strong> — and only that work runs.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

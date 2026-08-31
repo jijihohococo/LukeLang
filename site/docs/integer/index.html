@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Integer semantics — LukeLang</title>
+<meta name="description" content="Nail these rules before money / IDs / counters rely on them." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/integer/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/integer/" />
+<meta property="og:title" content="Integer semantics — LukeLang" />
+<meta property="og:description" content="Nail these rules before money / IDs / counters rely on them." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Integer semantics — LukeLang" />
+<meta name="twitter:description" content="Nail these rules before money / IDs / counters rely on them." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Integer semantics","description":"Nail these rules before money / IDs / counters rely on them.","url":"https://lukelang.org/docs/integer/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Integer semantics","item":"https://lukelang.org/docs/integer/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Integer semantics</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/" aria-current="page">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#representation">Representation</a></li>
+        <li><a href="#literals">Literals</a></li>
+        <li><a href="#arithmetic">Arithmetic</a></li>
+        <li><a href="#conversions">Conversions</a></li>
+        <li><a href="#comparisons">Comparisons</a></li>
+        <li><a href="#reactive-cells">Reactive cells</a></li>
+        <li><a href="#what-this-is-not">What this is not</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>Nail these rules before money / IDs / counters rely on them.</p>
+<h2 id="representation">Representation</h2>
+<table>
+<thead>
+<tr>
+<th>Luke</th>
+<th>C</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INTEGER</code></td>
+<td><code>int64_t</code></td>
+<td>Exact in the full signed 64-bit range</td>
+</tr>
+<tr>
+<td><code>NUMBER</code></td>
+<td><code>double</code></td>
+<td>IEEE-754; integers above 2⁵³ are not exact</td>
+</tr>
+</tbody>
+</table>
+<h2 id="literals">Literals</h2>
+<ul>
+<li><code>42</code> → <code>INTEGER</code> (no <code>.</code> / <code>e</code> / <code>E</code>)</li>
+<li><code>3.14</code> / <code>1e9</code> → <code>NUMBER</code></li>
+<li>Out-of-range integer literals are a <strong>Build error</strong></li>
+</ul>
+<h2 id="arithmetic">Arithmetic</h2>
+<table>
+<thead>
+<tr>
+<th>Op</th>
+<th>INTEGER ⊕ INTEGER</th>
+<th>Mixed / NUMBER</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ADD</code> / <code>SUBTRACT</code> / <code>MULTIPLY</code></td>
+<td>stays <code>INTEGER</code> (checked)</td>
+<td>promote to <code>NUMBER</code></td>
+</tr>
+<tr>
+<td><code>DIVIDE</code> / <code>DIVIDED BY</code></td>
+<td>always <code>NUMBER</code></td>
+<td><code>NUMBER</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overflow:</strong> <code>INTEGER</code> add/sub/mul uses checked ops (<code>luke_i64_*</code>). Overflow <strong>aborts</strong> the process with <code>INTEGER error: … overflow</code> — silent wrap is forbidden for money/IDs.</p>
+<h2 id="conversions">Conversions</h2>
+<ul>
+<li><strong>INTEGER → NUMBER</strong> — implicit widening allowed. Values with |n| &gt; 2⁵³ may lose precision in the <code>double</code>.</li>
+<li><strong>NUMBER → INTEGER</strong> — allowed on assignment / <code>AS INTEGER</code> via <code>luke_number_to_integer</code>: truncates toward zero; <strong>aborts</strong> if non-finite or outside <code>int64</code> range. Not a silent bit-cast.</li>
+</ul>
+<h2 id="comparisons">Comparisons</h2>
+<ul>
+<li>INTEGER vs INTEGER: exact</li>
+<li>Mixed INTEGER/NUMBER: INTEGER is widened to <code>double</code> first (precision caveat above)</li>
+</ul>
+<h2 id="reactive-cells">Reactive cells</h2>
+<ul>
+<li><code>REMEMBER x AS INTEGER</code> stores an exact int64 cell</li>
+<li><code>INCREASE</code> on INTEGER cells uses checked add</li>
+<li><code>TIMELINE INTO</code> requires a <strong>NUMBER</strong> cell (fractional progress)</li>
+</ul>
+<h2 id="what-this-is-not">What this is not</h2>
+<ul>
+<li>No arbitrary-precision integers</li>
+<li>No saturating arithmetic</li>
+<li>JSON parses whole numbers as <code>LUKE_JSON_INTEGER</code> (<code>int64_t</code>) when they fit; fractions/exponents stay <code>NUMBER</code>. Use <code>jsonAsInteger</code> / stringify for exact round-trip past 2⁵³ (<code>examples/build/json_integer.luke</code>).</li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/INTEGER.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Documentation — LukeLang</title>
+<meta name="description" content="Every LukeLang document, hosted: the language, the reactive engine, Live Graph, the backend and frontend surfaces, and the tooling." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/" />
+<meta property="og:title" content="Documentation — LukeLang" />
+<meta property="og:description" content="Every LukeLang document, hosted: the language, the reactive engine, Live Graph, the backend and frontend surfaces, and the tooling." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Documentation — LukeLang" />
+<meta name="twitter:description" content="Every LukeLang document, hosted: the language, the reactive engine, Live Graph, the backend and frontend surfaces, and the tooling." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"WebPage","name":"Documentation","description":"Every LukeLang document, hosted: the language, the reactive engine, Live Graph, the backend and frontend surfaces, and the tooling.","url":"https://lukelang.org/docs/","isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../">
+    <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../learn/">Learn</a>
+    <a href="../docs/" aria-current="page">Docs</a>
+    <a href="../download/">Download</a>
+    <a href="../examples/">Examples</a>
+    <a href="../community/">Community</a>
+    <a href="../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead">
+    <p class="masthead__kicker">Documentation</p>
+    <h1>Everything the compiler <em>already knows</em>.</h1>
+    <p>
+      40 documents, hosted here and generated from the same Markdown that ships in the
+      repository — so they move when the compiler moves.
+    </p>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Sections</label>
+      <div class="sidebar__panel">
+      <h2>Sections</h2>
+      <ul>
+        <li><a href="#syntax-at-a-glance">Syntax at a glance</a></li>
+        <li><a href="#start-here">Start here</a></li>
+        <li><a href="#the-language">The language</a></li>
+        <li><a href="#reactive-engine">Reactive engine</a></li>
+        <li><a href="#live-graph">Live Graph</a></li>
+        <li><a href="#backend">Backend</a></li>
+        <li><a href="#frontend">Frontend</a></li>
+        <li><a href="#tooling-compiler">Tooling &amp; compiler</a></li>
+        <li><a href="#papers">Papers</a></li>
+      </ul>
+      <h2>Elsewhere</h2>
+      <ul>
+        <li><a href="../learn/">Learn LukeLang</a></li>
+        <li><a href="../examples/">Examples</a></li>
+        <li><a href="../download/">Download</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <div class="prose">
+      <section id="syntax-at-a-glance">
+        <h2>Syntax at a glance</h2>
+        <p>
+          Syntax v2 is the default for <code>.luke</code> and <code>.lk</code> files. The
+          conversational v1 surface stays available behind <code>--syntax=1</code> during the
+          deprecation window, and <code>luke MIGRATE</code> rewrites v1 source into v2.
+        </p>
+        <table class="sheet">
+          <thead><tr><th>Form</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>print(x)</td><td>Write a value to standard output</td></tr>
+            <tr><td>let n = 1</td><td>Immutable binding; <b>var</b> for one you reassign</td></tr>
+            <tr><td>let n: float = 1</td><td>Typed binding — <b>int</b>, <b>float</b>, <b>str</b>, <b>bool</b>, <b>list</b>, <b>map</b>, <b>json</b></td></tr>
+            <tr><td>fn f(a: float) -&gt; float { … }</td><td>Function with a declared return type</td></tr>
+            <tr><td>struct Dog : Animal { … }</td><td>Blueprint with inheritance; <b>init</b> is the constructor</td></tr>
+            <tr><td>import std/server</td><td>Standard library, sibling file, or <b>luke/&lt;package&gt;</b></td></tr>
+            <tr><td>signal count = 0</td><td>A reactive cell</td></tr>
+            <tr><td>derived total = a * b</td><td>A cell computed from other cells</td></tr>
+            <tr><td>effect on total { … }</td><td>Runs whenever the named cell changes</td></tr>
+            <tr><td>batch { … }</td><td>Several writes, one flush</td></tr>
+            <tr><td>watch user from db where "id = 1"</td><td>Server cell backed by a database row</td></tr>
+            <tr><td>push watch user on req</td><td>Stream that cell to a client over the wire</td></tr>
+            <tr><td>bind("name", user)</td><td>Paint a cell into the DOM</td></tr>
+            <tr><td>raw "…"</td><td>Pass a line through to the v1 surface untouched</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section id="start-here">
+        <h2>Start here</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="getting-started/">Getting started</a></p>
+            <p class="rows__val">LukeLang is Build-first: technical syntax (.lk) → native / WASM via vm/. Conversational .luke still works during the dual-syntax window.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="build-mode/">Build mode</a></p>
+            <p class="rows__val">Play (luke SHOW) is a convenience: GC’d bytecode VM for demos and exploration. Build (luke BUILD) is the language of record: syntax v2 → native code, no GC, Rust-class li</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="syntax-v2-spec/">Syntax v2 specification</a></p>
+            <p class="rows__val">Status: normative for core / reactive / backend. Layout-UI section is provisional. Plan: SYNTAX_V2_PLAN.md · Golden corpus: examples/v2/ Decisions: all nine open items in</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="strategy/">Strategy</a></p>
+            <p class="rows__val">Status: v2 — decision record (syntax amended) Purpose: Lock down what LukeLang is, what it wins first, and the order we build it in. When a roadmap or PR conflicts with t</p>
+          </li>
+        </ul>
+      </section>
+      <section id="the-language">
+        <h2>The language</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="language-reference/">Language reference</a></p>
+            <p class="rows__val">This document provides a comprehensive reference for the LukeLang programming language, covering its syntax, data types, control flow, functions, and object-oriented prog</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="standard-library/">Standard library</a></p>
+            <p class="rows__val">This document outlines the standard library provided by LukeLang, including functions for input/output, file system operations, and other utilities.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="integer/">Integer semantics</a></p>
+            <p class="rows__val">Nail these rules before money / IDs / counters rely on them.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="ast/">AST</a></p>
+            <p class="rows__val">Status: production pipeline — every luke BUILD / IR / FMT / LSP path goes through parseLuke Files: vm/include/luke_ast.hpp, vm/src/luke_expr.cpp, vm/src/luke_parse.cpp</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="syntax-v2-plan/">Syntax v2 plan</a></p>
+            <p class="rows__val">Status: Phases 0–5 flip complete (.luke is v2; --syntax=1 deprecation window). Phrase-prefix deletion in build_c.cpp is the post-window cleanup. No codegen AST rewrite ye</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="advanced-topics/">Advanced topics</a></p>
+            <p class="rows__val">Prefer BUILD_MODE.md for the language of record. This page is a short pointer — older JS-transpile guidance was removed with the legacy emitters (LEGACY.md).</p>
+          </li>
+        </ul>
+      </section>
+      <section id="reactive-engine">
+        <h2>Reactive engine</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="reactive/">Reactive</a></p>
+            <p class="rows__val">Status: Phases 1–8 shipped; Phases 9–11 production roadmap (correctness, scheduler, granularity) Normative spec: REACTIVE_SPEC.md · Roadmap: REACTIVE_ROADMAP.md Identity:</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="reactive-spec/">Reactive specification</a></p>
+            <p class="rows__val">Status: Normative draft (Phase 9–10 — correctness + Scheduler 2.0) Implementation: vm/runtime/luke_reactive.h Architecture overview: REACTIVE.md Roadmap: REACTIVE_ROADMAP</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="reactive-roadmap/">Reactive roadmap</a></p>
+            <p class="rows__val">Phases 1–8 shipped (feature foundation). This roadmap covers production-grade + signature-grade work. Priority: Correctness → Scheduler → Granularity → Memory → DevTools </p>
+          </li>
+        </ul>
+      </section>
+      <section id="live-graph">
+        <h2>Live Graph</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="live-graph/">Live Graph</a></p>
+            <p class="rows__val">Status: true differential IVM — point rows, N-table equi-JOIN chains, multi-row join bags, inequality/LIKE bag filters — + scrub UI + causal resume + wire fail-closed The</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="deploy/">Deploy</a></p>
+            <p class="rows__val">Luke’s httpServe / SERVE ROUTES binary speaks plain HTTP on a local port. Production TLS and static assets belong in front — the Go/nginx pattern:</p>
+          </li>
+        </ul>
+      </section>
+      <section id="backend">
+        <h2>Backend</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="backend-roadmap/">Backend roadmap</a></p>
+            <p class="rows__val">Wedge: reactive full-stack web — see STRATEGY.md. Track: Backend (this document) — unlocks full-stack reactivity (likely the true signature). Prior track: Frontend (FRONT</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="auth/">Auth</a></p>
+            <p class="rows__val">Status: secure-path beachhead + auth-as-types + FLOW / LIMIT / REVEAL / rewind-audit spikes Track: BACKEND_ROADMAP.md · TaskList.md</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="network-db-roadmap/">Network &amp; database</a></p>
+            <p class="rows__val">Status: shipped. Slipstream is the default. Blocking libpq TLS pool remains the escape hatch (LUKE_PG_ASYNC=0). Official numbers vs Go: BACKEND_BENCHMARKS.md — equal-budg</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="backend-benchmarks/">Backend benchmarks</a></p>
+            <p class="rows__val">Scope: HTTP serving and database-backed API throughput, LukeLang vs Go. Posture: these numbers are honest, reproducible, and caveated. Read §2 Environment and §8 Limitati</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="backend-publish/">Publishing a backend</a></p>
+            <p class="rows__val">LukeLang&#x27;s first market surface is backend language + reactive full-stack substrate, not generic scripting.</p>
+          </li>
+        </ul>
+      </section>
+      <section id="frontend">
+        <h2>Frontend</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="frontend-roadmap/">Frontend roadmap</a></p>
+            <p class="rows__val">Wedge: reactive full-stack web — see STRATEGY.md (the decision record this roadmap serves). Current track: Frontend (this document) + Backend beachhead opening Next track</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="argus/">Argus</a></p>
+            <p class="rows__val">Status: v0.5 — widgets + modal focus + live regions + class/scroll/grid Name: Argus Backend: DOM presentment (not Skia) Layout: Hanka Frontend track: FRONTEND_ROADMAP.md </p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="hanka/">Hanka</a></p>
+            <p class="rows__val">Status: v1.4 — flex/grid + per-axis ALIGN + STACK/WRAP BELOW + SCROLL + WEAR Name: Hanka Role: Own layout numbers → feed Argus frames / CSS flex/grid Not: browser flex/gr</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="layout-engine/">Layout engine</a></p>
+            <p class="rows__val">The LukeLang layout engine is named Hanka.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="rendering-engine/">Rendering engine</a></p>
+            <p class="rows__val">The LukeLang rendering engine is named Argus.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="production-web/">Production web</a></p>
+            <p class="rows__val">Status: v1 in progress (shippable static apps) Goal: Ship real browser apps as Luke-owned UI + Build AOT, not a thin skin over React. Frontend track: FRONTEND_ROADMAP.md</p>
+          </li>
+        </ul>
+      </section>
+      <section id="tooling-compiler">
+        <h2>Tooling &amp; compiler</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="editor-tooling/">Editor tooling</a></p>
+            <p class="rows__val">LukeLang runtime already provides protocol servers:</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="contributor-guide/">Contributor guide</a></p>
+            <p class="rows__val">Thanks for contributing. The canonical codebase is vm/.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="benchmarks/">Benchmarks</a></p>
+            <p class="rows__val">Status: Phase 2 baseline (Track 12) — method-aware Re-run locally; quote median / min, not a single sample.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="scorecard/">Scorecard</a></p>
+            <p class="rows__val">External “A+ language” grades are evidence, not a new product vision. Updated after true Execution A+ (no recompute fallbacks for supported shapes; multi-row JOIN cards).</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="legacy/">Legacy</a></p>
+            <p class="rows__val">Canonical implementation: vm/ (luke BUILD / luke SHOW)</p>
+          </li>
+        </ul>
+      </section>
+      <section id="papers">
+        <h2>Papers</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="01-reactive-engine/">The LukeLang Reactive Engine</a></p>
+            <p class="rows__val">A technical paper on the change propagation model at the core of LukeLang.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></p>
+            <p class="rows__val">A technical paper on the rendering and layout engines that render LukeLang user interfaces.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="03-live-graph/">The LukeLang Live Graph</a></p>
+            <p class="rows__val">A technical paper on end to end reactivity from the database row to the screen pixel.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="04-auth/">LukeLang Authentication: Secure by Compiler</a></p>
+            <p class="rows__val">A technical paper on authentication and authorization as language properties.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></p>
+            <p class="rows__val">A technical paper on routing and middleware as language properties rather than ordered runtime lists.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></p>
+            <p class="rows__val">A technical paper on modeling delegated authorization and multi step authentication as flows the compiler can prove safe.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></p>
+            <p class="rows__val">A technical paper on how LukeLang source becomes running behavior, and how reactive queries execute as maintained differences rather than repeated work.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></p>
+            <p class="rows__val">A technical paper on the structural spine of the compiler: the shared program tree that every tool reads, and the layering that carries a value from a database row to a s</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></p>
+            <p class="rows__val">A technical paper on the small set of primitives beneath every LukeLang engine, and on the way four engines compose into one dataflow from a database row to a screen pixe</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="next">
+        <a href="../learn/">← Learn the language</a>
+        <a href="../examples/">Browse examples →</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../learn/">Learn</a>
+      <a href="../docs/">Docs</a>
+      <a href="../download/">Download</a>
+      <a href="../examples/">Examples</a>
+      <a href="../community/">Community</a>
+      <a href="../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../main.js"></script>
+</body>
+</html>

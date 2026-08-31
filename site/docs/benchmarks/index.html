@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Benchmarks — LukeLang</title>
+<meta name="description" content="Status: Phase 2 baseline (Track 12) — method-aware Re-run locally; quote median / min, not a single sample." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/docs/benchmarks/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/docs/benchmarks/" />
+<meta property="og:title" content="Benchmarks — LukeLang" />
+<meta property="og:description" content="Status: Phase 2 baseline (Track 12) — method-aware Re-run locally; quote median / min, not a single sample." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Benchmarks — LukeLang" />
+<meta name="twitter:description" content="Status: Phase 2 baseline (Track 12) — method-aware Re-run locally; quote median / min, not a single sample." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"TechArticle","headline":"Benchmarks","description":"Status: Phase 2 baseline (Track 12) \u2014 method-aware Re-run locally; quote median / min, not a single sample.","url":"https://lukelang.org/docs/benchmarks/","author":{"@id":"https://lukelang.org/#author"},"isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://lukelang.org/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://lukelang.org/docs/"},{"@type":"ListItem","position":3,"name":"Benchmarks","item":"https://lukelang.org/docs/benchmarks/"}]}]}</script>
+<!-- seo:end -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Benchmarks</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/" aria-current="page">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#what-we-measure">What we measure</a></li>
+        <li><a href="#production-fixes-behind-these-numbers">Production fixes behind these numbers</a></li>
+        <li><a href="#baseline-native-build-this-host">Baseline (native Build, this host)</a></li>
+        <li><a href="#reference-app">Reference app</a></li>
+        <li><a href="#re-run">Re-run</a></li>
+        <li><a href="#pressure-suite-100k-concurrent">Pressure suite (100K / concurrent)</a></li>
+      </ul>
+      </div>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> Phase 2 baseline (Track 12) — method-aware<br />
+Re-run locally; quote <strong>median / min</strong>, not a single sample.</p>
+</blockquote>
+<h2 id="what-we-measure">What we measure</h2>
+<p>Among <strong>N</strong> mounted Argus text nodes:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Work</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Granular</strong></td>
+<td>Warmup ×5, then <code>UPDATE</code> one node ×<strong>100</strong> → median / min ms. Assert region Δ == 100.</td>
+</tr>
+<tr>
+<td><strong>Full rebuild</strong></td>
+<td><code>CLEAR</code> + recreate N + <code>PAINT</code> ×<strong>20</strong> → median / min ms.</td>
+</tr>
+</tbody>
+</table>
+<p>Program: <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/examples/build/reactive_benchmark.luke"><code>examples/build/reactive_benchmark.luke</code></a><br />
+Harness: <code>RESET THE BENCH</code> / <code>RECORD BENCH SAMPLE</code> / <code>THE BENCH MEDIAN</code> / <code>THE BENCH MIN</code></p>
+<h2 id="production-fixes-behind-these-numbers">Production fixes behind these numbers</h2>
+<ol>
+<li><strong>O(1) id lookup</strong> — Argus <code>id → node</code> open-addressed hash (mount was O(N²) via linear <code>argus_find</code> + <code>strlen</code>).</li>
+<li><strong>Stable arena growth</strong> — bump allocator <strong>chains blocks</strong> instead of <code>realloc</code> (old pointers stay valid; default start remains <strong>1 MiB</strong>).</li>
+<li><strong>Owned ids</strong> — node id/parent strings are malloc-backed and freed on <code>CLEAR</code> (not <code>char id[64]</code> in the node).</li>
+</ol>
+<h2 id="baseline-native-build-this-host">Baseline (native Build, this host)</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Nodes</th>
+<th style="text-align: right;">build_ms</th>
+<th style="text-align: right;">granular median (min)</th>
+<th style="text-align: right;">full median (min)</th>
+<th style="text-align: right;">region Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1 000</td>
+<td style="text-align: right;">~0.3</td>
+<td style="text-align: right;">~0.001 (~0.001)</td>
+<td style="text-align: right;">~0.14 (~0.14)</td>
+<td style="text-align: right;">100</td>
+</tr>
+<tr>
+<td style="text-align: right;">10 000</td>
+<td style="text-align: right;">~2.7</td>
+<td style="text-align: right;">~0.009 (~0.008)</td>
+<td style="text-align: right;">~1.6 (~1.6)</td>
+<td style="text-align: right;">100</td>
+</tr>
+</tbody>
+</table>
+<p>Headline: <strong>one-cell updates stay ~µs</strong>; mount/rebuild is ~linear after the index fix (10K build ~3 ms, not ~370 ms).</p>
+<h2 id="reference-app">Reference app</h2>
+<p><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/examples/build/dashboard_client.luke"><code>examples/build/dashboard_{server,client}.luke</code></a> — live <code>/reqs</code> on Path A flex; each poll prints <code>region=1</code>.</p>
+<h2 id="re-run">Re-run</h2>
+<pre><code><span class="ln"><b class="sh">cd</b> vm</span><span class="ln"><b class="sh">./build/luke</b> BUILD ../examples/build/reactive_benchmark.luke -o build/reactive_benchmark</span><span class="ln">./build/reactive_benchmark</span></code></pre>
+<p>Also covered by <code>make test</code> (<code>benchmark_ok=1</code>, <code>region=100</code>, sample counts).</p>
+<h2 id="pressure-suite-100k-concurrent">Pressure suite (100K / concurrent)</h2>
+<p>Separate from the CI lap:</p>
+<pre><code><span class="ln"><b class="sh">cd</b> vm &amp;&amp; make pressure</span></code></pre>
+<table>
+<thead>
+<tr>
+<th>Probe</th>
+<th style="text-align: right;">Load</th>
+<th>Result (this host)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reactive granular</td>
+<td style="text-align: right;"><strong>100 000</strong> nodes, 50 updates</td>
+<td>median ~0.35 ms, region Δ == 50</td>
+</tr>
+<tr>
+<td>Reactive mount</td>
+<td style="text-align: right;">100 000 nodes</td>
+<td>build ~38 ms; full rebuild median ~21 ms</td>
+</tr>
+<tr>
+<td>Frontend mount</td>
+<td style="text-align: right;"><strong>2 500</strong> boxes</td>
+<td>~0.7 ms</td>
+</tr>
+<tr>
+<td>Concurrent HTTP</td>
+<td style="text-align: right;">32× <code>/fast</code> + 8× <code>/slow</code> overlapping</td>
+<td>all replies correct</td>
+</tr>
+</tbody>
+</table>
+<p>Programs: <code>examples/build/reactive_pressure.luke</code>, <code>frontend_pressure.luke</code>, <code>concurrent_pressure.luke</code>.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BENCHMARKS.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://status.lukelang.org">Status</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

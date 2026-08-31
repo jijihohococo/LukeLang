@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scorecard — LukeLang</title>
+<meta name="description" content="External “A+ language” grades are evidence, not a new product vision. Updated after true Execution A+ (no recompute fallbacks for supported shapes; multi-row JOIN cards)." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Scorecard</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/" aria-current="page">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p>External “A+ language” grades are <strong>evidence</strong>, not a new product vision.
+Updated after true Execution A+ (no recompute fallbacks for supported shapes; multi-row JOIN cards).</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Grade</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Honesty</strong></td>
+<td><strong>A+</strong></td>
+<td>Claims match tests; Live Graph differentials are real <code>WHEN NEW</code> / join-bag / bag — not recompute theater</td>
+</tr>
+<tr>
+<td><strong>Architecture</strong></td>
+<td><strong>A</strong></td>
+<td><code>parseLuke</code> → <code>Program</code>/<code>Stmt</code>/<code>Ast</code> → <code>flattenProgram</code> → emit on every BUILD; Pratt exprs; IF/WHILE/FUNCTION/WHEN are nested Stmt nodes</td>
+</tr>
+<tr>
+<td><strong>Execution</strong></td>
+<td><strong>A+</strong></td>
+<td>Point + multi-row join IVM, inequality bag filters, N-table chains, wire fail-closed, C10K event-loop HTTP, wall smoke</td>
+</tr>
+<tr>
+<td><strong>Ambition</strong></td>
+<td><strong>A+</strong></td>
+<td>Vision held — reactive full-stack; mobile/game parked</td>
+</tr>
+<tr>
+<td><strong>Tooling</strong></td>
+<td><strong>A</strong></td>
+<td>LSP (hover types/signatures + outline/refs/rename/signatureHelp/FMT/semantic tokens/code actions) + FMT + <code>#line</code> maps; <code>luke DEBUG</code>/<code>DAP</code></td>
+</tr>
+<tr>
+<td><strong>Adoption</strong></td>
+<td><strong>A-</strong></td>
+<td>Wall deploy proof + Caddy; <code>site/</code> stub; registry <code>sha256</code>; public DNS/traffic still to earn</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-execution-a-required-and-shipped">What “Execution A+” required (and shipped)</h2>
+<ol>
+<li>Partner / non-point joins: rowid-keyed <strong>join bag</strong> (<code>luke_ivm_jbag_*</code>) — multi-row <code>group_concat</code>, not scalar-only cards.</li>
+<li>3+ table equi-JOIN point chains with equality-closure <code>WHEN</code> + NEW-pinned probes (<code>live_graph_join3</code>).</li>
+<li>Differential aggregates for <strong>any</strong> NEW./OLD.-qualifiable filter (equality, inequality, LIKE, …) via <code>luke_ivm_bag_*</code> (<code>live_graph_agg</code>, <code>live_graph_agg_range</code>).</li>
+</ol>
+<h2 id="still-not-a-everywhere-honest-remainder">Still not A+ everywhere (honest remainder)</h2>
+<table>
+<thead>
+<tr>
+<th>Gap</th>
+<th>Why it is not a vision change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Some surface still <code>StmtKind::Raw</code> (ROUTES/FLOW/…)</td>
+<td>Specialize nodes without inventing a second IR</td>
+</tr>
+<tr>
+<td>Debugger IDE polish</td>
+<td>Protocol beachhead shipped; richer UX is editor-client work (parked with distribution)</td>
+</tr>
+<tr>
+<td>Distribution (signing, remote registry, libs, VS Code ext, docs site)</td>
+<td>Parked — see TaskList §7; Adoption after the wall sentence</td>
+</tr>
+<tr>
+<td>LEFT JOIN / non-equi ON / expression-only SELECT lists</td>
+<td>Broader SQL shapes outside the equi-JOIN + simple-column bag</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Do not dilute:</strong> un-parking mobile/game <strong>or</strong> distribution (12–16) to chase a checklist is how Ambition drops.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SCORECARD.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

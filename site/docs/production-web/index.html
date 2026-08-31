@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Production web — LukeLang</title>
+<meta name="description" content="Status: v1 in progress (shippable static apps) Goal: Ship real browser apps as Luke-owned UI + Build AOT, not a thin skin over React. Frontend track: FRONTEND_ROADMAP.md" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Production web</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/" aria-current="page">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#stack-layers">Stack layers</a></li>
+        <li><a href="#checklist">Checklist</a></li>
+        <li><a href="#surface-v1">Surface (v1)</a></li>
+        <li><a href="#demo-deploy">Demo / deploy</a></li>
+        <li><a href="#related">Related</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> v1 in progress (shippable static apps)<br />
+<strong>Goal:</strong> Ship real browser apps as <strong>Luke-owned</strong> UI + Build AOT, not a thin skin over React.<br />
+<strong>Frontend track:</strong> <a href="../frontend-roadmap/"><code>FRONTEND_ROADMAP.md</code></a></p>
+</blockquote>
+<h2 id="stack-layers">Stack layers</h2>
+<pre><code><span class="ln">Luke app (conversational)</span><span class="ln">    ↓</span><span class="ln">Hanka          nested COLUMN / ROW / STACK (+ ALIGN, AUTO)</span><span class="ln">    ↓</span><span class="ln">Argus          TEXT / BUTTON / INPUT / IMAGE / BOX / SELECT / TABLE / MODAL</span><span class="ln">    ↓</span><span class="ln">Events         CLICKED | CHANGED | SUBMITTED | FETCH READY</span><span class="ln">Routing        GO TO / WHEN THE ROUTE IS …</span><span class="ln">Data           FOR EACH list → UI · START FETCH (async)</span><span class="ln">    ↓</span><span class="ln">Thin boot      WASM + lukejs embedder (runtime, not app JS)</span><span class="ln">    ↓</span><span class="ln">Static dist    .html + .wasm + fonts/</span></code></pre>
+<h2 id="checklist">Checklist</h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nested Hanka</td>
+<td>yes (+ <code>ALIGN</code>)</td>
+</tr>
+<tr>
+<td>Inputs (+ email/password)</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Select / table / modal</td>
+<td>yes (beachhead)</td>
+</tr>
+<tr>
+<td><code>THE VALUE OF</code> / validation helpers</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Text measure / <code>SIZE AUTO</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Viewport width</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Hash routing</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Async fetch GET/POST + status/body</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>FOR EACH</code> → UI</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Deploy folder</td>
+<td>html + wasm + fonts</td>
+</tr>
+<tr>
+<td>a11y roles on paint</td>
+<td>yes (beachhead)</td>
+</tr>
+<tr>
+<td>Motion polish</td>
+<td>in progress</td>
+</tr>
+<tr>
+<td><code>luke PUBLISH WEB</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Reactive runtime</td>
+<td>Phases 1–8 — see <a href="../reactive/"><code>REACTIVE.md</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="surface-v1">Surface (v1)</h2>
+<pre><code><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN COLUMN AT 48, 48 SIZE 720, 520 PAD 0 GAP 16 ALIGN CENTER&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN ROW AT 0, 0 SIZE 720, 48 PAD 0 GAP 12&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT BUTTON \&quot;</b>nav-home\<b class="str">&quot; SIZE 120, 44 SAY \&quot;</b>Home\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT BUTTON \&quot;</b>nav-search\<b class="str">&quot; SIZE 120, 44 SAY \&quot;</b>Search\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END ROW&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT INPUT \&quot;</b>email\<b class="str">&quot; AS EMAIL SIZE 480, 48 SAY \&quot;</b>you@example.com\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT INPUT \&quot;</b>pass\<b class="str">&quot; AS PASSWORD SIZE 480, 48 SAY \&quot;</b>Password\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT SELECT \&quot;</b>plan\<b class="str">&quot; SIZE 240, 40 SAY \&quot;</b>Free|Pro|Team\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END COLUMN&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;LAY OUT THE SCREEN&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;PAINT THE SCREEN&quot;</b></span></code></pre>
+<h2 id="demo-deploy">Demo / deploy</h2>
+<pre><code><span class="ln"><b class="sh">luke</b> BUILD examples/build/web_app.luke -target browser -o dist/app</span><span class="ln"><b class="cm"># or:</b></span><span class="ln"><b class="sh">luke</b> PUBLISH WEB examples/build/web_app.luke -o dist/app</span><span class="ln"><b class="cm"># ship: dist/app.html + dist/app.wasm (+ fonts/)</b></span></code></pre>
+<h2 id="related">Related</h2>
+<ul>
+<li><a href="../argus/"><code>ARGUS.md</code></a> · <a href="../hanka/"><code>HANKA.md</code></a> · <a href="../build-mode/"><code>BUILD_MODE.md</code></a> · <a href="../frontend-roadmap/"><code>FRONTEND_ROADMAP.md</code></a> · <a href="../reactive/"><code>REACTIVE.md</code></a></li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/PRODUCTION_WEB.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

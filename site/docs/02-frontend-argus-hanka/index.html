@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The LukeLang Frontend Engines: Argus and Hanka — LukeLang</title>
+<meta name="description" content="A technical paper on the rendering and layout engines that render LukeLang user interfaces." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>The LukeLang Frontend Engines: Argus and Hanka</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/" aria-current="page">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#abstract">Abstract</a></li>
+        <li><a href="#1-motivation">1. Motivation</a></li>
+        <li><a href="#2-pipeline">2. Pipeline</a></li>
+        <li><a href="#3-hanka-the-layout-engine">3. Hanka, the Layout Engine</a></li>
+        <li><a href="#4-argus-the-rendering-engine">4. Argus, the Rendering Engine</a></li>
+        <li><a href="#5-the-reactive-binding">5. The Reactive Binding</a></li>
+        <li><a href="#6-path-a-in-its-completed-form">6. Path A in Its Completed Form</a></li>
+        <li><a href="#7-performance">7. Performance</a></li>
+        <li><a href="#8-status-and-limitations">8. Status and Limitations</a></li>
+        <li><a href="#9-related-work">9. Related Work</a></li>
+        <li><a href="#10-conclusion">10. Conclusion</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>A technical paper on the rendering and layout engines that render LukeLang user interfaces.</p>
+<h2 id="abstract">Abstract</h2>
+<p>LukeLang renders user interfaces through two cooperating engines. Hanka is the layout engine. It owns the structure of a screen and resolves the arrangement of elements. Argus is the rendering engine. It owns the scene tree of elements and applies changes to the host surface. This paper describes both engines, the pipeline that connects them, the node model, the accessibility and motion surfaces, the responsive model, and the strategic direction that moves layout and paint responsibility to the browser through a compilation target the project calls Path A. Since the previous revision of this paper, Path A has moved from a proven prototype to the working default for the reactive web target: per axis alignment, opt in grid, scroll containers, declarative breakpoints with reflow, focus management on modal open, live regions, and a utility class escape hatch are implemented and wired end to end. The paper states honestly which parts are verified by execution, which are verified by construction, and where the remaining test coverage gap lies.</p>
+<h2 id="1-motivation">1. Motivation</h2>
+<p>A frontend engine has to answer two questions. Where does each element go, and how does the host surface reflect the current state of the interface. In LukeLang these questions are answered by two separate engines so that each has a single responsibility. Hanka answers where. Argus answers how the surface is updated. Separating them keeps the layout mathematics independent of the paint mechanism and lets each evolve on its own.</p>
+<p>The engines are driven by the Reactive Engine described in the companion paper. When a reactive value bound to a node changes, the change propagates to a paint effect, and the effect asks Argus to update exactly that node. The frontend engines are therefore the visible leaves of the reactive graph. Their job is to turn a reactive change into the smallest possible surface update.</p>
+<h2 id="2-pipeline">2. Pipeline</h2>
+<p>The rendering pipeline has a fixed shape. A program expresses interface structure using layout terms. Hanka resolves those terms into concrete frames or into layout instructions. Argus holds the resulting scene tree and paints it. A thin embedder applies the paint operations to the host surface, which in the browser is the document.</p>
+<pre><code><span class="ln">Layout terms  -&gt;  Hanka (layout)  -&gt;  Argus (scene tree, paint)  -&gt;  embedder  -&gt;  host surface</span></code></pre>
+<p>The important property of the pipeline is that after the first paint it does not rebuild. When a value changes, the reactive effect calls a single node update on Argus, and Argus patches that node on the surface. There is no rebuild of the surface from a string of markup and no diff of a shadow tree.</p>
+<h2 id="3-hanka-the-layout-engine">3. Hanka, the Layout Engine</h2>
+<h3 id="3-1-responsibility">3.1 Responsibility</h3>
+<p>Hanka owns the arrangement of elements. It supports containers that lay out their children in a column, in a row, as a stack of overlapping elements, or, since this revision, as an explicit grid. Containers carry padding, a gap between children, alignment for leftover space, an optional wrap, an optional scroll behavior, and optional responsive thresholds.</p>
+<h3 id="3-2-surface">3.2 Surface</h3>
+<p>The layout surface is conversational. A program opens a container, adds leaves such as text, buttons, images, inputs, selects, tables, and modals, and closes the container. Leaves carry an explicit size, and text leaves can request an automatic width that Hanka measures through the embedder. A single instruction resolves the open containers into the arrangement Argus paints.</p>
+<h3 id="3-3-two-modes">3.3 Two modes</h3>
+<p>Hanka has a classic mode and a Path A mode. In the classic mode Hanka computes absolute coordinates for each element and feeds those frames to Argus. In the Path A mode Hanka emits layout instructions that the browser resolves natively and stops computing absolute coordinates for the common container types. For rows, columns, and grids the Path A path is now the only path taken; the absolute frame arithmetic for those kinds is retained solely as a documented fallback and is not reached. Stack containers and explicit placement remain absolute, which is the correct behavior for overlapping and pinned content.</p>
+<h3 id="3-4-alignment-along-two-axes">3.4 Alignment along two axes</h3>
+<p>Alignment is expressible independently on the main axis and the cross axis. A single alignment token continues to set both axes together for backward compatibility, and an explicit main and cross form sets each axis on its own. Hanka carries a main alignment and a cross alignment on every container and passes both to Argus, which maps them to the browser's main axis and cross axis alignment properties. This closes an item that the previous revision listed as open.</p>
+<h3 id="3-5-grid-scroll-and-the-responsive-threshold">3.5 Grid, scroll, and the responsive threshold</h3>
+<p>Grid is opt in. A grid container declares a column count and Hanka emits a grid instruction that becomes a native grid of that many equal columns. This is a choice offered to the author, never an imposed layout system; rows and columns remain the common case and nest to cover most two dimensional needs.</p>
+<p>A container may declare itself a scroll region, which Argus realizes as an automatic overflow so that content taller or wider than the box scrolls within it rather than being clipped by the page.</p>
+<p>The responsive threshold is the mechanism behind declarative breakpoints at the container level. A row may declare that it stacks into a column below a pixel width, or that it wraps below a width. Hanka evaluates the threshold against the current viewport width at layout time. Because layout runs again on viewport change, the direction is re evaluated on resize and the container flips both ways as the window crosses the threshold. The reflow correctness depends on the layout tree being retained across relayout, which the compiler now arranges whenever a program uses a responsive threshold.</p>
+<h2 id="4-argus-the-rendering-engine">4. Argus, the Rendering Engine</h2>
+<h3 id="4-1-the-scene-tree">4.1 The scene tree</h3>
+<p>Argus owns a scene tree of nodes. Each node has an identifier, a kind, a frame or a flow position, an opacity, optional text or image source, accessibility role and label, an optional utility class string, a live region level, a scroll flag, and dirty flags. The kinds cover the common interface elements, each mapping to a concrete element on the host surface.</p>
+<h3 id="4-2-surgical-paint">4.2 Surgical paint</h3>
+<p>The defining feature of Argus is that it paints surgically. When a single node changes, Argus updates that one node on the surface. It does not clear the surface and rebuild it. This is the mechanism that turns the Reactive Engine's constant time update into a constant time visible update. The engine exposes a region paint count so a program can assert that a change painted exactly one node.</p>
+<h3 id="4-3-identifier-index">4.3 Identifier index</h3>
+<p>Argus locates a node by its identifier on every update through an open addressed hash index from identifier to node index, with the scene nodes held in a stable allocation so that arena growth does not invalidate the index. An earlier linear scan made mounting quadratic; the index restored linear mounting. The performance section returns to this.</p>
+<h3 id="4-4-accessibility">4.4 Accessibility</h3>
+<p>Argus applies default accessibility roles when it paints. Interactive nodes receive appropriate roles, and nodes receive an accessible label where one is present. Two capabilities the previous revision listed as open are now implemented. A live region level marks a node so that its text updates are announced by assistive technology; because reactive text already flows through a single node update, an announcement follows a state change automatically. Focus management is owned by the modal lifecycle: a modal mounts closed and hidden, an open instruction reveals it, moves focus into it, and traps the tab cycle within its focusable descendants, and a close instruction restores focus to the element that held it before. Focus is therefore never trapped by the act of painting, only by the act of opening a dialog. The position of the engine is unchanged: accessibility is a property of paint, applied by default, rather than an attribute the author must remember to add.</p>
+<h3 id="4-5-the-utility-class-escape-hatch">4.5 The utility class escape hatch</h3>
+<p>Argus owns layout and geometry through inline properties. For visual styling that the author wants to control directly, a node may carry a utility class string that Argus applies as the element's class attribute. Because inline properties win over class based rules, this divides responsibility cleanly: the engine keeps structural layout, and a utility framework such as a class based stylesheet owns the visual skin of color, spacing, typography, and border. This is the interoperability seam that lets an external styling system coexist with the engine rather than fight it.</p>
+<h3 id="4-6-motion">4.6 Motion</h3>
+<p>Argus supports immediate opacity changes and a fade operation that animates opacity over a duration with an ease out curve, running on the animation frame callback in the browser. Motion is intentionally a small surface, sufficient for entrance and emphasis rather than a general animation system.</p>
+<h2 id="5-the-reactive-binding">5. The Reactive Binding</h2>
+<p>The frontend engines do not poll. A node is connected to reactive state through a bind. When the bound value changes, the reactive effect calls the corresponding node update on Argus, and only that node is touched. The cost of reflecting a state change on the surface is the cost of updating the nodes that depend on that state, which for a typical binding is one node.</p>
+<h2 id="6-path-a-in-its-completed-form">6. Path A in Its Completed Form</h2>
+<p>The strategy document records the decision to move layout and paint responsibility to the browser rather than reimplement text reflow, scrolling, internationalization, and the box model. Under Path A the browser lays out and paints, Hanka emits style level layout instructions, and Argus is a thin reactive patcher that applies node level updates while the browser owns geometry.</p>
+<p>The mechanism is now complete for the reactive web wedge. Rows and columns emit flexible box instructions with direction, gap, padding, two axis alignment, and wrap. Grids emit a native grid. Flow children attach to their parent in normal flow. Automatic sizing maps to a grow behavior. Scroll regions overflow rather than clip. Declarative breakpoints exist at two levels: a container level threshold that flips direction on resize, and a viewport predicate that drives handlers through the browser's media query mechanism. The reactive property survives all of this: a bound value still repaints exactly one node under the new layout mode.</p>
+<h2 id="7-performance">7. Performance</h2>
+<p>All numbers are from native builds measured on the development host and are reproduced by the frontend and reactive benchmark programs in the repository. Frontend mount of a few thousand boxes completes in well under a millisecond. Reactive mount at the scale of one hundred thousand nodes completes in tens of milliseconds and scales linearly, following the identifier index fix. A single bound update paints one node in constant time regardless of scene size. Building the interface and updating it are both cheap, and neither cost grows in a way that would degrade a large application.</p>
+<h2 id="8-status-and-limitations">8. Status and Limitations</h2>
+<p>Hanka supports nested containers, two axis alignment, wrap, opt in grid, scroll regions, automatic measurement, and responsive thresholds, and it drives Argus in both the classic and Path A modes. Argus supports the full set of node kinds, surgical paint, the identifier index, default accessibility roles, live regions, modal focus management, the utility class escape hatch, and the motion surface. Path A is the working default for rows, columns, and grids.</p>
+<p>One honest boundary remains, and it is about verification rather than correctness. The layout mathematics, the reflow behavior, and the paint chain are verified by native harnesses and by construction, and the pure decoders are unit tested. The browser side behaviors — grid and scroll and class and live region emission, focus trapping, media query dispatch, and resize reflow — are verified by reading the embedder and by driving the engine natively, but they are not yet exercised in a real document by an automated end to end test. The remaining work to call the frontend closed without qualification is a headless browser smoke test over a generated page that opens a dialog, tabs through it, crosses a breakpoint, and asserts the result. That test is the thing that would convert construction level confidence into execution level proof.</p>
+<h2 id="9-related-work">9. Related Work</h2>
+<p>Immediate mode interface systems redraw on every frame. Retained mode systems with virtual document trees rebuild and diff a shadow tree. Native application frameworks own their own layout and paint against a canvas surface. Argus and Hanka occupy a deliberate middle position for the web target: they own the scene tree and the reactive patching, and under Path A they delegate geometry and painting to the browser rather than reimplementing them. This keeps the engine small and lets the reactive patcher, the genuine contribution, drive a surface the browser already renders well.</p>
+<h2 id="10-conclusion">10. Conclusion</h2>
+<p>Hanka and Argus turn a reactive change into the smallest possible surface update. Hanka resolves where elements go, now with two axis alignment, opt in grid, scroll, and responsive thresholds. Argus applies changes to exactly the nodes that changed, now with live regions, modal focus management, and a styling escape hatch. The identifier index makes mounting linear, the reactive binding makes updates constant time, and Path A delegates layout and paint to the browser while keeping for LukeLang the part that is genuinely differentiated, the reactive patcher that updates one node when one value changes.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/documentations/papers/02-frontend-argus-hanka.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

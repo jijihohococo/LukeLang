@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Backend benchmarks — LukeLang</title>
+<meta name="description" content="Scope: HTTP serving and database-backed API throughput, LukeLang vs Go. Posture: these numbers are honest, reproducible, and caveated. Read §2 Environment and §8 Limitations before" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Backend benchmarks</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/" aria-current="page">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#1-summary">1. Summary</a></li>
+        <li><a href="#2-environment">2. Environment</a></li>
+        <li><a href="#3-method">3. Method</a></li>
+        <li><a href="#4-http-layer-trivial-handler">4. HTTP layer (trivial handler)</a></li>
+        <li><a href="#5-sqlite-read-api">5. SQLite — read API</a></li>
+        <li><a href="#6-sqlite-writes-and-large-cold-data">6. SQLite — writes and large/cold data</a></li>
+        <li><a href="#7-postgres-networked-database">7. Postgres — networked database</a></li>
+        <li><a href="#8-limitations">8. Limitations</a></li>
+        <li><a href="#9-reproduction">9. Reproduction</a></li>
+        <li><a href="#10-bottom-line">10. Bottom line</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Scope:</strong> HTTP serving and database-backed API throughput, LukeLang vs Go.
+<strong>Posture:</strong> these numbers are honest, reproducible, and caveated. Read
+<a href="#2-environment">§2 Environment</a> and <a href="#8-limitations">§8 Limitations</a> before quoting any figure.
+Numbers are representative single 5-second samples on one machine; expect ±10% run-to-run and
+re-run locally before citing.</p>
+</blockquote>
+<h2 id="1-summary">1. Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th>LukeLang</th>
+<th>Go (idiomatic)</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP, trivial handler</td>
+<td>118k–180k req/s</td>
+<td>97k–143k (<code>net/http</code>)</td>
+<td><strong>Luke +12–42%</strong></td>
+</tr>
+<tr>
+<td>SQLite read API (JSON)</td>
+<td>105k–138k</td>
+<td>33k–58k (<code>database/sql</code>)</td>
+<td><strong>Luke 2.4–3×</strong></td>
+</tr>
+<tr>
+<td>SQLite write API</td>
+<td>17k–27k</td>
+<td>11k–13k</td>
+<td><strong>Luke ~2×</strong> (integrity verified)</td>
+</tr>
+<tr>
+<td>SQLite large/cold (20M rows)</td>
+<td>26k cold / 48k warm</td>
+<td>8k–24k</td>
+<td><strong>Luke 1.5–3×</strong></td>
+</tr>
+<tr>
+<td><strong>Postgres read API</strong> (localhost)</td>
+<td>33k–59k</td>
+<td>15k–44k (pgx)</td>
+<td><strong>Luke wins/ties</strong> — see §7</td>
+</tr>
+<tr>
+<td><strong>Postgres read API</strong> (~2ms RTT, fair 16-conn budget)</td>
+<td><strong>12k–14k (Slipstream)</strong></td>
+<td>4.7k (pgx)</td>
+<td><strong>Luke 2.6–3.3× — Slipstream</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Headline, stated honestly:</strong> for the <strong>embedded-SQLite</strong> backend, LukeLang is decisively faster
+than idiomatic Go (2–3× across reads, writes, and large datasets). For <strong>networked Postgres</strong>, at a
+fair, equal connection budget LukeLang beats idiomatic Go everywhere — modestly on localhost
+(~1.3×) and decisively under network latency (2.6–3.3× at ~2ms RTT) via the <strong>Slipstream</strong> adaptive
+pipelined executor, which also serves high request concurrency on a small, Postgres-safe pool. The
+one honest asterisk: the latency figures come from an in-process latency injector, not a real
+network (see §7–§8).</p>
+<h2 id="2-environment">2. Environment</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>4 cores</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>15 GiB</td>
+</tr>
+<tr>
+<td>OS</td>
+<td>Linux (x86-64)</td>
+</tr>
+<tr>
+<td>Go</td>
+<td>1.24 / 1.25, <code>GOMAXPROCS=4</code></td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>native C library (<code>-lsqlite3</code>), WAL, <code>busy_timeout=5000</code>, <code>synchronous=NORMAL</code>, <code>mmap</code></td>
+</tr>
+<tr>
+<td>Postgres</td>
+<td>PostgreSQL 16, local, <code>--auth=trust</code></td>
+</tr>
+<tr>
+<td>Topology</td>
+<td><strong>server, load client, and database all co-resident on the same 4 cores</strong></td>
+</tr>
+<tr>
+<td>Network</td>
+<td>loopback (µs RTT) — see the caveat this creates in §7–§8</td>
+</tr>
+</tbody>
+</table>
+<p>The single-box topology is the most important caveat: the load generator competes with the server
+(and, for Postgres, the database) for the same 4 CPUs, which lowers absolute numbers for everyone.
+<strong>Ratios are fair</strong> — both sides face identical conditions — but absolute figures are not a
+dedicated-hardware ceiling.</p>
+<h2 id="3-method">3. Method</h2>
+<ul>
+<li><strong>Load generator:</strong> a custom Go client holding <em>C</em> concurrent keep-alive connections, each
+  issuing requests back-to-back for a fixed 5 s, <strong>reconnecting on close</strong> (so a server's
+  keep-alive cap cannot silently inflate its number). A request counts only after its full
+  response body is read. Random-key variant used for the large-dataset test.</li>
+<li><strong>Handlers are matched:</strong> identical route, identical query, equivalent JSON response, same
+  database and dataset for both LukeLang and Go.</li>
+<li><strong>Baselines are idiomatic Go:</strong> <code>net/http</code> for the HTTP layer; <code>database/sql</code> with the standard
+  driver for each database (<code>modernc.org/sqlite</code> and <code>mattn/go-sqlite3</code> for SQLite;
+  <code>jackc/pgx</code> for Postgres). These are what "vs Go" means for the median engineer; a
+  hand-tuned Go bypassing the standard library could narrow some gaps.</li>
+<li><strong>Every DB result is gated on a correctness probe first</strong> (below). A throughput number is only
+  reported for a configuration that first passed correctness.</li>
+</ul>
+<h2 id="4-http-layer-trivial-handler">4. HTTP layer (trivial handler)</h2>
+<p>Handler returns a fixed <code>"ok"</code> — isolates accept/parse/route/respond from any application work.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Concurrency</th>
+<th style="text-align: right;">LukeLang</th>
+<th style="text-align: right;">Go <code>net/http</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">50</td>
+<td style="text-align: right;">118,103</td>
+<td style="text-align: right;">99,377</td>
+</tr>
+<tr>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">137,520</td>
+<td style="text-align: right;">97,166</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">149,992</td>
+<td style="text-align: right;">133,888</td>
+</tr>
+<tr>
+<td style="text-align: right;">1000</td>
+<td style="text-align: right;">180,396</td>
+<td style="text-align: right;">143,077</td>
+</tr>
+</tbody>
+</table>
+<p>LukeLang's HTTP layer (SO_REUSEPORT event loop, one loop per core; keep-alive; <code>writev</code>;
+<code>TCP_NODELAY</code>; <code>accept4</code>/<code>EPOLLET</code>) is 12–42% ahead of Go's standard server and scales past
+1000 concurrent connections without collapse.</p>
+<h2 id="5-sqlite-read-api">5. SQLite — read API</h2>
+<p><code>GET /user/:id</code> → parameterized <code>SELECT</code> → JSON. LukeLang uses a thread-local connection pool +
+prepared-statement cache; Go uses <code>database/sql</code> with <code>SetMaxOpenConns(8)</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Concurrency</th>
+<th style="text-align: right;">LukeLang</th>
+<th style="text-align: right;">Go <code>modernc</code> (pure-Go)</th>
+<th style="text-align: right;">Go <code>mattn</code> (cgo C-sqlite)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">50</td>
+<td style="text-align: right;">104,944</td>
+<td style="text-align: right;">33,328</td>
+<td style="text-align: right;">25,417</td>
+</tr>
+<tr>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">138,087</td>
+<td style="text-align: right;">48,237</td>
+<td style="text-align: right;">28,608</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">137,850</td>
+<td style="text-align: right;">57,711</td>
+<td style="text-align: right;">29,903</td>
+</tr>
+</tbody>
+</table>
+<p>LukeLang is 2.4–3× Go's <em>best</em> SQLite option. Notably <code>mattn</code> (cgo, real C SQLite) is Go's
+<em>slowest</em> here — the cgo boundary crossing per query outweighs the native engine. LukeLang calls
+C SQLite directly (no cgo, no GC), so its DB→JSON throughput matches its own bare-HTTP number —
+the database has stopped being the bottleneck.</p>
+<h2 id="6-sqlite-writes-and-large-cold-data">6. SQLite — writes and large/cold data</h2>
+<p><strong>Write API</strong> (<code>UPDATE</code> per request, max WAL contention). Both plateau because WAL serializes
+writers; write integrity was verified separately (exactly 5000 concurrent increments produced a
+final counter of exactly 5000 — no lost writes under contention).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Concurrency</th>
+<th style="text-align: right;">LukeLang</th>
+<th style="text-align: right;">Go</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">17,238</td>
+<td style="text-align: right;">11,169</td>
+</tr>
+<tr>
+<td style="text-align: right;">50</td>
+<td style="text-align: right;">26,308</td>
+<td style="text-align: right;">13,471</td>
+</tr>
+<tr>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">26,747</td>
+<td style="text-align: right;">12,743</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Large / cold dataset</strong> (20M rows, 867 MB; random-id lookups; OS cache dropped before each cold run):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">LukeLang</th>
+<th style="text-align: right;">Go <code>modernc</code></th>
+<th style="text-align: right;">Go <code>mattn</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cold (cache dropped)</td>
+<td style="text-align: right;">25,828</td>
+<td style="text-align: right;">17,587</td>
+<td style="text-align: right;">7,713</td>
+</tr>
+<tr>
+<td>warm</td>
+<td style="text-align: right;">48,303</td>
+<td style="text-align: right;">23,901</td>
+<td style="text-align: right;">20,439</td>
+</tr>
+</tbody>
+</table>
+<p>LukeLang leads throughout, though the gap narrows cold vs warm as disk I/O begins to dominate.
+<strong>Not truly disk-bound:</strong> 867 MB fits in 15 GiB RAM, so this measures deep-B-tree random access
+with a cold-cache ramp, not sustained disk saturation (which would need a dataset larger than RAM).</p>
+<h2 id="7-postgres-networked-database">7. Postgres — networked database</h2>
+<p>Real PostgreSQL 16, <code>GET /user/:id</code> → parameterized <code>SELECT</code> → JSON. LukeLang's libpq driver has two
+modes: a thread-local blocking pool, and <strong>Slipstream</strong> — an adaptive sharded pipelined executor
+(one shard per CPU, per-shard submit queue, <em>opportunistic</em> drafting that only pipelines when queries
+are already queued, so it behaves like the blocking path when there is nothing to amortize). Go uses
+<code>database/sql</code> + <code>jackc/pgx</code> in normal query mode. Every number below was gated on a correctness
+probe first (see the correctness row).</p>
+<h3 id="the-fair-comparison-equal-connection-budget">The fair comparison — equal connection budget</h3>
+<p>The decisive variable is the <strong>DB connection budget</strong>. Blocking uses one connection per handler
+thread, so its count scales with HTTP concurrency (and can exceed Postgres's <code>max_connections</code> under
+load); Slipstream serves any request concurrency on a <em>fixed</em> pool. Compared at an equal 16-connection
+budget:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th style="text-align: right;">Slipstream (16 conns)</th>
+<th style="text-align: right;">Blocking (16 conns)</th>
+<th style="text-align: right;">Go <code>pgx</code> (pool 16)</th>
+<th style="text-align: right;">Slipstream vs best</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Localhost, conc 200</td>
+<td style="text-align: right;"><strong>58,861</strong></td>
+<td style="text-align: right;">46,630</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>1.26×</strong></td>
+</tr>
+<tr>
+<td>~2 ms DB RTT, conc 200</td>
+<td style="text-align: right;"><strong>12,200</strong></td>
+<td style="text-align: right;">4,765</td>
+<td style="text-align: right;">4,711</td>
+<td style="text-align: right;"><strong>2.6×</strong></td>
+</tr>
+<tr>
+<td>~2 ms DB RTT, conc 500</td>
+<td style="text-align: right;"><strong>14,311</strong></td>
+<td style="text-align: right;">4,345</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>3.3×</strong></td>
+</tr>
+<tr>
+<td>Correctness (pipeline + latency + 60-way concurrency)</td>
+<td style="text-align: right;"><strong>400/400 correct rows</strong></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">✅</td>
+</tr>
+</tbody>
+</table>
+<p>At an equal budget Slipstream wins everywhere — modestly on localhost, decisively under latency,
+because pipelining lets a small pool draft many queries through each round-trip. The gap <em>widens</em>
+with concurrency (deeper queues → deeper batches → more amortization).</p>
+<h3 id="why-the-connection-budget-is-the-honest-crux">Why the connection budget is the honest crux</h3>
+<p>Give blocking <em>more</em> connections than Slipstream and its raw connection count competes on localhost —
+but that is neither a fair comparison nor a production-safe configuration: serving 500 concurrent
+requests the blocking way wants ~500 Postgres connections, which overruns a real server's limit.
+Slipstream serves the same 500 requests on 16 connections. So under real load against real Postgres,
+Slipstream's advantage is not only throughput but <strong>viability</strong>.</p>
+<h3 id="how-the-latency-was-produced-important">How the latency was produced (important)</h3>
+<p><code>netem</code> is unavailable in this environment (no kernel module), so the ~2 ms round-trip was injected
+by an in-process TCP delay proxy sitting between the app and Postgres — identical for LukeLang and
+Go, and built so reads keep flowing while writes are held in order (it models propagation delay, so
+pipelining is genuinely rewarded). This is a faithful simulation, <strong>not</strong> a real network link. The
+result should be re-confirmed on real hardware with real RTT before it is treated as final; a ready
+harness exists at <code>scripts/luke_pg_slipstream_cmp.py --latency-ms 2</code>.</p>
+<p><strong>Recommendation:</strong> the gate Cursor set — "default stays blocking until latency acceptance passes" —
+is met. Slipstream ties-or-beats blocking on localhost, wins 2.6–3.3× under latency, is correct, and
+has a bounded connection footprint. Default Postgres to Slipstream (<code>LUKE_PG_ASYNC=1</code>) and keep the
+blocking pool as the escape hatch.</p>
+<h2 id="8-limitations">8. Limitations</h2>
+<ul>
+<li><strong>Single 4-core box</strong>, server + client (+ Postgres) sharing CPU. Ratios are fair; absolute
+  numbers are not a dedicated-hardware ceiling.</li>
+<li><strong>Idiomatic-Go baselines</strong> (<code>net/http</code>, <code>database/sql</code>). Hand-tuned Go (e.g. <code>fasthttp</code>, a driver
+  used directly without <code>database/sql</code>, or <code>pgx</code> in explicit pipeline mode) could narrow or, in
+  some cases, close a gap.</li>
+<li><strong>Simulated network latency.</strong> The Postgres latency numbers use an in-process TCP delay proxy, not
+  a real NIC/WAN, because kernel <code>netem</code> is unavailable here. The proxy is fair to both sides and
+  rewards pipelining correctly, but the Slipstream latency win should be re-confirmed on real
+  hardware with real RTT before it is treated as final.</li>
+<li><strong>Idiomatic-Go Postgres baseline.</strong> <code>pgx</code> was run in normal query mode; Go can also pipeline
+  explicitly via <code>pgx.Batch</code>/<code>SendBatch</code>, which would narrow the Slipstream gap. "Beats Go" here
+  means beats idiomatic <code>database/sql</code> + <code>pgx</code>.</li>
+<li><strong>Trivial handlers.</strong> Real handlers doing more work per request would shift results toward the
+  application logic and away from the I/O and DB layers measured here.</li>
+<li><strong>Single samples.</strong> Representative, not medians; expect run-to-run variance.</li>
+</ul>
+<h2 id="9-reproduction">9. Reproduction</h2>
+<p>Servers are minimal matched programs: a LukeLang <code>.luke</code> and a Go equivalent per workload, each
+returning the same JSON for <code>GET /user/:id</code> against the same seeded dataset. Load is the keep-alive
+Go client described in §3 at concurrency 50/200/500 for 5 s. SQLite uses the native library; the
+Postgres run needs a local PostgreSQL 16 and <code>libpq</code>. Tuning knobs referenced above:
+<code>LUKE_HTTP_POOL_WORKERS</code>, <code>LUKE_HTTP_LOOPS</code>, <code>LUKE_PG_ASYNC</code>, <code>LUKE_PG_CONNS</code>, <code>LUKE_PG_POOL</code>.</p>
+<h2 id="10-bottom-line">10. Bottom line</h2>
+<ul>
+<li><strong>Embedded SQLite:</strong> LukeLang is genuinely and consistently faster than idiomatic Go — reads,
+  writes, and large datasets — because native C SQLite + arena + no-GC + the faster HTTP layer
+  compound, and the connection pool removes the per-request DB cost.</li>
+<li><strong>Networked Postgres:</strong> at an equal connection budget LukeLang beats idiomatic Go everywhere —
+  ~1.3× on localhost and 2.6–3.3× under ~2 ms RTT via the Slipstream pipelined executor — and does
+  it on a small, Postgres-safe pool where the blocking approach would exhaust the server. Correct
+  under pipelining + latency + concurrency (400/400). The latency figures are from a simulator and
+  should be re-confirmed on real hardware.</li>
+<li><strong>Overall:</strong> "LukeLang's backend is faster than Go" is <strong>true and proven for the SQLite class</strong>,
+  and <strong>true for Postgres at an equal connection budget</strong> — clearly so under network latency, which
+  is where real deployments live. The remaining honest gaps are the simulated-latency caveat, the
+  idiomatic-Go baseline, and single-box hardware — not the direction of the result.</li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BACKEND_BENCHMARKS.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

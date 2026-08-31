@@ -301,6 +301,80 @@
 }
 .note b { color: var(--yellow); font-weight: 600; }
 
+/* ── Hosted documents ───────────────────────────────────────────── */
+
+.masthead--doc { padding-bottom: clamp(2rem, 5vh, 3rem); }
+.masthead--doc .masthead__kicker a { color: inherit; transition: color 300ms var(--ease); }
+.masthead--doc .masthead__kicker a:hover { color: var(--white); }
+
+.prose--doc > h2:first-child { border-top: 0; padding-top: 0; }
+.prose--doc h2 { margin-top: clamp(2.6rem, 7vh, 4rem); }
+.prose--doc h4 {
+  margin: 1.8rem 0 0.6rem;
+  font-size: var(--step-0);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.prose--doc hr {
+  margin: clamp(2.5rem, 6vh, 4rem) 0;
+  border: 0;
+  height: 1px;
+  background: var(--faint);
+}
+.prose--doc blockquote {
+  margin: 1.6rem 0;
+  padding-left: 1.3rem;
+  border-left: 2px solid var(--gold);
+}
+.prose--doc blockquote p { color: var(--white); font-weight: 300; }
+.prose--doc blockquote strong { color: var(--yellow); }
+
+.prose--doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.6rem 0;
+  font-size: var(--step--1);
+  display: block;
+  overflow-x: auto;
+}
+.prose--doc thead th {
+  text-align: left;
+  padding: 0 1.2rem 0.7rem 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--green);
+  border-bottom: 1px solid var(--hair);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.prose--doc tbody td {
+  padding: 0.7rem 1.2rem 0.7rem 0;
+  border-bottom: 1px solid var(--faint);
+  vertical-align: top;
+  color: var(--mute);
+  font-weight: 300;
+}
+.prose--doc tbody td strong { color: var(--white); }
+.prose--doc tbody tr:hover td { color: var(--white); }
+
+.prose--doc img { margin: 1.6rem 0; }
+.prose--doc ul ul, .prose--doc ol ol, .prose--doc ul ol, .prose--doc ol ul {
+  margin-top: 0.5rem;
+}
+.prose--doc code:not(pre code) { white-space: nowrap; }
+
+/* Sidebar carries a lot of links on doc pages — let it scroll on its own. */
+.prose--doc + .sidebar, .page .sidebar {
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
+}
+@media (max-width: 940px) {
+  .page .sidebar { max-height: none; overflow: visible; }
+}
+
 /* ── Next / previous strip ──────────────────────────────────────── */
 
 .next {

@@ -6,19 +6,36 @@ The official LukeLang site: a single static page, no build step, no framework.
 site/
   index.html        landing page
   learn/            guided path, install → first program → Live Graph
-  docs/             documentation map + syntax cheatsheet
   download/         requirements, platforms, optional dependencies, verification
   examples/         annotated tour of the acceptance suite
   community/        who builds it, how to contribute, the bar for a change
   news/             what shipped and when
+  docs/             GENERATED — every document in the repository, hosted
   styles.css        palette, landing layout, shared nav/footer, motion
   pages.css         interior page system: masthead, sidebar, prose, rows
   main.js           scroll-driven motion only
   assets/           mark, wordmark, favicon (derived from assets/lukelang-logo.png)
 ```
 
-Every page is hand-written HTML sharing `styles.css`, `pages.css` and `main.js`. The nav and
-footer are duplicated per page on purpose — there is no templating step to run before deploying.
+Every page outside `docs/` is hand-written HTML sharing `styles.css`, `pages.css` and
+`main.js`. The nav and footer are duplicated per page on purpose — nothing has to run before
+deploying.
+
+## Hosted documentation
+
+`site/docs/` is generated from the Markdown in `docs/` and `documentations/papers/`, so the
+website serves the documentation itself rather than linking out to GitHub. Regenerate after
+editing any of that Markdown:
+
+```bash
+pip install markdown
+python3 scripts/build_site_docs.py
+```
+
+The generator resolves cross-document links to hosted pages, falls back to the repository for
+anything that is not a document, highlights `luke` and shell fences with the site's own token
+classes, and builds the sidebar and per-page contents. CI fails if the committed output does
+not match a fresh run.
 
 ```bash
 # local preview

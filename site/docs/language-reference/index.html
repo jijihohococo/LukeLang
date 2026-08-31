@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Language reference — LukeLang</title>
+<meta name="description" content="This document provides a comprehensive reference for the LukeLang programming language, covering its syntax, data types, control flow, functions, and object-oriented programming fe" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Language reference</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/" aria-current="page">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#1-variables-and-data-types">1. Variables and Data Types</a></li>
+        <li><a href="#2-operators">2. Operators</a></li>
+        <li><a href="#3-control-flow">3. Control Flow</a></li>
+        <li><a href="#4-functions">4. Functions</a></li>
+        <li><a href="#5-classes-and-oop">5. Classes and OOP</a></li>
+        <li><a href="#multiple-inheritance-mixin-based">Multiple Inheritance (Mixin-Based)</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>This document provides a comprehensive reference for the LukeLang programming language, covering its syntax, data types, control flow, functions, and object-oriented programming features.</p>
+<h2 id="1-variables-and-data-types">1. Variables and Data Types</h2>
+<p>In LukeLang, variables are declared using the <code>LET</code> or <code>VAR</code> keywords, followed by the variable name and an optional initial value.</p>
+<h3 id="declaration">Declaration</h3>
+<pre><code><span class="ln"><b class="cm">// Verbose declaration</b></span><span class="ln">LET myVariable BE <b class="num">10</b></span><span class="ln">VAR anotherVariable BE <b class="str">&quot;Hello&quot;</b></span><span class="ln"></span><span class="ln"><b class="cm">// Shorthand declaration</b></span><span class="ln">myVariable = <b class="num">10</b></span><span class="ln">anotherVariable = <b class="str">&quot;Hello&quot;</b></span></code></pre>
+<h3 id="data-types">Data Types</h3>
+<p>LukeLang supports the following data types:
+-   <strong>Numbers</strong>: <code>10</code>, <code>3.14</code>
+-   <strong>Strings</strong>: <code>"Hello"</code>, <code>'World'</code>
+-   <strong>Booleans</strong>: <code>TRUE</code>, <code>FALSE</code>
+-   <strong>Lists (Arrays)</strong>: <code>[1, 2, 3]</code>, <code>["apple", "banana"]</code>
+-   <strong>Objects</strong>: Handled through classes.</p>
+<h2 id="2-operators">2. Operators</h2>
+<p>LukeLang supports standard arithmetic, comparison, and logical operators.</p>
+<ul>
+<li><strong>Arithmetic</strong>: <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code></li>
+<li><strong>Comparison</strong>: <code>IS</code>, <code>IS NOT</code>, <code>&gt;</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>&lt;=</code></li>
+<li><strong>Logical</strong>: <code>AND</code>, <code>OR</code>, <code>NOT</code></li>
+</ul>
+<h2 id="3-control-flow">3. Control Flow</h2>
+<h3 id="conditional-statements">Conditional Statements</h3>
+<pre><code><span class="ln"><b class="kw">if</b> condition THEN {</span><span class="ln">} <b class="kw">else</b> {</span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;ELSE&quot;</b></span><span class="ln">}</span></code></pre>
+<h3 id="loops">Loops</h3>
+<p><strong>While Loop</strong></p>
+<pre><code><span class="ln">WHILE condition</span><span class="ln">  <b class="cm">// Code to repeat as long as condition is true</b></span><span class="ln">END WHILE</span></code></pre>
+<p><strong>For Loop</strong></p>
+<pre><code><span class="ln">FOR i FROM <b class="num">0</b> TO <b class="num">10</b></span><span class="ln">  <b class="cm">// Code to repeat 10 times</b></span><span class="ln">END FOR</span></code></pre>
+<h2 id="4-functions">4. Functions</h2>
+<p>Functions are defined using the <code>ROUTINE</code> or <code>FUNC</code> keyword.</p>
+<pre><code><span class="ln"><b class="cm">// Verbose function</b></span><span class="ln">ROUTINE <b class="fn">add</b>(a, b)</span><span class="ln">  RETURN a + b</span><span class="ln">END ROUTINE</span><span class="ln"></span><span class="ln"><b class="cm">// Shorthand function</b></span><span class="ln">func <b class="fn">multiply</b>(a, b) {</span><span class="ln">  RETURN a * b</span><span class="ln">}</span></code></pre>
+<h2 id="5-classes-and-oop">5. Classes and OOP</h2>
+<p>LukeLang provides robust support for object-oriented programming, including classes, inheritance, and methods.</p>
+<h3 id="class-definition">Class Definition</h3>
+<pre><code><span class="ln"><b class="kw">struct</b> Ticket { {</span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;init(ticketPrice, totalSeats) {&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;price = ticketPrice&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;seats = totalSeats&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;}&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;book(num) {&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;seats = seats - num&quot;</b></span><span class="ln">  <b class="fn">print</b>(<b class="str">&quot;Booked &quot;</b> + num + <b class="str">&quot; seats&quot;</b>)</span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;}&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;}&quot;</b></span><span class="ln">}</span></code></pre>
+<h3 id="inheritance">Inheritance</h3>
+<pre><code><span class="ln"><b class="kw">struct</b> ConcertTicket : Ticket { {</span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;artist&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;init(artistName, price, seats) {&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;PARENT TAKES price, seats&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;artist = artistName&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;}&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;showInfo() {&quot;</b></span><span class="ln">  <b class="fn">print</b>(<b class="str">&quot;Artist: &quot;</b> + artist)</span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;}&quot;</b></span><span class="ln">  <b class="kw">raw</b> <b class="str">&quot;}&quot;</b></span><span class="ln">}</span></code></pre>
+<p>For more details on advanced features, refer to the <strong><a href="../advanced-topics/">Advanced Topics</a></strong> guide.</p>
+<h2 id="multiple-inheritance-mixin-based">Multiple Inheritance (Mixin-Based)</h2>
+<p>LukeLang supports declaring multiple parents via <code>FOLLOWS &lt;BaseA&gt; AND &lt;BaseB&gt;</code> on the <strong>Play VM</strong> path. Build blueprints currently use a single <code>FOLLOWS</code> parent — prefer that for <code>luke BUILD</code> programs.</p>
+<h3 id="explicit-ancestor-calls">Explicit Ancestor Calls</h3>
+<p>When a class has multiple parents (Play VM), <code>CALL PARENT &lt;method&gt;</code> refers to the primary base. To invoke a specific ancestor’s implementation, use:</p>
+<ul>
+<li><code>CALL PARENT &lt;method&gt; OF &lt;Ancestor&gt; WITH &lt;args&gt;</code></li>
+</ul>
+<h3 id="example">Example</h3>
+<pre><code><span class="ln">BLUEPRINT Bird IMPLEMENTS Flyable DO</span><span class="ln">  METHOD fly WITH height DO</span><span class="ln">    SPEAK &quot;Bird flying at &quot; AND height AND &quot; meters high&quot;</span><span class="ln">  END METHOD</span><span class="ln">END CLASS</span><span class="ln"></span><span class="ln">BLUEPRINT Fish IMPLEMENTS Swimmable DO</span><span class="ln">  METHOD swim WITH speed DO</span><span class="ln">    SPEAK &quot;Fish swimming smoothly at &quot; AND speed AND &quot; m/s&quot;</span><span class="ln">  END METHOD</span><span class="ln">END CLASS</span><span class="ln"></span><span class="ln">BLUEPRINT Duck FOLLOWS Bird AND Fish IMPLEMENTS Flyable AND Swimmable DO</span><span class="ln">  WHEN BORN DO</span><span class="ln">  END BORN</span><span class="ln"></span><span class="ln">  METHOD fly WITH height DO</span><span class="ln">    CALL PARENT fly WITH height</span><span class="ln">    SPEAK &quot;Duck flapping wings cutely at &quot; AND height AND &quot; meters&quot;</span><span class="ln">  END METHOD</span><span class="ln"></span><span class="ln">  METHOD swim WITH speed DO</span><span class="ln">    CALL PARENT swim OF Fish WITH speed</span><span class="ln">    SPEAK &quot;Duck paddling in circles at &quot; AND speed AND &quot; m/s&quot;</span><span class="ln">  END METHOD</span><span class="ln">END CLASS</span></code></pre>
+<p>Output:</p>
+<pre><code><span class="ln">Bird flying at 10 meters high</span><span class="ln">Duck flapping wings cutely at 10 meters</span><span class="ln">Fish swimming smoothly at 2 m/s</span><span class="ln">Duck paddling in circles at 2 m/s</span></code></pre>
+<h3 id="composition-alternative">Composition Alternative</h3>
+<p>If you prefer explicit composition rather than mixins, you can model the second parent as a field and delegate:</p>
+<pre><code><span class="ln">HAS fishPart SET TO NEW Fish</span><span class="ln">METHOD swim WITH speed DO</span><span class="ln">  CALL fishPart swim WITH speed</span><span class="ln">  SPEAK &quot;Duck paddling in circles at &quot; AND speed AND &quot; m/s&quot;</span><span class="ln">END METHOD</span></code></pre>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/language_reference.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

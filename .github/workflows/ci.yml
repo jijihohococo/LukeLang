@@ -73,6 +73,24 @@ jobs:
       - name: v2 golden corpus is equivalent to its v1 twins
         run: bash scripts/syntax_v2_equiv.sh
 
+  site-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install generator deps
+        run: pip install --quiet markdown
+
+      - name: Hosted docs match the Markdown they are generated from
+        run: |
+          python3 scripts/build_site_docs.py
+          if ! git diff --quiet -- site/docs; then
+            echo "site/docs is stale — run: python3 scripts/build_site_docs.py" >&2
+            git --no-pager diff --stat -- site/docs
+            exit 1
+          fi
+
   vscode-extension:
     runs-on: ubuntu-latest
     timeout-minutes: 10

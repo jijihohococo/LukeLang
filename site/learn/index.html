@@ -183,7 +183,7 @@
           <p>
             The engine deduplicates work, keeps flush order stable, isolates a failing effect
             from its neighbours, and disposes cells with their scope. Those guarantees are
-            written down in the <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE_SPEC.md">reactive specification</a>
+            written down in the <a href="../docs/reactive-spec/">reactive specification</a>
             and enforced by fourteen conformance programs in the test suite.
           </p>
         </li>
@@ -215,7 +215,7 @@
             Run an <code>UPDATE</code> against that row from any other process and the browser
             repaints one region. There is no fetch, no cache key, no subscription bookkeeping and
             no virtual DOM diff in that path — read
-            <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/LIVE_GRAPH.md">Live Graph</a>
+            <a href="../docs/live-graph/">Live Graph</a>
             for how the wire and the incremental view maintenance work.
           </p>
         </li>
@@ -234,7 +234,7 @@
           <p>
             Browser and WASI targets need the WASI SDK; see
             <a href="../download/">download</a>. When you are ready to put a server behind TLS,
-            <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/DEPLOY.md">deploy</a>
+            <a href="../docs/deploy/">deploy</a>
             covers the reverse proxy and the connection knobs.
           </p>
         </li>

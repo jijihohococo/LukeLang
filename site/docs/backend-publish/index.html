@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Publishing a backend — LukeLang</title>
+<meta name="description" content="LukeLang&#x27;s first market surface is backend language + reactive full-stack substrate, not generic scripting." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Publishing a backend</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/" aria-current="page">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#positioning-sentence">Positioning sentence</a></li>
+        <li><a href="#what-is-already-production-facing">What is already production-facing</a></li>
+        <li><a href="#publish-checklist-for-backend-adoption">Publish checklist for backend adoption</a></li>
+        <li><a href="#minimal-backend-demo-commands">Minimal backend demo commands</a></li>
+        <li><a href="#guardrails-while-publishing">Guardrails while publishing</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>LukeLang's first market surface is <strong>backend language + reactive full-stack substrate</strong>, not generic scripting.</p>
+<h2 id="positioning-sentence">Positioning sentence</h2>
+<p>Build backend services with conversational syntax and systems-level runtime cost:</p>
+<ul>
+<li>native binaries (<code>luke BUILD</code>)</li>
+<li>no GC in shipped path</li>
+<li>built-in HTTP, SQL bind APIs, auth primitives, reactive graph</li>
+</ul>
+<h2 id="what-is-already-production-facing">What is already production-facing</h2>
+<ul>
+<li><code>std/server</code>: HTTP listen/serve, route matching, query/header/cookie/body helpers</li>
+<li><code>std/sqlite</code>: pooled connections + statement cache + bind APIs</li>
+<li><code>std/pg</code>: Postgres path with bind APIs and Slipstream execution</li>
+<li><code>std/auth</code>: login/session/CSRF helpers</li>
+<li><code>WATCH</code>/<code>PUSH WATCH</code>: Live Graph bridge</li>
+</ul>
+<p>Examples:</p>
+<ul>
+<li><code>examples/build/backend_api.luke</code></li>
+<li><code>examples/build/backend_form_errors.luke</code></li>
+<li><code>examples/build/pg_api.luke</code></li>
+</ul>
+<h2 id="publish-checklist-for-backend-adoption">Publish checklist for backend adoption</h2>
+<ol>
+<li><strong>Stable commands</strong>
+   - <code>luke BUILD &lt;app.luke&gt; -o &lt;bin&gt;</code>
+   - <code>luke TEST &lt;test.luke&gt;</code></li>
+<li><strong>Strong diagnostics</strong>
+   - parser/type errors should point to Luke source lines with actionable text</li>
+<li><strong>Canonical backend templates</strong>
+   - route handler, auth/session flow, DB bind examples</li>
+<li><strong>Editor tooling</strong>
+   - syntax highlighting, snippets, keyword completion, LSP/DAP integration</li>
+<li><strong>Operational docs</strong>
+   - deploy topology, TLS reverse proxy, env vars, resource knobs</li>
+</ol>
+<h2 id="minimal-backend-demo-commands">Minimal backend demo commands</h2>
+<p>From repo root:</p>
+<pre><code><span class="ln"><b class="sh">cd</b> vm &amp;&amp; make</span><span class="ln"><b class="sh">./build/luke</b> BUILD ../examples/build/backend_api.luke -o build/backend_api</span><span class="ln">./build/backend_api</span></code></pre>
+<p>Then hit:</p>
+<ul>
+<li><code>GET /ok</code></li>
+<li><code>GET /user/1?tag=demo</code></li>
+<li><code>POST /login</code> with JSON body</li>
+</ul>
+<h2 id="guardrails-while-publishing">Guardrails while publishing</h2>
+<ul>
+<li>Keep Build path as canonical truth.</li>
+<li>Do not regress no-GC guarantees in native backend binaries.</li>
+<li>Prefer adding diagnostics/tests over speculative syntax churn.</li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BACKEND_PUBLISH.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

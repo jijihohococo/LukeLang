@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reactive specification — LukeLang</title>
+<meta name="description" content="Status: Normative draft (Phase 9–10 — correctness + Scheduler 2.0) Implementation: vm/runtime/luke_reactive.h Architecture overview: REACTIVE.md Roadmap: REACTIVE_ROADMAP.md" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Reactive specification</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/" aria-current="page">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#1-graph-model">1. Graph model</a></li>
+        <li><a href="#2-flush-protocol">2. Flush protocol</a></li>
+        <li><a href="#3-invalidation">3. Invalidation</a></li>
+        <li><a href="#4-scopes-disposal">4. Scopes &amp;amp; disposal</a></li>
+        <li><a href="#5-instrumentation-v0-1">5. Instrumentation (v0.1)</a></li>
+        <li><a href="#6-conformance">6. Conformance</a></li>
+        <li><a href="#7-scheduler-2-0-v0-2">7. Scheduler 2.0 (v0.2)</a></li>
+        <li><a href="#8-granularity-v0-3">8. Granularity (v0.3)</a></li>
+        <li><a href="#9-memory-management-v0-4">9. Memory management (v0.4)</a></li>
+        <li><a href="#10-devtools-v0-5">10. DevTools (v0.5)</a></li>
+        <li><a href="#12-error-system-v0-6">12. Error system (v0.6)</a></li>
+        <li><a href="#13-non-normative-future">13. Non-normative (future)</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> Normative draft (Phase 9–10 — correctness + Scheduler 2.0)<br />
+<strong>Implementation:</strong> <code>vm/runtime/luke_reactive.h</code><br />
+<strong>Architecture overview:</strong> <a href="../reactive/"><code>REACTIVE.md</code></a><br />
+<strong>Roadmap:</strong> <a href="../reactive-roadmap/"><code>REACTIVE_ROADMAP.md</code></a></p>
+</blockquote>
+<p>This document defines <strong>scheduler guarantees</strong> for the Luke Reactive Runtime.<br />
+Surface syntax may evolve; these semantics are the contract for native and WASM.</p>
+<hr />
+<h2 id="1-graph-model">1. Graph model</h2>
+<h3 id="1-1-node-kinds">1.1 Node kinds</h3>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Role</th>
+<th>Writes</th>
+<th>Reads trigger</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CELL</code></td>
+<td>Source value (number/text)</td>
+<td><code>CHANGE</code>, <code>INCREASE</code>, writers</td>
+<td><code>luke_rx_read_*</code></td>
+</tr>
+<tr>
+<td><code>DERIVED</code></td>
+<td>Pure compute</td>
+<td>Never directly</td>
+<td>compute fn reads</td>
+</tr>
+<tr>
+<td><code>EFFECT</code></td>
+<td>Side effect</td>
+<td>May touch UI/I/O</td>
+<td>effect fn reads</td>
+</tr>
+<tr>
+<td><code>LIST</code> / <code>MAP</code></td>
+<td>Collection sources</td>
+<td><code>ADD</code>, <code>SET ITEM</code>, <code>PUT</code></td>
+<td>collection accessors</td>
+</tr>
+</tbody>
+</table>
+<h3 id="1-2-edges">1.2 Edges</h3>
+<ul>
+<li><strong>dep:</strong> <code>from → to</code> means <em>from</em> read <em>to</em> during last compute/effect run.</li>
+<li><strong>sub:</strong> inverse of dep (who to notify when <em>to</em> changes).</li>
+<li>Dynamic deps: recorded only while <code>g-&gt;computing != 0</code>.</li>
+</ul>
+<h3 id="1-3-stale-edge-cleanup-v0-1">1.3 Stale edge cleanup (v0.1)</h3>
+<p>Before each derived/effect (re)run, the runtime <strong>must</strong>:</p>
+<ol>
+<li>For each prior dep <code>d</code> of node <code>n</code>, remove <code>n</code> from <code>d.subs</code>.</li>
+<li>Reset <code>n.dep_len</code> to 0.</li>
+<li>Re-register deps during the new run via reads.</li>
+</ol>
+<p><strong>Guarantee:</strong> No subscriber lists retain edges from superseded dynamic branches.</p>
+<hr />
+<h2 id="2-flush-protocol">2. Flush protocol</h2>
+<p>A <strong>flush</strong> runs when <code>dirty_len &gt; 0</code> and <code>batching == 0</code>.</p>
+<h3 id="wave-order-fixed">Wave order (fixed)</h3>
+<pre><code><span class="ln">W1  Propagate dirty → transitive subs marked dirty</span><span class="ln">W2  Recompute DERIVED (pure), ascending node id</span><span class="ln">W3  Run EFFECT, ascending node id</span><span class="ln">W4  Clear CELL/LIST/MAP dirty flags</span><span class="ln">    epoch++, flush_count++</span><span class="ln">W5  after_flush (layout/paint consumers)</span></code></pre>
+<h3 id="2-1-deterministic-derived-order">2.1 Deterministic derived order</h3>
+<p>Within wave 2, derived nodes are considered in <strong>strict ascending <code>LukeRxId</code> order</strong> each iteration.<br />
+Among nodes whose derived dependencies are clean, <strong>lower id runs first</strong>.</p>
+<p><strong>Guarantee:</strong> Same graph + same writes ⇒ same derived run order (single-threaded).</p>
+<h3 id="2-2-batch-coalescing">2.2 Batch coalescing</h3>
+<p>While <code>batching &gt; 0</code>, writes mark dirty but <strong>do not flush</strong>.<br />
+One <code>batch_end</code> ⇒ at most <strong>one</strong> flush for all batched writes.</p>
+<p><strong>Guarantee:</strong> <code>flush_count</code> increments by 1 per completed batch (not per write).</p>
+<h3 id="2-3-cycle-detection">2.3 Cycle detection</h3>
+<p>If wave 2 makes no progress with pending derived nodes, the runtime:</p>
+<ol>
+<li>Sets <code>cycle_tripped = 1</code></li>
+<li>Logs to stderr</li>
+<li>Force-clears derived dirty flags</li>
+<li>Returns <code>-1</code> from <code>luke_rx_flush</code></li>
+</ol>
+<hr />
+<h2 id="3-invalidation">3. Invalidation</h2>
+<p>A write to node <code>n</code>:</p>
+<ol>
+<li>Updates value + <code>version++</code></li>
+<li>Marks <code>n</code> dirty (if applicable)</li>
+<li>Recursively marks subscribers dirty (transitive)</li>
+</ol>
+<p>Derived/effect nodes <strong>never</strong> write their dependents without going through a cell/collection write.</p>
+<hr />
+<h2 id="4-scopes-disposal">4. Scopes &amp; disposal</h2>
+<ul>
+<li><code>scope_begin</code> tracks new nodes in <code>owned[]</code>.</li>
+<li><code>scope_end(name)</code> disposes owned nodes: unlinks all edges, marks <code>dead = 1</code>.</li>
+<li>Dead nodes are skipped in flush and reads return defaults.</li>
+</ul>
+<hr />
+<h2 id="5-instrumentation-v0-1">5. Instrumentation (v0.1)</h2>
+<table>
+<thead>
+<tr>
+<th>Counter</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>epoch</code></td>
+<td>Flush generations</td>
+</tr>
+<tr>
+<td><code>flush_count</code></td>
+<td>Completed flushes</td>
+</tr>
+<tr>
+<td><code>last_flush_derived</code></td>
+<td>Derived runs in last flush</td>
+</tr>
+<tr>
+<td><code>last_flush_effects</code></td>
+<td>Effect runs in last flush</td>
+</tr>
+<tr>
+<td><code>last_flush_deps_cleared</code></td>
+<td>Stale dep edges removed in last flush</td>
+</tr>
+<tr>
+<td><code>total_deps_cleared</code></td>
+<td>Cumulative stale-edge removals</td>
+</tr>
+<tr>
+<td><code>granular_paints</code></td>
+<td>UI row paints (Phase 5 tests)</td>
+</tr>
+</tbody>
+</table>
+<p>Build surface (introspection):</p>
+<pre><code><span class="ln"><b class="kw">raw</b> <b class="str">&quot;THE EPOCH&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;THE FLUSH COUNT&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;THE DERIVED RUN COUNT&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;THE EFFECT RUN COUNT&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;THE STALE EDGE COUNT&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;THE GRANULAR PAINT COUNT&quot;</b></span></code></pre>
+<hr />
+<h2 id="6-conformance">6. Conformance</h2>
+<p>Programs under <code>examples/build/reactive_conformance_*.luke</code> assert v0.1+ guarantees on native.<br />
+WASM parity: same programs compiled with <code>-target browser</code> must match native outputs (roadmap).</p>
+<hr />
+<h2 id="7-scheduler-2-0-v0-2">7. Scheduler 2.0 (v0.2)</h2>
+<h3 id="7-1-priority-lanes">7.1 Priority lanes</h3>
+<p>Effects run in <strong>ascending priority</strong> (lower number = sooner):</p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Kind</th>
+<th>Surface</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UI</code> (0)</td>
+<td>User-visible / interactive</td>
+<td><code>BIND</code>, <code>BIND LIST</code>, <code>BIND OPACITY</code>, <code>WHEN REACTIVE</code></td>
+</tr>
+<tr>
+<td><code>NORMAL</code> (1)</td>
+<td>Derived compute</td>
+<td><code>THE x IS …</code></td>
+</tr>
+<tr>
+<td><code>BACKGROUND</code> (2)</td>
+<td>Deferred work</td>
+<td><code>BIND BACKGROUND</code>, <code>WHEN BACKGROUND REACTIVE</code></td>
+</tr>
+</tbody>
+</table>
+<p>Within the same priority, <strong>ascending node id</strong> breaks ties (deterministic).</p>
+<h3 id="7-2-nested-flush-coalescing">7.2 Nested flush coalescing</h3>
+<p>While <code>flushing == 1</code>, cell/collection writes <strong>must not</strong> re-enter <code>luke_rx_flush</code> synchronously.<br />
+They set <code>pending_flush = 1</code> and increment <code>deferred_flush_count</code>.</p>
+<p>One outer flush turn:</p>
+<ol>
+<li>Runs one or more internal <strong>passes</strong> until <code>pending_flush == 0</code> or <code>dirty_len == 0</code></li>
+<li>Increments <code>flush_count</code> <strong>once</strong></li>
+<li>Increments <code>epoch</code> <strong>once</strong></li>
+</ol>
+<p><strong>Guarantee:</strong> <code>last_flush_passes &gt;= 1</code>; nested writes during effects coalesce into the same turn.</p>
+<h3 id="7-3-dirty-dedup">7.3 Dirty dedup</h3>
+<p><code>mark_dirty</code> on an already-dirty node is a no-op and increments <code>last_flush_dedup_hits</code> during flush.</p>
+<h3 id="7-4-instrumentation-v0-2">7.4 Instrumentation (v0.2)</h3>
+<table>
+<thead>
+<tr>
+<th>Counter</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>last_flush_passes</code></td>
+<td>Internal passes in last turn</td>
+</tr>
+<tr>
+<td><code>deferred_flush_count</code></td>
+<td>Cumulative nested deferrals</td>
+</tr>
+<tr>
+<td><code>last_flush_dedup_hits</code></td>
+<td>Dedup hits last pass</td>
+</tr>
+<tr>
+<td><code>last_dirty_q_size</code></td>
+<td><code>dirty_q</code> length at wave 1</td>
+</tr>
+<tr>
+<td><code>last_flush_steps</code></td>
+<td>Timeline entries last turn</td>
+</tr>
+<tr>
+<td><code>ui_before_bg</code></td>
+<td>UI effect ran before any BACKGROUND effect</td>
+</tr>
+</tbody>
+</table>
+<p>Build surface:</p>
+<pre><code><span class="ln">THE FLUSH PASS COUNT</span><span class="ln">THE DEFERRED FLUSH COUNT</span><span class="ln">THE DIRTY DEDUP COUNT</span><span class="ln">THE SCHEDULER STEP COUNT</span><span class="ln">THE SCHEDULER UI BEFORE BACKGROUND</span></code></pre>
+<hr />
+<h2 id="8-granularity-v0-3">8. Granularity (v0.3)</h2>
+<h3 id="8-1-region-paint">8.1 Region paint</h3>
+<p><code>luke_rx_ui_set_text_granular</code> and list row paints call <code>argus_paint_one</code> — only the touched Argus node is presented.<br />
+Full <code>argus_paint</code> runs when <code>need_paint</code> is set (e.g. generic <code>BIND</code>).</p>
+<h3 id="8-2-region-layout">8.2 Region layout</h3>
+<p>When <code>need_layout</code> is set (e.g. <code>BIND OPACITY</code>), <code>hanka_mark_region</code> marks the root box containing the leaf.<br />
+<code>hanka_layout_dirty</code> relayouts only dirty roots when <code>keep_roots</code> is enabled (reactive UI).</p>
+<h3 id="8-3-component-subtree-invalidation">8.3 Component subtree invalidation</h3>
+<p>On <code>scope_end</code>, external subscribers of owned nodes are marked dirty before disposal (<code>THE SUBTREE INVALID COUNT</code>).</p>
+<hr />
+<h2 id="9-memory-management-v0-4">9. Memory management (v0.4)</h2>
+<h3 id="9-1-disposal">9.1 Disposal</h3>
+<p><code>DESTROY COMPONENT</code> disposes owned nodes (<code>dead = 1</code>), unlinks all edges, clears compute/effect fns.<br />
+Dead nodes are skipped in flush/reads (default values returned).</p>
+<h3 id="9-2-weak-reads">9.2 Weak reads</h3>
+<p><code>THE WEAK VALUE OF cell</code> reads without registering a dependency edge during derived/effect compute.</p>
+<h3 id="9-3-leak-audit">9.3 Leak audit</h3>
+<p><code>luke_rx_audit_graph</code> scans alive nodes for deps pointing at dead nodes, repairs them, and updates counters.</p>
+<pre><code><span class="ln">AUDIT REACTIVE</span><span class="ln">THE ALIVE NODE COUNT</span><span class="ln">THE DEAD NODE COUNT</span><span class="ln">THE DISPOSED COUNT</span><span class="ln">THE LEAK EDGE COUNT</span><span class="ln">THE WEAK READ COUNT</span></code></pre>
+<h3 id="9-4-weak-effects">9.4 Weak effects</h3>
+<p><code>WHEN REACTIVE WEAK cell CHANGES DO</code> registers an effect whose reads do not create dependency edges (same as weak reads for the whole effect body).</p>
+<h3 id="9-5-scope-gc">9.5 Scope GC</h3>
+<p>On <code>scope_end</code> / <code>UNMOUNT COMPONENT</code>, closed scope frames with no owned nodes are compacted from the scope table (<code>THE SCOPE GC COUNT</code>, <code>THE SCOPE FRAME COUNT</code>).</p>
+<hr />
+<h2 id="10-devtools-v0-5">10. DevTools (v0.5)</h2>
+<h3 id="10-1-why-changed">10.1 Why-changed</h3>
+<p><code>THE WHY ROOT OF derived</code> walks deps to the nearest source cell (BFS, min id tie-break).<br />
+<code>THE WHY DEPTH OF derived</code> is hop count to that root.<br />
+<code>TRACE WHY cell</code> logs the chain to stderr and increments <code>THE WHY TRACE COUNT</code>.</p>
+<p><code>THE LAST WRITE ID</code> records the most recent cell/collection write.</p>
+<h3 id="10-2-live-graph">10.2 Live graph</h3>
+<p><code>DUMP REACTIVE GRAPH</code> prints alive nodes to stderr (<code>THE GRAPH DUMP COUNT</code>).<br />
+Counters: <code>THE GRAPH CELL COUNT</code>, <code>THE GRAPH DERIVED COUNT</code>, <code>THE GRAPH EFFECT COUNT</code>, <code>THE GRAPH EDGE COUNT</code>.</p>
+<h3 id="10-3-timeline-export">10.3 Timeline export</h3>
+<p>After flush, scheduler steps are readable via:</p>
+<pre><code><span class="ln">THE TIMELINE STEP ID AT <b class="num">0</b></span><span class="ln">THE TIMELINE STEP WAVE AT <b class="num">0</b></span></code></pre>
+<p>Wave <code>2</code> = derived, <code>3</code> = effect.</p>
+<hr />
+<h2 id="12-error-system-v0-6">12. Error system (v0.6)</h2>
+<h3 id="12-1-isolation">12.1 Isolation</h3>
+<p>When a derived/effect run sets a problem (<code>GIVE UP</code> inside <code>ATTEMPT</code>), the runtime:</p>
+<ol>
+<li>Marks the node <code>errored = 1</code></li>
+<li>Clears its deps and removes it from the dirty queue</li>
+<li>Continues flush — sibling effects still run</li>
+</ol>
+<h3 id="12-2-async-failure">12.2 Async failure</h3>
+<p><code>REPORT REACTIVE FAILURE FOR cell WITH message</code> isolates the cell and increments <code>THE ASYNC FAILURE COUNT</code>.</p>
+<h3 id="12-3-retry">12.3 Retry</h3>
+<p><code>RETRY REACTIVE ERROR</code> clears <code>errored</code> on <code>last_error_node</code>, marks dirty, and flushes.<br />
+<code>CLEAR REACTIVE ERROR</code> clears the flag without re-scheduling.</p>
+<h3 id="12-4-error-boundaries">12.4 Error boundaries</h3>
+<p><code>BEGIN ERROR BOUNDARY Panel</code> tags nodes/effects created inside with <code>boundary_scope_id</code>.<br />
+When a node inside trips, the boundary is marked <code>tripped</code> and remaining nodes in that boundary are skipped for the flush turn.<br />
+Nodes outside the boundary continue normally.</p>
+<p><code>RESET ERROR BOUNDARY Panel</code> clears the tripped flag and re-schedules errored nodes in that boundary.</p>
+<hr />
+<h2 id="13-non-normative-future">13. Non-normative (future)</h2>
+<p>Not yet specified: macrotask queues, parallel reactions, time-travel, field-level object tracking, Hanka region invalidation spec.</p>
+<p>See <a href="../reactive-roadmap/"><code>REACTIVE_ROADMAP.md</code></a>.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE_SPEC.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

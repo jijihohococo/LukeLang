@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live Graph — LukeLang</title>
+<meta name="description" content="Status: true differential IVM — point rows, N-table equi-JOIN chains, multi-row join bags, inequality/LIKE bag filters — + scrub UI + causal resume + wire fail-closed Thesis: In Lu" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Live Graph</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/" aria-current="page">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#one-graph">One graph</a></li>
+        <li><a href="#this-release">This release</a></li>
+        <li><a href="#prior-tiers">Prior tiers</a></li>
+        <li><a href="#what-falls-out-next">What falls out next</a></li>
+        <li><a href="#related">Related</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> true differential IVM — point rows, N-table equi-JOIN chains, multi-row join bags, inequality/LIKE bag filters — + scrub UI + causal resume + wire fail-closed<br />
+<strong>Thesis:</strong> In LukeLang you never fetch, never invalidate, never subscribe, never diff. You declare dependencies once, and change finds its own way from row to pixel.</p>
+</blockquote>
+<h2 id="one-graph">One graph</h2>
+<pre><code><span class="ln">DB row  →  server cell  →  [wire]  →  client cell  →  pixel</span><span class="ln">   └────────────── one dependency graph, compiler-known ──────────────┘</span></code></pre>
+<p>Mainstream stacks glue three separate worlds (DB / server / client) with queries, cache invalidation, refetching, subscriptions, and diffing. LukeLang's reactive engine already answers "when X changes, what needs to update?" inside the client. The Live Graph answers it for the <strong>whole stack</strong>.</p>
+<h2 id="this-release">This release</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WATCH … FROM db WHERE …</code></td>
+<td>Declares a DB-backed reactive cell</td>
+</tr>
+<tr>
+<td>Trigger IVM cache (<code>luke_ivm_*</code>)</td>
+<td>Maintained TEXT snapshot</td>
+</tr>
+<tr>
+<td><strong>Differential triggers</strong></td>
+<td>Single-table <code>id = N</code>: <code>NEW.col</code> / <code>OLD</code> — no full <code>group_concat</code> rewrite</td>
+</tr>
+<tr>
+<td><strong>Keyed join differential</strong></td>
+<td><code>JOIN … ON a.x = b.y WHERE a.x = N</code> → <code>WHEN NEW</code> on both tables + partner probe</td>
+</tr>
+<tr>
+<td><strong>N-table join chains</strong></td>
+<td>Equality closure on ON keys → <code>WHEN NEW.&lt;bound&gt; = lit</code> + NEW-pinned SELECT (<code>live_graph_join3</code>)</td>
+</tr>
+<tr>
+<td><strong>Multi-row JOIN cards</strong></td>
+<td><code>luke_ivm_jbag_*</code> keyed by hop rowids; publish <code>group_concat</code> (<code>live_graph_join_filter</code>, <code>live_graph_join_multi</code>)</td>
+</tr>
+<tr>
+<td><strong>Bag aggregates</strong></td>
+<td>Any NEW./OLD.-qualifiable filter (<code>=</code>, <code>&gt;</code>, LIKE, …) — bag I/U/D, no base re-scan (<code>live_graph_agg</code>, <code>live_graph_agg_range</code>)</td>
+</tr>
+<tr>
+<td>Causal log (<code>luke_ivm_log_*</code>)</td>
+<td>Append on each pushed change</td>
+</tr>
+<tr>
+<td><code>Last-Event-ID</code></td>
+<td>Parsed on the request; <code>PUSH WATCH</code> replays log rows with <code>seq &gt; id</code></td>
+</tr>
+<tr>
+<td>Wire hardening</td>
+<td>SSE send failure aborts the stream; <code>LUKE_SSE_ORIGIN</code>; scoped PUSH requires user</td>
+</tr>
+<tr>
+<td>Scrub UI</td>
+<td>Client-buffered history + Back / Forward / Live (<code>live_graph_scrub.luke</code>)</td>
+</tr>
+<tr>
+<td><code>data_version</code> gate</td>
+<td>Idle beats skip even the cache read</td>
+</tr>
+<tr>
+<td>Wall app</td>
+<td><code>examples/deploy/wall</code> — one deployable DB→pixel binary + Caddy</td>
+</tr>
+</tbody>
+</table>
+<p>Acceptance: external <code>UPDATE</code> → pixel with <code>region=1</code>; reconnect resumes from the log; <code>watch_queries</code> stays bounded; join / join-multi / filter / bag / range proofs stay green in <code>make test-build</code>.</p>
+<h3 id="war-cry-surface">War cry surface</h3>
+<pre><code><span class="ln"><b class="kw">raw</b> <b class="str">&quot;# server&quot;</b></span><span class="ln"><b class="kw">watch</b> user <b class="kw">from</b> db <b class="kw">where</b> <b class="str">&quot;id = 1&quot;</b></span><span class="ln"><b class="kw">push watch</b> user <b class="kw">on</b> req <b class="kw">for</b> <b class="num">50</b> <b class="kw">beats</b> <b class="kw">every</b> <b class="num">50</b> ms</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;# client&quot;</b></span><span class="ln"><b class="kw">signal</b> user = <b class="str">&quot;&quot;</b></span><span class="ln"><b class="fn">bind</b>(<b class="str">&quot;name&quot;</b>, user)</span><span class="ln"><b class="kw">watch</b> user <b class="kw">from</b> <b class="str">&quot;http://127.0.0.1:8798/watch&quot;</b></span></code></pre>
+<p>Differential shapes (not recompute):</p>
+<pre><code><span class="ln"><b class="kw">watch</b> card <b class="kw">from</b> db as <b class="str">&quot;SELECT u.name || &#x27; · &#x27; || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.id = 1&quot;</b></span><span class="ln"><b class="kw">watch</b> card <b class="kw">from</b> db as <b class="str">&quot;SELECT u.name || &#x27; · &#x27; || p.title FROM users u JOIN profiles p ON u.id = p.user_id WHERE u.status = &#x27;active&#x27;&quot;</b></span><span class="ln"><b class="kw">watch</b> adults <b class="kw">from</b> db as <b class="str">&quot;SELECT name FROM people WHERE age &gt; 30&quot;</b></span><span class="ln"><b class="kw">watch</b> feed <b class="kw">from</b> db as <b class="str">&quot;SELECT body FROM notes WHERE status = &#x27;open&#x27;&quot;</b></span></code></pre>
+<h2 id="prior-tiers">Prior tiers</h2>
+<ol>
+<li>Spike — hand-rolled CDC poll → <code>region=1</code></li>
+<li>Server <code>WATCH</code> / <code>PUSH WATCH</code> surface</li>
+<li><code>PRAGMA data_version</code> gate</li>
+<li>Trigger-maintained cache (<code>group_concat</code>)</li>
+<li>NEW/OLD differential triggers + event-log resume</li>
+<li>Multi-join cache recompute + client scrub UI beachhead</li>
+<li>Keyed equi-join differential + wire fail-closed + wall deploy proof</li>
+<li>Partner EXISTS / 3+ chains / equality bag</li>
+<li><strong>Now:</strong> multi-row join bags + inequality bag filters (true Execution A+)</li>
+</ol>
+<h2 id="what-falls-out-next">What falls out next</h2>
+<ol>
+<li><strong>Free multicore parallelism</strong> — independent reactions; compiler schedules without races</li>
+<li><strong>Server+client scrub by log seq</strong> — wire DevTools to <code>luke_ivm_log_*</code> (client buffer shipped)</li>
+<li>Broader SQL shapes — LEFT JOIN, non-equi ON, expression-only SELECT lists</li>
+</ol>
+<h2 id="related">Related</h2>
+<ul>
+<li><a href="../strategy/"><code>STRATEGY.md</code></a> — identity and phased plan</li>
+<li><a href="../reactive/"><code>REACTIVE.md</code></a> — client reactive engine</li>
+<li><a href="../deploy/"><code>DEPLOY.md</code></a> — TLS / Caddy / <code>LUKE_SSE_ORIGIN</code></li>
+<li>Wall app: <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/examples/deploy/wall"><code>examples/deploy/wall/</code></a></li>
+<li>Spike A push: <code>SUBSCRIBE</code> + SSE — the wire primitive client <code>WATCH</code> sits on</li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/LIVE_GRAPH.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

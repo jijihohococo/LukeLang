@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Strategy — LukeLang</title>
+<meta name="description" content="Status: v2 — decision record (syntax amended) Purpose: Lock down what LukeLang is, what it wins first, and the order we build it in. When a roadmap or PR conflicts with this docume" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Strategy</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/" aria-current="page">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#the-identity-one-sentence">The identity (one sentence)</a></li>
+        <li><a href="#two-kinds-of-different">Two kinds of &quot;different&quot;</a></li>
+        <li><a href="#the-wedge-reactive-full-stack-web">The wedge: reactive full-stack web</a></li>
+        <li><a href="#the-renderer-decision-compile-to-dom-css-path-a">The renderer decision: compile to DOM + CSS (Path A)</a></li>
+        <li><a href="#what-we-keep-unconditionally">What we keep, unconditionally</a></li>
+        <li><a href="#decision-table">Decision table</a></li>
+        <li><a href="#the-plan-in-build-order">The plan (in build order)</a></li>
+        <li><a href="#scorecard-vs-vision-do-not-dilute">Scorecard vs vision (do not dilute)</a></li>
+        <li><a href="#parked-tracks-earn-them-later">Parked tracks (earn them later)</a></li>
+        <li><a href="#the-wall-sentence">The wall sentence</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> v2 — decision record (syntax amended)<br />
+<strong>Purpose:</strong> Lock down <em>what LukeLang is</em>, <em>what it wins first</em>, and <em>the order we build it in</em>.<br />
+When a roadmap or PR conflicts with this document, this document wins until it is explicitly revised.</p>
+<p><strong>Amendment (Syntax v2).</strong> The conversational surface syntax is being replaced by a
+conventional technical syntax. See <a href="../syntax-v2-plan/"><code>SYNTAX_V2_PLAN.md</code></a> and
+<a href="../syntax-v2-spec/"><code>SYNTAX_V2_SPEC.md</code></a>. This revises the identity sentence below and
+supersedes "What we keep, unconditionally → Conversational syntax". The reactive engine,
+the wedge, and the renderer decision are unchanged.</p>
+</blockquote>
+<hr />
+<h2 id="the-identity-one-sentence">The identity (one sentence)</h2>
+<blockquote>
+<p><strong>LukeLang is the reactive-native, full-stack language.</strong>
+The <strong>reactive engine is the moat</strong>, the <strong>syntax is the face</strong>, and the <strong>browser is the renderer</strong>.</p>
+</blockquote>
+<p>Everything below follows from that sentence.</p>
+<p>The face is replaceable; the moat is not. That distinction — written into this document from the
+start — is precisely what licenses the Syntax v2 change: swapping a conversational surface for a
+technical one does not touch the reactive engine, the Live Graph, or the Build guarantees.</p>
+<hr />
+<h2 id="two-kinds-of-different">Two kinds of "different"</h2>
+<p>LukeLang exists to be different from JS and Python. But there are two kinds of different, and only one of them helps us:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Examples</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Difference the user feels and wants</strong></td>
+<td>Reactive-native model; declarative reactive keywords; full-stack reactivity</td>
+<td><strong>Our gold.</strong> Users experience it and choose us for it.</td>
+</tr>
+<tr>
+<td><strong>Difference under the floorboards that only costs us</strong></td>
+<td>Hand-rolling layout math and paint the browser already does</td>
+<td><strong>A tax.</strong> Invisible to users, expensive for us, and always behind the browser.</td>
+</tr>
+</tbody>
+</table>
+<p>The mistake to avoid is putting our differentiation in the plumbing (invisible, expensive) instead of in the syntax and the reactive model (visible, loved). <strong>Be different where the user stands, not under the floorboards.</strong></p>
+<hr />
+<h2 id="the-wedge-reactive-full-stack-web">The wedge: reactive full-stack web</h2>
+<p>General-purpose across web + scripting + backend + mobile + game means we are no one's first choice for anything. Every language that won did it by taking <strong>one beachhead</strong> and expanding from strength (JS→browser, Ruby→Rails, Go→servers, Rust→systems).</p>
+<p><strong>Our beachhead is reactive full-stack web.</strong> The thing almost nobody has cleanly is a <strong>reactive cell that spans client and server</strong>: backend data changes → the dependency graph knows exactly what depends on it → the precise frontend region repaints. No manual invalidation, no refetch plumbing. That is "LukeLang understands change" as something React-plus-a-REST-API cannot do — and it is the combination (reactive-native + full-stack + one dependency graph) that no incumbent framework holds.</p>
+<p><strong>Game dev and mobile are parked</strong>, not cancelled — see <a href="#parked-tracks-earn-them-later">Parked tracks</a>.</p>
+<hr />
+<h2 id="the-renderer-decision-compile-to-dom-css-path-a">The renderer decision: compile to DOM + CSS (Path A)</h2>
+<p>There are exactly two coherent frontend strategies. The failure mode is doing neither and paying for both.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What it means</th>
+<th>Cost / benefit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A — Compile to DOM + CSS</strong> <em>(chosen)</em></td>
+<td>Let the browser lay out and paint. Argus stays a thin <strong>reactive patcher</strong> (dirty node → surgical DOM update); Hanka emits CSS flex/grid instead of computing absolute frames.</td>
+<td>Small surface. Plays directly to the reactive moat (Solid/Svelte model). a11y, text, scroll, i18n, SEO come from the browser for free.</td>
+</tr>
+<tr>
+<td><strong>B — Own the pixels (canvas/WebGL)</strong> <em>(parked)</em></td>
+<td>Render to a canvas, touch the DOM <strong>not at all</strong> (the Flutter model). Owning layout+paint is only coherent here.</td>
+<td>Flutter-sized effort. a11y/text/SEO from scratch. A real dream — but only earned later, and only in full form.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Today we were in the worst midpoint:</strong> using the DOM as a host <em>and</em> bypassing its layout/paint. That collects Path B's costs and Path A's constraints. We choose <strong>Path A</strong>: the reactive graph driving surgical DOM updates <em>is</em> the product. The "own the pixels" dream moves to a parked track (see below).</p>
+<hr />
+<h2 id="what-we-keep-unconditionally">What we keep, unconditionally</h2>
+<ul>
+<li>~~<strong>Conversational syntax.</strong> It is core identity and a felt differentiator. Keep it.~~
+  <strong>Superseded by Syntax v2.</strong> Reversed on the evidence that the conversational surface is the
+  most common objection from the backend audience we are publishing to, and that two of its
+  properties are outright defects rather than taste: <code>AND</code> means both text concatenation and
+  logical conjunction, and word-arithmetic (<code>ADD a AND b</code>) is strictly harder to read than
+  <code>a + b</code>. What survives is the <em>declarative</em> vocabulary, not the English prose: reactive
+  keywords stay first-class (<code>signal</code>, <code>derived</code>, <code>effect</code>, <code>watch</code>, <code>push watch</code>) because that
+  is the moat. See <a href="../syntax-v2-plan/"><code>SYNTAX_V2_PLAN.md</code></a>.</li>
+<li><strong>The reactive engine.</strong> Our deepest, most defensible asset. Continue investing — but only <em>after</em> it has a public proof point (see Phase 2).</li>
+<li><strong>Reactive keywords stay declarative.</strong> Under Syntax v2 they change spelling, not kind. They
+  must not degrade into ordinary function calls; the declarative surface <em>is</em> the differentiator.</li>
+</ul>
+<hr />
+<h2 id="decision-table">Decision table</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Issue</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Positioning (5 domains)</td>
+<td>Narrow to <strong>one wedge: reactive full-stack web</strong>. Game + mobile parked.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Conversational syntax</td>
+<td><strong>Reversed — replaced by technical syntax (Syntax v2).</strong> The stress test happened at ~5.4k lines of corpus; the ceiling it exposed was adoption, not scale. <a href="../syntax-v2-plan/"><code>SYNTAX_V2_PLAN.md</code></a></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Argus / Hanka renderer</td>
+<td><strong>Path A: compile to DOM + CSS.</strong> Argus = reactive patcher; Hanka emits flex/grid.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>"Own the pixels" dream</td>
+<td><strong>Parked (Track 5, Flutter-style canvas).</strong> Earned later, in full form only.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Frontend↔backend order</td>
+<td>Stay frontend-first, but <strong>spike a client↔server reactive cell now</strong> to validate the true signature.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>No proof point</td>
+<td><strong>Build ONE reference app + publish a benchmark baseline</strong> before any new engine phase.</td>
+</tr>
+</tbody>
+</table>
+<p><em>(Hygiene items — CI, stale-object removal, legacy JS-emitter removal, <code>system()</code> checks — are already complete on <code>main</code>; see <a href="../legacy/"><code>LEGACY.md</code></a> and <code>.github/workflows/ci.yml</code>.)</em></p>
+<hr />
+<h2 id="the-plan-in-build-order">The plan (in build order)</h2>
+<h3 id="phase-0-decide-clean-done">Phase 0 — Decide + clean <em>(done)</em></h3>
+<ul>
+<li>Identity locked (this document).</li>
+<li>Repo hygiene complete on <code>main</code>: CI runs the reactive conformance suite (<code>make test</code>); stale objects removed; legacy JS emitters removed; <code>system()</code> return values checked.</li>
+</ul>
+<h3 id="phase-1-de-risk-the-two-big-bets-done">Phase 1 — De-risk the two big bets <em>(done)</em></h3>
+<ul>
+<li><strong>Spike a client↔server reactive cell</strong> (#5): <strong>poll + push green</strong> — poll: <code>fullstack_cell_{server,client}.luke</code>; push: <code>SUBSCRIBE</code> + SSE (<code>subscribe_cell_{server,client}.luke</code>) — server change → cell write → BIND → <code>THE REGION PAINT COUNT == 1</code> with <strong>no fetch/timer/poll in user code</strong> (<code>make test</code>).</li>
+<li><strong>Spike Path A</strong> (#3): <strong>POC green</strong> — ROW/COLUMN emit CSS flex (<code>argus_flex</code> / <code>argus_flow_frame</code> / parent attach); <code>SIZE AUTO</code> → flex-grow on flow children; STACK/PLACE stay absolute; <code>reactive_greeting</code> still shows <code>region=1</code> on BIND. Full Hanka→CSS rewrite still open.</li>
+</ul>
+<h3 id="phase-2-the-proof-point-done-beachhead">Phase 2 — The proof point <em>(done — beachhead)</em></h3>
+<ul>
+<li><strong>Reference app (poll):</strong> <code>examples/build/dashboard_{server,client}.luke</code> — live metrics, Path A flex, <code>region=1</code> per tick.</li>
+<li><strong>Flagship (push + fluid):</strong> <code>examples/build/dashboard_push_{server,client}.luke</code> — SSE <code>SUBSCRIBE</code>, <code>SIZE AUTO</code> flex-grow, zero glue; <code>region=1</code> per push (<code>make test</code>).</li>
+<li><strong>Benchmark baseline:</strong> <code>examples/build/reactive_benchmark.luke</code> + <a href="../benchmarks/"><code>BENCHMARKS.md</code></a> — granular vs full rebuild at 1K / 10K with <strong>warmup + median/min</strong> samples; <code>make test</code> asserts.</li>
+<li><strong>Mount path:</strong> Argus id hash index (was O(N²)); arena grows by <strong>block chain</strong> (1 MiB start, no global 16 MiB bump); node ids owned/freed on CLEAR.</li>
+<li><strong>INTEGER:</strong> exact <code>int64_t</code> with checked overflow + documented conversion rules (<a href="../integer/"><code>INTEGER.md</code></a>).</li>
+<li><strong>SSE hardening:</strong> heartbeats (<code>httpSseComment</code>), SIGPIPE-safe sends, Node reconnect + idle timeout (browser EventSource still owns reconnect).</li>
+<li><strong>Concurrency ceiling:</strong> <code>httpServe</code> <strong>SO_REUSEPORT multi-loop</strong> epoll/kqueue I/O + per-loop handler pools (or <code>LUKE_HTTP_INLINE</code>), HTTP/1.1 keep-alive, idle timeouts, graceful <code>SIGTERM</code>, chunked streaming. TLS via reverse proxy (<a href="../deploy/"><code>DEPLOY.md</code></a>). See <a href="../build-mode/"><code>BUILD_MODE.md</code></a>.</li>
+<li><strong>Live Graph:</strong> <code>PRAGMA data_version</code> gate + trigger IVM cache + <strong>NEW/OLD differential triggers</strong> for <code>id = N</code> + <strong>keyed 2-table and N-table equi-JOIN chains</strong> + <strong>multi-row join bags</strong> + <strong>bag aggregates for equality and inequality/LIKE filters</strong> + <strong>causal event log</strong> with <code>Last-Event-ID</code> resume + <strong>client scrub UI</strong>. See <a href="../live-graph/"><code>LIVE_GRAPH.md</code></a>.</li>
+<li><strong>LSP beachhead:</strong> <code>luke LSP</code> — stdio JSON-RPC diagnostics via <code>analyzeLukeBuild</code>.</li>
+<li><strong>Backend framework beachhead:</strong> parameterized <code>dbExecBind</code> / <code>dbQueryBind</code>; <code>httpMatch</code> path params; <code>httpQueryMap</code> / <code>httpHeader</code> / <code>httpCookie</code> / <code>httpSetCookie</code>; <strong><code>std/auth</code></strong> (libsodium Argon2id, secure session + CSRF, <code>REQUIRE LOGIN</code>, <code>THE CURRENT USER</code>, <code>WATCH … FOR CURRENT USER</code>). See <a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a> + <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/TaskList.md"><code>TaskList.md</code></a>.</li>
+<li>Next ceilings: optional io_uring / declared-blocking offload; LEFT JOIN / non-equi shapes; server-seq DevTools scrub; Backend OAuth/TOTP <strong>interop wrappers</strong> (no invented providers).</li>
+</ul>
+<h3 id="phase-3-expand-from-strength">Phase 3 — Expand from strength</h3>
+<ul>
+<li>Grow the <strong>Live Graph</strong> one tier at a time (<a href="../live-graph/"><code>LIVE_GRAPH.md</code></a>): distributed time-travel / graph-parallelism as consequences — not separate products.</li>
+<li>Resume reactive engine phases (roadmap in <a href="../reactive-roadmap/"><code>REACTIVE_ROADMAP.md</code></a>).</li>
+<li>Formalize the <strong>syntax stress-test</strong> (#2): hand-write one genuinely complex screen; compare readability against JSX at that size.</li>
+<li>Grow the frontend track (<a href="../frontend-roadmap/"><code>FRONTEND_ROADMAP.md</code></a>); deepen <strong>Backend</strong> (<a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a>) for full-stack reactivity.</li>
+</ul>
+<hr />
+<h2 id="scorecard-vs-vision-do-not-dilute">Scorecard vs vision (do not dilute)</h2>
+<p>External “A+ language” checklists are useful <strong>evidence bars</strong>. They do <strong>not</strong> redefine Luke’s identity.</p>
+<table>
+<thead>
+<tr>
+<th>Scorecard item</th>
+<th>Changes the vision?</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lexer + AST (expr → then stmts)</td>
+<td><strong>No</strong> — removes a ceiling</td>
+<td>Foundation so Live Graph / reactive code can be written without parser traps</td>
+</tr>
+<tr>
+<td>True multi-join differential IVM</td>
+<td><strong>Shipped (Execution A+)</strong></td>
+<td>point chains + multi-row join bags + inequality bags</td>
+</tr>
+<tr>
+<td>Live Graph wire hardening</td>
+<td><strong>No</strong> — defends the claim</td>
+<td>Backpressure / heartbeat / SSE auth</td>
+</tr>
+<tr>
+<td>WASM in default CI</td>
+<td><strong>No</strong></td>
+<td>Evidence the browser target is real</td>
+</tr>
+<tr>
+<td>LSP / formatter / debugger</td>
+<td><strong>No</strong></td>
+<td>Adoption after AST exists</td>
+</tr>
+<tr>
+<td>Package registry + signing</td>
+<td><strong>No</strong> (later)</td>
+<td>Earn after one proven app</td>
+</tr>
+<tr>
+<td>One deployed Luke app</td>
+<td><strong>No</strong> — <em>is</em> the wall sentence</td>
+<td>Proof, not a new product idea</td>
+</tr>
+<tr>
+<td>Doc↔test honesty CI</td>
+<td><strong>No</strong></td>
+<td>Keeps claims credible</td>
+</tr>
+<tr>
+<td>Un-parking mobile / game</td>
+<td><strong>Would dilute</strong></td>
+<td>Stay parked</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Order that serves the wall sentence:</strong> (1) ~~expression AST / paren ceiling~~ → <strong>Program AST</strong> (<a href="../ast/"><code>AST.md</code></a>), (2) true differential Live Graph, (3) one deployed app, (4) tooling on the AST, (5) registry/site. Ambition stays on reactive full-stack — not a general-purpose scoreboard chase.</p>
+<p>Grades: <a href="../scorecard/"><code>SCORECARD.md</code></a>.</p>
+<hr />
+<h2 id="parked-tracks-earn-them-later">Parked tracks (earn them later)</h2>
+<p>These are <strong>not cancelled</strong> — they are sequenced after the beachhead is won, and are picked up from a position of strength (real users, a proven reactive core).</p>
+<table>
+<thead>
+<tr>
+<th>Track</th>
+<th>When</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Backend</strong></td>
+<td>Active beachhead</td>
+<td><a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a> — binds, match, session stub shipped; deepen next</td>
+</tr>
+<tr>
+<td><strong>Scripting</strong></td>
+<td>After backend</td>
+<td>Tooling DX, packages, automation.</td>
+</tr>
+<tr>
+<td><strong>Mobile</strong></td>
+<td>Post-beachhead</td>
+<td>Native shells / shared Luke UI.</td>
+</tr>
+<tr>
+<td><strong>Own-the-pixels renderer (canvas/WebGL)</strong></td>
+<td>Post-beachhead</td>
+<td>The Flutter-style dream. Only in <em>full</em> form — never the DOM-host midpoint.</td>
+</tr>
+<tr>
+<td><strong>Game</strong></td>
+<td>Post-beachhead</td>
+<td>Shares little code with reactive-DOM work; fights frame-budget/GPU constraints. Keep out of near-term PRs.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="the-wall-sentence">The wall sentence</h2>
+<blockquote>
+<p><strong>Win reactive full-stack first. Keep the syntax. Let the browser render. Prove it with one app. Earn the rest later.</strong></p>
+<p><strong>Live Graph war cry:</strong> never fetch, never invalidate, never subscribe, never diff — declare dependencies once, and change finds its own way from row to pixel.</p>
+</blockquote>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/STRATEGY.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

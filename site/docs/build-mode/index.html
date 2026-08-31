@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Build mode — LukeLang</title>
+<meta name="description" content="Play (luke SHOW) is a convenience: GC’d bytecode VM for demos and exploration. Build (luke BUILD) is the language of record: syntax v2 → native code, no GC, Rust-class lightness." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Build mode</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/" aria-current="page">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#commands">Commands</a></li>
+        <li><a href="#import-stdlib-packages">IMPORT + stdlib + packages</a></li>
+        <li><a href="#guarantees-build">Guarantees (Build)</a></li>
+        <li><a href="#types-luke-words">Types (Luke words)</a></li>
+        <li><a href="#memory-luke-words">Memory (Luke words)</a></li>
+        <li><a href="#blueprints">Blueprints</a></li>
+        <li><a href="#what-play-allows-that-build-may-reject">What Play allows that Build may reject</a></li>
+        <li><a href="#roadmap-toward-python-everywhere-rust-light">Roadmap toward “Python everywhere + Rust light”</a></li>
+        <li><a href="#philosophy">Philosophy</a></li>
+        <li><a href="#parser-ceiling-known-limit">Parser ceiling (known limit)</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Play</strong> (<code>luke SHOW</code>) is a convenience: GC’d bytecode VM for demos and exploration.<br />
+<strong>Build</strong> (<code>luke BUILD</code>) is the language of record: syntax v2 → <strong>native code</strong>, <strong>no GC</strong>, Rust-class lightness.</p>
+</blockquote>
+<p>This is Path A: Python-shaped versatility on the surface, Zig/Rust-shaped cost underneath.</p>
+<h2 id="commands">Commands</h2>
+<pre><code><span class="ln"><b class="sh">luke</b> SHOW  examples/build/hello.luke              <b class="cm"># prefers Build (native temp); --vm forces Play</b></span><span class="ln"><b class="sh">luke</b> BUILD examples/build/hello.luke              <b class="cm"># Build — native binary, no GC</b></span><span class="ln"><b class="sh">luke</b> BUILD examples/build/hello.luke -o hello</span><span class="ln"><b class="sh">luke</b> BUILD examples/build/hello_wasm.luke -target wasm -o hello.wasm</span><span class="ln"><b class="sh">luke</b> BUILD examples/build/hello_browser.luke -target browser -o hello_web</span><span class="ln"><b class="sh">luke</b> BUILD examples/build/functions.luke -target debug -o fn  <b class="cm"># -O0 -g for gdb</b></span><span class="ln"><b class="sh">luke</b> DEBUG examples/build/functions.luke --break 10           <b class="cm"># interactive gdb (.luke:line)</b></span><span class="ln"><b class="sh">luke</b> DEBUG examples/build/functions.luke --break 10 --batch    <b class="cm"># CI: break + next/step/finish</b></span><span class="ln"><b class="sh">luke</b> LSP                                          <b class="cm"># stdio LSP: hover/outline/FMT/refs/rename/…</b></span><span class="ln"><b class="cm"># run wasm (WASI): node scripts/run_wasi.cjs hello.wasm</b></span><span class="ln"><b class="cm"># run browser wasm headless: node scripts/luke_browser_loader.cjs hello_web.wasm</b></span><span class="ln"><b class="cm"># or open hello_web.html in a browser</b></span></code></pre>
+<p>Build emits C with <code>#line N "file.lk"</code> per statement, then compiles with the system C compiler
+(<code>cc -O2 -g</code> native, or <code>-O0 -g -fno-inline</code> for <code>-target debug</code> / <code>luke DEBUG</code>). WASI SDK for
+<code>-target wasm|browser</code>. Debugger skips <code>luke_rt.h</code> / stdlib headers so <strong>next</strong> = step over,
+<strong>step</strong> = step into Luke FUNCTION, <strong>finish</strong> = step out. <code>luke DEBUG --inspect</code> dumps reactive
+cell values and dependency edges (<code>luke_rx_inspect_cstr</code>). <code>luke DAP</code> is a stdio Debug Adapter
+Protocol server (gdb backend) for editors — Reactive scope shows named cells + deps.
+Browser also writes <code>*.html</code> + <code>luke_browser_loader.js</code> (copied beside the wasm) for <code>&lt;script&gt;</code> tags.</p>
+<h2 id="import-stdlib-packages">IMPORT + stdlib + packages</h2>
+<pre><code><span class="ln"><b class="kw">import</b> <b class="str">&quot;./critter.luke&quot;</b>          <b class="cm"># relative module</b></span><span class="ln"><b class="kw">import</b> std/files                 <b class="cm"># read/write TEXT files</b></span><span class="ln"><b class="kw">import</b> std/<b class="ty">json</b>                  <b class="cm"># JSON tree helpers</b></span><span class="ln"><b class="kw">import</b> std/http                  <b class="cm"># httpGet (native)</b></span><span class="ln"><b class="kw">import</b> luke/greeter              <b class="cm"># package from luke_modules/greeter</b></span></code></pre>
+<p><code>std/*</code> resolves from <code>vm/stdlib/</code>. Relative paths are next to the entry file.</p>
+<h3 id="packages-luke-name">Packages (<code>luke/&lt;name&gt;</code>)</h3>
+<p>Look up order:
+1. <code>luke_modules/</code> next to the source file
+2. <code>./luke_modules</code>, <code>LUKE_PACKAGES</code> (colon-separated roots)
+3. Package dir must contain <code>luke.pkg</code> (with <code>entry=…</code>), or <code>main.luke</code>, or <code>&lt;name&gt;.luke</code></p>
+<pre><code><span class="ln">luke_modules/greeter/luke.pkg    # entry=main.luke</span><span class="ln">luke_modules/greeter/main.luke</span></code></pre>
+<p><code>IMPORT package:greeter</code> is an alias for <code>IMPORT luke/greeter</code>.</p>
+<p>Foreign FFI imports (C/JS/Python bridges) are intentionally <strong>not</strong> magic <code>IMPORT numpy</code> — parked for later; C wrappers will come first.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Helpers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>std/files</code></td>
+<td><code>readFile</code>, <code>writeFile</code>, <code>fileExists</code></td>
+</tr>
+<tr>
+<td><code>std/json</code></td>
+<td><code>jsonParse</code>, <code>jsonGet</code>, <code>jsonIndex</code>, <code>jsonLen</code>, <code>jsonHas</code>, <code>jsonAsText</code> / <code>Number</code> / <code>Flag</code>, <code>jsonStringify</code>, <code>jsonString</code></td>
+</tr>
+<tr>
+<td><code>std/http</code></td>
+<td><code>httpGet</code> (native via curl; empty on WASI)</td>
+</tr>
+<tr>
+<td><code>std/server</code></td>
+<td><code>httpListen</code>, <code>httpAccept</code>, <code>httpReply</code>, <code>httpPath</code> / <code>Method</code> / <code>Query</code> / <code>Body</code>, <code>httpMatch</code>, <code>httpQueryMap</code>, <code>httpHeader</code> / <code>Cookie</code> / <code>SetCookie</code>, <code>httpJson</code>, SSE helpers</td>
+</tr>
+<tr>
+<td><code>std/sqlite</code></td>
+<td><code>dbOpen</code>/<code>dbClose</code> <strong>thread-local pool</strong>, stmt cache, WAL; <code>dbExecBind</code> / <code>dbQueryBind</code>; auto <code>-lsqlite3</code></td>
+</tr>
+<tr>
+<td><code>std/pg</code></td>
+<td><code>pgOpen</code>/<code>pgClose</code>/<code>pgCheckout</code>/<code>pgCheckin</code>, <code>pgQueryBind</code>/<code>pgExecBind</code>/<code>pgRowsBind</code> — <strong>Slipstream</strong> default (<code>LUKE_PG_ASYNC=0</code> → blocking); auto <code>-lpq</code></td>
+</tr>
+<tr>
+<td><code>std/auth</code></td>
+<td><code>authInit</code>, <code>authCreateAccount</code>, <code>authLogin</code> / <code>Logout</code>, <code>authRequire</code>, <code>authCsrf</code> / <code>authCheckCsrf</code> (links <code>-lsodium</code>; set <code>LUKE_AUTH_SECURE=1</code> behind HTTPS)</td>
+</tr>
+<tr>
+<td><code>std/args</code></td>
+<td><code>argCount</code>, <code>getArg</code></td>
+</tr>
+<tr>
+<td><code>std/env</code></td>
+<td><code>getEnv</code>, <code>setEnv</code></td>
+</tr>
+<tr>
+<td><code>std/paths</code></td>
+<td><code>cwd</code>, <code>pathJoin</code>, <code>pathBasename</code>, <code>pathDirname</code></td>
+</tr>
+<tr>
+<td><code>std/process</code></td>
+<td><code>shell</code>, <code>exitWith</code></td>
+</tr>
+<tr>
+<td><code>std/js</code></td>
+<td><code>jsSetText</code>, <code>jsSetHtml</code>, <code>jsGetValue</code>, <code>jsFetch</code>, <code>jsOnClick</code>, <code>jsLoadFont</code>, <code>jsAddStyle</code>, <code>jsSetTitle</code></td>
+</tr>
+<tr>
+<td><code>luke/…</code></td>
+<td>Your packages under <code>luke_modules/</code> (<code>luke PKG init &lt;name&gt;</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="browser-page-ownership-conversational">Browser page ownership (conversational)</h3>
+<pre><code><span class="ln">page.<b class="fn">title</b>(<b class="str">&quot;LukeLang&quot;</b>)</span><span class="ln">page.<b class="fn">font</b>(<b class="str">&quot;Syne&quot;</b>, <b class="str">&quot;./fonts/syne-700.woff2&quot;</b>   <b class="cm"># local pack → @font-face + copy)</b></span><span class="ln">page.<b class="fn">style</b>(<b class="str">&quot;&quot;</b><b class="str">&quot;</span><span class="ln">  body { font-family: Syne, sans-serif; }</span><span class="ln">&quot;</b><b class="str">&quot;&quot;</b>)</span><span class="ln"><b class="fn">fill</b>(<b class="str">&quot;root&quot;</b>, <b class="str">&quot;&quot;</b><b class="str">&quot;</span><span class="ln">  &lt;h1&gt;LukeLang&lt;/h1&gt;</span><span class="ln">  &lt;button id=&quot;</b>go<b class="str">&quot;&gt;Go&lt;/button&gt;</span><span class="ln">  &lt;p id=&quot;</b>out<b class="str">&quot;&gt;&lt;/p&gt;</span><span class="ln">&quot;</b><b class="str">&quot;&quot;</b>)</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;&quot;</b><b class="str">&quot;WHEN &quot;</b>go<b class="str">&quot; IS CLICKED DO</span><span class="ln">  FILL &quot;</b>out<b class="str">&quot; WITH &quot;</b>Still LukeLang.<b class="str">&quot;</span><span class="ln">END WHEN&quot;</b><b class="str">&quot;&quot;</b></span></code></pre>
+<p><code>-target browser</code> emits HTML with Luke title/CSS/body/fonts <strong>baked in</strong>, wasm beside it, and <strong>inlines</strong> <code>vm/runtime/luke_browser_boot.js</code> (runtime — not app JS). Dist has no <code>luke_browser_loader.js</code>.</p>
+<p>See <code>sample/landing.luke</code>.</p>
+<h3 id="collections-problems-conversational">Collections + problems (conversational)</h3>
+<pre><code><span class="ln"><b class="kw">var</b> nums: <b class="ty">list</b> = []</span><span class="ln">nums.<b class="fn">push</b>(<b class="str">&quot;one&quot;</b>)</span><span class="ln"><b class="fn">print</b>(nums[<b class="num">0</b>])</span><span class="ln"><b class="fn">print</b>(nums.<b class="fn">len</b>())</span><span class="ln"><b class="kw">var</b> bag: <b class="ty">map</b> = {}</span><span class="ln">bag[<b class="str">&quot;name&quot;</b>] = <b class="str">&quot;Luke&quot;</b></span><span class="ln"><b class="fn">print</b>(bag[<b class="str">&quot;name&quot;</b>])</span><span class="ln"><b class="kw">try</b> {</span><span class="ln">  <b class="kw">throw</b> <b class="str">&quot;could not finish&quot;</b></span><span class="ln">} <b class="kw">catch</b> (problem) {</span><span class="ln">  <b class="fn">print</b>(problem)</span><span class="ln">}</span></code></pre>
+<h3 id="test">TEST</h3>
+<pre><code><span class="ln">test <b class="str">&quot;math&quot;</b> {</span><span class="ln">  <b class="kw">assert</b> <b class="num">1</b> + <b class="num">1</b> == <b class="num">2</b></span><span class="ln">}</span></code></pre>
+<pre><code><span class="ln"><b class="sh">luke</b> TEST examples/build/collections_test.luke</span></code></pre>
+<h3 id="packages">Packages</h3>
+<pre><code><span class="ln"><b class="sh">luke</b> PKG init mylib</span><span class="ln"><b class="sh">luke</b> PKG install echo</span><span class="ln"><b class="sh">luke</b> PKG publish mylib</span><span class="ln"><b class="sh">luke</b> PKG lock          <b class="cm"># writes luke.lock</b></span></code></pre>
+<h3 id="arena-scopes">Arena scopes</h3>
+<pre><code><span class="ln"><b class="kw">raw</b> <b class="str">&quot;IN ARENA DO&quot;</b></span><span class="ln"><b class="kw">let</b> tmp: <b class="ty">str</b> = <b class="str">&quot;ephemeral&quot;</b></span><span class="ln"><b class="fn">print</b>(tmp)</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END ARENA&quot;</b></span></code></pre>
+<p>Bump pointer is restored at <code>END ARENA</code> — request/frame-scoped memory without GC.</p>
+<h2 id="guarantees-build">Guarantees (Build)</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>No GC</strong></td>
+<td>Memory comes from stack, statics, or a bump <strong>arena</strong> freed in bulk</td>
+</tr>
+<tr>
+<td><strong>Fixed layouts</strong></td>
+<td><code>BLUEPRINT</code> fields are a C struct — not open hash maps</td>
+</tr>
+<tr>
+<td><strong>Known types</strong></td>
+<td>Locals/fields are <code>NUMBER</code>, <code>FLAG</code>, <code>TEXT</code>, or a blueprint type</td>
+</tr>
+<tr>
+<td><strong>Native code</strong></td>
+<td>Ahead-of-time C → machine code (and later WASM)</td>
+</tr>
+<tr>
+<td><strong>Same voice</strong></td>
+<td><code>SPEAK</code>, <code>MY NAME IS</code>, <code>ASK</code>, <code>BLUEPRINT</code> still work</td>
+</tr>
+</tbody>
+</table>
+<h2 id="types-luke-words">Types (Luke words)</h2>
+<table>
+<thead>
+<tr>
+<th>Luke</th>
+<th>Build representation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NUMBER</code></td>
+<td><code>double</code></td>
+</tr>
+<tr>
+<td><code>INTEGER</code></td>
+<td><code>int64_t</code> (exact IDs / money cents / counters)</td>
+</tr>
+<tr>
+<td><code>FLAG</code></td>
+<td><code>int</code> (0/1)</td>
+</tr>
+<tr>
+<td><code>TEXT</code></td>
+<td><code>LukeText { ptr, len }</code> (arena or literal)</td>
+</tr>
+<tr>
+<td><code>JSON</code></td>
+<td><code>LukeJson *</code> (arena tree — parse / get / stringify)</td>
+</tr>
+<tr>
+<td><code>LIST</code></td>
+<td><code>LukeList *</code> (arena-backed text items)</td>
+</tr>
+<tr>
+<td><code>MAP</code></td>
+<td><code>LukeMap *</code> (arena-backed text keys/values)</td>
+</tr>
+<tr>
+<td><code>SERVER</code> / <code>REQUEST</code></td>
+<td>HTTP server / request handles</td>
+</tr>
+<tr>
+<td><code>DATABASE</code></td>
+<td>SQLite handle</td>
+</tr>
+<tr>
+<td><code>BLUEPRINT Foo</code></td>
+<td><code>typedef struct Foo { ... } Foo</code></td>
+</tr>
+</tbody>
+</table>
+<p>Inference (v0):
+- <code>42</code> → <code>INTEGER</code> (no <code>.</code> / exponent); <code>3.14</code> → <code>NUMBER</code>
+- <code>"hi"</code> / wordy strings → <code>TEXT</code>
+- <code>TRUE</code> / <code>FALSE</code> → <code>FLAG</code>
+- <code>ASK jsonParse WITH …</code> → <code>JSON</code>
+- <code>HAS name SET TO "..."</code> → field <code>TEXT</code>
+- <code>HAS count SET TO 0</code> → field <code>INTEGER</code>
+- <code>HAS x AS NUMBER</code> / <code>AS INTEGER</code> / <code>AS TEXT</code> / <code>AS FLAG</code> / <code>AS JSON</code> — explicit when needed
+- First assignment to a local fixes its type; later <code>SET</code> must match (<code>INTEGER</code> widens to <code>NUMBER</code>)
+- Function args/arity and <code>GIVE BACK</code> types are checked
+- Optional: <code>THIS IS FUNCTION f … GIVES BACK TEXT DO</code>
+- Concurrent HTTP: <code>ASK httpServe WITH server, handler, maxConn</code> (SO_REUSEPORT multi-loop + handler pools; links <code>-lpthread</code>)
+- Routing / request shape: <code>httpMatch</code>, <code>httpQueryMap</code>, <code>httpHeader</code> / <code>httpCookie</code> / <code>httpSetCookie</code>, <code>httpJson</code>
+- Parameterized SQL: <code>dbExecBind</code> / <code>dbQueryBind</code> (prefer over string-concat <code>dbExec</code> / <code>dbQuery</code>)
+- Auth: <code>IMPORT std/auth</code> — Argon2id passwords (libsodium), <code>REQUIRE LOGIN</code>, <code>THE CURRENT USER</code>, CSRF; see <a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a>
+- SSE: <code>httpSseOpen</code> / <code>httpSseData</code> / <code>httpSseId</code> / <code>httpSseComment</code>; <code>httpLastEventId</code> for resume
+- INTEGER rules: see <a href="../integer/"><code>INTEGER.md</code></a> — checked overflow, <code>DIVIDE</code>→<code>NUMBER</code>, widening vs truncating conversion
+- Backend track: <a href="../backend-roadmap/"><code>BACKEND_ROADMAP.md</code></a> · master checklist <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/TaskList.md"><code>TaskList.md</code></a></p>
+<h3 id="backend-concurrency-ceiling">Backend concurrency ceiling</h3>
+<p><code>httpServe</code> is <strong>N SO_REUSEPORT event loops</strong> (default: one per CPU) plus <strong>per-loop handler pools</strong>:</p>
+<ul>
+<li><strong>Event-loop I/O</strong> — <code>epoll</code> / <code>kqueue</code> / <code>poll</code>; non-blocking <code>accept4</code>, read, <code>writev</code>. Edge-triggered on Linux (<code>EPOLLET</code>). Idle / half-open clients do not occupy a thread.</li>
+<li><strong>Multi-core accept</strong> — each loop owns its listen socket with <code>SO_REUSEPORT</code> so the kernel load-balances connections (nginx / Go-netpoller model). <code>LUKE_HTTP_LOOPS</code> overrides the count.</li>
+<li><strong>Handler pool</strong> — workers run only after a complete request is buffered. Pools are <strong>per loop</strong> (no global enqueue mutex across cores). <code>LUKE_HTTP_INLINE=1</code> runs the handler on the loop thread (REST bench / run-to-completion).</li>
+<li><strong>Per-request cost</strong> — pooled arenas (<code>luke_arena_clear</code>, default first block 8 KiB), embedded <code>LukeHttpServeJob</code> on the connection, <code>TCP_NODELAY</code> on accept.</li>
+<li><strong>HTTP/1.1 keep-alive</strong> — default <code>LUKE_HTTP_KEEPALIVE_MAX=100000</code> (env <code>0</code> = unlimited).</li>
+<li><strong>Timeouts</strong> — idle <code>READ</code>/<code>WRITE</code> sweep (<code>LUKE_HTTP_TIMEOUT_MS</code>).</li>
+<li><strong>Graceful stop</strong> — <code>SIGTERM</code>/<code>SIGINT</code> stop accepts, close idle sockets, drain in-flight handlers.</li>
+<li><strong>Chunked / SSE</strong> — leave the loop; may block one worker for the stream lifetime.</li>
+<li><strong>Escape hatches</strong> — <code>LUKE_HTTP_IO=pool</code> (legacy blocking recv); see <a href="../deploy/"><code>DEPLOY.md</code></a>.</li>
+</ul>
+<p>Positive <code>maxConn</code> is a lifetime <strong>accept</strong> budget across all loops; <code>maxConn ≤ 0</code> accepts until signal/failure.</p>
+<h2 id="memory-luke-words">Memory (Luke words)</h2>
+<table>
+<thead>
+<tr>
+<th>Word</th>
+<th>Meaning in Build</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(default locals)</em></td>
+<td>Stack / registers</td>
+</tr>
+<tr>
+<td><code>NEW</code> instances</td>
+<td>Allocated in the <strong>thread arena</strong> (bump); live until arena reset/program end</td>
+</tr>
+<tr>
+<td><code>TEXT</code> concat / dynamic strings</td>
+<td>Arena-backed</td>
+</tr>
+<tr>
+<td><code>IN ARENA</code> … <code>END ARENA</code></td>
+<td>Checkpoint + reset bump pointer (scoped bulk free)</td>
+</tr>
+<tr>
+<td><code>DROP</code> <em>(roadmap)</em></td>
+<td>Early release of a single value</td>
+</tr>
+</tbody>
+</table>
+<p>There is <strong>no</strong> mark-sweep collector in Build binaries. Peak memory is predictable: stack + arena high-water mark.</p>
+<h2 id="blueprints">Blueprints</h2>
+<pre><code><span class="ln"><b class="kw">struct</b> Dog : Animal {</span><span class="ln">  sound = <b class="str">&quot;Woof!&quot;</b></span><span class="ln">  <b class="fn">init</b>(name) {</span><span class="ln">    <b class="kw">self</b>.name = name</span><span class="ln">  }</span><span class="ln">  <b class="kw">fn</b> <b class="fn">speak</b>() {</span><span class="ln">    <b class="fn">print</b>(<b class="kw">self</b>.name + <b class="str">&quot; says &quot;</b> + <b class="kw">self</b>.sound)</span><span class="ln">  }</span><span class="ln">}</span></code></pre>
+<p>Lowers to roughly:</p>
+<pre><code><span class="ln">typedef struct Dog {</span><span class="ln">  Animal base; /* or flattened parent fields */</span><span class="ln">  LukeText sound;</span><span class="ln">} Dog;</span><span class="ln"></span><span class="ln">void Dog_speak(Dog *self);</span><span class="ln">Dog *Dog_born(LukeArena *a, LukeText name);</span></code></pre>
+<ul>
+<li><code>ASK buddy TO speak</code> → <code>Dog_speak(buddy)</code> (static dispatch when type known)</li>
+<li><code>CALL PARENT speak</code> → <code>Animal_speak((Animal*)self)</code></li>
+<li><code>PRIVATE</code> fields → C name mangling; only methods of that blueprint may touch them</li>
+<li><code>ALWAYS HAS</code> → static/globals on the blueprint’s C file scope</li>
+</ul>
+<h2 id="what-play-allows-that-build-may-reject">What Play allows that Build may reject</h2>
+<ul>
+<li>Adding undeclared fields at runtime</li>
+<li>Truly dynamic <code>ASK</code> on unknown types (Build wants a known blueprint type)</li>
+<li>Unlimited runtime mutation of object shapes</li>
+<li>Relying on GC to clean cycles (Build uses arenas — don’t build immortal graphs by accident)</li>
+</ul>
+<p>Play remains for sketching. <strong>Shipping artifacts should <code>BUILD</code>.</strong></p>
+<h2 id="roadmap-toward-python-everywhere-rust-light">Roadmap toward “Python everywhere + Rust light”</h2>
+<ol>
+<li>~~Build → C + arena runtime~~</li>
+<li>~~Clearer Luke-voice Build errors; <code>AS TYPE</code> annotations~~</li>
+<li>~~Packages / relative <code>IMPORT</code> + <code>std/files</code> + <code>std/json</code>~~</li>
+<li>~~<code>luke BUILD -target wasm</code> (WASI)~~</li>
+<li>~~Richer typechecking; fuller JSON; thin HTTP GET~~</li>
+<li>~~Browser-oriented WASM packaging (<code>-target browser</code>)~~</li>
+<li>~~Package registry (<code>IMPORT luke/&lt;name&gt;</code> + <code>luke_modules/</code>)~~</li>
+<li>~~SHOW prefers Build; Play VM is the compatibility layer (<code>--vm</code>)~~</li>
+<li>~~Tooling stdlib (args/env/paths/process) + <code>luke PKG init</code>~~</li>
+<li>~~Browser JS bridge (<code>std/js</code>)~~</li>
+<li>~~<code>IN ARENA</code> / <code>END ARENA</code> scopes~~</li>
+<li>~~Remote package registry (<code>luke PKG install</code> + <code>registry/index.json</code>)~~</li>
+<li>~~Foreign imports (<code>IMPORT c:</code> + <code>FOREIGN FUNCTION</code>)~~</li>
+<li>~~Build IR shared frontend (expand/soften for Play; <code>luke IR</code> dump)~~</li>
+<li>~~LIST / MAP + ATTEMPT / OTHERWISE + <code>luke TEST</code>~~</li>
+<li>~~<code>std/server</code> + <code>std/sqlite</code> + browser fetch/click~~</li>
+<li>~~<code>luke PKG publish</code> + <code>luke.lock</code>~~</li>
+<li>~~<code>luke LSP</code> stdio diagnostics beachhead~~</li>
+<li>Richer remote registry (signed packages)</li>
+<li>Explicit Python bridges (beyond C FFI)</li>
+<li>Optional: emit Play bytecode opcodes directly from Build IR nodes</li>
+</ol>
+<h3 id="rendering-layout-engine-track">Rendering / layout (engine track)</h3>
+<ul>
+<li><strong>Argus (rendering):</strong> <a href="../argus/"><code>ARGUS.md</code></a> — scene paint → DOM presentment.</li>
+<li><strong>Hanka (layout):</strong> <a href="../hanka/"><code>HANKA.md</code></a> — <code>COLUMN</code> / <code>ROW</code> / <code>STACK</code> → frames → Argus.</li>
+<li><strong>Production web:</strong> <a href="../production-web/"><code>PRODUCTION_WEB.md</code></a> — inputs, routes, deploy checklist.</li>
+<li><strong>Reactive (Phases 1–8):</strong> <a href="../reactive/"><code>REACTIVE.md</code></a> — full reactive stack shipped.</li>
+</ul>
+<pre><code><span class="ln"><b class="kw">import</b> std/hanka</span><span class="ln"><b class="kw">import</b> std/argus</span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;BEGIN COLUMN AT 48, 420 SIZE 1184, 280 PAD 0 GAP 16&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;SLOT TEXT \&quot;</b>brand\<b class="str">&quot; SIZE 900, 80 SAY \&quot;</b>LukeLang\<b class="str">&quot;&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;END COLUMN&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;LAY OUT THE SCREEN&quot;</b></span><span class="ln"><b class="kw">raw</b> <b class="str">&quot;PAINT THE SCREEN&quot;</b></span></code></pre>
+<pre><code><span class="ln"><b class="sh">luke</b> BUILD examples/build/hanka_demo.luke -target browser -o build/hanka_demo</span></code></pre>
+<h2 id="philosophy">Philosophy</h2>
+<p>Conversational syntax is the <strong>UI</strong>.<br />
+Build-mode layouts, types, and arenas are the <strong>truth</strong>.<br />
+That split is how Luke can feel like Python and weigh like Rust.</p>
+<h2 id="parser-ceiling-known-limit">Parser ceiling (known limit)</h2>
+<p>Build codegen (<code>vm/src/build_c.cpp</code>) is <strong>line-based</strong>: one statement per line, <code>startsWithCI</code> / keyword scans, not a full lexer + AST.</p>
+<p>That is why today’s surface is productive and conversational — and also why multi-line expressions, richer nesting, and flexible punctuation will eventually need a real parse pipeline.</p>
+<table>
+<thead>
+<tr>
+<th>Today</th>
+<th>Ceiling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prefix/<code>findOutsideQuotes</code> stmt match</td>
+<td>Awkward multi-line constructs</td>
+</tr>
+<tr>
+<td>One line ≈ one stmt</td>
+<td>Soft line-wrap / continued statements</td>
+</tr>
+<tr>
+<td>Hand-rolled expression splits (<code>AND</code>, <code>ADD</code>, …)</td>
+<td>Precedence tables / proper AST</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Roadmap:</strong> expression parentheses + paren-aware op scan shipped (<code>stripOuterParens</code>, <code>luke_ast.hpp</code> IR stub). Next: tokenize → Pratt expr AST → lower into Build codegen; then statement AST so LSP/formatter share one tree. Do not reintroduce a parallel JS parser.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BUILD_MODE.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

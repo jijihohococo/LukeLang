@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Network &amp; database — LukeLang</title>
+<meta name="description" content="Status: shipped. Slipstream is the default. Blocking libpq TLS pool remains the escape hatch (LUKE_PG_ASYNC=0). Official numbers vs Go: BACKEND_BENCHMARKS.md — equal-budget Slipstr" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Network &amp; database</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/" aria-current="page">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#0-why-this-exists">0. Why this exists</a></li>
+        <li><a href="#1-shape-of-the-work-three-phases">1. Shape of the work (three phases)</a></li>
+        <li><a href="#2-phase-1-blocking-libpq-driver-capability">2. Phase 1 — Blocking libpq driver (capability)</a></li>
+        <li><a href="#3-slipstream-adaptive-sharded-pipelined-executor">3. Slipstream — adaptive sharded pipelined executor</a></li>
+        <li><a href="#4-phase-3-fully-async-handlers-optional-later">4. Phase 3 — Fully async handlers (optional, later)</a></li>
+        <li><a href="#5-benchmark-acceptance-how-we-prove-the-claim">5. Benchmark &amp;amp; acceptance (how we prove the claim)</a></li>
+        <li><a href="#6-honest-ceiling-state-this-alongside-any-result">6. Honest ceiling (state this alongside any result)</a></li>
+        <li><a href="#7-sequencing-summary">7. Sequencing summary</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p>Status: <strong>shipped. Slipstream is the default.</strong> Blocking libpq TLS pool remains the
+escape hatch (<code>LUKE_PG_ASYNC=0</code>). Official numbers vs Go: <a href="../backend-benchmarks/"><code>BACKEND_BENCHMARKS.md</code></a>
+— equal-budget Slipstream beats idiomatic pgx on localhost and ~2.6–3.3× under ~2 ms RTT.</p>
+<p>Knobs: <code>LUKE_PG_ASYNC=0</code> (blocking), <code>LUKE_PG_POOL=0</code>, <code>LUKE_PG_CONNS</code>, <code>LUKE_PG_SHARDS</code>,
+<code>LUKE_PG_PIPELINE_DEPTH</code>, <code>LUKE_PG_DRAFT_MIN</code>. Transaction pin: <code>pgCheckout</code> / <code>pgCheckin</code>.</p>
+</blockquote>
+<h2 id="0-why-this-exists">0. Why this exists</h2>
+<p>LukeLang's stdlib has only <code>sqlite.luke</code> — no networked database. The embedded-SQLite
+path is already 2–3× faster than Go (see benchmarks), but most production backends run
+on Postgres, and LukeLang cannot connect to one at all. This closes that gap, and does it
+on the axis where a client can actually beat another on a networked DB.</p>
+<p><strong>The performance thesis.</strong> On a networked DB every query is a round-trip; the RTT and the
+Postgres server's work are identical for LukeLang and Go, so per-query speed cannot win.
+The only axes a client controls are <strong>concurrency efficiency</strong> and <strong>pipelining</strong>. Postgres
+itself bounds useful connection counts (default <code>max_connections</code> ~100), so this is <em>not</em> a
+goroutine-scale concurrency race — it is a <em>use a bounded connection set efficiently</em> race.
+The winning move is <strong>cross-request pipelining</strong>: batch queries from many concurrent handlers
+onto a few connections and amortize the RTT. Idiomatic Go (<code>database/sql</code>) does <strong>not</strong>
+pipeline — one query per connection per round-trip. LukeLang, driving libpq's async +
+pipeline mode from the <code>SO_REUSEPORT</code> event loop that already beats Go's netpoller on HTTP,
+and paying neither a cgo boundary nor GC per query, can beat it. That is the whole plan.</p>
+<h2 id="1-shape-of-the-work-three-phases">1. Shape of the work (three phases)</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Deliverable</th>
+<th>Beats Go?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Blocking libpq driver — capability</td>
+<td>No — parity at best; capped by handler-thread count</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Shared <strong>async pipelined executor</strong> — the win</td>
+<td><strong>Yes</strong> vs <code>database/sql</code>; competitive vs pgx-pipeline</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Fully async handlers (continuations) — optional</td>
+<td>Removes the handler-thread ceiling; out of scope here</td>
+</tr>
+</tbody>
+</table>
+<p>Ship Phase 1 first for correctness and capability, then layer Phase 2 underneath it without
+changing the language surface.</p>
+<hr />
+<h2 id="2-phase-1-blocking-libpq-driver-capability">2. Phase 1 — Blocking libpq driver (capability)</h2>
+<p>Mirror the SQLite driver exactly, one layer up. Nothing here is novel; it is the same pattern
+already proven in <code>vm/runtime/luke_db.h</code> + <code>vm/stdlib/sqlite.luke</code>.</p>
+<h3 id="2-1-files">2.1 Files</h3>
+<ul>
+<li><strong><code>vm/runtime/luke_pg.h</code></strong> — C wrapper over libpq, analogous to <code>luke_db.h</code>.</li>
+<li><strong><code>vm/stdlib/pg.luke</code></strong> — Luke-facing API, analogous to <code>sqlite.luke</code>.</li>
+<li><strong><code>vm/src/build_c.cpp</code></strong> — map <code>__luke_pg_*</code> native helpers (near the other native-call
+  mappings), and add <code>"pq"</code> to <code>r.linkLibs</code> when <code>std/pg</code> is imported — the exact spot where
+  <code>sqlite3</code> is pushed today is <code>build_c.cpp:7730</code>. Copy that block.</li>
+</ul>
+<h3 id="2-2-api-surface-pg-luke">2.2 API surface (<code>pg.luke</code>)</h3>
+<p>Keep it identical in spirit to <code>sqlite.luke</code> so it is familiar and injection-safe:
+- <code>pgOpen WITH connstr</code> → connection handle. <code>connstr</code> is a standard libpq conninfo /
+  URI (<code>postgres://user:pass@host:5432/db?sslmode=require</code>). libpq owns auth (SCRAM),
+  TLS, and networking.
+- <code>pgExecBind WITH conn, sql, params</code> → rows affected. Parameterized via <code>PQexecParams</code>
+  (<code>$1,$2,…</code>), <strong>never</strong> string interpolation — same guarantee as <code>dbExecBind</code>.
+- <code>pgQueryBind WITH conn, sql, params</code> → first column of first row (scalar), mirroring
+  <code>dbQueryBind</code>.
+- <code>pgRowsBind WITH conn, sql, params</code> → a rowset accessor (follow whatever <code>sqlite.luke</code>
+  exposes for multi-row reads; match it).
+- <code>pgClose WITH conn</code>.</p>
+<h3 id="2-3-runtime-luke-pg-h-reuse-every-db-lesson-already-landed">2.3 Runtime (<code>luke_pg.h</code>) — reuse every DB lesson already landed</h3>
+<ul>
+<li><strong>Thread-local connection pool.</strong> Same design as <code>luke_db.h</code>'s <code>__thread</code> pool
+  (<code>luke_db.h:146</code>): one <code>PGconn*</code> per worker thread per conninfo, opened once, reused;
+  <code>pgClose</code> is a refcount/no-op, real <code>PQfinish</code> only on thread teardown. <code>LUKE_PG_POOL=0</code>
+  disables, matching <code>LUKE_DB_POOL</code>.</li>
+<li><strong>Prepared-statement cache.</strong> Per connection, keyed by SQL string, using <code>PQprepare</code> +
+  <code>PQexecPrepared</code> — the analogue of the SQLite stmt cache (<code>luke_db.h:191</code>). This is a big
+  win on Postgres because it skips server-side re-planning.</li>
+<li><strong>Parameterized only.</strong> Bind Luke values as libpq params (text or binary format);
+  injection-safe by construction.</li>
+<li><strong>Error path.</strong> <code>PQresultStatus</code> / <code>PQerrorMessage</code> → the same failure surface SQLite
+  errors take today.</li>
+</ul>
+<h3 id="2-4-phase-1-acceptance">2.4 Phase-1 acceptance</h3>
+<ul>
+<li>A <code>pg_api.luke</code> example: <code>GET /user/:id</code> → <code>pgQueryBind SELECT name … WHERE id = $1</code>
+  → JSON reply, structurally identical to the SQLite <code>backend_api.luke</code>.</li>
+<li>Correctness under concurrency: N concurrent distinct-id lookups each return their own
+  row, 0 mismatches (the same adversarial check used for the SQLite pool).</li>
+<li>CI can run against a Postgres in a container/service; gate on the correctness probe.</li>
+</ul>
+<p>Phase 1 gives LukeLang a real Postgres backend. It will land near parity with Go, not ahead —
+blocking <code>PQexec</code> on the handler pool caps in-flight queries at the handler-thread count.</p>
+<hr />
+<h2 id="3-slipstream-adaptive-sharded-pipelined-executor">3. Slipstream — adaptive sharded pipelined executor</h2>
+<p>Phase 1's ceiling is that a handler thread blocks for a whole round-trip, so concurrency =
+handler-pool size and every query pays a full RTT. Slipstream keeps the <strong>handler API
+synchronous</strong> (no language change) but replaces per-thread blocking connections with a
+sharded async executor underneath — and only pays pipeline coordination when there is a
+batch waiting.</p>
+<h3 id="3-1-design-fixes-the-three-phase-2-defects">3.1 Design (fixes the three Phase-2 defects)</h3>
+<p>Earlier Phase-2 used one dispatch thread, one global submit mutex, and unconditional
+pipelining — and lost to blocking on localhost. Slipstream:</p>
+<ol>
+<li><strong>Shard across cores.</strong> <code>S = LUKE_PG_SHARDS</code> (default <code>sysconf(_SC_NPROCESSORS_ONLN)</code>),
+   each shard owns its epoll thread, <code>LUKE_PG_CONNS/S</code> connections, and submit queue.
+   Handlers pick <code>worker_thread_index % S</code> (stable TLS index).</li>
+<li><strong>Per-shard submit.</strong> No global <code>qmu</code>. Per-shard mutex (v1; MPSC later). Wake the
+   shard's eventfd only on a 0→non-empty edge.</li>
+<li><strong>Opportunistic drafting.</strong> Drain the shard queue; for each idle connection take up to
+   <code>PIPELINE_DEPTH</code> waiters. If <code>count &lt; DRAFT_MIN</code> (default 2): <code>PQsendQueryPrepared</code> with
+   <strong>no</strong> pipeline mode. Else: <code>PQenterPipelineMode</code> → send × count → <code>PQpipelineSync</code>.
+   Queue depth is the batch size — self-tuning, no flag for "use pipeline".</li>
+</ol>
+<pre><code><span class="ln">handler threads                     Slipstream shards (S)              Postgres</span><span class="ln">  (HTTP pool)                    (own epoll, conns/S each)</span><span class="ln">      │  submit → shard queue ───────► per-shard MPSC/mutex</span><span class="ln">      │  block on own condvar           │ opportunistic draft</span><span class="ln">      │                                 ├─ count &lt; DRAFT_MIN: send alone</span><span class="ln">      │                                 └─ else: pipeline × k + sync ──► ~1 RTT for k</span><span class="ln">      │  ◄── signal(result) ────────────┤ drain all ready in one wakeup</span><span class="ln">  finish response</span></code></pre>
+<h3 id="3-2-why-this-beats-idiomatic-go-under-latency">3.2 Why this beats idiomatic Go (under latency)</h3>
+<ul>
+<li><code>database/sql</code> issues <strong>one query per connection per round-trip</strong> — no pipelining.</li>
+<li>Slipstream's ceiling is <code>(M connections × pipeline_depth) / RTT</code> when the queue is deep;
+  on localhost / shallow queues it takes the count==1 path and tracks blocking.</li>
+<li>Against <strong>pgx with pipelining</strong> the fight is closer and decided by client overhead.</li>
+</ul>
+<h3 id="3-3-correctness-requirements-ci-gated">3.3 Correctness requirements (CI-gated)</h3>
+<ul>
+<li><strong>Pipeline FIFO matching.</strong> Dequeue waiters in exact send order per connection. Distinct-id
+  probe at conc 50/200/300 under <code>LUKE_PG_ASYNC=1</code>.</li>
+<li><strong>Error isolation.</strong> Fail the errored waiter; <code>PGRES_PIPELINE_ABORTED</code> neighbors are
+  requeued after sync so they stay alive.</li>
+<li><strong>Reconnect.</strong> On <code>CONNECTION_BAD</code>, fail in-flight waiters and re-establish — never leak.</li>
+<li><strong>Transactions.</strong> <code>pgCheckout</code> / <code>pgCheckin</code> pin a dedicated <code>PGconn</code> — never drafted.</li>
+</ul>
+<hr />
+<h2 id="4-phase-3-fully-async-handlers-optional-later">4. Phase 3 — Fully async handlers (optional, later)</h2>
+<p>Phase 2 still blocks a handler thread per in-flight request, so HTTP concurrency is bounded by
+the handler pool. Removing that entirely means handlers must <strong>suspend</strong> at a DB call and
+resume on completion — i.e. stackful coroutines or a compiler-driven continuation transform.
+That is a language-runtime change (effectively async/await) and is out of scope here. Note it
+as the theoretical ceiling; Phase 2 already beats idiomatic Go without it, because Postgres's
+own connection limit means goroutine-scale request concurrency is not the bottleneck.</p>
+<hr />
+<h2 id="5-benchmark-acceptance-how-we-prove-the-claim">5. Benchmark &amp; acceptance (how we prove the claim)</h2>
+<p>Reuse the existing Go-vs-Luke harness, pointed at a real Postgres:
+- <strong>Servers:</strong> Luke <code>pg_api</code> (Slipstream) vs Go <code>net/http</code> + <code>database/sql</code>/pgx, same schema,
+  same parameterized <code>SELECT … WHERE id = $1</code>, same JSON shape.
+- <strong>Baselines:</strong> Go <code>database/sql</code> (idiomatic) <strong>and</strong> pgx-with-pipeline (Go's best) — beat
+  the first, be competitive with the second.
+- <strong>Load:</strong> the random-id generator already built, at concurrency 50 / 200 / 500.
+- <strong>Localhost gate:</strong> Slipstream ≥ blocking at equal connection budget (passed).
+- <strong>Latency gate:</strong> ~2 ms RTT (TCP delay proxy / <code>tc … netem</code>) — Slipstream 2.6–3.3× blocking
+  and idiomatic pgx at equal 16-conn budget (passed; see <code>BACKEND_BENCHMARKS.md</code> §7).
+- <strong>Correctness gate:</strong> concurrent distinct-id probe, 0 mismatches, under Slipstream at every
+  concurrency level CI runs.
+- <strong>Default:</strong> Slipstream. Re-confirm on real hardware RTT before treating latency multiples as final.</p>
+<h2 id="6-honest-ceiling-state-this-alongside-any-result">6. Honest ceiling (state this alongside any result)</h2>
+<p>Even done perfectly, the networked-DB win is <strong>narrower than the embedded-SQLite win</strong> and
+appears <strong>only where the client is the bottleneck</strong> — high concurrency and/or pipelined
+batches. A low-concurrency, one-query-per-request app is RTT-bound and ties Go; nobody beats
+the network. And against a networked Postgres, the DB server and the wire are shared floors.
+The value of Phase 1 is <strong>capability</strong> (LukeLang can run the stack real apps use); the value of
+Phase 2 is a <strong>genuine but bounded</strong> throughput edge over idiomatic Go on concurrent workloads.</p>
+<h2 id="7-sequencing-summary">7. Sequencing summary</h2>
+<ol>
+<li><strong>Phase 1</strong> — libpq blocking driver (<code>luke_pg.h</code> + <code>pg.luke</code> + <code>linkLibs "pq"</code> at
+   <code>build_c.cpp:7730</code>), thread-local pool + prepared-stmt cache. Capability + correctness.</li>
+<li><strong>Phase 2</strong> — shared async pipelined executor on its own epoll thread(s), modeled on
+   <code>luke_http__loop_thread</code>, using libpq async + <code>PQenterPipelineMode</code>; synchronous handler
+   API unchanged. This is the part that beats Go.</li>
+<li><strong>Benchmark</strong> against Go <code>database/sql</code> and pgx with a real Postgres; gate on the
+   correctness probes before trusting any throughput number.</li>
+</ol>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/NETWORK_DB_ROADMAP.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Getting started — LukeLang</title>
+<meta name="description" content="LukeLang is Build-first: technical syntax (.lk) → native / WASM via vm/. Conversational .luke still works during the dual-syntax window." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>Getting started</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/" aria-current="page">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#what-lukelang-needs-on-your-machine-and-why">What LukeLang needs on your machine (and why)</a></li>
+        <li><a href="#your-first-program">Your first program</a></li>
+        <li><a href="#run-it">Run it</a></li>
+        <li><a href="#next">Next</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<p>LukeLang is <strong>Build-first</strong>: technical syntax (<code>.lk</code>) → native / WASM via <code>vm/</code>.
+Conversational <code>.luke</code> still works during the dual-syntax window.</p>
+<h2 id="install">Install</h2>
+<ol>
+<li>Clone the repo and enter it:</li>
+</ol>
+<pre><code><span class="ln">   <b class="sh">git</b> clone https://github.com/lucasdmarshall/LukeLang.git</span><span class="ln">   <b class="sh">cd</b> LukeLang</span></code></pre>
+<ol start="2">
+<li>Build the Luke toolchain (needs a C++17 compiler + <code>make</code>):</li>
+</ol>
+<pre><code><span class="ln">   <b class="sh">cd</b> vm &amp;&amp; make</span></code></pre>
+<ol start="3">
+<li>Optional: for <code>-target wasm|browser</code>, install <a href="https://github.com/WebAssembly/wasi-sdk">WASI SDK</a> under <code>.tools/wasi-sdk</code> (or set <code>LUKE_WASI_SDK</code>).</li>
+</ol>
+<p>Node is only required for headless browser/WASI smoke tests (<code>scripts/*.cjs</code>), not for native <code>BUILD</code>.</p>
+<h2 id="what-lukelang-needs-on-your-machine-and-why">What LukeLang needs on your machine (and why)</h2>
+<p>LukeLang is a compiler/runtime toolchain, so requirements are split by target:</p>
+<ul>
+<li><strong>Required (native backend apps):</strong></li>
+<li>C/C++ toolchain (<code>g++</code>, <code>cc</code>) + <code>make</code></li>
+<li>Why: <code>vm/build/luke</code> is built from C++, then <code>luke BUILD</code> emits C and calls the system C compiler.</li>
+<li><strong>Required for CI debugger tests / debug workflows:</strong></li>
+<li><code>gdb</code></li>
+<li>Why: <code>luke DEBUG</code>, <code>luke DAP</code>, and debug smoke tests rely on gdb.</li>
+<li><strong>Optional (WASM/browser targets):</strong></li>
+<li>WASI SDK (<code>clang</code>)</li>
+<li>Why: <code>-target wasm|browser</code> compiles generated C to wasm.</li>
+<li><strong>Optional (headless smoke scripts):</strong></li>
+<li>Node.js</li>
+<li>Why: helper scripts run wasm/browser artifacts in CI-like checks.</li>
+</ul>
+<p>So unlike Python/Node/Java where you install one runtime first, LukeLang's primary path is:
+<strong>install build tools -&gt; build <code>luke</code> -&gt; compile your <code>.lk</code> app to a native binary</strong>.</p>
+<h2 id="your-first-program">Your first program</h2>
+<p>Create <code>hello.luke</code>:</p>
+<pre><code><span class="ln"><b class="fn">print</b>(<b class="str">&quot;Hello, World!&quot;</b>)</span></code></pre>
+<h2 id="run-it">Run it</h2>
+<p>From <code>vm/</code>:</p>
+<pre><code><span class="ln"><b class="sh">./build/luke</b> BUILD ../path/to/hello.luke -o hello &amp;&amp; ./hello</span><span class="ln"><b class="cm"># or:</b></span><span class="ln"><b class="sh">./build/luke</b> SHOW ../path/to/hello.luke</span></code></pre>
+<p>You should see:</p>
+<pre><code><span class="ln">Hello, World!</span></code></pre>
+<p>Browser ship:</p>
+<pre><code><span class="ln"><b class="sh">./build/luke</b> PUBLISH WEB ../examples/build/frontend_widgets.luke -o /tmp/luke_web</span></code></pre>
+<h2 id="next">Next</h2>
+<ul>
+<li>Language of record: <a href="../build-mode/"><code>BUILD_MODE.md</code></a></li>
+<li>Frontend stack: <a href="../frontend-roadmap/"><code>FRONTEND_ROADMAP.md</code></a></li>
+<li>Reactive: <a href="../reactive/"><code>REACTIVE.md</code></a></li>
+<li>Syntax v2: <a href="../syntax-v2-spec/"><code>SYNTAX_V2_SPEC.md</code></a></li>
+<li>History of removed JS emitters: <a href="../legacy/"><code>LEGACY.md</code></a></li>
+</ul>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/getting_started.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

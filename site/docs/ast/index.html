@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AST — LukeLang</title>
+<meta name="description" content="Status: production pipeline — every luke BUILD / IR / FMT / LSP path goes through parseLuke Files: vm/include/luke_ast.hpp, vm/src/luke_expr.cpp, vm/src/luke_parse.cpp" />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="../../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../../">
+    <img src="../../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../../learn/">Learn</a>
+    <a href="../../docs/" aria-current="page">Docs</a>
+    <a href="../../download/">Download</a>
+    <a href="../../examples/">Examples</a>
+    <a href="../../community/">Community</a>
+    <a href="../../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead masthead--doc">
+    <p class="masthead__kicker"><a href="../">Documentation</a></p>
+    <h1>AST</h1>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Documentation</h2>
+      <ul><li><a href="../">All documents</a></li></ul>
+      <h2>Start here</h2>
+      <ul>
+        <li><a href="../getting-started/">Getting started</a></li>
+        <li><a href="../build-mode/">Build mode</a></li>
+        <li><a href="../syntax-v2-spec/">Syntax v2 specification</a></li>
+        <li><a href="../strategy/">Strategy</a></li>
+      </ul>
+      <h2>The language</h2>
+      <ul>
+        <li><a href="../language-reference/">Language reference</a></li>
+        <li><a href="../standard-library/">Standard library</a></li>
+        <li><a href="../integer/">Integer semantics</a></li>
+        <li><a href="../ast/" aria-current="page">AST</a></li>
+        <li><a href="../syntax-v2-plan/">Syntax v2 plan</a></li>
+        <li><a href="../advanced-topics/">Advanced topics</a></li>
+      </ul>
+      <h2>Reactive engine</h2>
+      <ul>
+        <li><a href="../reactive/">Reactive</a></li>
+        <li><a href="../reactive-spec/">Reactive specification</a></li>
+        <li><a href="../reactive-roadmap/">Reactive roadmap</a></li>
+      </ul>
+      <h2>Live Graph</h2>
+      <ul>
+        <li><a href="../live-graph/">Live Graph</a></li>
+        <li><a href="../deploy/">Deploy</a></li>
+      </ul>
+      <h2>Backend</h2>
+      <ul>
+        <li><a href="../backend-roadmap/">Backend roadmap</a></li>
+        <li><a href="../auth/">Auth</a></li>
+        <li><a href="../network-db-roadmap/">Network &amp; database</a></li>
+        <li><a href="../backend-benchmarks/">Backend benchmarks</a></li>
+        <li><a href="../backend-publish/">Publishing a backend</a></li>
+      </ul>
+      <h2>Frontend</h2>
+      <ul>
+        <li><a href="../frontend-roadmap/">Frontend roadmap</a></li>
+        <li><a href="../argus/">Argus</a></li>
+        <li><a href="../hanka/">Hanka</a></li>
+        <li><a href="../layout-engine/">Layout engine</a></li>
+        <li><a href="../rendering-engine/">Rendering engine</a></li>
+        <li><a href="../production-web/">Production web</a></li>
+      </ul>
+      <h2>Tooling &amp; compiler</h2>
+      <ul>
+        <li><a href="../editor-tooling/">Editor tooling</a></li>
+        <li><a href="../contributor-guide/">Contributor guide</a></li>
+        <li><a href="../benchmarks/">Benchmarks</a></li>
+        <li><a href="../scorecard/">Scorecard</a></li>
+        <li><a href="../legacy/">Legacy</a></li>
+      </ul>
+      <h2>Papers</h2>
+      <ul>
+        <li><a href="../01-reactive-engine/">The LukeLang Reactive Engine</a></li>
+        <li><a href="../02-frontend-argus-hanka/">The LukeLang Frontend Engines: Argus and Hanka</a></li>
+        <li><a href="../03-live-graph/">The LukeLang Live Graph</a></li>
+        <li><a href="../04-auth/">LukeLang Authentication: Secure by Compiler</a></li>
+        <li><a href="../05-middleware/">The LukeLang Request Pipeline: Middleware as Compiler Checked Capabilities</a></li>
+        <li><a href="../06-oauth/">OAuth and Authentication Flows as Compiler Verified State Machines</a></li>
+        <li><a href="../07-execution/">LukeLang Execution: The Build Pipeline and the Differential Ledger</a></li>
+        <li><a href="../08-architecture/">LukeLang Architecture: One Front End, Many Backends</a></li>
+        <li><a href="../09-core-engines/">LukeLang Core Engines: The Substrate and How the Engines Compose</a></li>
+      </ul>
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#tooling-on-the-same-ir">Tooling on the same IR</a></li>
+        <li><a href="#evidence">Evidence</a></li>
+      </ul>
+    </aside>
+
+    <article class="prose prose--doc">
+<blockquote>
+<p><strong>Status:</strong> production pipeline — every <code>luke BUILD</code> / <code>IR</code> / <code>FMT</code> / <code>LSP</code> path goes through <code>parseLuke</code><br />
+<strong>Files:</strong> <code>vm/include/luke_ast.hpp</code>, <code>vm/src/luke_expr.cpp</code>, <code>vm/src/luke_parse.cpp</code></p>
+</blockquote>
+<h2 id="pipeline">Pipeline</h2>
+<pre><code><span class="ln">source  →  IMPORT expand  →  parseLuke → Program (Stmt + Expr AST)</span><span class="ln">                                      ↓</span><span class="ln">                               flattenProgram</span><span class="ln">                                      ↓</span><span class="ln">                               BC lower / emit → C</span></code></pre>
+<p>Expressions use Pratt (<code>tokenizeExpr</code> → <code>parseExprAst</code> → <code>lowerExprAst</code>).
+Statements are first-class <code>Stmt</code> nodes (<code>Speak</code>, <code>Let</code>, <code>If</code>, <code>While</code>, <code>Function</code>,
+<code>WhenReactive</code>, …). Forms not yet specialized remain <code>StmtKind::Raw</code> but are still
+nodes in the Program — there is no parallel line-only IR for tooling.</p>
+<h2 id="tooling-on-the-same-ir">Tooling on the same IR</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Use of AST</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>luke IR</code></td>
+<td>dumps <code>luke-ast-program</code> + stmt kinds</td>
+</tr>
+<tr>
+<td><code>luke FMT</code> / <code>FMT -e</code></td>
+<td><code>formatProgram</code> / <code>formatExpr</code> — preserves casing; CI proves <code>BUILD(FMT(x))≡BUILD(x)</code> for every <code>examples/build</code> file (<code>scripts/fmt_roundtrip_all.sh</code>)</td>
+</tr>
+<tr>
+<td><code>luke LSP</code></td>
+<td>symbols from Stmt walk; rich hover; outline/refs/rename/signatureHelp/FMT/semantic tokens/code actions; context completion; didChange re-diagnose</td>
+</tr>
+</tbody>
+</table>
+<h2 id="evidence">Evidence</h2>
+<pre><code><span class="ln"><b class="sh">luke</b> IR examples/build/hello.luke          <b class="cm"># --- ast --- Speak/Let …</b></span><span class="ln"><b class="sh">luke</b> BUILD examples/build/ast_roundtrip.luke</span><span class="ln"><b class="sh">luke</b> FMT examples/build/expr_pratt.luke</span></code></pre>
+<p>See <a href="../strategy/"><code>STRATEGY.md</code></a> scorecard — Architecture rides this foundation.</p>
+      <div class="next">
+        <a href="../">← All documents</a>
+        <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/AST.md">Edit this page on GitHub →</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../../learn/">Learn</a>
+      <a href="../../docs/">Docs</a>
+      <a href="../../download/">Download</a>
+      <a href="../../examples/">Examples</a>
+      <a href="../../community/">Community</a>
+      <a href="../../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../../main.js"></script>
+</body>
+</html>

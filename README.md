@@ -91,7 +91,7 @@ cd LukeLang/vm && make
 | --- | --- | --- |
 | **Build** | `luke BUILD file.lk` | Native / WASM / browser — **no GC**, arena memory |
 | **Show** | `luke SHOW file.lk` | Build when possible; Play VM fallback |
-| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer; conversational `.luke`) |
+| **Play VM** | `luke SHOW file.luke --vm` | Bytecode VM + GC (compatibility layer) |
 | **Migrate** | `luke MIGRATE file.luke -o out.lk` | Conversational → syntax v2 |
 
 Need WASI / browser targets? Install [WASI SDK](https://github.com/WebAssembly/wasi-sdk) under `.tools/wasi-sdk` (or set `LUKE_WASI_SDK`).
@@ -117,7 +117,7 @@ Examples live in `examples/build/`. Play-only demos in `examples/native/` (use `
 
 ## Design principles
 
-1. **Be different where the user stands** — conversational syntax and reactive model, not exotic plumbing.
+1. **Be different where the user stands** — the reactive model and the Live Graph, not exotic plumbing or an unfamiliar syntax.
 2. **Build is the language of record** — layouts, types, arenas. Play VM is the skateboard.
 3. **The browser is the renderer** — Path A: compile to DOM + CSS; Argus patches surgically.
 4. **One beachhead** — win reactive full-stack web first. Mobile, game, and canvas tracks are parked until earned.

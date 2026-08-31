@@ -1,105 +1,294 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LukeLang</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --ink: #f3faf6;
-      --muted: #a7c4b4;
-      --line: rgba(243, 250, 246, 0.14);
-      --accent: #6fd3a0;
-      --bg0: #08110e;
-      --bg1: #143226;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; }
-    body {
-      color: var(--ink);
-      font-family: "Source Serif 4", Georgia, serif;
-      background:
-        radial-gradient(900px 520px at 12% -10%, #1c4a36 0%, transparent 60%),
-        radial-gradient(700px 480px at 100% 0%, #0f2a22 0%, transparent 50%),
-        linear-gradient(165deg, var(--bg1), var(--bg0) 55%);
-    }
-    .hero {
-      min-height: 100vh;
-      display: grid;
-      align-content: center;
-      padding: clamp(2rem, 6vw, 5rem);
-      gap: 1.1rem;
-      max-width: 52rem;
-    }
-    .brand {
-      font-family: Syne, sans-serif;
-      font-weight: 700;
-      font-size: clamp(3.4rem, 11vw, 6.4rem);
-      letter-spacing: -0.04em;
-      line-height: 0.95;
-      margin: 0;
-      animation: rise 700ms ease-out both;
-    }
-    h1 {
-      font-family: Syne, sans-serif;
-      font-weight: 600;
-      font-size: clamp(1.35rem, 3.2vw, 2rem);
-      margin: 0;
-      max-width: 18ch;
-      animation: rise 800ms 80ms ease-out both;
-    }
-    p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 1.12rem;
-      max-width: 36rem;
-      animation: rise 900ms 140ms ease-out both;
-    }
-    .cta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.85rem;
-      margin-top: 0.6rem;
-      animation: rise 950ms 200ms ease-out both;
-    }
-    .cta a {
-      color: var(--ink);
-      text-decoration: none;
-      border: 1px solid var(--line);
-      padding: 0.7rem 1.05rem;
-      font-family: Syne, sans-serif;
-      font-size: 0.95rem;
-      transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
-    }
-    .cta a.primary {
-      background: var(--accent);
-      color: #062015;
-      border-color: transparent;
-    }
-    .cta a:hover { transform: translateY(-1px); border-color: var(--accent); }
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(14px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LukeLang — Myanmar's first official programming language</title>
+<meta name="description" content="LukeLang is a reactive-native, full-stack programming language that compiles to native C and WebAssembly. One dependency graph carries change from database row to screen pixel." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="assets/favicon.png" type="image/png" />
+<meta property="og:title" content="LukeLang — Myanmar's first official programming language" />
+<meta property="og:description" content="One dependency graph, from database row to screen pixel." />
+<meta property="og:image" content="assets/luke-mark.webp" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<script>document.documentElement.className += ' js';</script>
 </head>
 <body>
-  <main class="hero">
-    <p class="brand">LukeLang</p>
-    <h1>Change finds its own way from row to pixel.</h1>
-    <p>
-      A native, reactive language. Live Graph watches the database; the compiler owns the rest.
-      No fetch glue. No cache invalidation ritual.
-    </p>
-    <div class="cta">
-      <a class="primary" href="../README.md">Get started</a>
-      <a href="../docs/LIVE_GRAPH.md">Live Graph</a>
-      <a href="../docs/DEPLOY.md">Deploy</a>
-      <a href="../examples/deploy/wall/">Wall app</a>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="#top">
+    <img src="assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="#graph">Live Graph</a>
+    <a href="#language">Language</a>
+    <a href="#start">Start</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- ── Hero ─────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero__aura" aria-hidden="true">
+      <i class="aura aura--green"></i>
+      <i class="aura aura--gold"></i>
+      <i class="aura aura--yellow"></i>
     </div>
-  </main>
+    <div class="hero__rules" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+    <div class="hero__inner">
+      <p class="eyebrow" data-reveal>
+        <i class="eyebrow__rule"></i>
+        Myanmar's first official programming language
+      </p>
+
+      <h1 class="display" aria-label="LukeLang">
+        <span class="display__word" data-split>LukeLang</span>
+      </h1>
+
+      <p class="hero__lede" data-reveal data-delay="1">
+        Change finds its own way —<br />
+        from <em>database row</em> to <em>screen pixel</em>.
+      </p>
+
+      <p class="hero__sub" data-reveal data-delay="2">
+        A reactive-native, full-stack language that compiles to native C and WebAssembly.
+        One dependency graph. No fetch glue. No cache invalidation. No diffing.
+      </p>
+
+      <div class="hero__actions" data-reveal data-delay="3">
+        <a class="btn" href="#start">Get started</a>
+        <a class="link" href="https://github.com/lucasdmarshall/LukeLang">
+          <span>View source</span>
+          <svg viewBox="0 0 20 12" aria-hidden="true"><path d="M0 6h17M12 1l5 5-5 5" /></svg>
+        </a>
+      </div>
+
+      <img class="hero__mark" src="assets/luke-mark.webp" alt="LukeLang mark" width="720" height="364" data-float />
+    </div>
+
+    <div class="hero__foot">
+      <span data-reveal data-delay="4">Syntax v2</span>
+      <span data-reveal data-delay="5">Native C · WebAssembly</span>
+      <span data-reveal data-delay="6">Designed &amp; developed by <b>Kaung Myat San</b></span>
+      <span class="hero__cue" aria-hidden="true">Scroll</span>
+    </div>
+  </section>
+
+  <!-- ── Ticker ───────────────────────────────────────────────────── -->
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker__track">
+      <span>fn</span><i>·</i><span>let</span><i>·</i><span>signal</span><i>·</i><span>derived</span><i>·</i>
+      <span>effect on</span><i>·</i><span>watch … from db</span><i>·</i><span>push watch</span><i>·</i>
+      <span>import std/server</span><i>·</i><span>struct</span><i>·</i><span>batch</span><i>·</i><span>arena</span><i>·</i>
+      <span>fn</span><i>·</i><span>let</span><i>·</i><span>signal</span><i>·</i><span>derived</span><i>·</i>
+      <span>effect on</span><i>·</i><span>watch … from db</span><i>·</i><span>push watch</span><i>·</i>
+      <span>import std/server</span><i>·</i><span>struct</span><i>·</i><span>batch</span><i>·</i><span>arena</span><i>·</i>
+    </div>
+  </div>
+
+  <!-- ── 01 Live Graph ────────────────────────────────────────────── -->
+  <section class="section graph" id="graph">
+    <div class="section__head">
+      <span class="index">01</span>
+      <h2 class="h2" data-reveal>One graph,<br /><em>end to end.</em></h2>
+      <p class="lede" data-reveal data-delay="1">
+        Mainstream stacks glue three worlds together with fetch, cache invalidation, subscriptions
+        and diffing. LukeLang keeps one dependency graph that the compiler can see — so change
+        travels on its own.
+      </p>
+    </div>
+
+    <figure class="pipe" data-pipe>
+      <svg class="pipe__svg" viewBox="0 0 1200 190" preserveAspectRatio="none" aria-hidden="true">
+        <path class="pipe__track" pathLength="1" d="M40,150 C240,150 240,40 440,40 S840,150 1160,40" />
+        <path class="pipe__draw" pathLength="1" d="M40,150 C240,150 240,40 440,40 S840,150 1160,40" />
+        <circle class="pipe__pulse" r="7">
+          <animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear"
+            path="M40,150 C240,150 240,40 440,40 S840,150 1160,40" />
+        </circle>
+      </svg>
+
+      <ol class="pipe__stages">
+        <li data-stage><b>Database row</b><span>UPDATE users …</span></li>
+        <li data-stage><b>Server cell</b><span>watch user from db</span></li>
+        <li data-stage><b>Wire</b><span>push watch user on req</span></li>
+        <li data-stage><b>Client cell</b><span>watch user from "/watch"</span></li>
+        <li data-stage><b>Pixel</b><span>bind("name", user)</span></li>
+      </ol>
+    </figure>
+
+    <div class="claims">
+      <p data-reveal>You never fetch.</p>
+      <p data-reveal data-delay="1">You never invalidate.</p>
+      <p data-reveal data-delay="2">You never subscribe.</p>
+      <p data-reveal data-delay="3">You never diff.</p>
+      <p class="claims__last" data-reveal data-delay="4">
+        You declare the dependency once — and exactly <b data-count="1">1</b> region paints.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── 02 Language ──────────────────────────────────────────────── -->
+  <section class="section language" id="language">
+    <div class="language__aside">
+      <span class="index">02</span>
+      <h2 class="h2" data-reveal>Reads like intent.<br /><em>Runs like C.</em></h2>
+      <p class="lede" data-reveal data-delay="1">
+        Typed Build mode, arena memory, and no garbage collector on the ship path.
+        The same source targets a native binary or the browser.
+      </p>
+      <div class="tabs" role="tablist" aria-label="Code examples">
+        <button role="tab" aria-selected="true" data-tab="hello">Hello</button>
+        <button role="tab" aria-selected="false" data-tab="reactive">Reactive</button>
+        <button role="tab" aria-selected="false" data-tab="server">Live Graph · server</button>
+        <button role="tab" aria-selected="false" data-tab="client">Live Graph · client</button>
+      </div>
+    </div>
+
+    <div class="language__code">
+      <pre class="code is-active" data-panel="hello"><code><span class="ln"><b class="fn">print</b>(<b class="str">"Hello from Luke Build"</b>)</span>
+<span class="ln"><b class="kw">let</b> name = <b class="str">"Luke"</b></span>
+<span class="ln"><b class="fn">print</b>(<b class="str">"My name is "</b> + name)</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">fn</b> <b class="fn">add</b>(a: <b class="ty">float</b>, b: <b class="ty">float</b>) -&gt; <b class="ty">float</b> {</span>
+<span class="ln">  <b class="kw">return</b> a + b</span>
+<span class="ln">}</span>
+<span class="ln"></span>
+<span class="ln"><b class="fn">print</b>(<b class="fn">add</b>(<b class="num">21</b>, <b class="num">21</b>))  <b class="cm">// 42 — native code, arena memory</b></span></code></pre>
+
+      <pre class="code" data-panel="reactive"><code><span class="ln"><b class="kw">signal</b> price = <b class="num">100</b></span>
+<span class="ln"><b class="kw">signal</b> quantity = <b class="num">3</b></span>
+<span class="ln"><b class="kw">derived</b> total = price * quantity</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">effect on</b> total {</span>
+<span class="ln">  <b class="fn">print</b>(<b class="str">"total="</b> + total)</span>
+<span class="ln">}</span>
+<span class="ln"></span>
+<span class="ln">price = <b class="num">200</b>          <b class="cm">// total=600, one flush</b></span>
+<span class="ln"><b class="kw">batch</b> {</span>
+<span class="ln">  price = <b class="num">120</b></span>
+<span class="ln">  quantity = <b class="num">5</b>       <b class="cm">// still one flush</b></span>
+<span class="ln">}</span></code></pre>
+
+      <pre class="code" data-panel="server"><code><span class="ln"><b class="kw">import</b> std/server</span>
+<span class="ln"><b class="kw">import</b> std/sqlite</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">let</b> db = <b class="fn">dbOpen</b>(<b class="str">"/tmp/luke_live_graph.db"</b>)</span>
+<span class="ln"><b class="kw">watch</b> user <b class="kw">from</b> db <b class="kw">where</b> <b class="str">"id = 1"</b></span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">let</b> server = <b class="fn">httpListen</b>(<b class="num">8798</b>)</span>
+<span class="ln"><b class="kw">let</b> req = <b class="fn">httpAccept</b>(server)</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">push watch</b> user <b class="kw">on</b> req <b class="kw">for</b> <b class="num">50</b> beats <b class="kw">every</b> <b class="num">50</b> ms</span></code></pre>
+
+      <pre class="code" data-panel="client"><code><span class="ln"><b class="kw">import</b> std/js</span>
+<span class="ln"></span>
+<span class="ln"><b class="kw">signal</b> user = <b class="str">""</b></span>
+<span class="ln"><b class="fn">bind</b>(<b class="str">"name"</b>, user)</span>
+<span class="ln"><b class="kw">watch</b> user <b class="kw">from</b> <b class="str">"http://127.0.0.1:8798/watch"</b></span>
+<span class="ln"></span>
+<span class="ln"><b class="cm">// external UPDATE → one push → one write → one region paints</b></span>
+<span class="ln"><b class="kw">effect on</b> user {</span>
+<span class="ln">  <b class="fn">print</b>(<b class="str">"region="</b> + region_paint_count)</span>
+<span class="ln">}</span></code></pre>
+    </div>
+  </section>
+
+  <!-- ── 03 Proof ─────────────────────────────────────────────────── -->
+  <section class="section proof">
+    <span class="index">03</span>
+    <h2 class="h2 h2--wide" data-reveal>Engineered, not assembled.</h2>
+    <dl class="figures">
+      <div data-reveal>
+        <dt><span data-count="0">0</span></dt>
+        <dd>garbage collectors on the ship path — arena memory, freed at scope</dd>
+      </div>
+      <div data-reveal data-delay="1">
+        <dt><span data-count="1">1</span></dt>
+        <dd>dependency graph carries every change from row to pixel</dd>
+      </div>
+      <div data-reveal data-delay="2">
+        <dt><span data-count="10">10</span>K</dt>
+        <dd>concurrent connections — event-loop I/O, keep-alive, REUSEPORT</dd>
+      </div>
+      <div data-reveal data-delay="3">
+        <dt><span data-count="2">2</span></dt>
+        <dd>compile targets from one source — native C and WebAssembly</dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ── 04 Principles ────────────────────────────────────────────── -->
+  <section class="section principles">
+    <span class="index">04</span>
+    <h2 class="h2 h2--wide" data-reveal>What the language believes.</h2>
+    <ol class="creed">
+      <li data-reveal>
+        <b>Write like you talk. Ship like systems.</b>
+        <span>The surface stays readable; the compiler keeps the guarantees.</span>
+      </li>
+      <li data-reveal data-delay="1">
+        <b>Build is the language of record.</b>
+        <span>Types, layouts and arenas are decided at compile time, not guessed at runtime.</span>
+      </li>
+      <li data-reveal data-delay="2">
+        <b>The browser is the renderer.</b>
+        <span>Compile to DOM and CSS; patch surgically, never repaint the world.</span>
+      </li>
+      <li data-reveal data-delay="3">
+        <b>One beachhead.</b>
+        <span>Win reactive full-stack first. Everything else is earned later.</span>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ── 05 Start ─────────────────────────────────────────────────── -->
+  <section class="section start" id="start">
+    <span class="index">05</span>
+    <h2 class="h2 h2--wide" data-reveal>Three lines to your first binary.</h2>
+    <pre class="shell" data-reveal data-delay="1"><code><span class="ln"><b class="sh">git</b> clone https://github.com/lucasdmarshall/LukeLang.git</span>
+<span class="ln"><b class="sh">cd</b> LukeLang/vm &amp;&amp; <b class="sh">make</b></span>
+<span class="ln"><b class="sh">./build/luke</b> BUILD ../examples/build/hello.luke -o hello &amp;&amp; ./hello</span></code></pre>
+    <div class="start__links" data-reveal data-delay="2">
+      <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/getting_started.md">Getting started</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/LIVE_GRAPH.md">Live Graph</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BUILD_MODE.md">Build mode</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SYNTAX_V2_SPEC.md">Syntax spec</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" data-reveal />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/docs">Documentation</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/examples">Examples</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="main.js"></script>
 </body>
 </html>

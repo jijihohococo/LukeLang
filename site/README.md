@@ -116,3 +116,17 @@ on the LukeLang VPS. Two hosts share one document root:
 
 TLS is issued by `/root/lukelang-tls.sh` on the server, which refuses to run until every name
 resolves to that host and then calls certbot for all three at once.
+
+## Getting indexed
+
+`robots.txt` and `sitemap.xml` are generated, and an IndexNow key file sits at the document
+root, so Bing, Yandex and Seznam can be told about a change directly:
+
+```bash
+scripts/indexnow_submit.py            # submit every URL in the sitemap
+```
+
+Google has no equivalent open endpoint. Add `https://lukelang.org` as a property in Google
+Search Console, verify it (the DNS TXT method is easiest, since the domain is already on
+Hostinger DNS), then submit `https://lukelang.org/sitemap.xml` once. Indexing takes a few days
+from there.

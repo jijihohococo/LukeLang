@@ -7,7 +7,7 @@
 ## Stack layers
 
 ```text
-Luke app (conversational)
+Luke app (.luke / .lk)
     ↓
 Hanka          nested COLUMN / ROW / STACK (+ ALIGN, AUTO)
     ↓

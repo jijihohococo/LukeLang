@@ -11,7 +11,7 @@ Live Graph (DB → wire → pixel) is the reactive spine; this track is the **HT
 
 ## Thesis
 
-Luke apps should declare **routes, binds, and sessions** the same way they declare reactive cells — conversational surface, native Build cost, no glue frameworks.
+Luke apps should declare **routes, binds, and sessions** the same way they declare reactive cells — declarative surface, native Build cost, no glue frameworks.
 
 ---
 

@@ -312,7 +312,7 @@ That split is how Luke can feel like Python and weigh like Rust.
 
 Build codegen (`vm/src/build_c.cpp`) is **line-based**: one statement per line, `startsWithCI` / keyword scans, not a full lexer + AST.
 
-That is why today’s surface is productive and conversational — and also why multi-line expressions, richer nesting, and flexible punctuation will eventually need a real parse pipeline.
+Syntax v2 parses to an AST and lowers to that line-based surface, so the ceiling still applies underneath: multi-line expressions, richer nesting, and flexible punctuation will need codegen to consume the AST directly.
 
 | Today | Ceiling |
 | --- | --- |

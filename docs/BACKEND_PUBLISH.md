@@ -4,7 +4,7 @@ LukeLang's first market surface is **backend language + reactive full-stack subs
 
 ## Positioning sentence
 
-Build backend services with conversational syntax and systems-level runtime cost:
+Build backend services with a familiar technical syntax and systems-level runtime cost:
 
 - native binaries (`luke BUILD`)
 - no GC in shipped path

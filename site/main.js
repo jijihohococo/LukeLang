@@ -44,7 +44,7 @@
       extras.unobserve(entry.target);
     });
   }, { rootMargin: '0px 0px -18% 0px', threshold: 0.3 });
-  document.querySelectorAll('.claims p, .creed li, .footer__mark img').forEach(function (el) {
+  document.querySelectorAll('.claims p, .creed li, .rows > li, .footer__mark img').forEach(function (el) {
     extras.observe(el);
   });
 

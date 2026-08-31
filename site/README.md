@@ -4,11 +4,21 @@ The official LukeLang site: a single static page, no build step, no framework.
 
 ```
 site/
-  index.html      markup + code samples
-  styles.css      layout, palette, motion
-  main.js         scroll-driven motion only
-  assets/         mark, wordmark, favicon (derived from assets/lukelang-logo.png)
+  index.html        landing page
+  learn/            guided path, install → first program → Live Graph
+  docs/             documentation map + syntax cheatsheet
+  download/         requirements, platforms, optional dependencies, verification
+  examples/         annotated tour of the acceptance suite
+  community/        who builds it, how to contribute, the bar for a change
+  news/             what shipped and when
+  styles.css        palette, landing layout, shared nav/footer, motion
+  pages.css         interior page system: masthead, sidebar, prose, rows
+  main.js           scroll-driven motion only
+  assets/           mark, wordmark, favicon (derived from assets/lukelang-logo.png)
 ```
+
+Every page is hand-written HTML sharing `styles.css`, `pages.css` and `main.js`. The nav and
+footer are duplicated per page on purpose — there is no templating step to run before deploying.
 
 ```bash
 # local preview

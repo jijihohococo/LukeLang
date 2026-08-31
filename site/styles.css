@@ -111,11 +111,20 @@ em { font-style: normal; }
 .nav__brand img { width: 34px; height: auto; }
 .nav__links {
   display: flex;
-  gap: clamp(1rem, 2.4vw, 2.4rem);
+  gap: clamp(0.9rem, 2vw, 2rem);
   font-size: var(--step--1);
   font-weight: 500;
   color: var(--mute);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+  padding-block: 0.15rem;
 }
+.nav__links::-webkit-scrollbar { display: none; }
+.nav__links a[aria-current="page"] { color: var(--white); }
+.nav__links a[aria-current="page"]::after { transform: scaleX(1); }
 .nav__links a {
   position: relative;
   padding-block: 0.2rem;
@@ -135,11 +144,11 @@ em { font-style: normal; }
 }
 .nav__links a:hover { color: var(--white); }
 .nav__links a:hover::after { transform: scaleX(1); transform-origin: left; }
-@media (max-width: 760px) {
-  .nav__links a:nth-child(1), .nav__links a:nth-child(2) { display: none; }
-}
-@media (max-width: 420px) {
-  .nav__links a:nth-child(3) { display: none; }
+@media (max-width: 860px) {
+  .nav { gap: 1rem; }
+  .nav__brand span { display: none; }
+  /* The link row scrolls rather than dropping destinations. */
+  .nav__links { mask-image: linear-gradient(90deg, #000 88%, transparent); }
 }
 
 /* ── Hero ───────────────────────────────────────────────────────── */

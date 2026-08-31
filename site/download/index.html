@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Download — LukeLang</title>
+<meta name="description" content="Build the LukeLang compiler from source on Linux, macOS or Windows, add the optional WebAssembly and database dependencies, and verify the install with the test suite." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../">
+    <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../learn/">Learn</a>
+    <a href="../docs/">Docs</a>
+    <a href="./" aria-current="page">Download</a>
+    <a href="../examples/">Examples</a>
+    <a href="../community/">Community</a>
+    <a href="../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead">
+    <p class="masthead__kicker">Download</p>
+    <h1>Build it from <em>source</em>.</h1>
+    <p>
+      LukeLang has no installer yet, and that is deliberate — the compiler is a single C++
+      binary you can build in under a minute, and building it is how you know it works on your
+      machine.
+    </p>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#quick">Quick install</a></li>
+        <li><a href="#requirements">Requirements</a></li>
+        <li><a href="#platforms">Platforms</a></li>
+        <li><a href="#optional">Optional dependencies</a></li>
+        <li><a href="#verify">Verify the install</a></li>
+        <li><a href="#editors">Editor tooling</a></li>
+        <li><a href="#packages">Packages</a></li>
+      </ul>
+      <h2>Next</h2>
+      <ul>
+        <li><a href="../learn/">Learn LukeLang</a></li>
+        <li><a href="../docs/">Documentation</a></li>
+      </ul>
+    </aside>
+
+    <div class="prose">
+
+      <section id="quick">
+        <h2>Quick <em>install</em></h2>
+<pre><code><span class="ln"><b class="sh">git</b> clone https://github.com/lucasdmarshall/LukeLang.git</span>
+<span class="ln"><b class="sh">cd</b> LukeLang/vm &amp;&amp; <b class="sh">make</b></span>
+<span class="ln"><b class="sh">./build/luke</b> BUILD ../examples/build/hello.luke -o hello &amp;&amp; ./hello</span></code></pre>
+        <p>
+          The compiler lands at <code>vm/build/luke</code>. Put it on your <code>PATH</code> if
+          you want to call it from anywhere:
+        </p>
+<pre><code><span class="ln"><b class="sh">export</b> PATH="$PWD/build:$PATH"</span></code></pre>
+      </section>
+
+      <section id="requirements">
+        <h2>Requirements</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key">C++17 compiler</p>
+            <p class="rows__val"><code>g++</code> or <code>clang++</code>. This builds the compiler itself.</p>
+          </li>
+          <li>
+            <p class="rows__key">A C compiler</p>
+            <p class="rows__val"><code>cc</code> / <code>gcc</code> / <code>clang</code>. Build mode emits C and then invokes this to produce the binary.</p>
+          </li>
+          <li>
+            <p class="rows__key">make</p>
+            <p class="rows__val">Drives the compiler build and the test suite.</p>
+          </li>
+          <li>
+            <p class="rows__key">git</p>
+            <p class="rows__val">To clone, and for the version stamp in build output.</p>
+          </li>
+        </ul>
+        <p class="note">
+          <b>That is the whole core.</b> Everything below is only needed for the feature you are
+          actually using — WebAssembly targets, SQLite, Postgres, or authentication.
+        </p>
+      </section>
+
+      <section id="platforms">
+        <h2>Platforms</h2>
+        <h3>Linux</h3>
+<pre><code><span class="ln"><b class="cm"># Debian / Ubuntu</b></span>
+<span class="ln"><b class="sh">sudo</b> apt install build-essential git</span>
+<span class="ln"></span>
+<span class="ln"><b class="cm"># Fedora</b></span>
+<span class="ln"><b class="sh">sudo</b> dnf install gcc gcc-c++ make git</span></code></pre>
+        <h3>macOS</h3>
+<pre><code><span class="ln"><b class="sh">xcode-select</b> --install</span></code></pre>
+        <p>
+          Apple's command line tools provide <code>clang</code>, <code>clang++</code> and
+          <code>make</code>. Both Apple silicon and Intel work.
+        </p>
+        <h3>Windows</h3>
+        <p>
+          Build under WSL2 with a Linux distribution and follow the Linux instructions. The
+          native Windows toolchain is not a supported target yet.
+        </p>
+      </section>
+
+      <section id="optional">
+        <h2>Optional <em>dependencies</em></h2>
+        <p>
+          Each one unlocks a specific part of the standard library. The compiler builds and the
+          core language runs without any of them.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key">WASI SDK</p>
+            <p class="rows__val">
+              Needed for <code>-target wasm</code> and <code>-target browser</code>. Unpack it at
+              <code>.tools/wasi-sdk</code> in the repository, or point <code>LUKE_WASI_SDK</code>
+              at wherever you installed it.
+            </p>
+          </li>
+          <li>
+            <p class="rows__key">SQLite</p>
+            <p class="rows__val"><code>libsqlite3-dev</code> — for <code>import std/sqlite</code>, and for every Live Graph example.</p>
+          </li>
+          <li>
+            <p class="rows__key">libsodium</p>
+            <p class="rows__val"><code>libsodium-dev</code> — Argon2id password hashing behind <code>import std/auth</code>.</p>
+          </li>
+          <li>
+            <p class="rows__key">libpq</p>
+            <p class="rows__val"><code>libpq-dev</code> plus a running Postgres — for <code>import std/pg</code> and the Slipstream executor.</p>
+          </li>
+          <li>
+            <p class="rows__key">gdb</p>
+            <p class="rows__val">Only for the debugger checks in the test suite (<code>DEBUG --break</code> and <code>--inspect</code>).</p>
+          </li>
+          <li>
+            <p class="rows__key">Node.js</p>
+            <p class="rows__val">Runs the browser-target examples headlessly through the bundled loader script.</p>
+          </li>
+        </ul>
+<pre><code><span class="ln"><b class="cm"># everything, on Debian / Ubuntu</b></span>
+<span class="ln"><b class="sh">sudo</b> apt install build-essential git libsqlite3-dev libsodium-dev \</span>
+<span class="ln">  libpq-dev postgresql gdb nodejs</span></code></pre>
+      </section>
+
+      <section id="verify">
+        <h2>Verify the install</h2>
+        <p>
+          The test suite is the acceptance gate for the whole project. If it passes on your
+          machine, your install is good.
+        </p>
+<pre><code><span class="ln"><b class="sh">cd</b> LukeLang/vm</span>
+<span class="ln"><b class="sh">make</b> test               <b class="cm"># Play VM + Build mode</b></span>
+<span class="ln"><b class="sh">make</b> test-syntax-v2     <b class="cm"># syntax v2 gates</b></span>
+<span class="ln"><b class="sh">make</b> test-lsp           <b class="cm"># language server providers</b></span></code></pre>
+        <p>
+          Targets that need the WASI SDK are skipped when it is absent, and the Postgres
+          examples are skipped when no server is reachable — so a core-only install still gets
+          a green run.
+        </p>
+      </section>
+
+      <section id="editors">
+        <h2>Editor <em>tooling</em></h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key">VS Code extension</p>
+            <p class="rows__val">
+              Syntax highlighting, snippets and brace-aware indentation for <code>.luke</code>
+              and <code>.lk</code>. Source in <a href="https://github.com/lucasdmarshall/LukeLang/tree/main/tools/vscode/lukelang">tools/vscode/lukelang</a>.
+            </p>
+          </li>
+          <li>
+            <p class="rows__key">Language server</p>
+            <p class="rows__val">
+              <code>luke LSP</code> speaks LSP over stdio — hover, completion, definition,
+              document symbols, formatting and diagnostics.
+            </p>
+          </li>
+          <li>
+            <p class="rows__key">Debug adapter</p>
+            <p class="rows__val">
+              <code>luke DAP</code> for editor debugging; <code>luke DEBUG --break file:line</code>
+              drives gdb directly, with breakpoints on your source lines.
+            </p>
+          </li>
+          <li>
+            <p class="rows__key">Formatter</p>
+            <p class="rows__val"><code>luke FMT file.luke</code> — round-trip safe, and checked as such in CI.</p>
+          </li>
+        </ul>
+        <p>
+          Setup details are in
+          <a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/EDITOR_TOOLING.md">editor tooling</a>.
+        </p>
+      </section>
+
+      <section id="packages">
+        <h2>Packages</h2>
+        <p>
+          LukeLang ships a small package manager. Dependencies resolve into
+          <code>luke_modules/</code> and lock to a content hash in <code>luke.lock</code>.
+        </p>
+<pre><code><span class="ln"><b class="sh">luke</b> PKG init</span>
+<span class="ln"><b class="sh">luke</b> PKG install greeter</span>
+<span class="ln"><b class="sh">luke</b> PKG lock</span>
+<span class="ln"><b class="sh">luke</b> PKG publish</span></code></pre>
+        <p>Then import it like any other module:</p>
+<pre><code><span class="ln"><b class="kw">import</b> luke/greeter</span></code></pre>
+      </section>
+
+      <div class="next">
+        <a href="../learn/">← Learn the language</a>
+        <a href="../docs/">Documentation →</a>
+        <a href="../community/">Report a problem →</a>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../learn/">Learn</a>
+      <a href="../docs/">Docs</a>
+      <a href="./">Download</a>
+      <a href="../examples/">Examples</a>
+      <a href="../community/">Community</a>
+      <a href="../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../main.js"></script>
+</body>
+</html>

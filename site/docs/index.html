@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Documentation — LukeLang</title>
+<meta name="description" content="Every LukeLang document, grouped by what you are trying to do: learn the language, understand the reactive engine, ship a backend, or extend the compiler." />
+<meta name="theme-color" content="#050806" />
+<link rel="icon" href="../assets/favicon.png" type="image/png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="../pages.css" />
+<script>document.documentElement.className += ' js';</script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="scrollbar" aria-hidden="true"><i data-progress></i></div>
+
+<header class="nav" data-nav>
+  <a class="nav__brand" href="../">
+    <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
+    <span>LukeLang</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="../learn/">Learn</a>
+    <a href="./" aria-current="page">Docs</a>
+    <a href="../download/">Download</a>
+    <a href="../examples/">Examples</a>
+    <a href="../community/">Community</a>
+    <a href="../news/">News</a>
+    <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="masthead">
+    <p class="masthead__kicker">Documentation</p>
+    <h1>Everything the compiler <em>already knows</em>.</h1>
+    <p>
+      LukeLang's documentation lives beside the source, so it moves when the compiler moves.
+      This page is the map: pick the surface you are working on and go straight to the
+      canonical document.
+    </p>
+  </section>
+
+  <div class="page">
+    <aside class="sidebar">
+      <h2>Sections</h2>
+      <ul>
+        <li><a href="#start">Start here</a></li>
+        <li><a href="#cheatsheet">Syntax at a glance</a></li>
+        <li><a href="#language">The language</a></li>
+        <li><a href="#reactive">Reactive engine</a></li>
+        <li><a href="#live-graph">Live Graph</a></li>
+        <li><a href="#backend">Backend</a></li>
+        <li><a href="#frontend">Frontend</a></li>
+        <li><a href="#tooling">Tooling &amp; compiler</a></li>
+        <li><a href="#papers">Papers</a></li>
+      </ul>
+      <h2>Elsewhere</h2>
+      <ul>
+        <li><a href="../learn/">Learn LukeLang</a></li>
+        <li><a href="../examples/">Examples</a></li>
+        <li><a href="../download/">Download</a></li>
+      </ul>
+    </aside>
+
+    <div class="prose">
+
+      <section id="start">
+        <h2>Start <em>here</em></h2>
+        <p>
+          Three documents cover the first day: install and run something, understand what
+          Build mode guarantees, then read the syntax the compiler actually accepts.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/getting_started.md">Getting started</a></p>
+            <p class="rows__val">Clone, <code>make</code>, and run your first program on all three execution paths.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BUILD_MODE.md">Build mode</a></p>
+            <p class="rows__val">Types, arena memory, imports, packages and browser packaging — the language of record.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SYNTAX_V2_SPEC.md">Syntax v2 specification</a></p>
+            <p class="rows__val">The normative surface. Machine-checked against codegen, so it cannot drift.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/STRATEGY.md">Strategy</a></p>
+            <p class="rows__val">Identity, the wedge, and the decision record behind every trade-off in the tree.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="cheatsheet">
+        <h2>Syntax <em>at a glance</em></h2>
+        <p>
+          Syntax v2 is the default for <code>.luke</code> and <code>.lk</code> files. The
+          conversational v1 surface stays available behind <code>--syntax=1</code> during the
+          deprecation window.
+        </p>
+        <table class="sheet">
+          <thead>
+            <tr><th>Form</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>print(x)</td><td>Write a value to standard output</td></tr>
+            <tr><td>let n = 1</td><td>Immutable binding; <b>var</b> for one you reassign</td></tr>
+            <tr><td>let n: float = 1</td><td>Typed binding — <b>int</b>, <b>float</b>, <b>str</b>, <b>bool</b>, <b>list</b>, <b>map</b>, <b>json</b></td></tr>
+            <tr><td>fn f(a: float) -&gt; float { … }</td><td>Function with a declared return type</td></tr>
+            <tr><td>struct Dog : Animal { … }</td><td>Blueprint with inheritance; <b>init</b> is the constructor</td></tr>
+            <tr><td>import std/server</td><td>Standard library, sibling file, or <b>luke/&lt;package&gt;</b></td></tr>
+            <tr><td>signal count = 0</td><td>A reactive cell</td></tr>
+            <tr><td>derived total = a * b</td><td>A cell computed from other cells</td></tr>
+            <tr><td>effect on total { … }</td><td>Runs whenever the named cell changes</td></tr>
+            <tr><td>batch { … }</td><td>Several writes, one flush</td></tr>
+            <tr><td>watch user from db where "id = 1"</td><td>Server cell backed by a database row</td></tr>
+            <tr><td>push watch user on req</td><td>Stream that cell to a client over the wire</td></tr>
+            <tr><td>bind("name", user)</td><td>Paint a cell into the DOM</td></tr>
+            <tr><td>raw "…"</td><td>Pass a line through to the v1 surface untouched</td></tr>
+          </tbody>
+        </table>
+        <p class="note">
+          <b>Migrating?</b> <code>luke MIGRATE file.luke</code> rewrites conversational v1 source
+          into v2 and marks anything it could not translate with <code>TODO(migrate)</code>.
+        </p>
+      </section>
+
+      <section id="language">
+        <h2>The <em>language</em></h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/language_reference.md">Language reference</a></p>
+            <p class="rows__val">Statements, expressions, blueprints, contracts, error handling.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/standard_library.md">Standard library</a></p>
+            <p class="rows__val">files, json, http, server, sqlite, pg, args, env, paths, process, js.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/INTEGER.md">Integer semantics</a></p>
+            <p class="rows__val">Where LukeLang is exact, where it is a double, and how overflow behaves.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/AST.md">AST</a></p>
+            <p class="rows__val">The tree the front-end produces, and the round-trip guarantees on it.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SYNTAX_V2_PLAN.md">Syntax v2 plan</a></p>
+            <p class="rows__val">How the cutover was phased, what shipped, and what is deferred past the window.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/advanced_topics.md">Advanced topics</a></p>
+            <p class="rows__val">Contracts, statics, privacy, closures and the sharper corners.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="reactive">
+        <h2>Reactive <em>engine</em></h2>
+        <p>
+          Cells, derived values and effects are language constructs, not a library. The engine
+          batches writes, dedupes work, isolates errors and collects dead scopes.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE.md">Reactive</a></p>
+            <p class="rows__val">The client engine: cells, derived, effects, lists, batching.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE_SPEC.md">Reactive specification</a></p>
+            <p class="rows__val">Conformance rules — flush order, staleness, priority, weak references, GC.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/REACTIVE_ROADMAP.md">Reactive roadmap</a></p>
+            <p class="rows__val">What is proven, what is provisional, and what comes next.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="live-graph">
+        <h2>Live <em>Graph</em></h2>
+        <p>
+          One dependency graph spans the database, the server, the wire and the browser. A
+          committed row change becomes exactly one repainted region — no fetch, no cache
+          invalidation, no diffing.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/LIVE_GRAPH.md">Live Graph</a></p>
+            <p class="rows__val">The row-to-pixel thesis, the wire protocol, incremental view maintenance, resume-from-log.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/DEPLOY.md">Deploy</a></p>
+            <p class="rows__val">TLS via a reverse proxy, C10K knobs, and the Live Graph wall demo.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="backend">
+        <h2>Backend</h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BACKEND_ROADMAP.md">Backend roadmap</a></p>
+            <p class="rows__val">HTTP framework, routes, forms, migrations and the shape of the server surface.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/AUTH.md">Auth</a></p>
+            <p class="rows__val">Argon2id passwords, sessions, CSRF, and rules the compiler enforces for you.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/NETWORK_DB_ROADMAP.md">Network &amp; database</a></p>
+            <p class="rows__val">SQLite pooling, the libpq driver, and the Slipstream pipelined executor.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BACKEND_BENCHMARKS.md">Backend benchmarks</a></p>
+            <p class="rows__val">Measured numbers for HTTP and Postgres, with the harness that produced them.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BACKEND_PUBLISH.md">Publishing a backend</a></p>
+            <p class="rows__val">Getting a built server onto a machine that serves real traffic.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="frontend">
+        <h2>Frontend</h2>
+        <p>
+          The browser is the renderer. LukeLang compiles to DOM and CSS, and Argus patches the
+          smallest region that changed.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/FRONTEND_ROADMAP.md">Frontend roadmap</a></p>
+            <p class="rows__val">The Argus and Hanka path, breakpoints, accessibility and what is finished.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/ARGUS.md">Argus</a></p>
+            <p class="rows__val">The reactive patcher: region paints, focus traps, announcements, modals.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/HANKA.md">Hanka</a></p>
+            <p class="rows__val">Layout: rows, columns, grids, alignment axes, wrapping and scroll.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/LAYOUT_ENGINE.md">Layout engine</a></p>
+            <p class="rows__val">How declared layout becomes flexbox without a runtime layout pass.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/RENDERING_ENGINE.md">Rendering engine</a></p>
+            <p class="rows__val">Paint accounting, region minimality, and how repaints are counted in tests.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/PRODUCTION_WEB.md">Production web</a></p>
+            <p class="rows__val">Fonts, assets, accessibility and packaging a page for real users.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="tooling">
+        <h2>Tooling &amp; <em>compiler</em></h2>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/EDITOR_TOOLING.md">Editor tooling</a></p>
+            <p class="rows__val">The VS Code extension, the language server, and the debug adapter.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/contributor_guide.md">Contributor guide</a></p>
+            <p class="rows__val">Repository layout, the test suite, and what a reviewable change looks like.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/BENCHMARKS.md">Benchmarks</a></p>
+            <p class="rows__val">Reactive throughput and the methodology behind the published figures.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/SCORECARD.md">Scorecard</a></p>
+            <p class="rows__val">An honest account of what is proven, provisional, or parked.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/blob/main/docs/LEGACY.md">Legacy</a></p>
+            <p class="rows__val">Removed JavaScript emitters and why they are not coming back.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="papers">
+        <h2>Papers</h2>
+        <p>
+          Longer-form write-ups on the design decisions that were expensive enough to deserve
+          an argument rather than a changelog entry.
+        </p>
+        <ul class="rows">
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/tree/main/documentations/papers">Paper series</a></p>
+            <p class="rows__val">The reactive substrate, the Live Graph wire, the frontend renderer, and the Postgres executor.</p>
+          </li>
+          <li>
+            <p class="rows__key"><a href="https://github.com/lucasdmarshall/LukeLang/tree/main/documentations">Documentation hub</a></p>
+            <p class="rows__val">The in-repo index, including anything published after this page was built.</p>
+          </li>
+        </ul>
+      </section>
+
+      <div class="next">
+        <a href="../learn/">← Learn the language</a>
+        <a href="../examples/">Browse examples →</a>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer__mark">
+    <img src="../assets/luke-wordmark-light.webp" alt="LukeLang" width="900" height="165" />
+  </div>
+  <div class="footer__grid">
+    <p class="footer__line">
+      Myanmar's first official programming language.<br />
+      Designed and developed by <b>Kaung Myat San</b>.
+    </p>
+    <nav class="footer__nav" aria-label="Footer">
+      <a href="../learn/">Learn</a>
+      <a href="./">Docs</a>
+      <a href="../download/">Download</a>
+      <a href="../examples/">Examples</a>
+      <a href="../community/">Community</a>
+      <a href="../news/">News</a>
+      <a href="https://github.com/lucasdmarshall/LukeLang">GitHub</a>
+    </nav>
+    <p class="footer__meta">lukelang.org · © <span data-year>2026</span></p>
+  </div>
+</footer>
+
+<script src="../main.js"></script>
+</body>
+</html>

@@ -7,7 +7,11 @@
 
 #include "luke_rt.h"
 
-#if !defined(__wasi__)
+/* Compiled in only when the program imports std/pg — the build defines
+ * LUKE_HAVE_PG alongside -lpq. Otherwise the stubs below stand in, so libpq
+ * is not needed to build a program that never talks to Postgres. */
+#if !defined(__wasi__) && defined(LUKE_HAVE_PG)
+#define LUKE_PG_REAL 1
 #include <postgresql/libpq-fe.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -30,7 +34,7 @@ extern "C" {
 
 typedef struct LukePg LukePg;
 
-#if defined(__wasi__)
+#if !defined(LUKE_PG_REAL)
 
 struct LukePg {
   int unused;
@@ -74,7 +78,7 @@ static inline int luke_pg_checkin(LukePg *pg) {
   return 0;
 }
 
-#else /* !__wasi__ */
+#else /* LUKE_PG_REAL */
 
 #ifndef LUKE_PG_STMT_CACHE
 #define LUKE_PG_STMT_CACHE 128

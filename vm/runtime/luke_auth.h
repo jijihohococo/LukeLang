@@ -8,7 +8,11 @@
 #include "luke_db.h"
 #include "luke_net.h"
 
-#if !defined(__wasi__)
+/* Compiled in only when std/auth is imported, which also pulls in std/sqlite —
+ * sessions live in the database, so both libraries must be present. Otherwise
+ * the stubs below stand in, and libsodium is not needed to build. */
+#if !defined(__wasi__) && defined(LUKE_HAVE_SODIUM) && defined(LUKE_DB_REAL)
+#define LUKE_AUTH_REAL 1
 #include <sodium.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +32,7 @@ extern "C" {
 #define LUKE_COOKIE_CLEAR 16
 #endif
 
-#if defined(__wasi__)
+#if !defined(LUKE_AUTH_REAL)
 
 static inline int luke_auth_init(LukeDb *db) {
   (void)db;
@@ -128,7 +132,7 @@ static inline void luke_auth_mark_reveal(LukeArena *a, LukeText field, LukeText 
 }
 static inline int luke_auth_saw_verify(void) { return 1; }
 
-#else /* !__wasi__ */
+#else /* LUKE_AUTH_REAL */
 
 #ifndef LUKE_AUTH_SESSION_DAYS
 #define LUKE_AUTH_SESSION_DAYS 7

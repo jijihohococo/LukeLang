@@ -116,6 +116,20 @@ std::string findRuntimeInclude() {
   return "runtime";
 }
 
+/* Optional libraries are compiled in only when the program imports the module
+ * that needs them. The runtime headers include a system header — sqlite3.h,
+ * sodium.h, libpq-fe.h — only when it is defined here, so a program that never
+ * opens a database builds on a machine without those headers installed. */
+std::string featureDefines(const std::vector<std::string> &linkLibs) {
+  std::string flags;
+  for (const auto &lib : linkLibs) {
+    if (lib == "sqlite3") flags += " -DLUKE_HAVE_SQLITE=1";
+    else if (lib == "sodium") flags += " -DLUKE_HAVE_SODIUM=1";
+    else if (lib == "pq") flags += " -DLUKE_HAVE_PG=1";
+  }
+  return flags;
+}
+
 /* Syntax v2: `.luke` / `.lk` lower to conversational v1 text before codegen.
  * `--syntax=1` forces the conversational surface (deprecation window). */
 std::string findStdlib();
@@ -323,8 +337,8 @@ int runViaBuildTemp(const std::string &path) {
     return 1;
   }
   std::string runtimeInclude = findRuntimeInclude();
-  std::string cmd = "cc -O2 -g -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binPath + "\" \"" +
-                    cPath + "\"";
+  std::string cmd = "cc -O2 -g -std=gnu11 -I\"" + runtimeInclude + "\"" +
+                    featureDefines(built.linkLibs) + " -o \"" + binPath + "\" \"" + cPath + "\"";
   for (auto &lib : built.linkLibs) {
     if (!lib.empty() && lib[0] == '/')
       cmd += " \"" + lib + "\"";
@@ -450,8 +464,8 @@ int runBuild(const std::string &path, const std::string &outBin, const std::stri
   } else {
     /* Native: always -g for #line DWARF. DEBUG uses -O0 -fno-inline for statement step. */
     const char *opt = (target == "debug") ? "-O0 -g -fno-inline" : "-O2 -g";
-    cmd = std::string("cc ") + opt + " -std=gnu11 -I\"" + runtimeInclude + "\" -o \"" + binary +
-          "\" \"" + cPath + "\"";
+    cmd = std::string("cc ") + opt + " -std=gnu11 -I\"" + runtimeInclude + "\"" +
+          featureDefines(built.linkLibs) + " -o \"" + binary + "\" \"" + cPath + "\"";
     for (auto &lib : built.linkLibs) {
       if (lib.find('/') != std::string::npos || lib.find('.') != std::string::npos)
         cmd += " \"" + lib + "\"";

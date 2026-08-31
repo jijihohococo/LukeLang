@@ -1,11 +1,17 @@
 #ifndef LUKE_DB_H
 #define LUKE_DB_H
 
-/* Thin SQLite wrapper for Luke Build mode (native only; stubbed on WASI). */
+/* Thin SQLite wrapper for Luke Build mode.
+ *
+ * The driver is compiled in only when the program imports std/sqlite — the
+ * build defines LUKE_HAVE_SQLITE alongside -lsqlite3. Every other program
+ * gets the same no-op stubs WASI uses, so hello-world builds on a machine
+ * with no SQLite headers installed. */
 
 #include "luke_rt.h"
 
-#if !defined(__wasi__)
+#if !defined(__wasi__) && defined(LUKE_HAVE_SQLITE)
+#define LUKE_DB_REAL 1
 #include <sqlite3.h>
 #endif
 
@@ -15,7 +21,7 @@ extern "C" {
 
 typedef struct LukeDb LukeDb;
 
-#if defined(__wasi__)
+#if !defined(LUKE_DB_REAL)
 
 struct LukeDb {
   int unused;
@@ -110,7 +116,7 @@ static inline int luke_db_log_replay(LukeArena *a, LukeDb *db, LukeText table, i
   return 0;
 }
 
-#else /* !__wasi__ */
+#else /* LUKE_DB_REAL */
 
 #include <stdlib.h>
 #include <string.h>

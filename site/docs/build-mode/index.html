@@ -456,7 +456,7 @@ Build-mode layouts, types, and arenas are the <strong>truth</strong>.<br />
 That split is how Luke can feel like Python and weigh like Rust.</p>
 <h2 id="parser-ceiling-known-limit">Parser ceiling (known limit)</h2>
 <p>Build codegen (<code>vm/src/build_c.cpp</code>) is <strong>line-based</strong>: one statement per line, <code>startsWithCI</code> / keyword scans, not a full lexer + AST.</p>
-<p>That is why today’s surface is productive and conversational — and also why multi-line expressions, richer nesting, and flexible punctuation will eventually need a real parse pipeline.</p>
+<p>Syntax v2 parses to an AST and lowers to that line-based surface, so the ceiling still applies underneath: multi-line expressions, richer nesting, and flexible punctuation will need codegen to consume the AST directly.</p>
 <table>
 <thead>
 <tr>

@@ -251,6 +251,8 @@ def nav(depth: int, current: str = "") -> str:
     <img src="{up}assets/luke-mark-sm.png" alt="" width="128" height="65" />
     <span>LukeLang</span>
   </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
   <nav class="nav__links" aria-label="Primary">
 {links}
   </nav>
@@ -426,7 +428,11 @@ def render(doc: Doc, docs: dict[str, Doc]) -> None:
 
   <div class="page">
     <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Documents &amp; contents</label>
+      <div class="sidebar__panel">
 {sidebar(docs, doc.key, 2)}{contents}
+      </div>
     </aside>
 
     <article class="prose prose--doc">
@@ -521,6 +527,9 @@ def render_hub(docs: dict[str, Doc]) -> None:
 
   <div class="page">
     <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">Sections</label>
+      <div class="sidebar__panel">
       <h2>Sections</h2>
       <ul>
 {chr(10).join(nav_items)}
@@ -531,6 +540,7 @@ def render_hub(docs: dict[str, Doc]) -> None:
         <li><a href="../examples/">Examples</a></li>
         <li><a href="../download/">Download</a></li>
       </ul>
+      </div>
     </aside>
 
     <div class="prose">

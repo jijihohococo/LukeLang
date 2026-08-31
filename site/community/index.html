@@ -7,6 +7,27 @@
 <meta name="description" content="Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands." />
 <meta name="theme-color" content="#050806" />
 <link rel="icon" href="../assets/favicon.png" type="image/png" />
+<!-- seo:begin -->
+<link rel="canonical" href="https://lukelang.org/community/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="author" content="Kaung Myat San" />
+<link rel="apple-touch-icon" href="/assets/favicon.png" />
+<meta property="og:site_name" content="LukeLang" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lukelang.org/community/" />
+<meta property="og:title" content="Community — LukeLang" />
+<meta property="og:description" content="Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands." />
+<meta property="og:image" content="https://lukelang.org/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="LukeLang — Myanmar's first official programming language" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Community — LukeLang" />
+<meta name="twitter:description" content="Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands." />
+<meta name="twitter:image" content="https://lukelang.org/assets/og.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://lukelang.org/#website","url":"https://lukelang.org","name":"LukeLang","description":"Myanmar's first official programming language \u2014 reactive-native and full-stack, compiling to native C and WebAssembly.","inLanguage":"en","publisher":{"@id":"https://lukelang.org/#author"}},{"@type":"Person","@id":"https://lukelang.org/#author","name":"Kaung Myat San","jobTitle":"Creator of LukeLang","nationality":"Myanmar"},{"@type":"WebPage","name":"Community","description":"Who builds LukeLang, how to contribute, where to ask questions, and what a change has to prove before it lands.","url":"https://lukelang.org/community/","isPartOf":{"@id":"https://lukelang.org/#website"},"inLanguage":"en"}]}</script>
+<!-- seo:end -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" rel="stylesheet" />
@@ -24,6 +45,8 @@
     <img src="../assets/luke-mark-sm.png" alt="" width="128" height="65" />
     <span>LukeLang</span>
   </a>
+  <input class="nav__switch" type="checkbox" id="nav-switch" aria-label="Toggle menu" />
+  <label class="nav__burger" for="nav-switch" aria-hidden="true"><i></i><i></i><i></i></label>
   <nav class="nav__links" aria-label="Primary">
     <a href="../learn/">Learn</a>
     <a href="../docs/">Docs</a>
@@ -48,6 +71,9 @@
 
   <div class="page">
     <aside class="sidebar">
+      <input class="sidebar__switch" type="checkbox" id="index-switch" aria-label="Toggle contents" />
+      <label class="sidebar__toggle" for="index-switch">On this page</label>
+      <div class="sidebar__panel">
       <h2>On this page</h2>
       <ul>
         <li><a href="#who">Who builds it</a></li>
@@ -63,6 +89,7 @@
         <li><a href="https://github.com/lucasdmarshall/LukeLang/issues">Issues</a></li>
         <li><a href="../docs/">Documentation</a></li>
       </ul>
+      </div>
     </aside>
 
     <div class="prose">

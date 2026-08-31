@@ -82,12 +82,13 @@ jobs:
       - name: Install generator deps
         run: pip install --quiet markdown
 
-      - name: Hosted docs match the Markdown they are generated from
+      - name: Hosted docs and SEO metadata match their sources
         run: |
           python3 scripts/build_site_docs.py
-          if ! git diff --quiet -- site/docs; then
-            echo "site/docs is stale — run: python3 scripts/build_site_docs.py" >&2
-            git --no-pager diff --stat -- site/docs
+          python3 scripts/build_site_meta.py
+          if ! git diff --quiet -- site; then
+            echo "site/ is stale — run scripts/build_site_docs.py then scripts/build_site_meta.py" >&2
+            git --no-pager diff --stat -- site
             exit 1
           fi
 

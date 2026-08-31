@@ -24,6 +24,9 @@ trap 'rm -f "$BUNDLE"' EXIT
 echo "→ regenerating hosted documentation"
 python3 "$ROOT_DIR/scripts/build_site_docs.py"
 
+echo "→ refreshing SEO metadata, sitemap and robots"
+python3 "$ROOT_DIR/scripts/build_site_meta.py"
+
 echo "→ packaging site/"
 tar -czf "$BUNDLE" -C "$ROOT_DIR/site" --exclude README.md .
 echo "  $(du -h "$BUNDLE" | cut -f1)"

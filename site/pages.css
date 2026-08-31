@@ -92,10 +92,57 @@
 @media (max-width: 940px) { .page { grid-template-columns: minmax(0, 1fr); } }
 
 .sidebar { position: sticky; top: 6.5rem; min-width: 0; }
+.sidebar__switch { position: absolute; opacity: 0; pointer-events: none; }
+.sidebar__toggle { display: none; }
+
 @media (max-width: 940px) {
-  /* Stacked: the first prose heading already draws a rule, so the sidebar
-     stops drawing its own to avoid a double line. */
-  .sidebar { position: static; padding-bottom: 0.5rem; }
+  /* Stacked, the index is long enough to bury the page — collapse it behind a
+     control that works without JavaScript. */
+  .page { padding-top: clamp(1.8rem, 4vh, 2.5rem); gap: 1.8rem; }
+  .masthead { padding-bottom: clamp(2rem, 5vh, 3rem); }
+  .prose section + section { margin-top: clamp(2.4rem, 6vh, 3.5rem); }
+  .sidebar { position: static; padding-bottom: 0; }
+  .sidebar__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+    font-size: 0.72rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--green);
+    min-height: 44px;
+  }
+  .sidebar__toggle::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 320ms var(--ease);
+  }
+  .sidebar__switch:checked ~ .sidebar__toggle::after {
+    transform: rotate(225deg) translateY(-2px);
+  }
+  .sidebar__panel {
+    max-height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    transition: max-height 460ms var(--ease), visibility 460ms;
+  }
+  .sidebar__switch:checked ~ .sidebar__panel {
+    max-height: 70vh;
+    overflow-y: auto;
+    visibility: visible;
+    padding-top: 1.2rem;
+  }
+  .sidebar h2:first-of-type { margin-top: 0; }
+  .sidebar a { padding-block: 0.55rem; }
 }
 .sidebar h2 {
   margin: 0 0 0.9rem;
@@ -365,14 +412,13 @@
 .prose--doc code:not(pre code) { white-space: nowrap; }
 
 /* Sidebar carries a lot of links on doc pages — let it scroll on its own. */
-.prose--doc + .sidebar, .page .sidebar {
-  max-height: calc(100vh - 8rem);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--faint) transparent;
-}
-@media (max-width: 940px) {
-  .page .sidebar { max-height: none; overflow: visible; }
+@media (min-width: 941px) {
+  .page .sidebar {
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--faint) transparent;
+  }
 }
 
 /* ── Next / previous strip ──────────────────────────────────────── */

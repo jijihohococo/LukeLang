@@ -22,6 +22,23 @@ Every page outside `docs/` is hand-written HTML sharing `styles.css`, `pages.css
 `main.js`. The nav and footer are duplicated per page on purpose — nothing has to run before
 deploying.
 
+## Search metadata
+
+`scripts/build_site_meta.py` owns everything a crawler reads, for every page at once:
+
+```bash
+python3 scripts/build_site_meta.py
+```
+
+It rewrites the block between `<!-- seo:begin -->` and `<!-- seo:end -->` in each page —
+canonical URL, robots directives, Open Graph and Twitter cards pointing at
+`assets/og.png`, and JSON-LD (`WebSite` + `Person` everywhere, `SoftwareSourceCode` on the
+landing page, `TechArticle` + `BreadcrumbList` on documents) — then regenerates
+`sitemap.xml` and `robots.txt`. `lastmod` comes from the HEAD commit date so the sitemap does
+not churn on every build.
+
+The status page is skipped: it lives on another origin and stays out of the index.
+
 ## Hosted documentation
 
 `site/docs/` is generated from the Markdown in `docs/` and `documentations/papers/`, so the

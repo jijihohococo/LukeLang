@@ -1,11 +1,32 @@
 {
   "name": "lukelang-vscode",
   "displayName": "LukeLang",
-  "description": "Official LukeLang syntax, LSP, DAP debug, snippets, and completions.",
+  "description": "Official LukeLang support: syntax highlighting, language server, gdb-backed debugging, snippets and completions.",
   "version": "0.3.0",
   "publisher": "lukelang",
   "icon": "icons/lukelang128x128.png",
   "license": "MIT",
+  "homepage": "https://lukelang.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lucasdmarshall/LukeLang.git",
+    "directory": "tools/vscode/lukelang"
+  },
+  "bugs": {
+    "url": "https://github.com/lucasdmarshall/LukeLang/issues"
+  },
+  "qna": "https://github.com/lucasdmarshall/LukeLang/discussions",
+  "keywords": [
+    "lukelang",
+    "luke",
+    "reactive",
+    "full-stack",
+    "webassembly"
+  ],
+  "galleryBanner": {
+    "color": "#0B3D28",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -18,7 +39,7 @@
     "onLanguage:lukelang",
     "onDebugResolve:lukelang"
   ],
-  "main": "./src/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "languages": [
       {
@@ -129,13 +150,15 @@
     }
   },
   "scripts": {
-    "package": "vsce package --allow-missing-repository",
+    "bundle": "esbuild src/extension.js --bundle --platform=node --target=node18 --external:vscode --format=cjs --minify --outfile=out/extension.js",
+    "package": "npm run bundle && vsce package",
     "check": "node -c src/extension.js && node -c src/lukePath.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.2.1"
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.28.2"
   }
 }

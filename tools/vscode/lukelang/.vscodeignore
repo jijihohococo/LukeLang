@@ -1,8 +1,13 @@
+# Shipped: out/extension.js (bundled), grammar, snippets, icons, README, LICENSE.
 .vscode/**
 .vscode-test/**
 .gitignore
+src/**
+node_modules/**
+dist/**
+esbuild.js
+package-lock.json
 **/*.map
 **/*.ts
 **/tsconfig.json
-node_modules/**/test/**
-node_modules/**/.github/**
+icons/README.md

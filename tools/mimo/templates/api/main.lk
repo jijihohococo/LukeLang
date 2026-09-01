@@ -1,0 +1,97 @@
+// LukeLang HTTP API — scaffolded by: mimo init --template api
+// Routes: GET /health, GET /ok, GET /user/:id, GET /me, POST /login
+// Run: mimo run
+
+import std/server
+import std/sqlite
+import std/json
+
+let setup = dbOpen("data/app.db")
+dbExec(setup, "CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(setup, "CREATE TABLE IF NOT EXISTS sessions(sid TEXT PRIMARY KEY, user_id TEXT)")
+var seed: list = []
+seed.push("1")
+seed.push("Ada")
+dbExecBind(setup, "INSERT OR IGNORE INTO users(id, name) VALUES(?, ?)", seed)
+dbClose(setup)
+
+fn handle(req: Request) {
+  let db = dbOpen("data/app.db")
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  var params: map = {}
+  var answered: bool = false
+
+  if method == "GET" {
+    if httpMatch(path, "/health", params) {
+      httpReply(req, 200, "text/plain", "ok")
+      answered = true
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/user/:id", params) {
+        let id = params["id"]
+        let qmap: map = httpQueryMap(req)
+        let tag = qmap["tag"]
+        var binds: list = []
+        binds.push(id)
+        let name = dbQueryBind(db, "SELECT name FROM users WHERE id = ?", binds)
+        httpReply(req, 200, "text/plain", name + "|" + tag)
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/me", params) {
+        let meSid = httpCookie(req, "luke_sid")
+        var meBinds: list = []
+        meBinds.push(meSid)
+        let uid = dbQueryBind(db, "SELECT user_id FROM sessions WHERE sid = ?", meBinds)
+        httpReply(req, 200, "text/plain", "me=" + uid)
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/login", params) {
+        let body = httpJson(req)
+        let userNode = jsonGet(body, "user")
+        let user = jsonAsText(userNode)
+        let loginSid = "s-" + user
+        var loginBinds: list = []
+        loginBinds.push(loginSid)
+        loginBinds.push("1")
+        dbExecBind(db, "INSERT OR REPLACE INTO sessions(sid, user_id) VALUES(?, ?)", loginBinds)
+        httpSetCookie(req, "luke_sid", loginSid)
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/ok", params) {
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+
+  dbClose(db)
+}
+
+let port: int = 8080
+print("api listening on :" + port)
+let server = httpListen(port)
+httpServe(server, handle, 4)

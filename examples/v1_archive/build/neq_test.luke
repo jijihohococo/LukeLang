@@ -1,0 +1,8 @@
+// Syntax v2 golden corpus twin — IS NOT / != text comparison regression.
+// Twin of examples/v2/neq_test.lk
+
+THIS IS FUNCTION test WITH s AS TEXT DO
+  IF s IS NOT "" DO
+    SPEAK s
+  END IF
+END FUNCTION

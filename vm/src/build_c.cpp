@@ -332,6 +332,8 @@ struct BC {
   std::vector<std::string> fnOrder;
   std::vector<TopStmt> top;
   std::map<std::string, Ty> locals;
+  int blockDepth = 0;
+  std::string localDecls; /* function-scoped MY NAME IS — emitted before body (C block rules) */
   std::string curClass;
   Ty curRet = Ty::vod();
   bool hasCurRet = false;
@@ -723,6 +725,34 @@ struct BC {
   Expr expr(std::string e, size_t line);
   Expr exprLegacy(std::string e, size_t line); /* THE_/ASK/IF path — no Pratt re-entry */
 };
+
+static void resetLocalDecls(BC &bc) {
+  bc.blockDepth = 0;
+  bc.localDecls.clear();
+}
+
+static void enterBlock(BC &bc) { ++bc.blockDepth; }
+
+static void leaveBlock(BC &bc) {
+  if (bc.blockDepth > 0) --bc.blockDepth;
+}
+
+static std::string defaultLocalInit(const Ty &ty) {
+  if (ty.k == K::Text) return "luke_text(\"\")";
+  if (ty.k == K::Flag) return "0";
+  if (ty.k == K::Int) return "0LL";
+  if (ty.k == K::Json) return "((LukeJson*)0)";
+  if (ty.k == K::List) return "luke_list_new(arena)";
+  if (ty.k == K::Map) return "luke_map_new(arena)";
+  if (ty.k == K::Ptr) {
+    if (ty.klass == "__HttpServer") return "((LukeHttpServer*)0)";
+    if (ty.klass == "__HttpReq") return "((LukeHttpRequest*)0)";
+    if (ty.klass == "__Db") return "((LukeDb*)0)";
+    if (ty.klass == "__Pg") return "((LukePg*)0)";
+    return "((" + cIdent(ty.klass) + "*)0)";
+  }
+  return "0.0";
+}
 
 Expr BC::primary(std::string e, size_t line) {
   e = trim(e);
@@ -1365,33 +1395,36 @@ Expr BC::exprLegacy(std::string e, size_t line) {
       args = splitArgs(trim(rest.substr(w + 6)));
     }
     /* Backend concurrency: ASK httpServe WITH server, handlerFn, maxConn */
-    if (name == "httpServe") {
-      if (args.size() != 3) {
-        fail(line, "httpServe needs: ASK httpServe WITH server, handler, maxConn");
+    if (name == "httpServe" || name == "httpServeForever") {
+      bool forever = name == "httpServeForever";
+      size_t needArgs = forever ? 2u : 3u;
+      if (args.size() != needArgs) {
+        fail(line, forever ? "httpServeForever needs: ASK httpServeForever WITH server, handler"
+                           : "httpServe needs: ASK httpServe WITH server, handler, maxConn");
         return {"0", Ty::flag()};
       }
       auto serverE = expr(args[0], line);
-      expectTy(line, serverE.ty, Ty::ptr("__HttpServer"), "httpServe server");
+      expectTy(line, serverE.ty, Ty::ptr("__HttpServer"), name + " server");
       auto handlerName = trim(args[1]);
       if (!fns.count(handlerName)) {
-        fail(line, "httpServe handler '" + handlerName +
+        fail(line, name + " handler '" + handlerName +
                        "' — define THIS IS FUNCTION " + handlerName + " WITH req AS REQUEST");
         return {"0", Ty::flag()};
       }
       auto &hfn = fns[handlerName];
       if (hfn.params.size() != 1 || hfn.params[0].ty.k != K::Ptr ||
           hfn.params[0].ty.klass != "__HttpReq") {
-        fail(line, "httpServe handler must take one REQUEST argument");
+        fail(line, name + " handler must take one REQUEST argument");
         return {"0", Ty::flag()};
       }
-      auto maxE = coerceTo(line, expr(args[2], line), Ty::num(), "httpServe maxConn");
+      std::string maxCode = forever ? "0.0" : coerceTo(line, expr(args[2], line), Ty::num(), "httpServe maxConn").code;
       needsPthread = true;
       bool seen = false;
       for (auto &h : httpServeHandlers)
         if (h == handlerName) seen = true;
       if (!seen) httpServeHandlers.push_back(handlerName);
       return {"luke_http_serve(" + serverE.code + ", luke_http_wrap_" + cIdent(handlerName) + ", " +
-                  maxE.code + ")",
+                  maxCode + ")",
               Ty::flag()};
     }
     if (!fns.count(name)) {
@@ -1515,12 +1548,15 @@ Expr BC::exprLegacy(std::string e, size_t line) {
       }
     }
     if (L.ty.k == K::Text) {
-      // Text equality via length+memcmp
       if (std::string(op) == "==") {
         r = {"(luke_text_eq((" + L.code + "),(" + R.code + ")))", Ty::flag()};
         return &r;
       }
-      fail(line, "TEXT only supports EQUALS comparisons in Build for now");
+      if (std::string(op) == "!=") {
+        r = {"(!luke_text_eq((" + L.code + "),(" + R.code + ")))", Ty::flag()};
+        return &r;
+      }
+      fail(line, "TEXT only supports EQUALS / IS NOT comparisons in Build for now");
       r = {"0", Ty::flag()};
       return &r;
     }
@@ -1540,6 +1576,7 @@ Expr BC::exprLegacy(std::string e, size_t line) {
   };
   if (auto *r = cmp(" EQUALS ", "==")) return *r;
   if (auto *r = cmp(" IS EQUAL TO ", "==")) return *r;
+  if (auto *r = cmp(" IS NOT ", "!=")) return *r;
   if (auto *r = cmp(" IS LESS THAN ", "<")) return *r;
   if (auto *r = cmp(" IS GREATER THAN ", ">")) return *r;
   if (auto *r = cmp(" IS LESS THAN OR EQUAL TO ", "<=")) return *r;
@@ -2573,7 +2610,13 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     if (!bc.locals.count(name)) {
       bc.locals[name] = e.ty;
-      o << "  " << cTy(e.ty) << " " << cIdent(name) << " = " << e.code << ";\n";
+      if (bc.blockDepth > 0) {
+        bc.localDecls +=
+            "  " + cTy(e.ty) + " " + cIdent(name) + " = " + defaultLocalInit(e.ty) + ";\n";
+        o << "  " << cIdent(name) << " = " << e.code << ";\n";
+      } else {
+        bc.localDecls += "  " + cTy(e.ty) + " " + cIdent(name) + " = " + e.code + ";\n";
+      }
     } else {
       e = bc.coerceTo(line, e, bc.locals[name], "MY NAME IS " + name);
       o << "  " << cIdent(name) << " = " << e.code << ";\n";
@@ -3434,9 +3477,11 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     if (cond.ty.k != K::Flag && cond.ty.k != K::Num && cond.ty.k != K::Int)
       bc.fail(line, "IF needs a FLAG (or NUMBER/INTEGER) condition — got " + tyName(cond.ty));
     o << "  if (" << cond.code << ") {\n";
+    enterBlock(bc);
     return;
   }
   if (toUpper(text) == "END IF" || toUpper(text) == "ENDIF") {
+    leaveBlock(bc);
     o << "  }\n";
     return;
   }
@@ -3447,9 +3492,11 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     if (cond.ty.k != K::Flag && cond.ty.k != K::Num && cond.ty.k != K::Int)
       bc.fail(line, "WHILE needs a FLAG (or NUMBER/INTEGER) condition — got " + tyName(cond.ty));
     o << "  while (" << cond.code << ") {\n";
+    enterBlock(bc);
     return;
   }
   if (toUpper(text) == "END WHILE" || toUpper(text) == "ENDWHILE") {
+    leaveBlock(bc);
     o << "  }\n";
     return;
   }
@@ -3471,6 +3518,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     int id = ++bc.forEachSeq;
     o << "  {\n";
+    enterBlock(bc);
     o << "    double _luke_fe_n" << id << " = luke_list_len(" << listE.code << ");\n";
     o << "    for (double _luke_fe_i" << id << " = 0; _luke_fe_i" << id << " < _luke_fe_n" << id
       << "; _luke_fe_i" << id << " += 1) {\n";
@@ -3487,6 +3535,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     bc.locals.erase(bc.forEachVars.back());
     bc.forEachVars.pop_back();
+    leaveBlock(bc);
     o << "    }\n  }\n";
     return;
   }
@@ -3496,6 +3545,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     std::string mark = "_luke_m" + std::to_string(++bc.arenaSeq);
     bc.arenaMarks.push_back(mark);
     o << "  {\n";
+    enterBlock(bc);
     o << "    LukeArenaMark " << mark << " = luke_arena_mark(arena);\n";
     return;
   }
@@ -3506,6 +3556,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     std::string mark = bc.arenaMarks.back();
     bc.arenaMarks.pop_back();
+    leaveBlock(bc);
     o << "    luke_arena_reset(arena, " << mark << ");\n";
     o << "  }\n";
     return;
@@ -3574,6 +3625,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     bc.attemptHasOtherwise.push_back(false);
     o << "  luke_clear_problem();\n";
     o << "  {\n";
+    enterBlock(bc);
     return;
   }
   if (startsWithCI(text, "OTHERWISE") || toUpper(text) == "ELSE" || startsWithCI(text, "ELSE ")) {
@@ -3621,6 +3673,7 @@ void stmt(BC &bc, const std::string &text, size_t line, std::ostringstream &o,
     }
     o << "  " << lab << "_end: ;\n";
     o << "  }\n";
+    leaveBlock(bc);
     return;
   }
   if (startsWithCI(text, "GIVE UP")) {
@@ -7036,6 +7089,7 @@ std::string emit(BC &bc) {
     bc.curClass.clear();
     bc.curRet = fn.ret;
     bc.hasCurRet = true;
+    resetLocalDecls(bc);
     for (auto &p : fn.params) bc.locals[p.name] = p.ty;
     std::ostringstream body;
     for (size_t i = 0; i < fn.body.size(); ++i) {
@@ -7045,7 +7099,7 @@ std::string emit(BC &bc) {
     if (bc.bad) return {};
     o << "static " << cTy(fn.ret) << " " << cIdent(n) << "(LukeArena *arena";
     for (auto &p : fn.params) o << ", " << cTy(p.ty) << " " << cIdent(p.name);
-    o << ") {\n" << body.str();
+    o << ") {\n" << bc.localDecls << body.str();
     if (fn.ret.k == K::Num) o << "  return 0.0;\n";
     else if (fn.ret.k == K::Flag) o << "  return 0;\n";
     else if (fn.ret.k == K::Text) o << "  return luke_text(\"\");\n";
@@ -7065,6 +7119,7 @@ std::string emit(BC &bc) {
       if (m.ctor) continue;
       bc.locals.clear();
       bc.locals["SELF"] = Ty::ptr(n);
+      resetLocalDecls(bc);
       for (auto &p : m.params) bc.locals[p.name] = p.ty;
       std::ostringstream body;
       for (size_t i = 0; i < m.body.size(); ++i) {
@@ -7075,7 +7130,7 @@ std::string emit(BC &bc) {
       o << "static void " << cIdent(n) << "_" << cIdent(m.name) << "(LukeArena *arena, "
         << cIdent(n) << " *self";
       for (auto &p : m.params) o << ", " << cTy(p.ty) << " " << cIdent(p.name);
-      o << ") {\n" << body.str() << "}\n\n";
+      o << ") {\n" << bc.localDecls << body.str() << "}\n\n";
     }
     Method *ctor = nullptr;
     for (auto &m : bp.methods)
@@ -7188,6 +7243,7 @@ std::string emit(BC &bc) {
     bc.locals[kv.first] = ty;
   }
   std::ostringstream mainBody;
+  resetLocalDecls(bc);
   for (auto &tl : bc.top) {
     stmt(bc, tl.text, tl.line, mainBody, tl.file);
     if (bc.bad) return {};
@@ -7286,6 +7342,7 @@ std::string emit(BC &bc) {
       else
         o << "  (void)luke_rx_read_num(g, _luke_rx_id_" << cIdent(watchCell) << ");\n";
       bc.locals.clear();
+      resetLocalDecls(bc);
       for (auto &kv : bc.rxCells) {
         Ty ty = bc.rxCellTy.count(kv.first) ? bc.rxCellTy[kv.first] : Ty::num();
         bc.locals[kv.first] = ty;
@@ -7298,7 +7355,7 @@ std::string emit(BC &bc) {
         stmt(bc, w.body[i], w.lines[i], wb, f);
         if (bc.bad) return {};
       }
-      o << wb.str();
+      o << bc.localDecls << wb.str();
       o << "}\n\n";
     }
     for (auto &b : bc.rxBindDefs) {
@@ -7352,6 +7409,7 @@ std::string emit(BC &bc) {
   if (!bc.pageWhens.empty()) {
     for (auto &w : bc.pageWhens) {
       bc.locals.clear();
+      resetLocalDecls(bc);
       for (auto &kv : bc.rxCells) {
         Ty ty = bc.rxCellTy.count(kv.first) ? bc.rxCellTy[kv.first] : Ty::num();
         bc.locals[kv.first] = ty;
@@ -7366,7 +7424,7 @@ std::string emit(BC &bc) {
         bc.fail(1, "Unclosed BEGIN " + bc.hankaStack.back() + " in WHEN handler");
         return {};
       }
-      whenBodies.push_back(wb.str());
+      whenBodies.push_back(bc.localDecls + wb.str());
     }
   }
 
@@ -7576,7 +7634,7 @@ std::string emit(BC &bc) {
     o << "  _luke_rx = &_luke_rx_storage;\n";
     if (bc.usesRxUi) o << "  luke_rx_ui_enable(_luke_rx);\n";
   }
-  o << mainBody.str();
+  o << bc.localDecls << mainBody.str();
   if (bc.forBrowser || !bc.pageWhens.empty()) {
     /* Keep arena alive for WHEN handlers / page lifetime. */
     o << "  return 0;\n}\n";

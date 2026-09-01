@@ -1,0 +1,84 @@
+// DevOps API — LukeLang backend (Postgres)
+
+import std/server
+import std/pg
+
+fn jsonOrEmpty(rows: str) -> str {
+  if rows == "" {
+    return "[]"
+  }
+  return rows
+}
+
+fn serveOverview(req: Request, pg: PGCONN, none: list) {
+  let sql = "SELECT row_to_json(t)::text FROM (SELECT (SELECT cpu_pct FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS cpu, (SELECT mem_pct FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS mem, (SELECT disk_pct FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS disk, (SELECT load1 FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS load1, (SELECT COUNT(*) FROM services) AS services_total) t"
+  var body = pgQueryBind(pg, sql, none)
+  if body == "" {
+    body = "{\"cpu\":0,\"mem\":0,\"disk\":0,\"load1\":0,\"services_total\":0}"
+  }
+  httpReply(req, 200, "application/json", body)
+}
+
+fn serveServices(req: Request, pg: PGCONN, none: list) {
+  let sql = "SELECT json_agg(row_to_json(t))::text FROM (SELECT slug, name, description, check_url, (SELECT status FROM service_checks sc WHERE sc.service_id = services.id ORDER BY checked_at DESC LIMIT 1) AS status, (SELECT latency_ms FROM service_checks sc WHERE sc.service_id = services.id ORDER BY checked_at DESC LIMIT 1) AS latency_ms FROM services ORDER BY slug) t"
+  let raw = pgQueryBind(pg, sql, none)
+  let body = jsonOrEmpty(raw)
+  httpReply(req, 200, "application/json", body)
+}
+
+fn serveMetrics(req: Request, pg: PGCONN, none: list) {
+  let sql = "SELECT json_agg(row_to_json(t) ORDER BY t.recorded_at)::text FROM (SELECT cpu_pct, mem_pct, disk_pct, load1, recorded_at FROM host_metrics ORDER BY recorded_at DESC LIMIT 120) t"
+  let raw = pgQueryBind(pg, sql, none)
+  let body = jsonOrEmpty(raw)
+  httpReply(req, 200, "application/json", body)
+}
+
+fn serveIncidents(req: Request, pg: PGCONN, none: list) {
+  let sql = "SELECT json_agg(row_to_json(t) ORDER BY t.started_at DESC)::text FROM (SELECT id, title, status, summary, started_at, resolved_at FROM incidents ORDER BY started_at DESC LIMIT 20) t"
+  let raw = pgQueryBind(pg, sql, none)
+  let body = jsonOrEmpty(raw)
+  httpReply(req, 200, "application/json", body)
+}
+
+fn handle(req: Request) {
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  let pg = pgOpen("host=127.0.0.1 port=5432 dbname=luke_devops user=luke_ops password=luke_ops")
+  var none: list = []
+
+  if method == "GET" {
+    if path == "/api/health" {
+      httpReply(req, 200, "application/json", "{\"ok\":true,\"service\":\"luke-devops\"}")
+      pgClose(pg)
+      return
+    }
+    if path == "/api/overview" {
+      serveOverview(req, pg, none)
+      pgClose(pg)
+      return
+    }
+    if path == "/api/services" {
+      serveServices(req, pg, none)
+      pgClose(pg)
+      return
+    }
+    if path == "/api/metrics" {
+      serveMetrics(req, pg, none)
+      pgClose(pg)
+      return
+    }
+    if path == "/api/incidents" {
+      serveIncidents(req, pg, none)
+      pgClose(pg)
+      return
+    }
+  }
+
+  httpReply(req, 404, "application/json", "{\"error\":\"not found\"}")
+  pgClose(pg)
+}
+
+print("luke devops api :8820")
+let server = httpListen(8820)
+httpServe(server, handle, 8)
+print("devops_api_done=1")

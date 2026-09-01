@@ -95,7 +95,7 @@ ensure_dirs() {
 
 install_self() {
   ensure_dirs
-  local self dest
+  local self dest tpl_src
   self="${BASH_SOURCE[0]:-$0}"
   if [ -f "$self" ] && grep -q 'inject LukeLang' "$self" 2>/dev/null; then
     cp "$self" "${MIMO_BIN}/mimo"
@@ -104,6 +104,11 @@ install_self() {
     download "${MIMO_DIST}/mimo" "${MIMO_BIN}/mimo"
   fi
   chmod +x "${MIMO_BIN}/mimo"
+  tpl_src="$(dirname "$self")/templates"
+  if [ -d "$tpl_src" ]; then
+    mkdir -p "${MIMO_HOME}/templates"
+    cp -R "$tpl_src"/* "${MIMO_HOME}/templates/"
+  fi
   info "installed mimo ${MIMO_VERSION} → ${MIMO_BIN}/mimo"
 }
 
@@ -410,14 +415,236 @@ fetch_registry() {
   die "cannot fetch package registry"
 }
 
+mimo_self_dir() {
+  local self="${BASH_SOURCE[0]:-$0}"
+  local dir
+  if [ -f "$self" ]; then
+    dir="$(dirname "$self")"
+    if have readlink; then
+      dir="$(dirname "$(readlink -f "$self" 2>/dev/null || echo "$self")")"
+    elif have realpath; then
+      dir="$(dirname "$(realpath "$self" 2>/dev/null || echo "$self")")"
+    fi
+    printf '%s\n' "$dir"
+  fi
+}
+
+sync_templates_from_dist() {
+  local tpl base f
+  mkdir -p "${MIMO_HOME}/templates/api"
+  base="${MIMO_DIST}/templates/api"
+  for f in main.lk README.md .gitignore; do
+    tpl="${MIMO_HOME}/templates/api/${f}"
+    if [ ! -f "$tpl" ]; then
+      download "${base}/${f}" "$tpl" 2>/dev/null || true
+    fi
+  done
+}
+
+mimo_templates_root() {
+  local self_dir
+  self_dir="$(mimo_self_dir 2>/dev/null || true)"
+  if [ -n "$self_dir" ] && [ -d "${self_dir}/templates" ]; then
+    printf '%s/templates\n' "$self_dir"
+    return 0
+  fi
+  if [ -d "${MIMO_HOME}/templates" ]; then
+    printf '%s/templates\n' "$MIMO_HOME"
+    return 0
+  fi
+  sync_templates_from_dist
+  if [ -d "${MIMO_HOME}/templates" ]; then
+    printf '%s/templates\n' "$MIMO_HOME"
+    return 0
+  fi
+  return 1
+}
+
+write_embedded_api_main() {
+  cat > main.lk <<'EOF'
+// LukeLang HTTP API — scaffolded by: mimo init --template api
+// Routes: GET /health, GET /ok, GET /user/:id, GET /me, POST /login
+// Run: mimo run
+
+import std/server
+import std/sqlite
+import std/json
+
+let setup = dbOpen("data/app.db")
+dbExec(setup, "CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(setup, "CREATE TABLE IF NOT EXISTS sessions(sid TEXT PRIMARY KEY, user_id TEXT)")
+var seed: list = []
+seed.push("1")
+seed.push("Ada")
+dbExecBind(setup, "INSERT OR IGNORE INTO users(id, name) VALUES(?, ?)", seed)
+dbClose(setup)
+
+fn handle(req: Request) {
+  let db = dbOpen("data/app.db")
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  var params: map = {}
+  var answered: bool = false
+
+  if method == "GET" {
+    if httpMatch(path, "/health", params) {
+      httpReply(req, 200, "text/plain", "ok")
+      answered = true
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/user/:id", params) {
+        let id = params["id"]
+        let qmap: map = httpQueryMap(req)
+        let tag = qmap["tag"]
+        var binds: list = []
+        binds.push(id)
+        let name = dbQueryBind(db, "SELECT name FROM users WHERE id = ?", binds)
+        httpReply(req, 200, "text/plain", name + "|" + tag)
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/me", params) {
+        let meSid = httpCookie(req, "luke_sid")
+        var meBinds: list = []
+        meBinds.push(meSid)
+        let uid = dbQueryBind(db, "SELECT user_id FROM sessions WHERE sid = ?", meBinds)
+        httpReply(req, 200, "text/plain", "me=" + uid)
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/login", params) {
+        let body = httpJson(req)
+        let userNode = jsonGet(body, "user")
+        let user = jsonAsText(userNode)
+        let loginSid = "s-" + user
+        var loginBinds: list = []
+        loginBinds.push(loginSid)
+        loginBinds.push("1")
+        dbExecBind(db, "INSERT OR REPLACE INTO sessions(sid, user_id) VALUES(?, ?)", loginBinds)
+        httpSetCookie(req, "luke_sid", loginSid)
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/ok", params) {
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+
+  dbClose(db)
+}
+
+let port: int = 8080
+print("api listening on :" + port)
+let server = httpListen(port)
+httpServe(server, handle, 4)
+EOF
+}
+
+apply_template_api() {
+  local name="$1"
+  local root src
+  mkdir -p luke_modules data
+  root="$(mimo_templates_root 2>/dev/null || true)"
+  if [ -n "$root" ] && [ -f "${root}/api/main.lk" ]; then
+    cp "${root}/api/main.lk" main.lk
+    [ -f "${root}/api/README.md" ] && cp "${root}/api/README.md" README.md
+    [ -f "${root}/api/.gitignore" ] && cp "${root}/api/.gitignore" .gitignore
+  else
+    write_embedded_api_main
+  fi
+  cat > luke.json <<EOF
+{
+  "name": "${name}",
+  "version": "0.1.0",
+  "main": "main.lk",
+  "template": "api",
+  "dependencies": {}
+}
+EOF
+  info "initialized API project '${name}'"
+  info "  luke.json"
+  info "  main.lk"
+  info "  data/"
+  info "  luke_modules/"
+  info "next: mimo run"
+  info "      curl http://localhost:8080/health"
+}
+
 pkg_init() {
-  local name="${1:-}"
+  local template="" name=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --template|-t)
+        [ $# -ge 2 ] || die "usage: mimo init [--template api] [name]"
+        template="$2"
+        shift 2
+        ;;
+      --template=*)
+        template="${1#--template=}"
+        shift
+        ;;
+      -h|--help)
+        cat <<EOF
+mimo init — create a new LukeLang project
+
+Usage:
+  mimo init [name]
+  mimo init --template api [name]
+
+Templates:
+  (default)   Hello-world main.lk
+  api         HTTP API with SQLite, routes, and health check
+EOF
+        return 0
+        ;;
+      -*)
+        die "unknown option: $1 (try: mimo init --help)"
+        ;;
+      *)
+        name="$1"
+        shift
+        ;;
+    esac
+  done
   if [ -z "$name" ]; then
     name="$(basename "$PWD")"
   fi
   if [ -f luke.json ]; then
     die "luke.json already exists"
   fi
+  case "$template" in
+    api)
+      apply_template_api "$name"
+      return 0
+      ;;
+    "")
+      ;;
+    *)
+      die "unknown template '${template}' (try: api)"
+      ;;
+  esac
   mkdir -p luke_modules
   cat > luke.json <<EOF
 {
@@ -640,6 +867,7 @@ Toolchain:
 
 Packages:
   mimo init [name]                 Create luke.json + main.lk
+  mimo init --template api [name]  Scaffold an HTTP API project
   mimo forge <package>[@version]   Install from the package registry
   mimo remove <package>            Remove from luke_modules/
   mimo run [file]                  Build and run the project
@@ -678,7 +906,7 @@ main() {
       eject_tool "${1:-lukelang}"
       ;;
     init)
-      pkg_init "${1:-}"
+      pkg_init "$@"
       ;;
     forge|add|install)
       [ $# -ge 1 ] || die "usage: mimo forge <package>"

@@ -846,7 +846,7 @@ em { font-style: normal; }
 }
 .footer__line { margin: 0; font-weight: 300; }
 .footer__line b { color: var(--white); font-weight: 600; }
-.footer__nav { display: flex; gap: 1.6rem; font-weight: 600; }
+.footer__nav { display: flex; flex-wrap: wrap; gap: 1.6rem; font-weight: 600; }
 .footer__nav a { transition: color 300ms var(--ease); }
 .footer__nav a:hover { color: var(--yellow); }
 .footer__meta { margin: 0; }

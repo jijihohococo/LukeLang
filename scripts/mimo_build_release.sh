@@ -120,6 +120,8 @@ fi
 
 STAGE="$BUILD_DIR/stage"
 mkdir -p "$STAGE"
+cp -R "$VM/runtime" "$STAGE/runtime"
+cp -R "$VM/stdlib" "$STAGE/stdlib"
 cp "$SRC_BIN" "$STAGE/$EXE_NAME"
 chmod +x "$STAGE/$EXE_NAME" 2>/dev/null || true
 printf 'LukeLang %s (%s)\nBuilt with mimo release packaging.\n' "$VERSION" "$TARGET" \
@@ -131,18 +133,21 @@ rm -f "$ARTIFACT"
   cd "$STAGE"
   if [ "$ARCHIVE_EXT" = zip ]; then
     if command -v zip >/dev/null 2>&1; then
-      zip -q "$ARTIFACT" "$EXE_NAME" README.txt
+      zip -q "$ARTIFACT" "$EXE_NAME" README.txt runtime stdlib
     else
-      python3 - "$ARTIFACT" "$EXE_NAME" README.txt <<'PY'
-import sys, zipfile
+      python3 - "$ARTIFACT" . <<'PY'
+import os, sys, zipfile
+root = sys.argv[2]
 z = zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED)
-for name in sys.argv[2:]:
-    z.write(name)
+for dirpath, _, files in os.walk(root):
+    for name in files:
+        path = os.path.join(dirpath, name)
+        z.write(path, os.path.relpath(path, root))
 z.close()
 PY
     fi
   else
-    tar -czf "$ARTIFACT" "$EXE_NAME" README.txt
+    tar -czf "$ARTIFACT" "$EXE_NAME" README.txt runtime stdlib
   fi
 )
 

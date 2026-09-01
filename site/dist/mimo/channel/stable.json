@@ -1,6 +1,6 @@
 {
   "name": "lukelang",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "released": "2026-09-01",
   "mimo_min": "0.3.0",
   "targets": {
@@ -30,8 +30,8 @@
       "binary": "luke"
     },
     "linux-x86_64": {
-      "url": "https://lukelang.org/dist/mimo/lukelang/0.3.1/luke-linux-x86_64.tar.gz",
-      "sha256": "9b9368e1b9ab7d1b9bc636b072d258284ff8191f7d555a071a44ecd1cfc6e201",
+      "url": "https://lukelang.org/dist/mimo/lukelang/0.3.2/luke-linux-x86_64.tar.gz",
+      "sha256": "3539ecb4701944c4e9dffffac46d6f28ccb4743fe34f5d8a2fd9ddc54adc2b4b",
       "binary": "luke"
     },
     "windows-arm64": {

@@ -1,0 +1,41 @@
+name: Deploy site
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "scripts/deploy_site.sh"
+      - "scripts/mimo_publish_dist.sh"
+      - "scripts/build_site_docs.py"
+      - "scripts/build_site_meta.py"
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ vars.DEPLOY_HOST || '187.127.108.32' }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy lukelang.org
+        env:
+          HOST: ${{ vars.DEPLOY_USER || 'root' }}@${{ vars.DEPLOY_HOST || '187.127.108.32' }}
+        run: |
+          chmod +x scripts/deploy_site.sh
+          scripts/deploy_site.sh

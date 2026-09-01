@@ -9,6 +9,7 @@ mimo inject lukelang
 
 # Packages (npm/pip-style)
 mimo init
+mimo init --template api        # HTTP API scaffold
 mimo forge greeter            # → luke_modules/greeter
 mimo forge http               # builtin → import std/http
 mimo run
@@ -24,6 +25,7 @@ irm https://lukelang.org/mimo.ps1 | iex
 |---|---|
 | `mimo inject lukelang` | Install / activate the compiler |
 | `mimo init [name]` | Create `luke.json` + `main.lk` |
+| `mimo init --template api [name]` | Scaffold an HTTP API with SQLite + routes |
 | `mimo forge <pkg>` | Install from [packages.lukelang.org](https://packages.lukelang.org) |
 | `mimo remove <pkg>` | Remove from `luke_modules/` |
 | `mimo run [file]` | `luke BUILD` + execute |

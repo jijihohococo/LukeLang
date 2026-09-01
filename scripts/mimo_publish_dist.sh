@@ -10,7 +10,7 @@
 #   site/dist/mimo/mimo                canonical CLI
 #   site/dist/mimo/mimo.ps1
 #   site/dist/mimo/channel/stable.json
-#   site/dist/mimo/lukelang/<ver>/luke-<target>.tar.gz|zip
+#   site/dist/mimo/templates/api/       project scaffolds for mimo init
 
 set -euo pipefail
 
@@ -29,6 +29,10 @@ install -m 0644 "$ROOT/tools/mimo/mimo" "$ROOT/site/mimo"
 install -m 0644 "$ROOT/tools/mimo/mimo.ps1" "$ROOT/site/mimo.ps1"
 install -m 0644 "$ROOT/tools/mimo/mimo" "$DIST_ROOT/mimo"
 install -m 0644 "$ROOT/tools/mimo/mimo.ps1" "$DIST_ROOT/mimo.ps1"
+if [ -d "$ROOT/tools/mimo/templates" ]; then
+  rm -rf "$DIST_ROOT/templates"
+  cp -R "$ROOT/tools/mimo/templates" "$DIST_ROOT/templates"
+fi
 # Make the site copy look like a downloadable script (deploy chmod will flatten +x).
 chmod 0755 "$ROOT/site/mimo" "$DIST_ROOT/mimo" 2>/dev/null || true
 

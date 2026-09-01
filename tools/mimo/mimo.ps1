@@ -60,6 +60,12 @@ function Install-Self {
 @echo off
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0mimo.ps1" %*
 "@ | Set-Content -Encoding ASCII -Path $wrapper
+  $tplSrc = Join-Path $PSScriptRoot "templates"
+  if (Test-Path $tplSrc) {
+    $tplDest = Join-Path $MimoHome "templates"
+    New-Item -ItemType Directory -Force -Path $tplDest | Out-Null
+    Copy-Item -Path (Join-Path $tplSrc "*") -Destination $tplDest -Recurse -Force
+  }
   Write-Mimo "installed mimo $MimoVersion → $dest"
 }
 
@@ -206,12 +212,219 @@ function Get-RegistryIndex {
   throw "cannot fetch package registry"
 }
 
-function Initialize-Project([string]$Name = "") {
-  if (-not $Name) { $Name = Split-Path -Leaf (Get-Location) }
-  if (Test-Path "luke.json") { throw "luke.json already exists" }
-  New-Item -ItemType Directory -Force -Path "luke_modules" | Out-Null
+function Sync-TemplatesFromDist {
+  $apiDir = Join-Path $MimoHome "templates\api"
+  New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+  foreach ($f in @("main.lk", "README.md", ".gitignore")) {
+    $dest = Join-Path $apiDir $f
+    if (-not (Test-Path $dest)) {
+      try {
+        Download-File "$MimoDist/templates/api/$f" $dest
+      } catch {
+        continue
+      }
+    }
+  }
+}
+
+function Get-MimoTemplatesRoot {
+  $local = Join-Path $PSScriptRoot "templates"
+  if (Test-Path $local) { return $local }
+  $homeTpl = Join-Path $MimoHome "templates"
+  if (Test-Path $homeTpl) { return $homeTpl }
+  Sync-TemplatesFromDist
+  if (Test-Path $homeTpl) { return $homeTpl }
+  return $null
+}
+
+function Write-EmbeddedApiMain {
+  @'
+// LukeLang HTTP API — scaffolded by: mimo init --template api
+// Routes: GET /health, GET /ok, GET /user/:id, GET /me, POST /login
+// Run: mimo run
+
+import std/server
+import std/sqlite
+import std/json
+
+let setup = dbOpen("data/app.db")
+dbExec(setup, "CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT)")
+dbExec(setup, "CREATE TABLE IF NOT EXISTS sessions(sid TEXT PRIMARY KEY, user_id TEXT)")
+var seed: list = []
+seed.push("1")
+seed.push("Ada")
+dbExecBind(setup, "INSERT OR IGNORE INTO users(id, name) VALUES(?, ?)", seed)
+dbClose(setup)
+
+fn handle(req: Request) {
+  let db = dbOpen("data/app.db")
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  var params: map = {}
+  var answered: bool = false
+
+  if method == "GET" {
+    if httpMatch(path, "/health", params) {
+      httpReply(req, 200, "text/plain", "ok")
+      answered = true
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/user/:id", params) {
+        let id = params["id"]
+        let qmap: map = httpQueryMap(req)
+        let tag = qmap["tag"]
+        var binds: list = []
+        binds.push(id)
+        let name = dbQueryBind(db, "SELECT name FROM users WHERE id = ?", binds)
+        httpReply(req, 200, "text/plain", name + "|" + tag)
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/me", params) {
+        let meSid = httpCookie(req, "luke_sid")
+        var meBinds: list = []
+        meBinds.push(meSid)
+        let uid = dbQueryBind(db, "SELECT user_id FROM sessions WHERE sid = ?", meBinds)
+        httpReply(req, 200, "text/plain", "me=" + uid)
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "POST" {
+      if httpMatch(path, "/login", params) {
+        let body = httpJson(req)
+        let userNode = jsonGet(body, "user")
+        let user = jsonAsText(userNode)
+        let loginSid = "s-" + user
+        var loginBinds: list = []
+        loginBinds.push(loginSid)
+        loginBinds.push("1")
+        dbExecBind(db, "INSERT OR REPLACE INTO sessions(sid, user_id) VALUES(?, ?)", loginBinds)
+        httpSetCookie(req, "luke_sid", loginSid)
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    if method == "GET" {
+      if httpMatch(path, "/ok", params) {
+        httpReply(req, 200, "text/plain", "ok")
+        answered = true
+      }
+    }
+  }
+
+  if !answered {
+    httpReply(req, 404, "text/plain", "not found")
+  }
+
+  dbClose(db)
+}
+
+let port: int = 8080
+print("api listening on :" + port)
+let server = httpListen(port)
+httpServe(server, handle, 4)
+'@ | Set-Content -Encoding UTF8 "main.lk"
+}
+
+function Apply-TemplateApi([string]$Name) {
+  New-Item -ItemType Directory -Force -Path "luke_modules", "data" | Out-Null
+  $root = Get-MimoTemplatesRoot
+  $mainTpl = if ($root) { Join-Path $root "api\main.lk" } else { $null }
+  if ($mainTpl -and (Test-Path $mainTpl)) {
+    Copy-Item $mainTpl "main.lk" -Force
+    $readme = Join-Path $root "api\README.md"
+    if (Test-Path $readme) { Copy-Item $readme "README.md" -Force }
+    $gitignore = Join-Path $root "api\.gitignore"
+    if (Test-Path $gitignore) { Copy-Item $gitignore ".gitignore" -Force }
+  } else {
+    Write-EmbeddedApiMain
+  }
   @{
     name = $Name
+    version = "0.1.0"
+    main = "main.lk"
+    template = "api"
+    dependencies = @{}
+  } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 "luke.json"
+  Write-Mimo "initialized API project '$Name'"
+  Write-Mimo "next: mimo run"
+  Write-Mimo "      curl http://localhost:8080/health"
+}
+
+function Parse-InitArgs([string[]]$Args) {
+  $template = ""
+  $name = ""
+  $i = 0
+  while ($i -lt $Args.Count) {
+    $arg = $Args[$i]
+    switch -Regex ($arg) {
+      '^(--template|-t)$' {
+        if ($i + 1 -ge $Args.Count) { throw "usage: mimo init [--template api] [name]" }
+        $template = $Args[$i + 1]
+        $i += 2
+        continue
+      }
+      '^--template=(.+)$' {
+        $template = $Matches[1]
+        $i++
+        continue
+      }
+      '^-' { throw "unknown option: $arg (try: mimo init --help)" }
+      default {
+        $name = $arg
+        $i++
+      }
+    }
+  }
+  return @{ Template = $template; Name = $name }
+}
+
+function Initialize-Project {
+  param([string[]]$InitArgs = @())
+
+  if ($InitArgs -contains "-h" -or $InitArgs -contains "--help") {
+    @"
+mimo init — create a new LukeLang project
+
+Usage:
+  mimo init [name]
+  mimo init --template api [name]
+
+Templates:
+  (default)   Hello-world main.lk
+  api         HTTP API with SQLite, routes, and health check
+"@ | Write-Host
+    return
+  }
+
+  $parsed = Parse-InitArgs $InitArgs
+  $template = $parsed.Template
+  $name = $parsed.Name
+  if (-not $name) { $name = Split-Path -Leaf (Get-Location) }
+  if (Test-Path "luke.json") { throw "luke.json already exists" }
+
+  if ($template -eq "api") {
+    Apply-TemplateApi $name
+    return
+  }
+  if ($template) { throw "unknown template '$template' (try: api)" }
+
+  New-Item -ItemType Directory -Force -Path "luke_modules" | Out-Null
+  @{
+    name = $name
     version = "0.1.0"
     main = "main.lk"
     dependencies = @{}
@@ -219,7 +432,7 @@ function Initialize-Project([string]$Name = "") {
   if (-not (Test-Path "main.lk") -and -not (Test-Path "main.luke")) {
     'print("Hello from LukeLang")' | Set-Content -Encoding UTF8 "main.lk"
   }
-  Write-Mimo "initialized project '$Name'"
+  Write-Mimo "initialized project '$name'"
   Write-Mimo "next: mimo forge greeter   or   mimo run"
 }
 
@@ -385,6 +598,7 @@ Toolchain:
 
 Packages:
   mimo init [name]
+  mimo init --template api [name]
   mimo forge <package>[@version]
   mimo remove <package>
   mimo run [file]
@@ -417,7 +631,7 @@ switch ($cmd) {
   "ls"            { Show-List }
   "eject"         { Eject-LukeLang }
   "uninstall"     { Eject-LukeLang }
-  "init"          { Initialize-Project $(if ($rest.Count) { $rest[0] } else { "" }) }
+  "init"          { Initialize-Project $rest }
   "forge"         {
     if (-not $rest.Count) { throw "usage: mimo forge <package>[@version]" }
     Add-Package $rest[0]

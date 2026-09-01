@@ -1,0 +1,16 @@
+fn test(req: Request) {
+  if true {
+    if true {
+      let x = "hello"
+      print(x)
+    }
+  }
+}
+
+fn test2(req: Request) {
+  if true {
+    let a = "one"
+  } else {
+    let a = "two"
+  }
+}

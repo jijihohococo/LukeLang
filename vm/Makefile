@@ -90,6 +90,14 @@ test-build: build/luke
 	@grep -qE '#line 7 ".*hello\.luke"' build/ex_hello.luke.c
 	@test $$(grep -c '^#line ' build/ex_hello.luke.c) -ge 7
 	@readelf --debug-dump=line build/ex_hello 2>/dev/null | grep -q 'hello\.luke'
+	@# v2 pain-point regressions: nested let hoisting, !=, httpServeForever
+	./build/luke BUILD ../examples/v2/scoping_test.lk -o build/v2_scoping_test
+	@grep -q 'LukeText a = luke_text("")' build/v2_scoping_test.luke.c
+	@grep -q 'a = luke_text("one")' build/v2_scoping_test.luke.c
+	./build/luke BUILD ../examples/v2/neq_test.lk -o build/v2_neq_test
+	@grep -q '!luke_text_eq' build/v2_neq_test.luke.c
+	./build/luke BUILD ../examples/v2/http_serve_forever_test.lk -o build/v2_http_serve_forever
+	@grep -q 'luke_http_serve(server, luke_http_wrap_handle, 0.0)' build/v2_http_serve_forever.luke.c
 	./build/luke BUILD ../examples/build/counter.luke -o build/ex_counter
 	./build/ex_counter
 	./build/luke BUILD ../examples/build/functions.luke -o build/ex_functions

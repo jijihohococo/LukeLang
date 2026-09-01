@@ -1,0 +1,9 @@
+import std/server
+
+fn handle(req: Request) {
+  httpReply(req, 200, "text/plain", "ok")
+}
+
+let server = httpListen(8807)
+httpServeForever(server, handle)
+print("serve_forever_ok=1")

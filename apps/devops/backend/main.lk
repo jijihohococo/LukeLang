@@ -1,0 +1,80 @@
+// DevOps API — LukeLang backend (Postgres)
+
+import std/server
+import std/pg
+import std/env
+
+fn jsonOrEmpty(rows: str) -> str {
+  if rows == "" {
+    return "[]"
+  }
+  return rows
+}
+
+fn pgDsn() -> str {
+  let fromEnv = getEnv("LUKE_PG_CONN")
+  if fromEnv != "" {
+    return fromEnv
+  }
+  return "host=127.0.0.1 port=5432 dbname=luke_devops user=luke_ops password=luke_ops"
+}
+fn handle(req: Request) {
+  let method = httpMethod(req)
+  let path = httpPath(req)
+  let pg = pgOpen(pgDsn())
+  var none: list = []
+
+  if method == "GET" {
+    if path == "/api/health" {
+      httpReply(req, 200, "application/json", "{\"ok\":true,\"service\":\"luke-devops\"}")
+      pgClose(pg)
+      return
+    }
+
+    if path == "/api/overview" {
+      let sql = "SELECT row_to_json(t)::text FROM (SELECT (SELECT cpu_pct FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS cpu, (SELECT mem_pct FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS mem, (SELECT disk_pct FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS disk, (SELECT load1 FROM host_metrics ORDER BY recorded_at DESC LIMIT 1) AS load1, (SELECT COUNT(*) FROM services) AS services_total, (SELECT COUNT(*) FROM services s WHERE (SELECT sc.status FROM service_checks sc WHERE sc.service_id = s.id ORDER BY sc.checked_at DESC LIMIT 1) = 'up') AS services_up) t"
+      var body = pgQueryBind(pg, sql, none)
+      if body == "" {
+        body = "{\"cpu\":0,\"mem\":0,\"disk\":0,\"load1\":0,\"services_up\":0,\"services_total\":0}"
+      }
+      httpReply(req, 200, "application/json", body)
+      pgClose(pg)
+      return
+    }
+
+    if path == "/api/services" {
+      let sql = "SELECT json_agg(row_to_json(t))::text FROM (SELECT slug, name, description, check_url, (SELECT status FROM service_checks sc WHERE sc.service_id = services.id ORDER BY checked_at DESC LIMIT 1) AS status, (SELECT latency_ms FROM service_checks sc WHERE sc.service_id = services.id ORDER BY checked_at DESC LIMIT 1) AS latency_ms FROM services ORDER BY slug) t"
+      let raw = pgQueryBind(pg, sql, none)
+      let body = jsonOrEmpty(raw)
+      httpReply(req, 200, "application/json", body)
+      pgClose(pg)
+      return
+    }
+
+    if path == "/api/metrics" {
+      let sql = "SELECT json_agg(row_to_json(t) ORDER BY t.recorded_at)::text FROM (SELECT cpu_pct, mem_pct, disk_pct, load1, recorded_at FROM host_metrics ORDER BY recorded_at DESC LIMIT 120) t"
+      let raw = pgQueryBind(pg, sql, none)
+      let body = jsonOrEmpty(raw)
+      httpReply(req, 200, "application/json", body)
+      pgClose(pg)
+      return
+    }
+
+    if path == "/api/incidents" {
+      let sql = "SELECT json_agg(row_to_json(t) ORDER BY t.started_at DESC)::text FROM (SELECT id, title, status, summary, started_at, resolved_at FROM incidents ORDER BY started_at DESC LIMIT 20) t"
+      let raw = pgQueryBind(pg, sql, none)
+      let body = jsonOrEmpty(raw)
+      httpReply(req, 200, "application/json", body)
+      pgClose(pg)
+      return
+    }
+  }
+
+  httpReply(req, 404, "application/json", "{\"error\":\"not found\"}")
+  pgClose(pg)
+}
+
+print("luke devops api :8820")
+let server = httpListen(8820)
+httpServeForever(server, handle)
+print("devops_api_done=1")

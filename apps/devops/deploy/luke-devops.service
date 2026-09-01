@@ -1,0 +1,15 @@
+[Unit]
+Description=LukeLang DevOps API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/luke/devops
+Environment=LUKE_PG_CONN=host=127.0.0.1 port=5432 dbname=luke_devops user=luke_ops password=luke_ops
+ExecStart=/var/luke/devops/devops_api
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

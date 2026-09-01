@@ -6956,6 +6956,32 @@ bool parse(BC &bc, const std::string &source) {
     bool sawReturn = false;
     for (size_t i = 0; i < fn.body.size(); ++i) {
       auto &t = fn.body[i];
+      /* Register MY NAME IS locals so GIVE BACK type inference sees them. */
+      if (startsWithCI(t, "MY NAME IS ")) {
+        auto rest = trim(t.substr(11));
+        auto U = toUpper(rest);
+        Ty forced = Ty::vod();
+        auto asPos = U.find(" AS ");
+        auto setPos = U.find(" SET TO ");
+        std::string name;
+        if (asPos != std::string::npos && (setPos == std::string::npos || asPos < setPos)) {
+          name = trim(rest.substr(0, asPos));
+          auto after = trim(rest.substr(asPos + 4));
+          auto set2 = toUpper(after).find(" SET TO ");
+          if (set2 != std::string::npos) {
+            forced = probe.parseTy(trim(after.substr(0, set2)));
+          } else {
+            forced = probe.parseTy(after);
+          }
+        } else if (setPos != std::string::npos) {
+          name = trim(rest.substr(0, setPos));
+        } else {
+          name = trim(rest);
+        }
+        if (!name.empty())
+          probe.locals[name] = forced.k != K::Void ? forced : Ty::text();
+        continue;
+      }
       if (startsWithCI(t, "GIVE BACK ") || startsWithCI(t, "SEND BACK ") ||
           startsWithCI(t, "HAND BACK ")) {
         auto U = toUpper(t);

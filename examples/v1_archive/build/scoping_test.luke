@@ -1,0 +1,19 @@
+// Syntax v2 golden corpus twin — block-scoped let hoisting regression.
+// Twin of examples/v2/scoping_test.lk
+
+THIS IS FUNCTION test WITH req AS REQUEST DO
+  IF TRUE DO
+    IF TRUE DO
+      MY NAME IS x SET TO "hello"
+      SPEAK x
+    END IF
+  END IF
+END FUNCTION
+
+THIS IS FUNCTION test2 WITH req AS REQUEST DO
+  IF TRUE DO
+    MY NAME IS a SET TO "one"
+  ELSE
+    MY NAME IS a SET TO "two"
+  END IF
+END FUNCTION

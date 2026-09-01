@@ -1,0 +1,12 @@
+// Syntax v2 golden corpus twin — httpServeForever unlimited maxConn sugar.
+// Twin of examples/v2/http_serve_forever_test.lk
+
+IMPORT std/server
+
+THIS IS FUNCTION handle WITH req AS REQUEST DO
+  ASK httpReply WITH req, 200, "text/plain", "ok"
+END FUNCTION
+
+MY NAME IS server SET TO ASK httpListen WITH 8807
+ASK httpServeForever WITH server, handle
+SPEAK "serve_forever_ok=1"

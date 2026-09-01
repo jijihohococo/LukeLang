@@ -112,6 +112,10 @@ function Inject-LukeLang([string]$Spec = "lukelang") {
   $exe = Get-ChildItem -Path $stage -Recurse -Filter "luke.exe" | Select-Object -First 1
   if (-not $exe) { throw "archive missing luke.exe" }
   Copy-Item $exe.FullName (Join-Path $root "luke.exe")
+  $runtime = Join-Path $stage "runtime"
+  if (Test-Path $runtime) { Copy-Item $runtime (Join-Path $root "runtime") -Recurse -Force }
+  $stdlib = Join-Path $stage "stdlib"
+  if (Test-Path $stdlib) { Copy-Item $stdlib (Join-Path $root "stdlib") -Recurse -Force }
   Remove-Item -Recurse -Force $stage
 
   Copy-Item (Join-Path $root "luke.exe") (Join-Path $MimoBin "luke.exe") -Force
@@ -345,6 +349,13 @@ function Find-Luke {
 
 function Invoke-MimoRun([string]$File = "") {
   $luke = Find-Luke
+  $tcRoot = Split-Path -Parent $luke
+  if (Test-Path (Join-Path $tcRoot "runtime")) {
+    $env:LUKE_RUNTIME = Join-Path $tcRoot "runtime"
+  }
+  if (Test-Path (Join-Path $tcRoot "stdlib")) {
+    $env:LUKE_STDLIB = Join-Path $tcRoot "stdlib"
+  }
   if (-not $File) {
     if (Test-Path "luke.json") {
       $File = (Get-Content -Raw "luke.json" | ConvertFrom-Json).main

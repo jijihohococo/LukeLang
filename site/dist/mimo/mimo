@@ -260,6 +260,8 @@ PY
       link_name=luke
     fi
   fi
+  [ -d "${stage}/runtime" ] && cp -a "${stage}/runtime" "${root}/"
+  [ -d "${stage}/stdlib" ] && cp -a "${stage}/stdlib" "${root}/"
   rm -rf "$stage"
 
   ln -sfn "${root}/${link_name}" "${MIMO_BIN}/luke"
@@ -582,10 +584,30 @@ PY
   [ -d luke_modules ] && pkg_write_lock || true
 }
 
+toolchain_root_of() {
+  local bin="$1"
+  local real="$bin"
+  if have readlink; then
+    real="$(readlink -f "$bin" 2>/dev/null || true)"
+  elif have realpath; then
+    real="$(realpath "$bin" 2>/dev/null || true)"
+  fi
+  [ -n "$real" ] || real="$bin"
+  dirname "$real"
+}
+
 pkg_run() {
   local file="${1:-}"
   local luke_bin
   luke_bin="$(find_luke)" || die "luke not found — run: mimo inject lukelang"
+  local tc_root
+  tc_root="$(toolchain_root_of "$luke_bin")"
+  if [ -d "${tc_root}/runtime" ]; then
+    export LUKE_RUNTIME="${tc_root}/runtime"
+  fi
+  if [ -d "${tc_root}/stdlib" ]; then
+    export LUKE_STDLIB="${tc_root}/stdlib"
+  fi
   if [ -z "$file" ]; then
     if [ -f luke.json ]; then
       file="$(python3 -c 'import json; print(json.load(open("luke.json")).get("main","main.lk"))')"

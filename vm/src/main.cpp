@@ -118,7 +118,36 @@ std::string dirnameOf(std::string path) {
   return path.substr(0, slash);
 }
 
+static bool lukePathHasFile(const std::string &dir, const std::string &rel) {
+  return std::ifstream(dir + "/" + rel).good();
+}
+
+static std::string gLukeArgv0;
+
+static std::string executableDir() {
+#if defined(__linux__)
+  char buf[4096];
+  ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (n > 0) {
+    buf[n] = '\0';
+    return dirnameOf(buf);
+  }
+#endif
+  if (!gLukeArgv0.empty()) {
+    if (gLukeArgv0.find('/') != std::string::npos || gLukeArgv0.find('\\') != std::string::npos)
+      return dirnameOf(gLukeArgv0);
+  }
+  return {};
+}
+
 std::string findRuntimeInclude() {
+  if (const char *env = std::getenv("LUKE_RUNTIME")) {
+    if (*env && lukePathHasFile(env, "luke_rt.h")) return env;
+  }
+  if (std::string exe = executableDir(); !exe.empty()) {
+    if (lukePathHasFile(exe + "/runtime", "luke_rt.h")) return exe + "/runtime";
+    if (lukePathHasFile(exe + "/../runtime", "luke_rt.h")) return exe + "/../runtime";
+  }
   if (std::ifstream("runtime/luke_rt.h")) return "runtime";
   if (std::ifstream("vm/runtime/luke_rt.h")) return "vm/runtime";
   if (std::ifstream("../runtime/luke_rt.h")) return "../runtime";
@@ -166,10 +195,21 @@ std::string loadLukeSource(const std::string &path, bool *okOut) {
   return out;
 }
 
+static bool lukeStdlibDir(const std::string &dir) {
+  return lukePathHasFile(dir, "files.lk") || lukePathHasFile(dir, "files.luke");
+}
+
 std::string findStdlib() {
-  if (std::ifstream("stdlib/files.luke")) return "stdlib";
-  if (std::ifstream("vm/stdlib/files.luke")) return "vm/stdlib";
-  if (std::ifstream("../stdlib/files.luke")) return "../stdlib";
+  if (const char *env = std::getenv("LUKE_STDLIB")) {
+    if (*env && lukeStdlibDir(env)) return env;
+  }
+  if (std::string exe = executableDir(); !exe.empty()) {
+    if (lukeStdlibDir(exe + "/stdlib")) return exe + "/stdlib";
+    if (lukeStdlibDir(exe + "/../stdlib")) return exe + "/../stdlib";
+  }
+  if (lukeStdlibDir("stdlib")) return "stdlib";
+  if (lukeStdlibDir("vm/stdlib")) return "vm/stdlib";
+  if (lukeStdlibDir("../stdlib")) return "../stdlib";
   return "stdlib";
 }
 
@@ -726,6 +766,7 @@ int runDebug(const std::string &path, const std::string &outBin, const std::stri
 }  // namespace
 
 int main(int argc, char **argv) {
+  gLukeArgv0 = (argc > 0 && argv[0]) ? argv[0] : "";
   std::srand((unsigned)std::time(nullptr));
   if (argc < 2) {
     printUsage(argv[0]);

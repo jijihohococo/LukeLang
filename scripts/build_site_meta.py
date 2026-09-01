@@ -25,6 +25,12 @@ STATUS_ORIGIN = "https://status.lukelang.org"
 REPO = "https://github.com/lucasdmarshall/LukeLang"
 OG_IMAGE = f"{ORIGIN}/assets/og.png"
 AUTHOR = "Kaung Myat San"
+TITLE_SUFFIX = " | LukeLang"
+SITE_DESCRIPTION = (
+    "Build native binaries and WebAssembly from one codebase. "
+    "mimo install, compile to C, ship anywhere."
+)
+OG_IMAGE_ALT = "LukeLang: build native binaries and WASM from one codebase"
 
 BEGIN = "<!-- seo:begin -->"
 END = "<!-- seo:end -->"
@@ -106,8 +112,7 @@ def jsonld(path: str, title: str, desc: str, url: str) -> str:
         "@id": f"{ORIGIN}/#website",
         "url": ORIGIN,
         "name": "LukeLang",
-        "description": "Myanmar's first official programming language — reactive-native and "
-                       "full-stack, compiling to native C and WebAssembly.",
+        "description": SITE_DESCRIPTION,
         "inLanguage": "en",
         "publisher": {"@id": f"{ORIGIN}/#author"},
     }
@@ -135,7 +140,7 @@ def jsonld(path: str, title: str, desc: str, url: str) -> str:
     elif path.startswith("docs/") and path != "docs/":
         graph.append({
             "@type": "TechArticle",
-            "headline": title.replace(" — LukeLang", ""),
+            "headline": title.replace(TITLE_SUFFIX, ""),
             "description": desc,
             "url": url,
             "author": {"@id": f"{ORIGIN}/#author"},
@@ -149,13 +154,13 @@ def jsonld(path: str, title: str, desc: str, url: str) -> str:
                 {"@type": "ListItem", "position": 2, "name": "Documentation",
                  "item": f"{ORIGIN}/docs/"},
                 {"@type": "ListItem", "position": 3,
-                 "name": title.replace(" — LukeLang", ""), "item": url},
+                 "name": title.replace(TITLE_SUFFIX, ""), "item": url},
             ],
         })
     else:
         graph.append({
             "@type": "WebPage",
-            "name": title.replace(" — LukeLang", ""),
+            "name": title.replace(TITLE_SUFFIX, ""),
             "description": desc,
             "url": url,
             "isPartOf": {"@id": f"{ORIGIN}/#website"},
@@ -187,8 +192,7 @@ def seo_block(path: str, title: str, desc: str) -> str:
         f'<meta property="og:image" content="{OG_IMAGE}" />',
         '<meta property="og:image:width" content="1200" />',
         '<meta property="og:image:height" content="630" />',
-        '<meta property="og:image:alt" content="LukeLang — Myanmar\'s first official '
-        'programming language" />',
+        f'<meta property="og:image:alt" content="{html.escape(OG_IMAGE_ALT, quote=True)}" />',
         '<meta name="twitter:card" content="summary_large_image" />',
         f'<meta name="twitter:title" content="{esc_t}" />',
         f'<meta name="twitter:description" content="{esc_d}" />',

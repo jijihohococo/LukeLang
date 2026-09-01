@@ -267,7 +267,8 @@ def footer(depth: int) -> str:
   </div>
   <div class="footer__grid">
     <p class="footer__line">
-      Myanmar's first official programming language.<br />
+      Build native binaries and WASM from one codebase.<br />
+      mimo install · compile to C · ship anywhere.<br />
       Designed and developed by <b>Kaung Myat San</b>.
     </p>
     <nav class="footer__nav" aria-label="Footer">
@@ -292,7 +293,7 @@ def shell(*, depth: int, title: str, description: str, body: str) -> str:
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>{html.escape(title)} — LukeLang</title>
+<title>{html.escape(title)}{html.escape(" | LukeLang")}</title>
 <meta name="description" content="{html.escape(description)}" />
 <meta name="theme-color" content="#050806" />
 <link rel="icon" href="{up}assets/favicon.png" type="image/png" />

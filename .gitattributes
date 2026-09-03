@@ -1,0 +1,29 @@
+# GitHub Linguist overrides for LukeLang.
+#
+# Why the language bar shows C++/HTML and not "LukeLang":
+#   GitHub only counts languages registered in github-linguist/linguist.
+#   .luke / .lk are not registered yet, so ~300 Luke sources are invisible
+#   and the bar is dominated by the site (HTML) and the compiler (C++/C).
+#
+# Until LukeLang is accepted upstream, these overrides keep the bar honest:
+# generated site/docs and release blobs should not look like "the project".
+
+# --- Site & generated docs ---
+site/** linguist-documentation
+site/docs/** linguist-generated
+site/dist/** linguist-vendored
+site/ops/** linguist-documentation
+
+# --- Release / packaged artifacts ---
+*.tar.gz linguist-vendored
+*.zip linguist-vendored
+*.sha256 linguist-vendored
+
+# --- Archives / vendored ---
+examples/v1_archive/** linguist-documentation
+vm/stdlib_v1_archive/** linguist-documentation
+**/node_modules/** linguist-vendored
+
+# --- Luke sources: detectable once Linguist knows the language ---
+*.luke linguist-detectable
+*.lk linguist-detectable

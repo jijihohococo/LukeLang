@@ -31,15 +31,21 @@ ARCHIVE_EXT=tar.gz
 case "$TARGET" in
   linux-x86_64)
     CXX_BIN="${CXX_BIN:-g++}"
+    # Avoid "libstdc++.so.6: version GLIBCXX_… not found" on older distros.
+    # glibc stays dynamic (fully static Linux links are fragile).
+    LDFLAGS_EXTRA+=(-static-libgcc -static-libstdc++)
     ;;
   linux-i686)
     CXX_BIN="${CXX_BIN:-i686-linux-gnu-g++}"
+    LDFLAGS_EXTRA+=(-static-libgcc -static-libstdc++)
     ;;
   linux-aarch64)
     CXX_BIN="${CXX_BIN:-aarch64-linux-gnu-g++}"
+    LDFLAGS_EXTRA+=(-static-libgcc -static-libstdc++)
     ;;
   linux-armv7)
     CXX_BIN="${CXX_BIN:-arm-linux-gnueabihf-g++}"
+    LDFLAGS_EXTRA+=(-static-libgcc -static-libstdc++)
     ;;
   darwin-x86_64)
     CXX_BIN="${CXX_BIN:-clang++}"
@@ -55,11 +61,15 @@ case "$TARGET" in
     CXX_BIN="${CXX_BIN:-x86_64-w64-mingw32-g++}"
     EXE_NAME=luke.exe
     ARCHIVE_EXT=zip
+    # End users do not have MinGW DLLs (libstdc++-6.dll, libgcc_s_seh-1.dll,
+    # libwinpthread-1.dll). Ship a fully static compiler binary.
+    LDFLAGS_EXTRA+=(-static -static-libgcc -static-libstdc++)
     ;;
   windows-i686)
     CXX_BIN="${CXX_BIN:-i686-w64-mingw32-g++}"
     EXE_NAME=luke.exe
     ARCHIVE_EXT=zip
+    LDFLAGS_EXTRA+=(-static -static-libgcc -static-libstdc++)
     ;;
   windows-arm64)
     # Prefer a native Windows ARM64 toolchain when present (CI).
@@ -75,6 +85,7 @@ case "$TARGET" in
     fi
     EXE_NAME=luke.exe
     ARCHIVE_EXT=zip
+    LDFLAGS_EXTRA+=(-static -static-libgcc -static-libstdc++)
     ;;
   *)
     echo "unknown target: $TARGET" >&2
@@ -124,8 +135,15 @@ cp -R "$VM/runtime" "$STAGE/runtime"
 cp -R "$VM/stdlib" "$STAGE/stdlib"
 cp "$SRC_BIN" "$STAGE/$EXE_NAME"
 chmod +x "$STAGE/$EXE_NAME" 2>/dev/null || true
-printf 'LukeLang %s (%s)\nBuilt with mimo release packaging.\n' "$VERSION" "$TARGET" \
-  > "$STAGE/README.txt"
+{
+  printf 'LukeLang %s (%s)\nBuilt with mimo release packaging.\n' "$VERSION" "$TARGET"
+  case "$TARGET" in
+    windows-*)
+      printf 'Windows binaries are statically linked. You should not need MinGW DLLs\n'
+      printf '(libstdc++-6.dll, libgcc_s_seh-1.dll, libwinpthread-1.dll).\n'
+      ;;
+  esac
+} > "$STAGE/README.txt"
 
 ARTIFACT="$OUT_DIR/luke-${TARGET}.${ARCHIVE_EXT}"
 rm -f "$ARTIFACT"
